@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card, Form, Input, Select, Button, message } from 'antd';
-import { getSettings, updateSettings } from '../../api/settings';
+import { getSettings, updateSettings, type SystemSettingsRes } from '../../api/settings';
 
 export default function Settings() {
   const [form] = Form.useForm();
@@ -10,9 +10,10 @@ export default function Settings() {
   useEffect(() => {
     getSettings()
       .then((res) => {
+        const data = res as unknown as SystemSettingsRes;
         form.setFieldsValue({
-          defaultProvider: res.defaultProvider ?? 'doubao',
-          aiBaseUrl: res.aiBaseUrl ?? '',
+          defaultProvider: data.defaultProvider ?? 'doubao',
+          aiBaseUrl: data.aiBaseUrl ?? '',
           doubaoKey: '', // 脱敏不返回，仅用于更新
           openaiKey: '',
         });

@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Table, Card, Input, Select, Space, Button, DatePicker, message, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import dayjs from 'dayjs';
-import { getQueries, type QueryItem } from '../../api/queries';
+import { getQueries, type QueryItem, type QueriesRes } from '../../api/queries';
 
 const riskColor: Record<string, string> = {
   high: '#FF4D4F',
@@ -25,7 +24,7 @@ export default function QueriesList() {
     setLoading(true);
     const [startDate, endDate] = dateRange ?? [];
     getQueries({ page, pageSize, riskLevel, startDate, endDate })
-      .then((res) => setData({ items: res.items, total: res.total }))
+      .then((res) => setData({ items: (res as unknown as QueriesRes).items, total: (res as unknown as QueriesRes).total }))
       .catch((e) => message.error(e?.message ?? '加载失败'))
       .finally(() => setLoading(false));
   };

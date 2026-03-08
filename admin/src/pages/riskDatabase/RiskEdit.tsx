@@ -37,11 +37,11 @@ export default function RiskEdit() {
   const onFinish = (values: Record<string, unknown>) => {
     const tags = typeof values.tags === 'string' ? values.tags.split(/[,，\s]+/).filter(Boolean) : [];
     const payload = {
-      type: values.type,
-      content: values.content,
-      riskLevel: values.riskLevel,
-      riskCategory: values.riskCategory || null,
-      source: values.source || null,
+      type: values.type as RiskType,
+      content: values.content as string,
+      riskLevel: values.riskLevel as string,
+      riskCategory: (values.riskCategory as string) || null,
+      source: (values.source as string) || null,
       tags,
     };
     setLoading(true);

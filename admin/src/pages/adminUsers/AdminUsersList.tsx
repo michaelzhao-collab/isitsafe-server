@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Table, Card, Button, message, Tag } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
-import { getAdminUsers, type AdminUserItem } from '../../api/adminUsers';
+import { Table, Card, Tag } from 'antd';
+import { getAdminUsers, type AdminUserItem, type AdminUsersRes } from '../../api/adminUsers';
 
 export default function AdminUsersList() {
   const [loading, setLoading] = useState(false);
@@ -12,7 +11,7 @@ export default function AdminUsersList() {
   const load = () => {
     setLoading(true);
     getAdminUsers({ page, pageSize })
-      .then((res) => setData({ items: res.items ?? [], total: res.total ?? 0 }))
+      .then((res) => setData({ items: (res as unknown as AdminUsersRes).items ?? [], total: (res as unknown as AdminUsersRes).total ?? 0 }))
       .catch(() => setData({ items: [], total: 0 }))
       .finally(() => setLoading(false));
   };

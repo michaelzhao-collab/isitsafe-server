@@ -19,7 +19,7 @@ export default function QueryDetail() {
   useEffect(() => {
     if (!id) return;
     getQueryDetail(id)
-      .then(setQuery)
+      .then((res) => setQuery(res as unknown as QueryItem))
       .catch((e) => message.error(e?.message ?? '加载失败'))
       .finally(() => setLoading(false));
   }, [id]);

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Table, Card, Select, Space, Button, message, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { PlusOutlined } from '@ant-design/icons';
-import { getRiskData, deleteRiskData, type RiskItem, type RiskType } from '../../api/risk';
+import { getRiskData, deleteRiskData, type RiskItem, type RiskType, type RiskListRes } from '../../api/risk';
 
 const riskTypes: { label: string; value: RiskType }[] = [
   { label: 'phone', value: 'phone' },
@@ -30,7 +30,7 @@ export default function RiskList() {
   const load = () => {
     setLoading(true);
     getRiskData({ page, pageSize, type: typeFilter, riskLevel: riskLevelFilter })
-      .then((res) => setData({ items: res.items ?? [], total: res.total ?? 0 }))
+      .then((res) => setData({ items: (res as unknown as RiskListRes).items ?? [], total: (res as unknown as RiskListRes).total ?? 0 }))
       .catch(() => setData({ items: [], total: 0 }))
       .finally(() => setLoading(false));
   };

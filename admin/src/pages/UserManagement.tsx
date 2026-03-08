@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Card, Input, Button, Space, message } from 'antd';
+import { Table, Card, Button, Space, message } from 'antd';
 import { api } from '../api/client';
 
 export default function UserManagement() {

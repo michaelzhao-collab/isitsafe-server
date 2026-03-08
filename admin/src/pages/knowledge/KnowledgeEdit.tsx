@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Form, Input, Button, message } from 'antd';
+import { Card, Form, Input, Select, Button, message } from 'antd';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import request from '../../api/request';
 import { createKnowledge, updateKnowledge } from '../../api/knowledge';

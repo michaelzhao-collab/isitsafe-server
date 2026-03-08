@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Table, Card, Select, Space, Button, message, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { getReports, updateReportStatus, type ReportItem, type ReportStatus } from '../../api/reports';
+import { getReports, updateReportStatus, type ReportItem, type ReportStatus, type ReportsRes } from '../../api/reports';
 
 const statusMap: Record<ReportStatus, string> = {
   PENDING: '待处理',
@@ -26,7 +26,7 @@ export default function ReportsList() {
   const load = () => {
     setLoading(true);
     getReports({ page, pageSize, status })
-      .then((res) => setData({ items: res.items, total: res.total }))
+      .then((res) => setData({ items: (res as unknown as ReportsRes).items, total: (res as unknown as ReportsRes).total }))
       .catch((e) => message.error(e?.message ?? '加载失败'))
       .finally(() => setLoading(false));
   };

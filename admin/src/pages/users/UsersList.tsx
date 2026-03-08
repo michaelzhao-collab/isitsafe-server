@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Table, Card, Input, Select, Space, Button, message, Tag, Avatar } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { getUsers, updateUserStatus, type UserItem } from '../../api/users';
+import { getUsers, updateUserStatus, type UserItem, type UsersRes } from '../../api/users';
 
 export default function UsersList() {
   const navigate = useNavigate();
@@ -15,7 +15,7 @@ export default function UsersList() {
   const load = () => {
     setLoading(true);
     getUsers({ page, pageSize, country })
-      .then((res) => setData({ items: res.items, total: res.total }))
+      .then((res) => setData({ items: (res as unknown as UsersRes).items, total: (res as unknown as UsersRes).total }))
       .catch((e) => message.error(e?.message ?? '加载失败'))
       .finally(() => setLoading(false));
   };

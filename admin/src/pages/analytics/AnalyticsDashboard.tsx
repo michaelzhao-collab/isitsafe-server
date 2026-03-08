@@ -47,26 +47,26 @@ export default function AnalyticsDashboard() {
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="每日查询量（当前统计）" value={overview.todayQueries ?? overview.totalQueries ?? 0} />
+            <Statistic title="每日查询量（当前统计）" value={(overview.todayQueries ?? overview.totalQueries ?? 0) as number} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="AI 调用量" value={overview.todayAiCalls ?? overview.aiLogsTotal ?? 0} />
+            <Statistic title="AI 调用量" value={(overview.todayAiCalls ?? overview.aiLogsTotal ?? 0) as number} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
               title="高风险数量"
-              value={overview.highRiskCount ?? 0}
+              value={(overview.highRiskCount ?? 0) as number}
               valueStyle={{ color: '#FF4D4F' }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="用户总数" value={overview.totalUsers ?? '-'} />
+            <Statistic title="用户总数" value={(overview.totalUsers ?? '-') as string | number} />
           </Card>
         </Col>
         <Col span={24}>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Table, Card, Select, Input, Space, Button, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { PlusOutlined } from '@ant-design/icons';
-import { getKnowledge, deleteKnowledge, type KnowledgeItem } from '../../api/knowledge';
+import { getKnowledge, deleteKnowledge, type KnowledgeItem, type KnowledgeListRes } from '../../api/knowledge';
 import { KNOWLEDGE_CATEGORIES } from '../../api/knowledge';
 
 export default function KnowledgeList() {
@@ -17,7 +17,7 @@ export default function KnowledgeList() {
   const load = () => {
     setLoading(true);
     getKnowledge({ page, pageSize, category, search: search || undefined })
-      .then((res) => setData({ items: res.items, total: res.total }))
+      .then((res) => setData({ items: (res as unknown as KnowledgeListRes).items, total: (res as unknown as KnowledgeListRes).total }))
       .catch((e) => message.error(e?.message ?? '加载失败'))
       .finally(() => setLoading(false));
   };
@@ -88,6 +88,8 @@ export default function KnowledgeList() {
           <Input.Search
             placeholder="关键词搜索"
             allowClear
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             onSearch={handleSearch}
             style={{ width: 200 }}
           />

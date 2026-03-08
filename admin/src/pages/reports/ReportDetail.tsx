@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Descriptions, Button, Spin, message, Tag } from 'antd';
+import { Card, Descriptions, Button, Spin, message, Tag, Space } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import request from '../../api/request';
 import { updateReportStatus, type ReportStatus } from '../../api/reports';
