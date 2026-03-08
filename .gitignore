@@ -31,6 +31,7 @@ Thumbs.db
 
 # 缓存
 .cache/
+.vite/
 .parcel-cache/
 .turbo/
 *.tsbuildinfo

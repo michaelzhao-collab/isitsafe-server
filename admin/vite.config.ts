@@ -7,4 +7,6 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
   },
+  // 缓存放到项目根，避免 node_modules/.vite 在 Railway 构建时被锁定导致 EBUSY
+  cacheDir: '.vite',
 });
