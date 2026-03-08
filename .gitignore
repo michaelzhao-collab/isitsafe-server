@@ -1,0 +1,75 @@
+# 环境变量（含敏感信息，不要提交）
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# 依赖目录
+node_modules/
+
+# 构建产物
+dist/
+build/
+out/
+.next/
+
+# 日志
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
+.vscode/
+*.sublime-*
+
+# 缓存
+.cache/
+.parcel-cache/
+.turbo/
+*.tsbuildinfo
+
+# 测试 / 覆盖率
+coverage/
+.nyc_output/
+
+# Server (NestJS / Prisma)：若 Prisma 生成到 node_modules 则已忽略
+# 无额外必忽略项
+
+# Admin (Vite)：dist 已上面统一忽略
+# 无额外必忽略项
+
+# iOS (Xcode)
+iOS/**/DerivedData/
+iOS/**/build/
+*.xcuserstate
+*.xcuserdatad/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+**/Pods/
+**/.symlinks/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# 其他
+*.local
+.vercel
+.netlify
