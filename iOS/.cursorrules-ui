@@ -1,0 +1,9 @@
+# iOS UI 调整 — Cursor 规则（仅做 UI 时必读）
+
+当你在 ios/ 下做 **UI、样式、布局、组件** 相关修改时，必须遵守：
+
+1. **禁止修改**：Networking/、Models/ 中与接口相关的字段、Repositories/、Services/、ViewModel 中的接口调用逻辑（调哪个 API、传什么参、用哪个返回字段）。
+2. **允许修改**：Views/ 布局/颜色/字体/间距/圆角/阴影/图标、组件拆分、纯展示组件、ViewModel 中仅用于 UI 绑定的展示状态（不改变接口调用）。
+3. **改完后必做**：按 `ios/UI-REGRESSION-CHECKLIST.md` 做接口回归检查，并输出「接口回归检查结果」。
+
+完整规则见：**ios/UI-CHANGE-RULES.md**。

@@ -229,7 +229,7 @@ dist/
 41. 回到项目画布，再次点击 **「+ New」**。
 42. 选择 **「GitHub Repo」**，仍选择 **`michaelzhao-collab/isitsafe-server`**（isitsafe-server）仓库，添加。
 43. 会**再**多出**一个**服务（这是第二个、也是最后一个从仓库来的应用服务），点击进入该服务。
-44. 打开 **「Settings」** → **「Source」**：点 **「Add Root Directory」** 或在该页填 Root Directory 为 **`admin`**（若仓库里是 **`Admin`** 则填 **`Admin`**）；确认 **Branch connected to production** 为 **`main`**（或你推送的分支）。
+44. 打开 **「Settings」** → **「Source」**：点 **「Add Root Directory」** 或在该页填 Root Directory 为 **`admin`**（**不要**写成 **`/admin`**，不要前导斜杠；若仓库里是 **`Admin`** 则填 **`Admin`**）；确认 **Branch connected to production** 为 **`main`**（或你推送的分支）。
 45. 保存。至此项目里共 **4 个服务**：PostgreSQL、Redis、Server、Admin。
 
 ### 4.2 设置 Admin 的构建与输出（第 46～50 步）
@@ -271,8 +271,44 @@ dist/
 ## 五、CORS 与管理员账号说明
 
 - **CORS**：当前 Server 为 `origin: true`，允许任意来源。若后续要限制为 Admin 域名，可在 Server 的 Variables 中增加 **`CORS_ORIGIN`** 等并在代码中使用。
-- **Admin 登录**：登录请求会发往 **`VITE_API_BASE_URL`** 下的接口（如 `/api/admin/login` 等），只要该地址正确且 Server 已部署成功，登录与后台接口即可正常使用。
-- **首次无管理员**：需在数据库 **`users`** 表中插入一条 **`role = 'ADMIN'`** 的用户，或通过 Prisma Studio / 自定义 seed 创建，再用该账号登录 Admin。
+- **Admin 登录**：管理后台使用 **用户名 + 密码**，接口为 **`POST /api/admin/auth/login`**（与 C 端手机号+验证码登录分离）。**`VITE_API_BASE_URL`** 须指向 Server 的 API 根（如 `https://api.starlensai.com/api`），否则会报错或 Internal server error。
+- **首次添加管理员**：通过执行 **seed** 创建（见下节「执行 seed」）。Seed 会创建/更新用户名为 **`admin`**、默认密码 **`Admin123!`**、角色为 **SUPERADMIN** 的账号；**首次登录后请立即在后台右上角「修改密码」中更换密码**。
+- **修改管理员密码**：登录管理后台后，点击右上角 **「修改密码」**，填写当前密码与新密码即可；或调用 **`PUT /api/admin/auth/change-password`**（Body: `currentPassword`、`newPassword`，需带管理员 token）。
+
+### 5.1 执行 seed（创建管理员与示例数据）
+
+Seed 会创建管理后台账号（username: admin / 默认密码: Admin123!）以及示例 risk_data、knowledge_cases、settings。**Railway 当前不提供在服务器上直接执行任意命令的界面**，只能用下面两种方式之一在**本地**执行（执行时会把数据写入 Railway 上的 PostgreSQL）。
+
+**方式一：本地用 Railway 注入的环境变量执行（推荐）**
+
+1. 安装 [Railway CLI](https://docs.railway.app/develop/cli)：`npm i -g @railway/cli` 或按官网安装。
+2. 在终端登录并关联项目：`railway login`，在项目根目录执行 `railway link` 选择你的 Railway 项目（或先 `cd Server` 再 link，使当前目录对应 Server 服务）。
+3. 进入 Server 目录并执行 seed（CLI 会注入该项目/服务的 `DATABASE_URL` 等变量）：
+   ```bash
+   cd Server
+   railway run npx prisma db seed
+   ```
+4. 若未 link 到具体服务，可指定服务：`railway run --service "你的 Server 服务名" npx prisma db seed`。执行成功后，用用户名 **admin**、密码 **Admin123!** 登录管理后台，并尽快修改密码。
+
+**方式二：本地手动指定 DATABASE_URL**
+
+1. 在 Railway 控制台打开 **PostgreSQL** 服务 → **Variables** 或 **Connect**，复制 **`DATABASE_URL`**（或 **Public URL**，若用公网连）。
+2. 在**本机**打开终端，进入 **Server** 目录，执行（将 `你的DATABASE_URL` 替换为复制的连接串）：
+   ```bash
+   cd Server
+   DATABASE_URL="你的DATABASE_URL" npx prisma db seed
+   ```
+3. 若连接串含特殊字符，请用单引号包住：`DATABASE_URL='postgresql://...' npx prisma db seed`。执行成功后，用用户名 **admin**、密码 **Admin123!** 登录管理后台，并尽快修改密码。
+
+**首次部署且尚未有迁移时**：若 Schema 新增了字段（如 `username`、`password_hash`），需先做一次迁移再执行 seed。在本地（已配置同一 `DATABASE_URL`）执行：
+```bash
+cd Server
+# 生成并应用迁移（会创建迁移文件并写入数据库）
+npx prisma migrate dev --name add_admin_username_password
+# 再执行 seed
+npx prisma db seed
+```
+若你使用 **Railway CLI** 注入变量，可写成：`railway run npx prisma migrate dev --name add_admin_username_password`（仅本地有迁移文件时），然后 `railway run npx prisma db seed`。生产环境部署时 Server 的 **Start Command** 里已有 **`npx prisma migrate deploy`**，会自动应用已有迁移，无需在 Railway 上再执行 migrate。
 
 ---
 
@@ -280,7 +316,7 @@ dist/
 
 - [ ] **Server 健康检查**：用你的 Server 地址（自己域名如 `https://api.你的网站.com/api/health`，或 Railway 默认域名 + `/api/health`）访问，返回 JSON（如 `{"status":"ok"}`）。
 - [ ] **Admin 能打开**：用你的 Admin 地址（自己域名如 `https://admin.你的网站.com`，或 Railway 默认域名）可打开登录页。
-- [ ] **Admin 登录**：用管理员账号能登录；若无管理员，需在 PostgreSQL 的 `users` 表中新增并设 `role = 'ADMIN'`。
+- [ ] **Admin 登录**：用管理员账号（执行 seed 后为用户名 **admin**、默认密码 **Admin123!**）能登录；若无管理员，按「5.1 执行 seed」在本地执行一次 seed。
 - [ ] **Admin 请求 API**：登录后列表、统计等接口正常，无跨域或 404。
 - [ ] **数据库**：在 Railway PostgreSQL 的 Data 或本地用 `prisma studio` 连 `DATABASE_URL` 检查表是否已由迁移创建。
 - [ ] **Redis**：Server 日志中无 Redis 连接错误。
@@ -371,3 +407,60 @@ dist/
 4. 无报错且生成 **`dist/`** 目录即表示 Admin 构建正常。本地预览可执行 **`npx serve dist -s -l 3001`** 后访问 `http://localhost:3001`（需已安装 `serve`）。
 
 按上述步骤完成后，Railway 上的接口与 Admin 后台即可正常使用；本地部分仅用于自检或开发对照。
+
+---
+
+## 十二、Git 提交说明（每次改完代码后）
+
+每次修改代码并准备推送到 GitHub 时，按下面步骤操作（以下为**本次**「管理后台独立账号密码 + seed 说明」相关修改的文件与命令，之后每次改完我会在回复中列出**当次**需提交的文件与命令）。
+
+### 本次需提交的文件
+
+| 类型 | 路径 |
+|------|------|
+| Server | `Server/prisma/schema.prisma` |
+| Server | `Server/prisma/seed.ts` |
+| Server | `Server/prisma/migrations/20260308000000_add_admin_username_password/migration.sql` |
+| Server | `Server/src/modules/auth/auth.service.ts` |
+| Server | `Server/src/modules/admin/admin-auth.service.ts`（新） |
+| Server | `Server/src/modules/admin/admin-auth.controller.ts`（新） |
+| Server | `Server/src/modules/admin/admin.module.ts` |
+| Admin | `admin/src/api/admin.ts` |
+| Admin | `admin/src/pages/Login.tsx` |
+| Admin | `admin/src/components/Layout.tsx` |
+| 文档 | `docs/Railway部署教程-Server与Admin.md` |
+
+### 提交命令（在项目根目录执行）
+
+```bash
+# 1. 进入项目根目录（若当前已在根目录可省略）
+cd /Users/micheal/Documents/IsItSafe
+
+# 2. 查看状态（确认上述文件在列表中）
+git status
+
+# 3. 添加本次修改/新增的文件
+git add Server/prisma/schema.prisma \
+  Server/prisma/seed.ts \
+  "Server/prisma/migrations/20260308000000_add_admin_username_password/migration.sql" \
+  Server/src/modules/auth/auth.service.ts \
+  Server/src/modules/admin/admin-auth.service.ts \
+  Server/src/modules/admin/admin-auth.controller.ts \
+  Server/src/modules/admin/admin.module.ts \
+  admin/src/api/admin.ts \
+  admin/src/pages/Login.tsx \
+  admin/src/components/Layout.tsx \
+  docs/Railway部署教程-Server与Admin.md
+
+# 4. 提交（说明写清楚便于以后查看）
+git commit -m "feat(admin): 管理后台独立账号密码登录 + seed 与部署说明
+
+- Server: User 表增加 username/passwordHash，POST /admin/auth/login、change-password
+- Admin: 登录改为用户名+密码，右上角增加「修改密码」
+- Seed: 创建 admin/Admin123! 管理员；文档补充本地/Railway 执行 seed 与修改密码说明"
+
+# 5. 推送到远程
+git push
+```
+
+**说明**：之后每次你改完代码，我会在回复末尾给出**当次**的「需提交的文件」和「提交命令」，你复制执行即可。

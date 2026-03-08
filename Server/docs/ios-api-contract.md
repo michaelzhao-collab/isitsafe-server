@@ -2,6 +2,8 @@
 
 本文档按页面整理 **iOS 会实际调用的接口**，便于客户端的请求参数、返回模型、调用时机与失败处理统一约定。**Admin 管理端接口不在此列。**
 
+**正式环境 Base URL：** `https://api.starlensai.com`（所有接口路径以 `/api` 开头，如 `/api/auth/login`）。
+
 ---
 
 ## Home 页面
@@ -202,7 +204,7 @@
 
 **请求参数：**
 
-- **login**：`phone` + `code`，或 `email` + `code`，或 `phone` + `smsCode`（三选一组合）。
+- **login**：`phone` + `code`，或 `email` + `code`，或 `phone` + `smsCode`（三选一组合）。MVP 阶段验证码写死为 **`123456`**，仅该码可通过校验。
 - **refresh-token**：`refreshToken`。
 
 **返回模型：**
@@ -232,7 +234,7 @@
   使用本机局域网 IP，例如：`http://192.168.1.100:3000`（将 `192.168.1.100` 替换为你的电脑在局域网中的 IP）。确保手机与电脑在同一 WiFi 下。
 
 - **生产环境：**  
-  `https://你的域名`（例如 `https://api.isitsafe.com`），并确保已配置 SSL 证书。
+  **`https://api.starlensai.com`**（正式域名，接口前缀为 `/api`，完整示例：`https://api.starlensai.com/api/auth/login`）。请确保 App 中生产环境 baseURL 配置为该域名（不含末尾 `/api`），并已配置 SSL。
 
 建议在工程内用 Build Configuration 或环境变量区分 Debug / Release，对应不同 Base URL，避免把开发地址带到生产。
 

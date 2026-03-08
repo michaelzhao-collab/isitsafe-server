@@ -1,12 +1,31 @@
 /**
- * IsItSafe 种子数据：risk_data、knowledge_cases 示例，便于本地测试
+ * IsItSafe 种子数据：管理员账号、risk_data、knowledge_cases 示例
  * 执行：npx prisma db seed
  */
 import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+/** 管理后台默认账号（仅 seed 时创建，首次部署后请尽快修改密码） */
+const ADMIN_USERNAME = 'admin';
+const ADMIN_DEFAULT_PASSWORD = 'Admin123!';
+
 async function main() {
+  // ---------- 管理后台管理员账号（用户名+密码，与 C 端手机号+验证码分离）----------
+  const passwordHash = await bcrypt.hash(ADMIN_DEFAULT_PASSWORD, 10);
+  await prisma.user.upsert({
+    where: { username: ADMIN_USERNAME },
+    create: {
+      username: ADMIN_USERNAME,
+      passwordHash,
+      country: 'CN',
+      role: 'SUPERADMIN',
+    },
+    update: { role: 'SUPERADMIN', passwordHash },
+  });
+  console.log(`Admin backend: username "${ADMIN_USERNAME}", default password "${ADMIN_DEFAULT_PASSWORD}" (change after first login).`);
+
   // ---------- risk_data 示例 ----------
   await prisma.riskData.upsert({
     where: { id: 'seed-risk-1' },
@@ -143,7 +162,7 @@ async function main() {
     });
   }
 
-  console.log('Seed completed: risk_data, knowledge_cases, settings.');
+  console.log('Seed completed: admin user, risk_data, knowledge_cases, settings.');
 }
 
 main()

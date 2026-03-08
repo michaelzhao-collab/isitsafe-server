@@ -27,14 +27,20 @@ export class AuthService {
     return parseInt(this.config.get('LOGIN_LOCK_MINUTES', '15'), 10);
   }
 
+  /** MVP 验证码写死为 123456，未传 code 时不校验（兼容旧端） */
+  private readonly MOCK_CODE = '123456';
+
   /**
-   * 统一登录入口：body 含 phone 则按手机登录，含 email 则按邮箱登录（MVP mock，不校验验证码）
+   * 统一登录入口：body 含 phone 则按手机登录，含 email 则按邮箱登录；传了 code 时仅接受 123456
    */
   async login(
     body: { phone?: string; email?: string; code?: string; smsCode?: string },
     ip?: string,
   ) {
     if (body.phone) {
+      if (body.code != null && body.code !== this.MOCK_CODE) {
+        throw new UnauthorizedException('验证码错误');
+      }
       await this.checkLock(body.phone);
       const user = await this.prisma.user.upsert({
         where: { phone: body.phone },
@@ -46,6 +52,9 @@ export class AuthService {
       return this.issueTokens(user);
     }
     if (body.email) {
+      if (body.code != null && body.code !== this.MOCK_CODE) {
+        throw new UnauthorizedException('验证码错误');
+      }
       await this.checkLock(body.email);
       const user = await this.prisma.user.upsert({
         where: { email: body.email },
@@ -83,13 +92,22 @@ export class AuthService {
   }
 
   private async checkLock(identifier: string) {
-    const locked = await this.redis.get(LOCK_KEY + identifier);
-    if (locked) throw new HttpException('Account temporarily locked.', HttpStatus.TOO_MANY_REQUESTS);
+    try {
+      const locked = await this.redis.get(LOCK_KEY + identifier);
+      if (locked) throw new HttpException('Account temporarily locked.', HttpStatus.TOO_MANY_REQUESTS);
+    } catch (e) {
+      if (e instanceof HttpException) throw e;
+      // Redis 不可用时跳过锁检查
+    }
   }
 
   private async clearAttempts(identifier: string) {
-    await this.redis.del(ATTEMPTS_KEY + identifier);
-    await this.redis.del(LOCK_KEY + identifier);
+    try {
+      await this.redis.del(ATTEMPTS_KEY + identifier);
+      await this.redis.del(LOCK_KEY + identifier);
+    } catch {
+      // Redis 不可用时忽略
+    }
   }
 
   private async recordLogin(userId: string) {
@@ -108,7 +126,11 @@ export class AuthService {
       { ...payload, type: 'refresh' },
       { secret: refreshSecret, expiresIn: refreshExpires },
     );
-    await this.redis.set(REFRESH_PREFIX + user.id, refreshToken, 30 * 24 * 3600);
+    try {
+      await this.redis.set(REFRESH_PREFIX + user.id, refreshToken, 30 * 24 * 3600);
+    } catch {
+      // Redis 不可用时仍返回 token，仅刷新可能失效
+    }
     return {
       accessToken,
       refreshToken,
@@ -134,6 +156,12 @@ export class AuthService {
   async logout(userId: string) {
     await this.redis.del(REFRESH_PREFIX + userId);
     return { success: true };
+  }
+
+  /** 供管理后台等使用：根据已有用户签发 token（会更新 lastLogin） */
+  async issueTokensForUser(user: { id: string; role: UserRole }) {
+    await this.recordLogin(user.id);
+    return this.issueTokens(user);
   }
 
   async getUserInfo(userId: string) {

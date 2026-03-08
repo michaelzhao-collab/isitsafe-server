@@ -27,13 +27,13 @@ export default function Login() {
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#F6F8FC' }}>
-      <Card title="IsItSafe 管理后台" style={{ width: 360 }}>
+      <Card title="星识 管理后台" style={{ width: 360 }}>
         <Form onFinish={onFinish} layout="vertical">
-          <Form.Item name="username" label="手机号或邮箱" rules={[{ required: true }]}>
-            <Input placeholder="13800138000 或 admin@example.com" />
+          <Form.Item name="username" label="用户名" rules={[{ required: true }]}>
+            <Input placeholder="admin" />
           </Form.Item>
-          <Form.Item name="password" label="验证码（MVP 可填任意）" rules={[{ required: true }]}>
-            <Input.Password placeholder="123456" />
+          <Form.Item name="password" label="密码" rules={[{ required: true }]}>
+            <Input.Password placeholder="登录密码" />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" block loading={loading}>
