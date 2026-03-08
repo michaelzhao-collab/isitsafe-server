@@ -1,0 +1,73 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+
+@Injectable()
+export class KnowledgeService {
+  constructor(private prisma: PrismaService) {}
+
+  async list(category?: string, page = 1, pageSize = 20, search?: string, language = 'zh') {
+    const skip = (page - 1) * pageSize;
+    const where: any = { language };
+    if (category) where.category = category;
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { content: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    const [items, total] = await Promise.all([
+      this.prisma.knowledgeCase.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.knowledgeCase.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
+  }
+
+  async getById(id: string) {
+    return this.prisma.knowledgeCase.findUniqueOrThrow({ where: { id } });
+  }
+
+  async create(data: {
+    title: string;
+    content: string;
+    category: string;
+    tags?: string[];
+    language?: string;
+    source?: string;
+  }) {
+    return this.prisma.knowledgeCase.create({
+      data: {
+        title: data.title,
+        content: data.content,
+        category: data.category,
+        tags: (data.tags || []) as any,
+        language: data.language || 'zh',
+        source: data.source ?? null,
+      },
+    });
+  }
+
+  async update(
+    id: string,
+    data: { title?: string; content?: string; category?: string; tags?: string[]; source?: string },
+  ) {
+    return this.prisma.knowledgeCase.update({
+      where: { id },
+      data: {
+        ...(data.title && { title: data.title }),
+        ...(data.content && { content: data.content }),
+        ...(data.category && { category: data.category }),
+        ...(data.tags && { tags: data.tags as any }),
+        ...(data.source !== undefined && { source: data.source }),
+      },
+    });
+  }
+
+  async delete(id: string) {
+    return this.prisma.knowledgeCase.delete({ where: { id } });
+  }
+}
