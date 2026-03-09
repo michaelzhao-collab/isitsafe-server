@@ -77,7 +77,7 @@ npm run build
 
 ```bash
 npm install -g pm2
-pm2 start dist/main.js --name isitsafe-server
+pm2 start dist/src/main.js --name isitsafe-server
 pm2 save
 pm2 startup  # 按提示执行，实现开机自启
 ```
@@ -88,7 +88,7 @@ pm2 startup  # 按提示执行，实现开机自启
 module.exports = {
   apps: [{
     name: 'isitsafe-server',
-    script: 'dist/main.js',
+    script: 'dist/src/main.js',
     cwd: '/opt/IsItSafe/Server',
     instances: 1,
     autorestart: true,

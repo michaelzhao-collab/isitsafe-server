@@ -147,8 +147,8 @@ dist/
     - **Watch Paths**：点击 **「Add pattern」** 或输入框旁下拉，填入 **`Server/**`**，表示只有 **Server** 目录有变更时才触发该服务重新部署（避免改 admin 时也触发 Server 部署）。
 20. 在 Settings 中打开 **「Deploy」** 页（该页有 Custom Start Command、Teardown、Cron Schedule、Healthcheck Path、Serverless、Restart Policy 等）。
 21. **「Custom Start Command」**（启动命令）：  
-    - 若框里默认是 **`node server.js`**，请**删掉并改为**：**`npx prisma migrate deploy && node dist/main.js`**。  
-    - 我们的项目入口是 `dist/main.js`，不是 `server.js`；前面先执行数据库迁移再启动服务。
+    - 若框里默认是 **`node server.js`**，请**删掉并改为**：**`npx prisma migrate deploy && node dist/src/main.js`**。  
+    - 我们的项目入口是 `dist/src/main.js`，不是 `server.js`；前面先执行数据库迁移再启动服务。
 22. **「Healthcheck Path」**（可选但建议）：点击 **「+ Healthcheck Path」**，填入 **`/api/health`**。  
     - 这样部署完成后 Railway 会请求该地址，确认服务已正常再切换流量，部署失败时会自动回滚。
 23. **「Restart Policy」**：保持默认 **「On Failure」** 即可（进程非正常退出时自动重启容器）。
@@ -334,7 +334,7 @@ npx prisma db seed
 
 ## 八、常见问题
 
-- **Server 启动报错或一直重启**：若 **Deploy** 页的 **Custom Start Command** 仍是 **`node server.js`**，请改为 **`npx prisma migrate deploy && node dist/main.js`**（我们项目入口是 `dist/main.js`，不是 `server.js`）。
+- **Server 启动报错或一直重启**：若 **Deploy** 页的 **Custom Start Command** 仍是 **`node server.js`**，请改为 **`npx prisma migrate deploy && node dist/src/main.js`**（我们项目入口是 `dist/src/main.js`，不是 `server.js`）。
 - **Server 报 “DATABASE_URL not found”**：在 Server 的 Variables 中通过 Reference 或手动添加 PostgreSQL 的 `DATABASE_URL`。
 - **Server 报 Redis 连接失败**：确认 Redis 已部署，并在 Server 的 Variables 中配置了正确的 `REDIS_URL`（或当前模板提供的变量名）。
 - **Prisma 迁移失败**：查看部署 Logs；常见为 `DATABASE_URL` 错误或迁移与 schema 不一致，可在本地用同一 `DATABASE_URL` 执行 `npx prisma migrate deploy` 复现。
@@ -349,7 +349,7 @@ npx prisma db seed
 |------|------|----------------|
 | **Source** | 连哪个仓库、用哪个分支、项目在仓库里哪个子目录（Root Directory）、是否等 CI 通过再部署 | **Root Directory**（Server 填 `Server`，Admin 填 `admin`）；确认 **Branch** 为 `main`；可选 **Wait for CI** |
 | **Build** | 用啥构建器、自定义构建命令、哪些路径变更触发重新部署（Watch Paths） | **Custom Build Command**；**Watch Paths**（Server 填 `Server/**`，Admin 填 `admin/**`）。Builder / Metal 一般不用改 |
-| **Deploy** | 启动命令、健康检查地址、失败是否重启等 | **Custom Start Command**（Server 必填：`npx prisma migrate deploy && node dist/main.js`）；建议 **Healthcheck Path** 填 `/api/health`；**Restart Policy** 默认 On Failure 即可 |
+| **Deploy** | 启动命令、健康检查地址、失败是否重启等 | **Custom Start Command**（Server 必填：`npx prisma migrate deploy && node dist/src/main.js`）；建议 **Healthcheck Path** 填 `/api/health`；**Restart Policy** 默认 On Failure 即可 |
 | **Networking** | 公网访问地址（自定义域名 / 默认域名）、TCP 代理；同项目内服务间私网访问 | **按自己域名部署**：Server 与 Admin 各点 **Custom Domain** 绑定（如 `api.你的网站.com`、`admin.你的网站.com`），到域名服务商配 CNAME；暂不绑则用 **Generate Domain**；**Private Networking** 一般不用配 |
 | **Config-as-code** | 用仓库里的配置文件（如 railway.json）管理构建和部署，而不是只在界面里点选 | **可选**。不用的话按前面在 Source/Build/Deploy 里配置即可；要用则点 **+ Add File Path** 填配置文件路径（如 `Server/railway.json`） |
 
@@ -373,7 +373,7 @@ npx prisma db seed
 | GitHub 仓库 | `michaelzhao-collab/isitsafe-server` |
 | Server 根目录 | `Server` |
 | Server 构建命令 | `npm ci && npx prisma generate && npm run build` |
-| Server 启动命令 | `npx prisma migrate deploy && node dist/main.js` |
+| Server 启动命令 | `npx prisma migrate deploy && node dist/src/main.js` |
 | Admin 根目录 | `admin`（仓库内为小写则填 `admin`） |
 | Admin 构建命令 | `npm ci && npm run build` |
 | Admin 输出目录 | `dist` |
@@ -396,7 +396,7 @@ npx prisma db seed
 2. 进入 **`Server`** 目录，复制 **`.env.example`** 为 **`.env`**。
 3. 在 **`.env`** 中填写：**`DATABASE_URL`**（本地 PostgreSQL 连接串）、**`REDIS_URL`**（本地 Redis，如 `redis://localhost:6379`）、**`JWT_SECRET`**、**`JWT_REFRESH_SECRET`**（任意随机字符串），以及按需填写 AI、OSS 等。
 4. 在 **`Server`** 目录下执行：  
-   **`npm ci && npx prisma generate && npm run build && npx prisma migrate deploy && node dist/main.js`**
+   **`npm ci && npx prisma generate && npm run build && npx prisma migrate deploy && node dist/src/main.js`**
 5. 浏览器访问 **`http://localhost:3000/api/health`**，有 JSON 返回即表示 Server 本地运行正常。
 
 ## 本地构建 Admin（可选）
