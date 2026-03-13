@@ -10,9 +10,10 @@ import { AiRateLimitGuard } from '../../common/rate-limit/ai-rate-limit.guard';
 import { SettingsModule } from '../settings/settings.module';
 import { RiskModule } from '../risk/risk.module';
 import { MembershipModule } from '../membership/membership.module';
+import { QueryModule } from '../query/query.module';
 
 @Module({
-  imports: [SettingsModule, RiskModule, MembershipModule],
+  imports: [SettingsModule, RiskModule, MembershipModule, QueryModule],
   controllers: [AiController],
   providers: [
     AiRateLimitGuard,

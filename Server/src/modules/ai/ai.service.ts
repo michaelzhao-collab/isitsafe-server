@@ -17,6 +17,8 @@ import {
   RiskLevel,
 } from './ai.types';
 import { hashForCache } from '../../common/utils/hash';
+import { extractUrlFromContent } from '../../common/utils/normalize';
+import { QueryService } from '../query/query.service';
 
 const CACHE_PREFIX = 'cache:ai:';
 const TTL_DEFAULT = 24 * 3600;       // 24h
@@ -34,6 +36,10 @@ export interface AnalyzeInput {
 export interface AnalyzeResult extends AiOutputSchema {
   score?: number;
   risk_level: RiskLevel;
+  /** URL 专用：风险库是否命中，供 Admin 与统计 */
+  risk_db_hit?: boolean;
+  risk_db_hit_level?: string;
+  risk_db_hit_record_count?: number;
 }
 
 @Injectable()
@@ -43,6 +49,7 @@ export class AiService {
     private redis: RedisService,
     private parser: InputParserService,
     private riskService: RiskService,
+    private queryService: QueryService,
     private rag: RagKeywordService,
     private prompts: AiPromptsService,
     private provider: AiProviderService,
@@ -56,11 +63,13 @@ export class AiService {
     input: AnalyzeInput,
     userId: string | null,
   ): Promise<AnalyzeResult> {
+    console.log('[AI_FLOW] ========== 开始 AI 分析（会调用豆包） ========== content=' + JSON.stringify(input.content?.slice(0, 300)));
     const language = input.language ?? 'zh';
     const country = input.country ?? '';
     const isScreenshot = input.isScreenshot ?? false;
 
     const parsed = this.parser.parse(input.content, isScreenshot);
+    console.log('[AI_FLOW] 1.PARSED inputType=' + parsed.inputType + ' normalizedContent=' + JSON.stringify(parsed.normalizedContent.slice(0, 200)) + ' originalLen=' + parsed.originalContent.length);
     const provider = await this.provider.getDefaultProvider();
 
     const cacheKey = CACHE_PREFIX + hashForCache({
@@ -75,15 +84,73 @@ export class AiService {
     if (cached) {
       try {
         const obj = JSON.parse(cached) as AnalyzeResult;
+        console.log('[AI_FLOW] CACHE_HIT 使用缓存结果 risk_level=' + obj.risk_level);
         await this.writeQuery(userId, parsed, obj, provider, true, input.imageUrl);
         return obj;
       } catch {}
     }
 
+    // URL 专用流程：先查风险库，再按命中/未命中用不同文案调大模型，返回时带 risk_db_hit
+    if (parsed.inputType === 'url') {
+      const extractedUrl = extractUrlFromContent(parsed.originalContent);
+      const urlResult = await this.queryService.queryUrl(extractedUrl);
+      const recordCount = urlResult.records?.length ?? 0;
+      console.log('[AI_FLOW] URL 专用流程 extractedUrl=' + extractedUrl + ' risk_db_hit=' + (recordCount > 0) + ' level=' + urlResult.risk_level);
+
+      const urlSystemPrompt = this.prompts.buildUrlSystemPrompt(language);
+      const urlUserPrompt = this.prompts.buildUrlUserPrompt(
+        parsed.originalContent,
+        extractedUrl,
+        { risk_level: urlResult.risk_level, tags: urlResult.tags || [], records: urlResult.records || [] },
+        language,
+      );
+      let urlAiResult: AiCallResult | null = null;
+      let urlParsedAi: AiOutputSchema;
+      try {
+        urlAiResult = await this.provider.analyze(urlUserPrompt, urlSystemPrompt, provider);
+        urlParsedAi = parseAndValidateAiOutput(urlAiResult.raw);
+      } catch (e) {
+        console.log('[AI_FLOW] URL_AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
+        urlParsedAi = parseAndValidateAiOutput('');
+        await this.logAiCall(provider, null, null, 0, null);
+      }
+      if (urlAiResult) {
+        await this.logAiCall(
+          provider,
+          urlAiResult.model,
+          urlAiResult.tokens,
+          urlAiResult.latencyMs,
+          hashForCache({ p: urlUserPrompt.slice(0, 100) }),
+        );
+      }
+      const dbHit = recordCount > 0 ? { riskLevel: urlResult.risk_level } : null;
+      const { score, risk_level } = this.scoreEngine.compute(
+        urlParsedAi.risk_level,
+        urlParsedAi.confidence,
+        dbHit,
+        [],
+      );
+      const urlFinal: AnalyzeResult = {
+        ...urlParsedAi,
+        risk_level,
+        score,
+        risk_db_hit: recordCount > 0,
+        risk_db_hit_level: recordCount > 0 ? urlResult.risk_level : undefined,
+        risk_db_hit_record_count: recordCount,
+      };
+      console.log('[AI_FLOW] 6.RESULT URL 最终返回 risk_db_hit=' + urlFinal.risk_db_hit);
+      const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
+      await this.redis.set(cacheKey, JSON.stringify(urlFinal), ttl);
+      await this.writeQuery(userId, parsed, urlFinal, provider, false, input.imageUrl);
+      return urlFinal;
+    }
+
     const dbCheck = await this.riskService.checkRisk(parsed.inputType, parsed.originalContent);
     const dbHit = dbCheck ? { riskLevel: dbCheck.risk_level } : null;
+    console.log('[AI_FLOW] 2.DB_CHECK dbHit=' + (dbHit ? dbHit.riskLevel : 'null') + ' (风险库是否命中)');
     const keywords = this.rag.keywordExtract(parsed.originalContent);
     const ragCases = await this.rag.searchKnowledgeCases(keywords, 5, language);
+    console.log('[AI_FLOW] 3.RAG keywords=' + JSON.stringify(keywords) + ' casesCount=' + ragCases.length);
 
     const systemPrompt = this.prompts.buildSystemPrompt(language);
     const userPrompt = this.prompts.buildUserPrompt(
@@ -99,7 +166,9 @@ export class AiService {
     try {
       aiResult = await this.provider.analyze(userPrompt, systemPrompt, provider);
       parsedAi = parseAndValidateAiOutput(aiResult.raw);
+      console.log('[AI_FLOW] 4.PARSED_AI (解析豆包JSON后) risk_level=' + parsedAi.risk_level + ' confidence=' + parsedAi.confidence + ' summary=' + JSON.stringify(parsedAi.summary?.slice(0, 100)));
     } catch (e) {
+      console.log('[AI_FLOW] 4.AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
       parsedAi = parseAndValidateAiOutput('');
       await this.logAiCall(provider, null, null, 0, null);
     }
@@ -120,12 +189,15 @@ export class AiService {
       dbHit,
       ragCases,
     );
+    console.log('[AI_FLOW] 5.SCORE_ENGINE score=' + score + ' risk_level=' + risk_level);
 
     const final: AnalyzeResult = {
       ...parsedAi,
       risk_level,
       score,
+      risk_db_hit: false,
     };
+    console.log('[AI_FLOW] 6.RESULT 最终返回: ' + JSON.stringify(final));
 
     const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
     await this.redis.set(cacheKey, JSON.stringify(final), ttl);

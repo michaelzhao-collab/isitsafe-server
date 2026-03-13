@@ -26,6 +26,20 @@ const COMPANY_KEYWORDS = [
   '交易所', 'app', '软件', '官网', '客服', '机构', '集团', '控股',
 ];
 
+/**
+ * 从用户输入中提取第一个 URL 或域名，供 URL 专用流程查询风险库。
+ * 匹配 http(s)://... 或 域名形式（含 .com/.cn 等）。
+ */
+export function extractUrlFromContent(content: string): string {
+  if (!content || typeof content !== 'string') return '';
+  const s = content.trim();
+  const withProtocol = s.match(/https?:\/\/[^\s\u4e00-\u9fa5]+/i);
+  if (withProtocol) return withProtocol[0];
+  const domainLike = s.match(/[a-z0-9][-a-z0-9]*(?:\.[a-z0-9][-a-z0-9]*)+(?:\/[^\s\u4e00-\u9fa5]*)?/i);
+  if (domainLike) return domainLike[0];
+  return s;
+}
+
 export function detectType(content: string, isScreenshot = false): InputType {
   if (isScreenshot) return 'screenshot';
   const normalized = normalizeContent(content);

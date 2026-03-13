@@ -13,6 +13,9 @@ export const RISK_TYPES = [
   '虚假医疗',
   '老年人骗局',
   '未知风险',
+  '诈骗网站',
+  '钓鱼诈骗',
+  '金融诈骗',
 ] as const;
 export type RiskType = (typeof RISK_TYPES)[number];
 
@@ -32,8 +35,8 @@ export function parseAndValidateAiOutput(raw: string): AiOutputSchema {
     confidence: 50,
     risk_type: ['未知风险'],
     summary: '无法确定风险',
-    reasons: ['AI 返回格式异常或无法解析'],
-    advice: ['请谨慎对待，勿轻信对方'],
+    reasons: ['AI 返回格式异常或无法解析', '请结合其他渠道核实', '勿轻信单方说法'],
+    advice: ['请谨慎对待，勿轻信对方', '可向官方渠道求证', '注意保护个人隐私与资金安全'],
   };
   try {
     const cleaned = raw.replace(/```json\s?/g, '').replace(/```\s?/g, '').trim();
@@ -44,8 +47,10 @@ export function parseAndValidateAiOutput(raw: string): AiOutputSchema {
     const confidence = typeof obj.confidence === 'number' ? Math.max(0, Math.min(100, obj.confidence)) : 50;
     const risk_type = Array.isArray(obj.risk_type) ? obj.risk_type.map(String) : ['未知风险'];
     const summary = typeof obj.summary === 'string' ? obj.summary : fallback.summary;
-    const reasons = Array.isArray(obj.reasons) ? obj.reasons.map(String) : fallback.reasons;
-    const advice = Array.isArray(obj.advice) ? obj.advice.map(String) : fallback.advice;
+    let reasons = Array.isArray(obj.reasons) ? obj.reasons.map(String) : fallback.reasons;
+    let advice = Array.isArray(obj.advice) ? obj.advice.map(String) : fallback.advice;
+    if (reasons.length < 3) reasons = [...reasons, ...fallback.reasons].slice(0, 3);
+    if (advice.length < 3) advice = [...advice, ...fallback.advice].slice(0, 3);
     return { risk_level: level, confidence, risk_type, summary, reasons, advice };
   } catch {
     return fallback;
