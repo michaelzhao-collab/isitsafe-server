@@ -261,9 +261,17 @@ export class AiService {
         risk_level: 'unknown',
         confidence: 0,
         risk_type: ['未知风险'],
-        summary: '暂不支持截图识别，请上传文字或使用客户端 OCR 后传文本',
-        reasons: ['服务端 OCR 未启用'],
-        advice: ['请手动输入截图中的文字进行分析'],
+        summary: '图片内容无法识别',
+        reasons: [
+          '图片中未识别到可分析文字',
+          '当前无法对纯图片内容进行风险分析',
+          '可尝试上传包含文字的截图或直接输入文字',
+        ],
+        advice: [
+          '请上传包含文字的图片以便分析',
+          '或直接输入您要检测的文字内容',
+          '如有疑问可联系客服',
+        ],
       };
     }
     return this.analyze(

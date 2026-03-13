@@ -16,6 +16,7 @@ import { AdminAnalyticsController } from './admin-analytics.controller';
 import { AdminSubscriptionController } from './admin-subscription.controller';
 import { AdminMessagesController } from './admin-messages.controller';
 import { AdminMembershipController } from './admin-membership.controller';
+import { AdminRiskDataController } from './admin-risk-data.controller';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 
 @Module({
@@ -32,6 +33,7 @@ import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
     AdminSubscriptionController,
     AdminMessagesController,
     AdminMembershipController,
+    AdminRiskDataController,
   ],
   providers: [AdminRoleGuard, AdminAuthService],
 })

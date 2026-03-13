@@ -12,6 +12,13 @@ export class ReportService {
     });
   }
 
+  async getOne(id: string) {
+    return this.prisma.report.findUnique({
+      where: { id },
+      include: { user: { select: { id: true, phone: true, email: true } } },
+    });
+  }
+
   async list(page = 1, pageSize = 20, status?: ReportStatus) {
     const skip = (page - 1) * pageSize;
     const where = status ? { status } : {};

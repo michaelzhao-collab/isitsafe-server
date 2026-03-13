@@ -51,8 +51,7 @@ public final class HomeViewModel: ObservableObject {
             let ocrText = await ImageOCR.recognize(from: image)
             await MainActor.run {
                 if ocrText.isEmpty {
-                    updateLastTurn(.failure("未能识别图片中的文字"))
-                    appState.showError("未能识别图片中的文字")
+                    updateLastTurn(.analysis(RiskAnalysisViewData.imageContentNotRecognized))
                     return
                 }
                 runAnalysisForLastTurn(content: ocrText, isScreenshot: true)

@@ -32,4 +32,9 @@ export class AdminReportsController {
   async stats() {
     return this.report.getStats();
   }
+
+  @Get(':id')
+  async getOne(@Param('id') id: string) {
+    return this.report.getOne(id);
+  }
 }

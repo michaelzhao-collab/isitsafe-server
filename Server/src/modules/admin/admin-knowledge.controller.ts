@@ -8,6 +8,11 @@ import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 export class AdminKnowledgeController {
   constructor(private knowledge: KnowledgeService) {}
 
+  @Get(':id')
+  async getOne(@Param('id') id: string) {
+    return this.knowledge.getById(id);
+  }
+
   @Get()
   async list(
     @Query('category') category?: string,

@@ -1,4 +1,5 @@
-const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+// 默认走线上正式接口（也可用 .env 覆盖）
+const BASE = import.meta.env.VITE_API_BASE_URL || 'https://api.starlensai.com/api';
 
 function getToken(): string | null {
   return localStorage.getItem('adminToken');
@@ -31,7 +32,7 @@ export async function request<T>(
 
 export const api = {
   login: (username: string, password: string) =>
-    request<{ accessToken: string }>('/admin/login', {
+    request<{ accessToken: string }>('/admin/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
       headers: {},

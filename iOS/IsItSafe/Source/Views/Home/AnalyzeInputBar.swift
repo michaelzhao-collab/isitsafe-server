@@ -201,6 +201,9 @@ public struct AnalyzeInputBar: View {
             } else {
                 onSendWithImage(img)
             }
+            // 发送后立刻清空输入栏的待发图片与文字（避免 UI 残留）
+            onRemovePendingImage()
+            text = ""
             return
         }
         onSubmit()
