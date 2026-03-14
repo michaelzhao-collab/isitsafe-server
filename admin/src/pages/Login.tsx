@@ -27,7 +27,7 @@ export default function Login() {
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#F6F8FC' }}>
-      <Card title="星识 管理后台" style={{ width: 360 }}>
+      <Card title="星识安全助手 管理后台" style={{ width: 360 }}>
         <Form onFinish={onFinish} layout="vertical">
           <Form.Item name="username" label="用户名" rules={[{ required: true }]}>
             <Input placeholder="admin" />

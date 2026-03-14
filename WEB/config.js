@@ -3,9 +3,9 @@
  */
 window.APP_CONFIG = {
   /** 应用名称 */
-  appName: '星识',
+  appName: '星识安全助手',
   /** 副标题 / Slogan */
-  appSubtitle: '官方AI防骗助手',
+  appSubtitle: '官方AI风险识别，守护你的安全',
   /** App Store 下载地址，留空则点击提示「市场正在审核中」 */
   appStoreUrl: '',
   /** Google Play 下载地址，留空则点击提示「市场正在审核中」 */

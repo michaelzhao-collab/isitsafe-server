@@ -46,7 +46,7 @@ export default function Layout() {
   return (
     <AntLayout style={{ minHeight: '100vh' }}>
       <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed}>
-        <div style={{ height: 32, margin: 16, color: '#fff', fontSize: 18 }}>星识</div>
+        <div style={{ height: 32, margin: 16, color: '#fff', fontSize: 18 }}>星识安全助手</div>
         <Menu
           theme="dark"
           selectedKeys={[location.pathname]}
