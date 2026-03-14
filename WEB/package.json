@@ -1,0 +1,12 @@
+{
+  "name": "isitsafe-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "星识对外静态落地页",
+  "scripts": {
+    "start": "npx serve -s . -l $PORT"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>星识 - 官方AI防骗助手</title>
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <img src="assets/logo.png" alt="星识" class="logo" />
+    <h1 id="appName">星识</h1>
+    <p class="subtitle" id="appSubtitle">官方AI防骗助手</p>
+    <p class="intro">识别风险、防诈先行，用 AI 守护你的每一次决策。</p>
+    <div class="description">
+      <p><strong>星识</strong>是一款以安全与防诈为核心的智能助手，依托 AI 与风险数据库，帮助你在面对链接、电话、公司信息时快速判断风险。</p>
+      <p>支持对可疑网址、短信、截图内容进行一键分析，给出风险等级与建议，助你远离诈骗与黑灰产。</p>
+    </div>
+    <div class="download-wrap">
+      <button type="button" class="btn-download" id="btnDownload" aria-label="下载应用">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14v-4H8l4-4 4 4h-3v4h-2z"/>
+        </svg>
+        <span id="btnDownloadText">应用市场下载</span>
+      </button>
+    </div>
+    <p class="footer">安全识别，防诈先行</p>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite">市场正在审核中</div>
+
+  <script src="config.js"></script>
+  <script>
+    (function() {
+      var config = window.APP_CONFIG || {};
+      var appName = config.appName || '星识';
+      var appSubtitle = config.appSubtitle || '官方AI防骗助手';
+      var downloadUrl = (config.downloadUrl || '').trim();
+      var btn = document.getElementById('btnDownload');
+      var btnText = document.getElementById('btnDownloadText');
+      var toast = document.getElementById('toast');
+      var appNameEl = document.getElementById('appName');
+      var appSubtitleEl = document.getElementById('appSubtitle');
+
+      if (appNameEl) appNameEl.textContent = appName;
+      if (appSubtitleEl) appSubtitleEl.textContent = appSubtitle;
+
+      function showToast(msg) {
+        if (toast) {
+          toast.textContent = msg || '市场正在审核中';
+          toast.classList.add('show');
+          setTimeout(function() { toast.classList.remove('show'); }, 2500);
+        }
+      }
+
+      if (btn) {
+        if (downloadUrl) {
+          btn.outerHTML = '<a href="' + downloadUrl + '" class="btn-download" id="btnDownload" target="_blank" rel="noopener noreferrer" aria-label="前往应用市场下载">' +
+            '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14v-4H8l4-4 4 4h-3v4h-2z"/></svg>' +
+            '<span id="btnDownloadText">应用市场下载</span></a>';
+        } else {
+          btn.addEventListener('click', function() {
+            showToast('市场正在审核中');
+          });
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
