@@ -88,6 +88,15 @@ export class AiProviderService {
   /** 从 Responses API 多种可能返回结构中提取文本 */
   private extractDoubaoResponseContent(data: any): string | null {
     if (!data) return null;
+    // 豆包 Responses API：output 为数组，首项可能为 reasoning，第二项为 type: "message" 且 content 中含 type: "output_text"
+    const output = data.output;
+    if (Array.isArray(output)) {
+      const messageItem = output.find((item: any) => item.type === 'message');
+      if (messageItem?.content && Array.isArray(messageItem.content)) {
+        const textPart = messageItem.content.find((p: any) => p.type === 'output_text');
+        if (typeof textPart?.text === 'string') return textPart.text;
+      }
+    }
     const o = data.output ?? data;
     if (typeof o?.output_text === 'string') return o.output_text;
     if (typeof o?.text === 'string') return o.text;
