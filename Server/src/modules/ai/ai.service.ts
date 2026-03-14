@@ -84,11 +84,12 @@ export class AiService {
     if (cached) {
       try {
         const obj = JSON.parse(cached) as AnalyzeResult;
-        console.log('[AI_FLOW] CACHE_HIT 使用缓存结果 risk_level=' + obj.risk_level);
+        console.log('[AI_FLOW] CACHE_HIT 使用缓存结果 risk_level=' + obj.risk_level + '（未调豆包，故无 [DOUBAO] 日志）');
         await this.writeQuery(userId, parsed, obj, provider, true, input.imageUrl);
         return obj;
       } catch {}
     }
+    console.log('[AI_FLOW] CACHE_MISS 将调用豆包');
 
     // URL 专用流程：先查风险库，再按命中/未命中用不同文案调大模型，返回时带 risk_db_hit
     if (parsed.inputType === 'url') {
