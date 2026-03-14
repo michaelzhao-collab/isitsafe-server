@@ -79,12 +79,14 @@ export class AiService {
       country,
       provider,
     });
+    console.log('[AI_FLOW] CACHE_KEY(用于判断是否命中缓存): ' + cacheKey);
 
     const cached = await this.redis.get(cacheKey);
     if (cached) {
       try {
         const obj = JSON.parse(cached) as AnalyzeResult;
-        console.log('[AI_FLOW] CACHE_HIT 使用缓存结果 risk_level=' + obj.risk_level + '（未调豆包，故无 [DOUBAO] 日志）');
+        console.log('[AI_FLOW] CACHE_HIT 未调豆包，直接使用缓存');
+        console.log('[AI_FLOW] CACHE_HIT 缓存内容(匹配后的结果): ' + cached);
         await this.writeQuery(userId, parsed, obj, provider, true, input.imageUrl);
         return obj;
       } catch {}
@@ -94,9 +96,10 @@ export class AiService {
     // URL 专用流程：先查风险库，再按命中/未命中用不同文案调大模型，返回时带 risk_db_hit
     if (parsed.inputType === 'url') {
       const extractedUrl = extractUrlFromContent(parsed.originalContent);
+      console.log('[AI_FLOW] URL 风险库匹配前 extractedUrl=' + extractedUrl);
       const urlResult = await this.queryService.queryUrl(extractedUrl);
       const recordCount = urlResult.records?.length ?? 0;
-      console.log('[AI_FLOW] URL 专用流程 extractedUrl=' + extractedUrl + ' risk_db_hit=' + (recordCount > 0) + ' level=' + urlResult.risk_level);
+      console.log('[AI_FLOW] URL 风险库匹配后 结果: ' + JSON.stringify({ risk_level: urlResult.risk_level, tags: urlResult.tags, recordsCount: recordCount }));
 
       const urlSystemPrompt = this.prompts.buildUrlSystemPrompt(language);
       const urlUserPrompt = this.prompts.buildUrlUserPrompt(
@@ -105,11 +108,16 @@ export class AiService {
         { risk_level: urlResult.risk_level, tags: urlResult.tags || [], records: urlResult.records || [] },
         language,
       );
+      console.log('[AI_FLOW] URL 调用豆包前 完整参数 systemPromptLen=' + urlSystemPrompt.length + ' userPromptLen=' + urlUserPrompt.length);
+      console.log('[AI_FLOW] URL 调用豆包前 SYSTEM_PROMPT_FULL:\n' + urlSystemPrompt);
+      console.log('[AI_FLOW] URL 调用豆包前 USER_PROMPT_FULL:\n' + urlUserPrompt);
       let urlAiResult: AiCallResult | null = null;
       let urlParsedAi: AiOutputSchema;
       try {
         urlAiResult = await this.provider.analyze(urlUserPrompt, urlSystemPrompt, provider);
+        console.log('[AI_FLOW] URL 豆包返回原始(未解析): ' + (urlAiResult?.raw ?? '(null)'));
         urlParsedAi = parseAndValidateAiOutput(urlAiResult.raw);
+        console.log('[AI_FLOW] URL 解析后的完整结果: ' + JSON.stringify(urlParsedAi));
       } catch (e) {
         console.log('[AI_FLOW] URL_AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
         urlParsedAi = parseAndValidateAiOutput('');
@@ -146,9 +154,10 @@ export class AiService {
       return urlFinal;
     }
 
+    console.log('[AI_FLOW] 2.风险库匹配前 inputType=' + parsed.inputType + ' contentLen=' + parsed.originalContent.length);
     const dbCheck = await this.riskService.checkRisk(parsed.inputType, parsed.originalContent);
     const dbHit = dbCheck ? { riskLevel: dbCheck.risk_level } : null;
-    console.log('[AI_FLOW] 2.DB_CHECK dbHit=' + (dbHit ? dbHit.riskLevel : 'null') + ' (风险库是否命中)');
+    console.log('[AI_FLOW] 2.风险库匹配后 结果: ' + (dbCheck ? JSON.stringify(dbCheck) : 'null'));
     const keywords = this.rag.keywordExtract(parsed.originalContent);
     const ragCases = await this.rag.searchKnowledgeCases(keywords, 5, language);
     console.log('[AI_FLOW] 3.RAG keywords=' + JSON.stringify(keywords) + ' casesCount=' + ragCases.length);
@@ -162,12 +171,16 @@ export class AiService {
       dbCheck?.risk_level ?? null,
     );
 
+    console.log('[AI_FLOW] 调用豆包前 完整参数 systemPromptLen=' + systemPrompt.length + ' userPromptLen=' + userPrompt.length);
+    console.log('[AI_FLOW] 调用豆包前 SYSTEM_PROMPT_FULL:\n' + systemPrompt);
+    console.log('[AI_FLOW] 调用豆包前 USER_PROMPT_FULL:\n' + userPrompt);
     let aiResult: AiCallResult | null = null;
     let parsedAi: AiOutputSchema;
     try {
       aiResult = await this.provider.analyze(userPrompt, systemPrompt, provider);
+      console.log('[AI_FLOW] 豆包返回原始(未解析): ' + (aiResult?.raw ?? '(null)'));
       parsedAi = parseAndValidateAiOutput(aiResult.raw);
-      console.log('[AI_FLOW] 4.PARSED_AI (解析豆包JSON后) risk_level=' + parsedAi.risk_level + ' confidence=' + parsedAi.confidence + ' summary=' + JSON.stringify(parsedAi.summary?.slice(0, 100)));
+      console.log('[AI_FLOW] 解析后的完整结果: ' + JSON.stringify(parsedAi));
     } catch (e) {
       console.log('[AI_FLOW] 4.AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
       parsedAi = parseAndValidateAiOutput('');

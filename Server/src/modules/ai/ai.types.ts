@@ -52,7 +52,8 @@ export function parseAndValidateAiOutput(raw: string): AiOutputSchema {
     if (reasons.length < 3) reasons = [...reasons, ...fallback.reasons].slice(0, 3);
     if (advice.length < 3) advice = [...advice, ...fallback.advice].slice(0, 3);
     return { risk_level: level, confidence, risk_type, summary, reasons, advice };
-  } catch {
+  } catch (e) {
+    console.log('[AI_PARSE] 解析失败，使用兜底 fallback | raw 前500字: ' + String(raw).slice(0, 500) + ' | error: ' + (e instanceof Error ? e.message : String(e)));
     return fallback;
   }
 }

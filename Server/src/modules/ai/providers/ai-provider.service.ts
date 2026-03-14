@@ -87,6 +87,8 @@ export class AiProviderService {
   async analyzeWithOpenAI(prompt: string, systemPrompt: string): Promise<AiCallResult> {
     const { apiKey, baseUrl } = await this.getOpenAIConfig();
     if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
+    console.log('[OPENAI] 调用前 SYSTEM_PROMPT_FULL:\n' + systemPrompt);
+    console.log('[OPENAI] 调用前 USER_PROMPT_FULL:\n' + prompt);
     const start = Date.now();
     const res = await axios.post(
       `${baseUrl}/chat/completions`,
@@ -105,6 +107,7 @@ export class AiProviderService {
     );
     const content = res.data?.choices?.[0]?.message?.content;
     const usage = res.data?.usage;
+    console.log('[OPENAI] 返回原始(未解析):\n' + (content ?? '(empty)'));
     if (!content) throw new Error('Invalid OpenAI response');
     return {
       raw: content,
