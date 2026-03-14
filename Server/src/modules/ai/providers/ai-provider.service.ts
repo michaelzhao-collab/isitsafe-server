@@ -59,10 +59,12 @@ export class AiProviderService {
     console.log('[DOUBAO] SYSTEM_PROMPT_FULL:\n' + systemPrompt);
     console.log('[DOUBAO] USER_PROMPT_FULL:\n' + prompt);
     console.log('[DOUBAO] ========== 以上为提交内容结束 ==========');
+    // 火山引擎/豆包官方文档未明确单次请求超时秒数，此处与客户端统一使用 300 秒，避免长推理被中途断开
+    const DOUBAO_REQUEST_TIMEOUT_MS = 300 * 1000;
     const start = Date.now();
     const res = await axios.post(requestUrl, body, {
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      timeout: 60000,
+      timeout: DOUBAO_REQUEST_TIMEOUT_MS,
     });
     const latencyMs = Date.now() - start;
     try {
