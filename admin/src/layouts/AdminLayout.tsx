@@ -48,8 +48,9 @@ export default function AdminLayout() {
   return (
     <AntLayout style={{ minHeight: '100vh', background: '#F6F8FC' }}>
       <Sider collapsible collapsed={collapsed} onCollapse={setCollapsed} theme="dark" width={220}>
-        <div style={{ height: 48, margin: 16, color: '#fff', fontSize: 18, display: 'flex', alignItems: 'center' }}>
-          IsItSafe
+        <div style={{ height: 48, margin: 16, color: '#fff', fontSize: 18, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src="/favicon.png" alt="星识" style={{ height: 28, width: 28, objectFit: 'contain' }} />
+          <span>星识</span>
         </div>
         <Menu
           theme="dark"

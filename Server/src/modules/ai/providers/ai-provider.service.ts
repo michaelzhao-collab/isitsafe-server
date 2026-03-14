@@ -41,17 +41,24 @@ export class AiProviderService {
   async analyzeWithDoubao(prompt: string, systemPrompt: string): Promise<AiCallResult> {
     const { apiKey, baseUrl } = await this.getDoubaoConfig();
     if (!apiKey) throw new Error('DOUBAO_API_KEY not configured');
+    const model = this.config.get('DOUBAO_MODEL', 'doubao-pro-32k');
+    const body = {
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.3,
+    };
+    console.log('[DOUBAO] REQUEST model=' + model + ' systemPromptLen=' + systemPrompt.length + ' userPromptLen=' + prompt.length);
+    console.log('[DOUBAO] ========== 提交给豆包的完整内容（未解析） ==========');
+    console.log('[DOUBAO] SYSTEM_PROMPT_FULL:\n' + systemPrompt);
+    console.log('[DOUBAO] USER_PROMPT_FULL:\n' + prompt);
+    console.log('[DOUBAO] ========== 以上为提交内容结束 ==========');
     const start = Date.now();
     const res = await axios.post(
       `${baseUrl}/chat/completions`,
-      {
-        model: this.config.get('DOUBAO_MODEL', 'doubao-pro-32k'),
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.3,
-      },
+      body,
       {
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         timeout: 30000,
@@ -59,13 +66,21 @@ export class AiProviderService {
     );
     const content = res.data?.choices?.[0]?.message?.content;
     const usage = res.data?.usage;
+    const latencyMs = Date.now() - start;
+    console.log('[DOUBAO] RESPONSE latencyMs=' + latencyMs + ' tokens=' + (usage?.total_tokens ?? 'null'));
+    console.log('[DOUBAO] ========== 豆包返回的完整原始内容（未解析） ==========');
+    console.log('[DOUBAO] RAW_FULL:\n' + (content ?? '(empty)'));
+    console.log('[DOUBAO] ========== 以上为豆包返回结束 ==========');
+    try {
+      console.log('[DOUBAO] API_RESPONSE_RAW_BODY (接口原始 JSON):\n' + JSON.stringify(res.data, null, 2));
+    } catch (_) {}
     if (!content) throw new Error('Invalid Doubao response');
     return {
       raw: content,
       provider: 'doubao',
       model: res.data?.model ?? 'doubao-pro',
       tokens: usage?.total_tokens ?? null,
-      latencyMs: Date.now() - start,
+      latencyMs,
     };
   }
 

@@ -34,8 +34,13 @@ export class QueryService {
   }
 
   async queryUrl(url: string, userId?: string) {
+    console.log('[QUERY_URL] 输入 content=' + JSON.stringify(url?.slice(0, 200)) + ' （本接口仅查风险库，不调用豆包）');
     const cached = await this.redis.get(this.cacheKey('url', url));
-    if (cached) return JSON.parse(cached);
+    if (cached) {
+      const result = JSON.parse(cached);
+      console.log('[QUERY_URL] 命中缓存 risk_level=' + result.risk_level + ' recordsCount=' + (result.records?.length ?? 0));
+      return result;
+    }
 
     const items = await this.prisma.riskData.findMany({
       where: { type: 'url', content: { contains: url, mode: 'insensitive' } },
@@ -46,6 +51,7 @@ export class QueryService {
       tags: items.flatMap((i) => (Array.isArray(i.tags) ? i.tags : [])),
       records: items,
     };
+    console.log('[QUERY_URL] 风险库查询 命中条数=' + items.length + ' risk_level=' + result.risk_level + ' 结论原因: ' + (items.length ? '库中存在该URL/域名相关风险记录' : '库中无匹配记录，故判为低风险'));
     await this.redis.set(this.cacheKey('url', url), JSON.stringify(result), CACHE_TTL);
     return result;
   }
