@@ -3,6 +3,7 @@
  * Input Parser → Risk DB Check → RAG Keyword Search → AI Model → Risk Score → Cache & Log → Return JSON
  */
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { InputParserService } from './parser/input-parser.service';
@@ -41,6 +42,8 @@ export interface AnalyzeInput {
   isScreenshot?: boolean;
   /** 用户上传截图的 CDN 地址，落库供后台展示 */
   imageUrl?: string;
+  /** 同一对话内连续提问时传上次返回的 conversation_id，历史按会话只显示一条 */
+  conversationId?: string;
 }
 
 export interface AnalyzeResult extends AiOutputSchema {
@@ -50,6 +53,8 @@ export interface AnalyzeResult extends AiOutputSchema {
   risk_db_hit?: boolean;
   risk_db_hit_level?: string;
   risk_db_hit_record_count?: number;
+  /** 当前对话 id，下次同对话提问时传回，历史按会话聚合 */
+  conversation_id?: string;
 }
 
 @Injectable()
@@ -73,7 +78,8 @@ export class AiService {
     input: AnalyzeInput,
     userId: string | null,
   ): Promise<AnalyzeResult> {
-    console.log('[AI_FLOW] ========== 开始 AI 分析（会调用豆包） ========== content=' + JSON.stringify(input.content?.slice(0, 300)));
+    const conversationId = (input.conversationId && input.conversationId.trim()) || randomUUID();
+    console.log('[AI_FLOW] ========== 开始 AI 分析（会调用豆包） ========== content=' + JSON.stringify(input.content?.slice(0, 300)) + ' conversationId=' + conversationId);
     const language = input.language ?? 'zh';
     const country = input.country ?? '';
     const isScreenshot = input.isScreenshot ?? false;
@@ -94,10 +100,10 @@ export class AiService {
     const cached = await this.redis.get(cacheKey);
     if (cached) {
       try {
-        const obj = JSON.parse(cached) as AnalyzeResult;
+        const obj = ensureFullResult(JSON.parse(cached) as AnalyzeResult);
         console.log('[AI_FLOW] CACHE_HIT 未调豆包，直接使用缓存 risk_level=' + (obj?.risk_level ?? '?'));
-        await this.writeQuery(userId, parsed, ensureFullResult(obj), provider, true, input.imageUrl);
-        return ensureFullResult(obj);
+        await this.writeQuery(userId, conversationId, parsed, obj, provider, true, input.imageUrl);
+        return { ...obj, conversation_id: conversationId };
       } catch {}
     }
     console.log('[AI_FLOW] CACHE_MISS 将调用豆包');
@@ -159,8 +165,8 @@ export class AiService {
       console.log('[AI_FLOW] 6.RESULT URL 最终返回 risk_db_hit=' + urlFinal.risk_db_hit);
       const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
       await this.redis.set(cacheKey, JSON.stringify(urlFinal), ttl);
-      await this.writeQuery(userId, parsed, urlFinal, provider, false, input.imageUrl);
-      return urlFinal;
+      await this.writeQuery(userId, conversationId, parsed, urlFinal, provider, false, input.imageUrl);
+      return { ...urlFinal, conversation_id: conversationId };
     }
 
     console.log('[AI_FLOW] 2.风险库匹配前 inputType=' + parsed.inputType + ' contentLen=' + parsed.originalContent.length);
@@ -225,12 +231,13 @@ export class AiService {
     const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
     await this.redis.set(cacheKey, JSON.stringify(final), ttl);
 
-    await this.writeQuery(userId, parsed, final, provider, false, input.imageUrl);
-    return final;
+    await this.writeQuery(userId, conversationId, parsed, final, provider, false, input.imageUrl);
+    return { ...final, conversation_id: conversationId };
   }
 
   private async writeQuery(
     userId: string | null,
+    conversationId: string,
     parsed: { inputType: string; normalizedContent: string; originalContent: string },
     result: AnalyzeResult,
     aiProvider: string,
@@ -240,6 +247,7 @@ export class AiService {
     await this.prisma.query.create({
       data: {
         userId,
+        conversationId,
         inputType: parsed.inputType,
         content: parsed.originalContent,
         imageUrl: imageUrl ?? null,
@@ -268,13 +276,14 @@ export class AiService {
     imageBase64OrText: string,
     language: 'zh' | 'en' = 'zh',
     imageUrl?: string,
+    conversationId?: string,
   ): Promise<AnalyzeResult> {
     const looksLikeBase64 =
       imageBase64OrText.startsWith('data:image') ||
       /^[A-Za-z0-9+/=]{100,}$/.test(imageBase64OrText.trim());
     if (!looksLikeBase64 && imageBase64OrText.trim().length > 0) {
       return this.analyze(
-        { content: imageBase64OrText.trim(), language, isScreenshot: true, imageUrl: imageUrl },
+        { content: imageBase64OrText.trim(), language, isScreenshot: true, imageUrl: imageUrl, conversationId },
         userId,
       );
     }
@@ -298,7 +307,7 @@ export class AiService {
       };
     }
     return this.analyze(
-      { content: text, language, isScreenshot: true, imageUrl },
+      { content: text, language, isScreenshot: true, imageUrl, conversationId },
       userId,
     );
   }

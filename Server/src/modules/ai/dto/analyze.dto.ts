@@ -11,6 +11,11 @@ export class AnalyzeTextDto {
   @IsOptional()
   @IsString()
   country?: string;
+
+  /** 同一对话内连续提问时传上次返回的 conversation_id，历史按会话只显示一条 */
+  @IsOptional()
+  @IsString()
+  conversation_id?: string;
 }
 
 export class AnalyzeScreenshotDto {
@@ -30,4 +35,9 @@ export class AnalyzeScreenshotDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+
+  /** 同一对话内连续提问时传上次返回的 conversation_id */
+  @IsOptional()
+  @IsString()
+  conversation_id?: string;
 }
