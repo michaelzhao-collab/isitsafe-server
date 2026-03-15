@@ -15,6 +15,7 @@ import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { QueriesModule } from './modules/queries/queries.module';
 import { MessagesModule } from './modules/messages/messages.module';
+import { FeedbackModule } from './modules/feedback/feedback.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { HealthModule } from './modules/health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -39,6 +40,7 @@ import { RedisModule } from './redis/redis.module';
     KnowledgeModule,
     QueriesModule,
     MessagesModule,
+    FeedbackModule,
     AdminModule,
     SettingsModule,
     HealthModule,

@@ -58,13 +58,25 @@ export const api = {
   aiStats: (params?: { startDate?: string; endDate?: string }) =>
     request<{ totalQueries: number; byStatus: any[]; highRiskCount: number }>('/admin/ai/stats', { params: params as any }),
   subscriptionLogs: () => request<any[]>('/admin/subscription/logs'),
+  subscriptionOrders: (params?: { page?: number; pageSize?: number; status?: string }) =>
+    request<{ items: SubscriptionOrderItem[]; total: number; page: number; pageSize: number }>(
+      '/admin/subscription/orders',
+      { params: params as Record<string, string> }
+    ),
   messages: (params?: { page?: number; pageSize?: number }) =>
-    request<{ items: Array<{ id: string; title: string; content: string; link: string | null; createdAt: string }>; total: number }>(
+    request<{ items: Array<{ id: string; title: string; content: string; link: string | null; status: string; createdAt: string }>; total: number }>(
       '/admin/messages',
       { params: params as any }
     ),
   messagesCreate: (body: { title: string; content: string; link?: string }) =>
     request<{ id: string }>('/admin/messages', { method: 'POST', body: JSON.stringify(body) }),
+  messagesSetOffline: (id: string) =>
+    request<{ ok: boolean }>(`/admin/messages/${id}/offline`, { method: 'PATCH' }),
+  feedback: (params?: { page?: number; pageSize?: number }) =>
+    request<{ items: Array<{ id: string; userId: string | null; content: string; imageUrl: string | null; createdAt: string }>; total: number }>(
+      '/admin/feedback',
+      { params: params as any }
+    ),
   membershipPlans: () => request<MembershipPlanItem[]>('/admin/membership/plans'),
   membershipPlanCreate: (body: MembershipPlanCreate) =>
     request<MembershipPlanItem>('/admin/membership/plans', { method: 'POST', body: JSON.stringify(body) }),
@@ -98,4 +110,17 @@ export interface MembershipPlanCreate {
   isActive?: boolean;
   sortOrder?: number;
   isRecommended?: boolean;
+}
+
+export interface SubscriptionOrderItem {
+  id: string;
+  userId: string;
+  productId: string;
+  planType: string;
+  status: string;
+  expireTime: string;
+  transactionId: string | null;
+  paymentMethod: string;
+  createdAt: string;
+  user: { id: string; phone: string | null; nickname: string | null; email: string | null };
 }

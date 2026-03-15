@@ -17,6 +17,7 @@ export class MessagesController {
   ) {
     const skip = (parseInt(page, 10) - 1) * parseInt(pageSize, 10);
     const messages = await this.prisma.appMessage.findMany({
+      where: { status: 'active' },
       orderBy: { createdAt: 'desc' },
       skip,
       take: parseInt(pageSize, 10),
@@ -24,7 +25,7 @@ export class MessagesController {
         readBy: { where: { userId }, take: 1 },
       },
     });
-    const total = await this.prisma.appMessage.count();
+    const total = await this.prisma.appMessage.count({ where: { status: 'active' } });
     const items = messages.map((m) => ({
       id: m.id,
       title: m.title,
@@ -38,7 +39,7 @@ export class MessagesController {
 
   @Get('unread-count')
   async unreadCount(@CurrentUser('sub') userId: string) {
-    const allIds = await this.prisma.appMessage.findMany({ select: { id: true } });
+    const allIds = await this.prisma.appMessage.findMany({ where: { status: 'active' }, select: { id: true } });
     const readIds = await this.prisma.userMessageRead.findMany({
       where: { userId },
       select: { messageId: true },

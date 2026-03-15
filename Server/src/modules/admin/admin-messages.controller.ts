@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { IsString, IsOptional, MaxLength } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -36,10 +36,21 @@ export class AdminMessagesController {
         orderBy: { createdAt: 'desc' },
         skip,
         take: parseInt(pageSize, 10),
+        select: { id: true, title: true, content: true, link: true, status: true, createdAt: true },
       }),
       this.prisma.appMessage.count(),
     ]);
     return { items, total, page: parseInt(page, 10), pageSize: parseInt(pageSize, 10) };
+  }
+
+  /** 下架：设为 offline，客户端不再展示 */
+  @Patch(':id/offline')
+  async setOffline(@Param('id') id: string) {
+    await this.prisma.appMessage.update({
+      where: { id },
+      data: { status: 'offline' },
+    });
+    return { ok: true };
   }
 
   @Post()

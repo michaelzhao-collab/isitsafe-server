@@ -15,6 +15,7 @@ import { AdminSettingsController } from './admin-settings.controller';
 import { AdminAnalyticsController } from './admin-analytics.controller';
 import { AdminSubscriptionController } from './admin-subscription.controller';
 import { AdminMessagesController } from './admin-messages.controller';
+import { AdminFeedbackController } from './admin-feedback.controller';
 import { AdminMembershipController } from './admin-membership.controller';
 import { AdminRiskDataController } from './admin-risk-data.controller';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
@@ -32,6 +33,7 @@ import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
     AdminAnalyticsController,
     AdminSubscriptionController,
     AdminMessagesController,
+    AdminFeedbackController,
     AdminMembershipController,
     AdminRiskDataController,
   ],

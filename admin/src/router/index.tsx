@@ -17,7 +17,9 @@ import Settings from '../pages/systemSettings/Settings';
 import AnalyticsDashboard from '../pages/analytics/AnalyticsDashboard';
 import AdminUsersList from '../pages/adminUsers/AdminUsersList';
 import MessagesList from '../pages/messages/MessagesList';
+import FeedbackList from '../pages/feedback/FeedbackList';
 import MembershipPlansList from '../pages/membership/MembershipPlansList';
+import SubscriptionOrdersList from '../pages/subscriptionOrders/SubscriptionOrdersList';
 import Login from '../pages/Login';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -55,7 +57,9 @@ const router = createBrowserRouter([
       { path: 'analytics', element: <AnalyticsDashboard /> },
       { path: 'admin-users', element: <AdminUsersList /> },
       { path: 'messages', element: <MessagesList /> },
+      { path: 'feedback', element: <FeedbackList /> },
       { path: 'membership', element: <MembershipPlansList /> },
+      { path: 'subscription-orders', element: <SubscriptionOrdersList /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

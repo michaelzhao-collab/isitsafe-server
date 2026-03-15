@@ -124,4 +124,32 @@ export class SubscriptionService {
       include: { user: { select: { id: true, phone: true, email: true, country: true } } },
     });
   }
+
+  /** 管理后台：会员订单列表，分页，可选按状态筛选 */
+  async listOrders(page = 1, pageSize = 20, status?: string) {
+    const skip = (page - 1) * pageSize;
+    const where = status && status !== 'all' ? { status } : {};
+    const [items, total] = await Promise.all([
+      this.prisma.subscription.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+        select: {
+          id: true,
+          userId: true,
+          productId: true,
+          planType: true,
+          status: true,
+          expireTime: true,
+          transactionId: true,
+          paymentMethod: true,
+          createdAt: true,
+          user: { select: { id: true, phone: true, nickname: true, email: true } },
+        },
+      }),
+      this.prisma.subscription.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
+  }
 }

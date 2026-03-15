@@ -225,18 +225,33 @@ model Settings {
 }
 
 // --------------------------------------------
-// 10) app_messages（后台下发给客户端的消息：标题、内容、跳转链接、发布时间）
+// 10) app_messages（后台下发给客户端的消息：标题、内容、跳转链接、发布时间；status=offline 时客户端不展示）
 // --------------------------------------------
 model AppMessage {
   id        String   @id @default(cuid())
   title     String   @db.VarChar(200)
   content   String   @db.Text
   link      String?  @db.VarChar(500)
+  status    String   @default("active") @db.VarChar(20) // active | offline
   createdAt DateTime @default(now()) @map("created_at")
 
   readBy UserMessageRead[]
 
   @@map("app_messages")
+}
+
+// --------------------------------------------
+// 用户意见反馈（客户端提交文案+一张图，Admin 查看）
+// --------------------------------------------
+model UserFeedback {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  content   String   @db.Text
+  imageUrl  String?  @map("image_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("user_feedback")
 }
 
 // 用户已读记录（用于小红点）
