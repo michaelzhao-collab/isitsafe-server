@@ -85,7 +85,7 @@ export class AiService {
     if (cached) {
       try {
         const obj = JSON.parse(cached) as AnalyzeResult;
-        console.log('[AI_FLOW] CACHE_HIT 未调豆包，直接使用缓存');
+        console.log('[AI_FLOW] CACHE_HIT 未调豆包，直接使用缓存 risk_level=' + (obj?.risk_level ?? '?'));
         console.log('[AI_FLOW] CACHE_HIT 缓存内容(匹配后的结果): ' + cached);
         await this.writeQuery(userId, parsed, obj, provider, true, input.imageUrl);
         return obj;
@@ -203,7 +203,7 @@ export class AiService {
       dbHit,
       ragCases,
     );
-    console.log('[AI_FLOW] 5.SCORE_ENGINE score=' + score + ' risk_level=' + risk_level);
+    console.log('[AI_FLOW] 5.SCORE_ENGINE AI原始=' + parsedAi.risk_level + ' confidence=' + parsedAi.confidence + ' => score=' + score + ' risk_level=' + risk_level);
 
     const final: AnalyzeResult = {
       ...parsedAi,

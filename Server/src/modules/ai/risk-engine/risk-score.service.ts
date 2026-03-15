@@ -42,7 +42,8 @@ export class RiskScoreService {
 
   /**
    * 综合得分并映射 risk_level
-   * score = AI*0.6 + DB*0.3 + RAG*0.1；若 DB 命中则 +riskBoost(30)
+   * 无风险库命中且无 RAG 时：仅依赖 AI，用满额 aiScore，避免“任何内容都低风险”
+   * 有 DB 或 RAG 时：score = AI*0.6 + DB*0.3 + RAG*0.1，DB 命中 +30
    * >=80 high; 50-79 medium; <50 low; unknown 且 DB 未命中 -> unknown
    */
   compute(
@@ -54,8 +55,15 @@ export class RiskScoreService {
     const aiScore = this.aiToScore(aiLevel, confidence);
     const dbScore = this.dbToScore(dbHit?.riskLevel ?? null);
     const ragScore = this.ragToScore(ragHits);
-    let score = Math.round(aiScore * 0.6 + dbScore * 0.3 + ragScore * 0.1);
-    if (dbHit) score = Math.min(100, score + RiskScoreService.RISK_BOOST_WHEN_DB_HIT);
+
+    const hasDbOrRag = !!dbHit || ragHits.length > 0;
+    let score: number;
+    if (!hasDbOrRag) {
+      score = Math.round(aiScore);
+    } else {
+      score = Math.round(aiScore * 0.6 + dbScore * 0.3 + ragScore * 0.1);
+      if (dbHit) score = Math.min(100, score + RiskScoreService.RISK_BOOST_WHEN_DB_HIT);
+    }
 
     if (aiLevel === 'unknown' && !dbHit) {
       return { score, risk_level: 'unknown' };

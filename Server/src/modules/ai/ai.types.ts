@@ -28,7 +28,23 @@ export interface AiOutputSchema {
   advice: string[];
 }
 
-/** 校验并兜底：无效则返回 unknown + 低置信度 */
+const ZH_TO_EN: Record<string, RiskLevel> = {
+  高风险: 'high', 高: 'high',
+  中风险: 'medium', 中: 'medium',
+  低风险: 'low', 低: 'low',
+  未知: 'unknown', 未知风险: 'unknown',
+};
+
+function normalizeRiskLevel(value: string | undefined): RiskLevel {
+  if (!value || typeof value !== 'string') return 'unknown';
+  const s = value.trim().toLowerCase();
+  const zh = value.trim();
+  if (ZH_TO_EN[zh]) return ZH_TO_EN[zh];
+  const validLevels: RiskLevel[] = ['high', 'medium', 'low', 'unknown'];
+  return validLevels.includes(s as RiskLevel) ? (s as RiskLevel) : 'unknown';
+}
+
+/** 校验并兜底：无效则返回 unknown + 低置信度；支持豆包返回中文 risk_level */
 export function parseAndValidateAiOutput(raw: string): AiOutputSchema {
   const fallback: AiOutputSchema = {
     risk_level: 'unknown',
@@ -41,9 +57,7 @@ export function parseAndValidateAiOutput(raw: string): AiOutputSchema {
   try {
     const cleaned = raw.replace(/```json\s?/g, '').replace(/```\s?/g, '').trim();
     const obj = JSON.parse(cleaned) as Record<string, unknown>;
-    const risk_level = (obj.risk_level as string)?.toLowerCase();
-    const validLevels: RiskLevel[] = ['high', 'medium', 'low', 'unknown'];
-    const level = validLevels.includes(risk_level as RiskLevel) ? (risk_level as RiskLevel) : 'unknown';
+    const level = normalizeRiskLevel((obj.risk_level as string) ?? undefined);
     const confidence = typeof obj.confidence === 'number' ? Math.max(0, Math.min(100, obj.confidence)) : 50;
     const risk_type = Array.isArray(obj.risk_type) ? obj.risk_type.map(String) : ['未知风险'];
     const summary = typeof obj.summary === 'string' ? obj.summary : fallback.summary;
