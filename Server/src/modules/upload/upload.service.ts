@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OSS from 'ali-oss';
 
@@ -19,6 +19,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 @Injectable()
 export class UploadService {
+  private readonly logger = new Logger(UploadService.name);
   private client: OSS | null = null;
   private cdnDomain: string;
 
@@ -50,9 +51,8 @@ export class UploadService {
     fileSize?: number,
   ): Promise<string> {
     if (!this.client) {
-      throw new BadRequestException(
-        'OSS not configured: set OSS_REGION, OSS_BUCKET, OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET',
-      );
+      this.logger.warn('[Upload] OSS client is null (missing OSS_REGION, OSS_BUCKET, OSS_ACCESS_KEY_ID, OSS_ACCESS_KEY_SECRET)');
+      throw new BadRequestException('头像上传功能暂未配置，请联系管理员');
     }
     const t = type?.toLowerCase();
     if (!UPLOAD_TYPES.includes(t as UploadType)) {
@@ -67,10 +67,21 @@ export class UploadService {
     const folder = FOLDER_MAP[t as UploadType];
     const ext = mimeType === 'image/webp' ? 'webp' : mimeType === 'image/jpeg' || mimeType === 'image/jpg' ? 'jpg' : 'png';
     const objectKey = `${folder}/${userId}-${Date.now()}.${ext}`;
-    await this.client.put(objectKey, buffer, {
-      headers: { 'Content-Type': mimeType },
-    });
-    return `${this.cdnDomain}/${objectKey}`;
+    try {
+      await this.client.put(objectKey, buffer, {
+        headers: { 'Content-Type': mimeType },
+      });
+      return `${this.cdnDomain}/${objectKey}`;
+    } catch (err: any) {
+      this.logger.warn(`[Upload] OSS put failed: ${err?.code ?? err?.message ?? err}`);
+      throw new BadRequestException(
+        err?.code === 'InvalidAccessKeyId' || err?.code === 'SignatureDoesNotMatch'
+          ? '存储配置错误，请联系管理员'
+          : err?.code === 'RequestTimeout' || err?.message?.includes('timeout')
+            ? '上传超时，请检查网络后重试'
+            : '头像上传失败，请检查网络后重试',
+      );
+    }
   }
 
   /**
