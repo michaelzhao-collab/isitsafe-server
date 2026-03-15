@@ -24,8 +24,11 @@ export class QueriesController {
     @Query('pageSize') pageSize = '20',
     @Query('riskLevel') riskLevel?: string,
   ) {
-    const where: any = { deletedAt: null };
-    if (userId) where.userId = userId;
+    // 未登录不返回任何记录，只返回当前用户自己的
+    if (!userId) {
+      return { items: [], total: 0, page: parseInt(page, 10), pageSize: parseInt(pageSize, 10) };
+    }
+    const where: any = { deletedAt: null, userId };
     if (riskLevel) where.riskLevel = riskLevel;
     const skip = (parseInt(page, 10) - 1) * parseInt(pageSize, 10);
     const [items, total] = await Promise.all([
