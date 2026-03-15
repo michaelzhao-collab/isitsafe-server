@@ -22,6 +22,7 @@ model User {
   country            String?
   avatar             String?
   nickname           String?
+  wechatNickname     String?    @map("wechat_nickname")  // 微信登录时的昵称，优先展示
   gender             String     @default("unknown")
   birthday           DateTime?
   role               UserRole   @default(USER)

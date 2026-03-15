@@ -174,6 +174,7 @@ export class AuthService {
         country: true,
         avatar: true,
         nickname: true,
+        wechatNickname: true,
         gender: true,
         birthday: true,
         role: true,
