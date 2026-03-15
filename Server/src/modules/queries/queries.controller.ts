@@ -87,7 +87,7 @@ export class QueriesController {
     }
   }
 
-  /** 按会话删除：软删该 conversation_id 下本用户所有记录（历史列表按会话展示时用） */
+  /** 按会话删除：软删该 conversation_id 下本用户所有记录；若无匹配则按单条 id 删（兼容旧数据） */
   @Delete('conversation/:conversationId')
   @UseGuards(JwtAuthGuard)
   async deleteByConversation(
@@ -97,11 +97,18 @@ export class QueriesController {
     if (!userId || typeof userId !== 'string') {
       throw new UnauthorizedException('请先登录');
     }
+    const id = conversationId.trim();
     try {
-      await this.prisma.query.updateMany({
-        where: { userId, conversationId: conversationId.trim(), deletedAt: null },
+      const byConv = await this.prisma.query.updateMany({
+        where: { userId, conversationId: id, deletedAt: null },
         data: { deletedAt: new Date() },
       });
+      if (byConv.count === 0) {
+        await this.prisma.query.updateMany({
+          where: { id, userId, deletedAt: null },
+          data: { deletedAt: new Date() },
+        });
+      }
       return {};
     } catch (err) {
       this.logger.error('DELETE /queries/conversation/:id failed', err);
