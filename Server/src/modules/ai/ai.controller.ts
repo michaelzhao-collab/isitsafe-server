@@ -19,6 +19,7 @@ export class AiController {
     @Body() dto: AnalyzeTextDto,
     @CurrentUser('sub') userId?: string,
   ) {
+    console.log('[AI_API] POST /api/ai/analyze contentLen=' + (dto?.content?.length ?? 0) + ' preview=' + JSON.stringify((dto?.content ?? '').slice(0, 80)));
     return this.ai.analyze(
       {
         content: dto.content,

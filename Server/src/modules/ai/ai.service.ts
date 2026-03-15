@@ -24,6 +24,16 @@ const CACHE_PREFIX = 'cache:ai:';
 const TTL_DEFAULT = 24 * 3600;       // 24h
 const TTL_HIGH_RISK = 7 * 24 * 3600; // 7d
 
+const FALLBACK_REASONS = ['请结合其他渠道核实', '勿轻信单方说法', '注意保护个人隐私与资金安全'];
+const FALLBACK_ADVICE = ['请谨慎对待，勿轻信对方', '可向官方渠道求证', '注意保护个人隐私与资金安全'];
+
+function ensureFullResult(r: AnalyzeResult): AnalyzeResult {
+  const reasons = Array.isArray(r.reasons) && r.reasons.length > 0 ? r.reasons : FALLBACK_REASONS;
+  const advice = Array.isArray(r.advice) && r.advice.length > 0 ? r.advice : FALLBACK_ADVICE;
+  const summary = typeof r.summary === 'string' && r.summary.length > 0 ? r.summary : '暂无总结';
+  return { ...r, reasons, advice, summary };
+}
+
 export interface AnalyzeInput {
   content: string;
   language?: 'zh' | 'en';
@@ -86,9 +96,8 @@ export class AiService {
       try {
         const obj = JSON.parse(cached) as AnalyzeResult;
         console.log('[AI_FLOW] CACHE_HIT 未调豆包，直接使用缓存 risk_level=' + (obj?.risk_level ?? '?'));
-        console.log('[AI_FLOW] CACHE_HIT 缓存内容(匹配后的结果): ' + cached);
-        await this.writeQuery(userId, parsed, obj, provider, true, input.imageUrl);
-        return obj;
+        await this.writeQuery(userId, parsed, ensureFullResult(obj), provider, true, input.imageUrl);
+        return ensureFullResult(obj);
       } catch {}
     }
     console.log('[AI_FLOW] CACHE_MISS 将调用豆包');
@@ -139,14 +148,14 @@ export class AiService {
         dbHit,
         [],
       );
-      const urlFinal: AnalyzeResult = {
+      const urlFinal = ensureFullResult({
         ...urlParsedAi,
         risk_level,
         score,
         risk_db_hit: recordCount > 0,
         risk_db_hit_level: recordCount > 0 ? urlResult.risk_level : undefined,
         risk_db_hit_record_count: recordCount,
-      };
+      });
       console.log('[AI_FLOW] 6.RESULT URL 最终返回 risk_db_hit=' + urlFinal.risk_db_hit);
       const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
       await this.redis.set(cacheKey, JSON.stringify(urlFinal), ttl);
@@ -205,13 +214,13 @@ export class AiService {
     );
     console.log('[AI_FLOW] 5.SCORE_ENGINE AI原始=' + parsedAi.risk_level + ' confidence=' + parsedAi.confidence + ' => score=' + score + ' risk_level=' + risk_level);
 
-    const final: AnalyzeResult = {
+    const final = ensureFullResult({
       ...parsedAi,
       risk_level,
       score,
       risk_db_hit: false,
-    };
-    console.log('[AI_FLOW] 6.RESULT 最终返回: ' + JSON.stringify(final));
+    });
+    console.log('[AI_FLOW] 6.RESULT 最终返回 risk_level=' + final.risk_level + ' reasonsLen=' + (final.reasons?.length ?? 0) + ' adviceLen=' + (final.advice?.length ?? 0));
 
     const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
     await this.redis.set(cacheKey, JSON.stringify(final), ttl);
