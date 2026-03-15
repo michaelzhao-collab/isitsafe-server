@@ -1,12 +1,22 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { IsString, IsOptional, MaxLength } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 
 /** 管理后台：消息管理。添加消息即“发送给所有人”（客户端拉取列表）。 */
 export class CreateMessageDto {
+  @IsString()
+  @MaxLength(500)
   title: string;
+
+  @IsString()
+  @MaxLength(5000)
   content: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   link?: string;
 }
 
