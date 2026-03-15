@@ -77,7 +77,7 @@ export default function KnowledgeList() {
         }
         setImporting(true);
         bulkImportKnowledge(items)
-          .then((res) => {
+          .then((res: { created: number }) => {
             message.success(`批量导入成功，共 ${res.created} 条`);
             load();
           })
