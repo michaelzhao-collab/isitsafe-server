@@ -21,8 +21,8 @@ import { extractUrlFromContent } from '../../common/utils/normalize';
 import { QueryService } from '../query/query.service';
 
 const CACHE_PREFIX = 'cache:ai:';
-const TTL_DEFAULT = 24 * 3600;       // 24h
-const TTL_HIGH_RISK = 7 * 24 * 3600; // 7d
+const TTL_DEFAULT = 90 * 24 * 3600;       // 90 天
+const TTL_HIGH_RISK = 365 * 24 * 3600;    // 365 天
 
 const FALLBACK_REASONS = ['请结合其他渠道核实', '勿轻信单方说法', '注意保护个人隐私与资金安全'];
 const FALLBACK_ADVICE = ['请谨慎对待，勿轻信对方', '可向官方渠道求证', '注意保护个人隐私与资金安全'];
