@@ -37,6 +37,15 @@ export class AdminKnowledgeController {
     return this.knowledge.create(body);
   }
 
+  /** 批量导入：body.items 为数组，每项 { title, category, content }，ID 自动生成 */
+  @Post('bulk-import')
+  async bulkImport(@Body() body: { items: Array<{ title: string; category: string; content: string }> }) {
+    if (!Array.isArray(body.items) || body.items.length === 0) {
+      return { created: 0, message: 'items 不能为空' };
+    }
+    return this.knowledge.bulkCreate(body.items);
+  }
+
   @Put(':id')
   async update(
     @Param('id') id: string,

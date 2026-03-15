@@ -70,4 +70,20 @@ export class KnowledgeService {
   async delete(id: string) {
     return this.prisma.knowledgeCase.delete({ where: { id } });
   }
+
+  /** 批量导入：传入多行 { title, category, content }，ID 由 Prisma 自动生成 */
+  async bulkCreate(
+    items: Array<{ title: string; category: string; content: string }>,
+  ) {
+    if (!items?.length) return { created: 0, ids: [] };
+    const created = await this.prisma.knowledgeCase.createMany({
+      data: items.map((row) => ({
+        title: String(row.title ?? '').trim(),
+        category: String(row.category ?? '').trim() || '未分类',
+        content: String(row.content ?? '').trim(),
+      })),
+      skipDuplicates: false,
+    });
+    return { created: created.count, ids: [] };
+  }
 }

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Table, Card, Select, Input, Space, Button, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { PlusOutlined } from '@ant-design/icons';
-import { getKnowledge, deleteKnowledge, type KnowledgeItem, type KnowledgeListRes } from '../../api/knowledge';
+import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import * as XLSX from 'xlsx';
+import { getKnowledge, deleteKnowledge, bulkImportKnowledge, type KnowledgeItem, type KnowledgeListRes } from '../../api/knowledge';
 import { KNOWLEDGE_CATEGORIES } from '../../api/knowledge';
 
 export default function KnowledgeList() {
@@ -13,6 +14,8 @@ export default function KnowledgeList() {
   const [pageSize, setPageSize] = useState(20);
   const [category, setCategory] = useState<string | undefined>();
   const [search, setSearch] = useState('');
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     setLoading(true);
@@ -39,6 +42,56 @@ export default function KnowledgeList() {
         load();
       })
       .catch((e) => message.error(e?.message ?? '删除失败'));
+  };
+
+  const handleBulkImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = reader.result;
+        const wb = XLSX.read(data, { type: 'binary' });
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1, defval: '' }) as string[][];
+        const items: Array<{ title: string; category: string; content: string }> = [];
+        const isHeader = (row: string[]) => {
+          const first = String(row[0] ?? '').trim();
+          return first === '标题' || first === 'title' || first === 'Title';
+        };
+        let start = 0;
+        if (rows.length > 0 && isHeader(rows[0])) start = 1;
+        for (let i = start; i < rows.length; i++) {
+          const row = rows[i];
+          const title = String(row?.[0] ?? '').trim();
+          const category = String(row?.[1] ?? '').trim();
+          const content = String(row?.[2] ?? '').trim();
+          if (title || category || content) {
+            items.push({ title: title || '未命名', category: category || '未分类', content });
+          }
+        }
+        if (items.length === 0) {
+          message.warning('Excel 中无有效数据（需要至少：标题、分类、正文三列）');
+          e.target.value = '';
+          return;
+        }
+        setImporting(true);
+        bulkImportKnowledge(items)
+          .then((res) => {
+            message.success(`批量导入成功，共 ${res.created} 条`);
+            load();
+          })
+          .catch((err) => message.error(err?.response?.data?.message ?? err?.message ?? '导入失败'))
+          .finally(() => {
+            setImporting(false);
+            e.target.value = '';
+          });
+      } catch (err) {
+        message.error('解析 Excel 失败，请确认文件为 xlsx/xls 且包含标题、分类、正文三列');
+        e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
   };
 
   const columns = [
@@ -106,6 +159,20 @@ export default function KnowledgeList() {
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/knowledge/new')}>
             新增
           </Button>
+          <Button
+            icon={<UploadOutlined />}
+            loading={importing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            批量导入
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            style={{ display: 'none' }}
+            onChange={handleBulkImportFile}
+          />
         </Space>
         <Table
           rowKey="id"

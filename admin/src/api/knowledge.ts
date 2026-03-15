@@ -64,3 +64,7 @@ export function updateKnowledge(
 export function deleteKnowledge(id: string) {
   return request.delete(`/admin/knowledge/${id}`);
 }
+
+export function bulkImportKnowledge(items: Array<{ title: string; category: string; content: string }>) {
+  return request.post<{ created: number; ids?: string[] }>('/admin/knowledge/bulk-import', { items });
+}

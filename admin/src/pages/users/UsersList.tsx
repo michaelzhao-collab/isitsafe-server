@@ -36,6 +36,7 @@ export default function UsersList() {
   const genderMap: Record<string, string> = { male: '男', female: '女', unknown: '-' };
 
   const columns = [
+    { title: '用户ID', dataIndex: 'id', key: 'id', ellipsis: true, width: 140, render: (v: string) => v || '—' },
     {
       title: '头像',
       dataIndex: 'avatar',
