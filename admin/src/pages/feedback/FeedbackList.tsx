@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Table, Card, message, Image } from 'antd';
-import { api } from '../../api/client';
+import { api, API_BASE } from '../../api/client';
 
 type FeedbackItem = { id: string; userId: string | null; content: string; imageUrl: string | null; createdAt: string };
+
+function fullImageUrl(url: string | null): string {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) return url;
+  const base = API_BASE.replace(/\/api\/?$/, '');
+  return base + (url.startsWith('/') ? url : '/' + url);
+}
 
 export default function FeedbackList() {
   const [loading, setLoading] = useState(false);
@@ -33,7 +40,14 @@ export default function FeedbackList() {
       width: 100,
       render: (v: string | null) =>
         v ? (
-          <Image src={v} alt="反馈图" width={60} height={60} style={{ objectFit: 'cover' }} />
+          <Image
+            src={fullImageUrl(v)}
+            alt="反馈图"
+            width={60}
+            height={60}
+            style={{ objectFit: 'cover' }}
+            fallback="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Crect fill='%23f0f0f0' width='60' height='60'/%3E%3Ctext x='50%25' y='50%25' fill='%23999' text-anchor='middle' dy='.3em' font-size='10'%3E加载失败%3C/text%3E%3C/svg%3E"
+          />
         ) : (
           '—'
         ),

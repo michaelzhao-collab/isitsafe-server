@@ -1,5 +1,6 @@
 // 默认走线上正式接口（也可用 .env 覆盖）
-const BASE = import.meta.env.VITE_API_BASE_URL || 'https://api.starlensai.com/api';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://api.starlensai.com/api';
+const BASE = API_BASE;
 
 function getToken(): string | null {
   return localStorage.getItem('adminToken');
