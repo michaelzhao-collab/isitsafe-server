@@ -4,7 +4,7 @@
   "private": true,
   "description": "星识安全助手对外静态落地页",
   "scripts": {
-    "start": "npx serve -s . -l $PORT"
+    "start": "npx serve . -l $PORT"
   },
   "engines": {
     "node": ">=18"
