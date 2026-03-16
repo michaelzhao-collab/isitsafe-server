@@ -5,7 +5,7 @@
 import { Injectable } from '@nestjs/common';
 import type { KnowledgeCaseHit } from '../rag/rag-keyword.service';
 
-const SCHEMA_DESC = `
+const SCHEMA_DESC_ZH = `
 请严格仅输出一个 JSON 对象，不要包含任何其他文字或 markdown 代码块。格式必须为：
 {
   "risk_level": "high 或 medium 或 low 或 unknown",
@@ -16,13 +16,24 @@ const SCHEMA_DESC = `
   "advice": ["建议1", "建议2", "建议3"]
 }`;
 
+const SCHEMA_DESC_EN = `
+You must output exactly one JSON object, with no extra text or markdown. The format MUST be:
+{
+  "risk_level": "high or medium or low or unknown",
+  "confidence": an integer between 0 and 100,
+  "risk_type": ["one or more of: fraud, gray/black industry, phishing site, investment scam, part-time job scam, fake customer service, fake medical, elderly scam, unknown risk, scam website, phishing scam, financial scam"],
+  "summary": "one-sentence summary",
+  "reasons": ["reason 1", "reason 2", "reason 3"],
+  "advice": ["advice 1", "advice 2", "advice 3"]
+}`;
+
 @Injectable()
 export class AiPromptsService {
   buildSystemPrompt(language: 'zh' | 'en'): string {
     const base = language === 'zh'
       ? '你是一个网络安全风险分析助手，专门用于识别诈骗、黑灰产、钓鱼网站等风险。你根据用户输入（文本、电话号、链接、公司名、截图描述等），分析是否存在诈骗、黑灰产、钓鱼等风险。'
       : 'You are a cybersecurity risk analysis assistant. Analyze user input (text, phone, link, company name, or screenshot description) for fraud, gray/black industry, phishing, etc.';
-    return `${base}\n${SCHEMA_DESC}`;
+    return `${base}\n${language === 'zh' ? SCHEMA_DESC_ZH : SCHEMA_DESC_EN}`;
   }
 
   /** URL 专用：系统角色 + 同一 JSON schema */
@@ -30,7 +41,7 @@ export class AiPromptsService {
     const role = language === 'zh'
       ? '您是一名网络安全助理。请严格仅输出一个 JSON 对象，不要包含任何其他文字或 markdown 代码块。'
       : 'You are a cybersecurity assistant. Output only a single JSON object, no other text or markdown.';
-    return `${role}\n${SCHEMA_DESC}`;
+    return `${role}\n${language === 'zh' ? SCHEMA_DESC_ZH : SCHEMA_DESC_EN}`;
   }
 
   /**
