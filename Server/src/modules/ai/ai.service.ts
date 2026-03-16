@@ -35,6 +35,12 @@ function ensureFullResult(r: AnalyzeResult): AnalyzeResult {
   return { ...r, reasons, advice, summary };
 }
 
+function detectLanguageFromContent(text: string): 'zh' | 'en' {
+  if (!text) return 'zh';
+  // 规则：只要包含任意中文字符，就按中文回答；否则按英文回答
+  return /[\u4e00-\u9fff]/.test(text) ? 'zh' : 'en';
+}
+
 export interface AnalyzeInput {
   content: string;
   language?: 'zh' | 'en';
@@ -80,7 +86,8 @@ export class AiService {
   ): Promise<AnalyzeResult> {
     const conversationId = (input.conversationId && input.conversationId.trim()) || randomUUID();
     console.log('[AI_FLOW] ========== 开始 AI 分析（会调用豆包） ========== content=' + JSON.stringify(input.content?.slice(0, 300)) + ' conversationId=' + conversationId);
-    const language = input.language ?? 'zh';
+    // 回答语言：按用户提问语言决定（不依赖系统语言）
+    const language = input.language ?? detectLanguageFromContent(input.content);
     const country = input.country ?? '';
     const isScreenshot = input.isScreenshot ?? false;
 
