@@ -117,8 +117,8 @@ model KnowledgeCase {
 model KnowledgeCategoryConfig {
   id        String   @id @default(cuid())
   key       String   @unique @db.VarChar(64) // 业务 key，用于与 KnowledgeCase.category 对应
-  nameZh    String   @db.VarChar(100)
-  nameEn    String   @db.VarChar(100)
+  nameZh    String   @map("name_zh") @db.VarChar(100)
+  nameEn    String   @map("name_en") @db.VarChar(100)
   status    String   @default("active") @db.VarChar(20) // active | offline
   sortOrder Int      @default(0) @map("sort_order")
   createdAt DateTime @default(now()) @map("created_at")
