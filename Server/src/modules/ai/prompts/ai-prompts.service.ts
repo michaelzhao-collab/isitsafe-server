@@ -32,7 +32,7 @@ export class AiPromptsService {
   buildSystemPrompt(language: 'zh' | 'en'): string {
     const base = language === 'zh'
       ? '你是一个网络安全风险分析助手，专门用于识别诈骗、黑灰产、钓鱼网站等风险。你根据用户输入（文本、电话号、链接、公司名、截图描述等），分析是否存在诈骗、黑灰产、钓鱼等风险。'
-      : 'You are a cybersecurity risk analysis assistant. Analyze user input (text, phone, link, company name, or screenshot description) for fraud, gray/black industry, phishing, etc.';
+      : 'You are a cybersecurity risk analysis assistant. Analyze user input (text, phone, link, company name, or screenshot description) for fraud, gray/black industry, phishing, etc. When the user writes in English, you MUST write all JSON string values (summary, reasons, advice) in English only.';
     return `${base}\n${language === 'zh' ? SCHEMA_DESC_ZH : SCHEMA_DESC_EN}`;
   }
 
@@ -40,7 +40,7 @@ export class AiPromptsService {
   buildUrlSystemPrompt(language: 'zh' | 'en'): string {
     const role = language === 'zh'
       ? '您是一名网络安全助理。请严格仅输出一个 JSON 对象，不要包含任何其他文字或 markdown 代码块。'
-      : 'You are a cybersecurity assistant. Output only a single JSON object, no other text or markdown.';
+      : 'You are a cybersecurity assistant. Output only a single JSON object, no other text or markdown. When the user message is in English, write all JSON string values (summary, reasons, advice) in English only.';
     return `${role}\n${language === 'zh' ? SCHEMA_DESC_ZH : SCHEMA_DESC_EN}`;
   }
 
@@ -91,6 +91,9 @@ export class AiPromptsService {
       const ref = language === 'zh' ? '\n参考以下相似案例（仅作参考）：\n' : '\nReference cases:\n';
       const casesText = ragCases.map((c) => `[${c.title}] ${c.content.slice(0, 200)}...`).join('\n');
       user += ref + casesText;
+    }
+    if (language === 'en') {
+      user += '\n\nImportant: Write summary, reasons, and advice in English only.';
     }
     return user;
   }

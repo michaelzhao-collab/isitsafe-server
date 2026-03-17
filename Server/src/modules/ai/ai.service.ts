@@ -86,8 +86,9 @@ export class AiService {
   ): Promise<AnalyzeResult> {
     const conversationId = (input.conversationId && input.conversationId.trim()) || randomUUID();
     console.log('[AI_FLOW] ========== 开始 AI 分析（会调用豆包） ========== content=' + JSON.stringify(input.content?.slice(0, 300)) + ' conversationId=' + conversationId);
-    // 回答语言：按用户提问语言决定（不依赖系统语言）
+    // 回答语言：按用户提问语言决定（不传则根据内容检测：含中文→中文回答，否则英文回答）
     const language = input.language ?? detectLanguageFromContent(input.content);
+    console.log('[AI_FLOW] language=' + language + ' (input.language=' + (input.language ?? 'auto') + ')');
     const country = input.country ?? '';
     const isScreenshot = input.isScreenshot ?? false;
 
@@ -281,7 +282,7 @@ export class AiService {
   async analyzeScreenshot(
     userId: string | null,
     imageBase64OrText: string,
-    language: 'zh' | 'en' = 'zh',
+    language?: 'zh' | 'en',
     imageUrl?: string,
     conversationId?: string,
   ): Promise<AnalyzeResult> {

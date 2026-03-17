@@ -19,11 +19,11 @@ export class AiController {
     @Body() dto: AnalyzeTextDto,
     @CurrentUser('sub') userId?: string,
   ) {
-    console.log('[AI_API] POST /api/ai/analyze contentLen=' + (dto?.content?.length ?? 0) + ' preview=' + JSON.stringify((dto?.content ?? '').slice(0, 80)));
+    console.log('[AI_API] POST /api/ai/analyze contentLen=' + (dto?.content?.length ?? 0) + ' language=' + (dto?.language ?? 'auto') + ' preview=' + JSON.stringify((dto?.content ?? '').slice(0, 80)));
     return this.ai.analyze(
       {
         content: dto.content,
-        language: dto.language ?? 'zh',
+        language: dto.language,
         country: dto.country,
         conversationId: dto.conversation_id,
       },
@@ -39,7 +39,7 @@ export class AiController {
     return this.ai.analyzeScreenshot(
       userId ?? null,
       dto.content,
-      dto.language ?? 'zh',
+      dto.language,
       dto.imageUrl,
       dto.conversation_id,
     );
