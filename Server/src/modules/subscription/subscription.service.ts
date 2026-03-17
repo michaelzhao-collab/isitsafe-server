@@ -22,6 +22,22 @@ function computeExpireTime(productId: string): Date {
 export class SubscriptionService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * 处理 Apple App Store Server Notifications V2 回调。
+   * 正式环境与沙盒环境均使用同一 URL，Apple 通过 payload 内字段区分。
+   * 收到后需尽快返回 200，具体业务可异步处理。
+   */
+  async handleAppleNotification(body: Record<string, unknown>): Promise<void> {
+    const signedPayload = (body?.signedPayload as string) || (body?.signed_payload as string);
+    console.log('[APPLE_NOTIFICATION] received', {
+      hasSignedPayload: !!signedPayload,
+      keys: body ? Object.keys(body) : [],
+      preview: signedPayload ? String(signedPayload).slice(0, 80) + '...' : undefined,
+    });
+    // TODO: 使用 Apple 公钥验证 JWS，解析 notificationType / subtype，更新订阅与用户会员状态
+    // 参考：https://developer.apple.com/documentation/appstoreservernotifications
+  }
+
   async verify(
     userId: string,
     productId: string,
