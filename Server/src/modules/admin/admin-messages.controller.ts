@@ -18,6 +18,10 @@ export class CreateMessageDto {
   @IsString()
   @MaxLength(500)
   link?: string;
+
+  @IsOptional()
+  @IsString()
+  language?: 'zh' | 'en';
 }
 
 @Controller('admin/messages')
@@ -36,7 +40,7 @@ export class AdminMessagesController {
         orderBy: { createdAt: 'desc' },
         skip,
         take: parseInt(pageSize, 10),
-        select: { id: true, title: true, content: true, link: true, status: true, createdAt: true },
+        select: { id: true, title: true, content: true, link: true, language: true, status: true, createdAt: true },
       }),
       this.prisma.appMessage.count(),
     ]);

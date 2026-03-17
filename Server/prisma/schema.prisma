@@ -232,11 +232,13 @@ model AppMessage {
   title     String   @db.VarChar(200)
   content   String   @db.Text
   link      String?  @db.VarChar(500)
+  language  String   @default("zh") @db.VarChar(10) // zh | en
   status    String   @default("active") @db.VarChar(20) // active | offline
   createdAt DateTime @default(now()) @map("created_at")
 
   readBy UserMessageRead[]
 
+  @@index([language])
   @@map("app_messages")
 }
 

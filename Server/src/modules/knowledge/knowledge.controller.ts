@@ -4,6 +4,15 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('knowledge')
+function resolveLanguageFromHeader(header?: string, fallback?: string): 'zh' | 'en' {
+  if (fallback === 'en' || fallback === 'zh') return fallback;
+  if (!header) return 'zh';
+  const h = header.toLowerCase();
+  if (h.startsWith('en')) return 'en';
+  if (h.includes('en')) return 'en';
+  return 'zh';
+}
+
 export class KnowledgeController {
   constructor(private knowledge: KnowledgeService) {}
 

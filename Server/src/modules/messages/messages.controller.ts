@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, UseGuards, Headers } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -7,6 +7,14 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @Controller('messages')
 @UseGuards(JwtAuthGuard)
 export class MessagesController {
+function resolveLanguageFromHeader(header?: string): 'zh' | 'en' {
+  if (!header) return 'zh';
+  const h = header.toLowerCase();
+  if (h.startsWith('en')) return 'en';
+  if (h.includes('en')) return 'en';
+  return 'zh';
+}
+
   constructor(private prisma: PrismaService) {}
 
   @Get()
@@ -14,10 +22,12 @@ export class MessagesController {
     @CurrentUser('sub') userId: string,
     @Query('page') page = '1',
     @Query('pageSize') pageSize = '20',
+    @Headers('x-app-language') langHeader?: string,
   ) {
     const skip = (parseInt(page, 10) - 1) * parseInt(pageSize, 10);
+    const lang = resolveLanguageFromHeader(langHeader);
     const messages = await this.prisma.appMessage.findMany({
-      where: { status: 'active' },
+      where: { status: 'active', language: lang },
       orderBy: { createdAt: 'desc' },
       skip,
       take: parseInt(pageSize, 10),
@@ -25,7 +35,7 @@ export class MessagesController {
         readBy: { where: { userId }, take: 1 },
       },
     });
-    const total = await this.prisma.appMessage.count({ where: { status: 'active' } });
+    const total = await this.prisma.appMessage.count({ where: { status: 'active', language: lang } });
     const items = messages.map((m) => ({
       id: m.id,
       title: m.title,
@@ -38,8 +48,8 @@ export class MessagesController {
   }
 
   @Get('unread-count')
-  async unreadCount(@CurrentUser('sub') userId: string) {
-    const allIds = await this.prisma.appMessage.findMany({ where: { status: 'active' }, select: { id: true } });
+  async unreadCount(@CurrentUser('sub') userId: string, @Headers('x-app-language') langHeader?: string) {
+    const allIds = await this.prisma.appMessage.findMany({ where: { status: 'active', language: lang }, select: { id: true } });
     const readIds = await this.prisma.userMessageRead.findMany({
       where: { userId },
       select: { messageId: true },
