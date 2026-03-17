@@ -14,12 +14,13 @@ export default function KnowledgeList() {
   const [pageSize, setPageSize] = useState(20);
   const [category, setCategory] = useState<string | undefined>();
   const [search, setSearch] = useState('');
+  const [language, setLanguage] = useState<string>('zh');
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     setLoading(true);
-    getKnowledge({ page, pageSize, category, search: search || undefined })
+    getKnowledge({ page, pageSize, category, search: search || undefined, language })
       .then((res) => setData({ items: (res as unknown as KnowledgeListRes).items, total: (res as unknown as KnowledgeListRes).total }))
       .catch((e) => message.error(e?.message ?? '加载失败'))
       .finally(() => setLoading(false));
@@ -27,7 +28,7 @@ export default function KnowledgeList() {
 
   useEffect(() => {
     load();
-  }, [page, pageSize, category]);
+  }, [page, pageSize, category, language]);
 
   const handleSearch = () => {
     setPage(1);
@@ -54,7 +55,7 @@ export default function KnowledgeList() {
         const wb = XLSX.read(data, { type: 'binary' });
         const firstSheet = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1, defval: '' }) as string[][];
-        const items: Array<{ title: string; category: string; content: string }> = [];
+        const items: Array<{ title: string; category: string; content: string; language?: string }> = [];
         const isHeader = (row: string[]) => {
           const first = String(row[0] ?? '').trim();
           return first === '标题' || first === 'title' || first === 'Title';
@@ -67,7 +68,12 @@ export default function KnowledgeList() {
           const category = String(row?.[1] ?? '').trim();
           const content = String(row?.[2] ?? '').trim();
           if (title || category || content) {
-            items.push({ title: title || '未命名', category: category || '未分类', content });
+            items.push({
+              title: title || '未命名',
+              category: category || '未分类',
+              content,
+              language: language || 'zh',
+            });
           }
         }
         if (items.length === 0) {
@@ -76,7 +82,7 @@ export default function KnowledgeList() {
           return;
         }
         setImporting(true);
-        bulkImportKnowledge(items)
+        bulkImportKnowledge(items, language)
           .then((res) => {
             const data = res as unknown as { created: number };
             message.success(`批量导入成功，共 ${data.created} 条`);
@@ -151,13 +157,30 @@ export default function KnowledgeList() {
             placeholder="category"
             allowClear
             style={{ width: 140 }}
+            value={category}
             onChange={setCategory}
             options={KNOWLEDGE_CATEGORIES.map((c) => ({ label: c, value: c }))}
+          />
+          <Select
+            style={{ width: 140 }}
+            value={language}
+            onChange={(v) => {
+              setPage(1);
+              setLanguage(v || 'zh');
+            }}
+            options={[
+              { label: '中文 (zh)', value: 'zh' },
+              { label: 'English (en)', value: 'en' },
+            ]}
           />
           <Button type="primary" onClick={handleSearch}>
             查询
           </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/knowledge/new')}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => navigate('/knowledge/new', { state: { language } })}
+          >
             新增
           </Button>
           <Button

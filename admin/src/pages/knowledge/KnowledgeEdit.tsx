@@ -76,7 +76,7 @@ export default function KnowledgeEdit() {
     <div>
       <h2 style={{ marginBottom: 24, color: '#1F2D3D' }}>{isNew ? '新增知识' : '编辑知识'}</h2>
       <Card loading={fetchLoading}>
-        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ language: 'zh' }}>
+        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ language: ((location.state as any)?.language as string) || 'zh' }}>
           <Form.Item name="title" label="title" rules={[{ required: true }]}>
             <Input placeholder="标题" />
           </Form.Item>
@@ -95,8 +95,14 @@ export default function KnowledgeEdit() {
           <Form.Item name="source" label="source">
             <Input placeholder="来源" />
           </Form.Item>
-          <Form.Item name="language" label="language">
-            <Input placeholder="zh / en" />
+          <Form.Item name="language" label="language" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { label: '中文 (zh)', value: 'zh' },
+                { label: 'English (en)', value: 'en' },
+              ]}
+              style={{ width: 160 }}
+            />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading}>

@@ -47,7 +47,7 @@ export const api = {
   reportStats: () => request<{ pending: number; handled: number; rejected: number; total: number }>('/admin/reports/stats'),
   reportStatus: (id: string, status: string) =>
     request(`/admin/reports/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
-  knowledge: (params?: { page?: number; pageSize?: number; category?: string; search?: string }) =>
+  knowledge: (params?: { page?: number; pageSize?: number; category?: string; search?: string; language?: string }) =>
     request<{ items: any[]; total: number }>('/admin/knowledge', { params: params as any }),
   knowledgeUpload: (body: { title: string; content: string; category: string; tags?: string[] }) =>
     request('/admin/knowledge/upload', { method: 'POST', body: JSON.stringify(body) }),
@@ -65,12 +65,12 @@ export const api = {
       { params: params as Record<string, string> }
     ),
   messages: (params?: { page?: number; pageSize?: number }) =>
-    request<{ items: Array<{ id: string; title: string; content: string; link: string | null; status: string; createdAt: string }>; total: number }>(
+    request<{ items: Array<{ id: string; title: string; content: string; link: string | null; language: string; status: string; createdAt: string }>; total: number }>(
       '/admin/messages',
       { params: params as any }
     ),
-  messagesCreate: (body: { title: string; content: string; link?: string }) =>
-    request<{ id: string }>('/admin/messages', { method: 'POST', body: JSON.stringify(body) }),
+  messagesCreate: (body: { titleZh?: string; contentZh?: string; titleEn?: string; contentEn?: string; link?: string }) =>
+    request<{ items: Array<{ id: string }> }>('/admin/messages', { method: 'POST', body: JSON.stringify(body) }),
   messagesSetOffline: (id: string) =>
     request<{ ok: boolean }>(`/admin/messages/${id}/offline`, { method: 'PATCH' }),
   feedback: (params?: { page?: number; pageSize?: number }) =>

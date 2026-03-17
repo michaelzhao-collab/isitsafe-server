@@ -71,9 +71,10 @@ export class KnowledgeService {
     return this.prisma.knowledgeCase.delete({ where: { id } });
   }
 
-  /** 批量导入：传入多行 { title, category, content }，ID 由 Prisma 自动生成 */
+  /** 批量导入：传入多行 { title, category, content, language? }，ID 由 Prisma 自动生成 */
   async bulkCreate(
-    items: Array<{ title: string; category: string; content: string }>,
+    items: Array<{ title: string; category: string; content: string; language?: string }>,
+    defaultLanguage: string = 'zh',
   ) {
     if (!items?.length) return { created: 0, ids: [] };
     const created = await this.prisma.knowledgeCase.createMany({
@@ -81,6 +82,7 @@ export class KnowledgeService {
         title: String(row.title ?? '').trim(),
         category: String(row.category ?? '').trim() || '未分类',
         content: String(row.content ?? '').trim(),
+        language: (row.language && (row.language === 'en' ? 'en' : 'zh')) || (defaultLanguage === 'en' ? 'en' : 'zh'),
       })),
       skipDuplicates: false,
     });

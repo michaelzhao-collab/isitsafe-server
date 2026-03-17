@@ -4,9 +4,6 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 /** 客户端：GET /api/messages 列表，POST /api/messages/:id/read 标记已读；未读数量由前端根据列表与已读记录计算或单独接口 */
-@Controller('messages')
-@UseGuards(JwtAuthGuard)
-export class MessagesController {
 function resolveLanguageFromHeader(header?: string): 'zh' | 'en' {
   if (!header) return 'zh';
   const h = header.toLowerCase();
@@ -15,6 +12,9 @@ function resolveLanguageFromHeader(header?: string): 'zh' | 'en' {
   return 'zh';
 }
 
+@Controller('messages')
+@UseGuards(JwtAuthGuard)
+export class MessagesController {
   constructor(private prisma: PrismaService) {}
 
   @Get()
@@ -49,7 +49,11 @@ function resolveLanguageFromHeader(header?: string): 'zh' | 'en' {
 
   @Get('unread-count')
   async unreadCount(@CurrentUser('sub') userId: string, @Headers('x-app-language') langHeader?: string) {
-    const allIds = await this.prisma.appMessage.findMany({ where: { status: 'active', language: lang }, select: { id: true } });
+    const lang = resolveLanguageFromHeader(langHeader);
+    const allIds = await this.prisma.appMessage.findMany({
+      where: { status: 'active', language: lang },
+      select: { id: true },
+    });
     const readIds = await this.prisma.userMessageRead.findMany({
       where: { userId },
       select: { messageId: true },

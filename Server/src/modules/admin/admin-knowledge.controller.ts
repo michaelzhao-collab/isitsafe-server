@@ -37,13 +37,14 @@ export class AdminKnowledgeController {
     return this.knowledge.create(body);
   }
 
-  /** 批量导入：body.items 为数组，每项 { title, category, content }，ID 自动生成 */
+  /** 批量导入：body.items 为数组，每项 { title, category, content, language? }，ID 自动生成；未指定 language 时使用 body.language 或默认为 zh */
   @Post('bulk-import')
-  async bulkImport(@Body() body: { items: Array<{ title: string; category: string; content: string }> }) {
+  async bulkImport(@Body() body: { items: Array<{ title: string; category: string; content: string; language?: string }>; language?: string }) {
     if (!Array.isArray(body.items) || body.items.length === 0) {
       return { created: 0, message: 'items 不能为空' };
     }
-    return this.knowledge.bulkCreate(body.items);
+    const defaultLang = body.language === 'en' ? 'en' : 'zh';
+    return this.knowledge.bulkCreate(body.items, defaultLang);
   }
 
   @Put(':id')
