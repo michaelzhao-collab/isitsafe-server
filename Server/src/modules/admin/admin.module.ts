@@ -11,6 +11,7 @@ import { AdminUsersController } from './admin-users.controller';
 import { AdminQueriesController } from './admin-queries.controller';
 import { AdminReportsController } from './admin-reports.controller';
 import { AdminKnowledgeController } from './admin-knowledge.controller';
+import { AdminKnowledgeCategoryController } from './admin-knowledge-category.controller';
 import { AdminSettingsController } from './admin-settings.controller';
 import { AdminAnalyticsController } from './admin-analytics.controller';
 import { AdminSubscriptionController } from './admin-subscription.controller';
@@ -29,6 +30,7 @@ import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
     AdminQueriesController,
     AdminReportsController,
     AdminKnowledgeController,
+    AdminKnowledgeCategoryController,
     AdminSettingsController,
     AdminAnalyticsController,
     AdminSubscriptionController,

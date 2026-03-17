@@ -1,14 +1,5 @@
 import request from './request';
 
-export const KNOWLEDGE_CATEGORIES = [
-  '诈骗',
-  '投资骗局',
-  '兼职骗局',
-  '黑灰产',
-  '老年人骗局',
-  '假客服',
-] as const;
-
 export interface KnowledgeItem {
   id: string;
   title: string;

@@ -3,7 +3,7 @@ import { Card, Form, Input, Select, Button, message } from 'antd';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import request from '../../api/request';
 import { createKnowledge, updateKnowledge } from '../../api/knowledge';
-import { KNOWLEDGE_CATEGORIES } from '../../api/knowledge';
+import { api } from '../../api/client';
 
 export default function KnowledgeEdit() {
   const { id } = useParams<{ id: string }>();
@@ -12,8 +12,24 @@ export default function KnowledgeEdit() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(!!id && id !== 'new');
+  const [categories, setCategories] = useState<Array<{ id: string; label: string }>>([]);
 
   const isNew = !id || id === 'new';
+
+  useEffect(() => {
+    api
+      .knowledgeCategories()
+      .then((res) => {
+        const list = (res || []).filter((c: any) => c.status === 'active');
+        setCategories(
+          list.map((c: any) => ({
+            id: c.key,
+            label: `${c.key} / ${c.nameZh} / ${c.nameEn}`,
+          }))
+        );
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!id || id === 'new') {
@@ -83,7 +99,7 @@ export default function KnowledgeEdit() {
           <Form.Item name="category" label="category" rules={[{ required: true }]}>
             <Select
               placeholder="选择分类"
-              options={KNOWLEDGE_CATEGORIES.map((c) => ({ label: c, value: c }))}
+              options={categories.map((c) => ({ label: c.label, value: c.id }))}
             />
           </Form.Item>
           <Form.Item name="content" label="content" rules={[{ required: true }]}>

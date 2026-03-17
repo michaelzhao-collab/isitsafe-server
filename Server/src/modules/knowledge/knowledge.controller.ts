@@ -36,6 +36,17 @@ export class KnowledgeController {
     );
   }
 
+  /** 客户端分类列表：根据语言返回已启用分类 */
+  @Get('categories')
+  @Public()
+  async categories(
+    @Query('language') language?: string,
+    @Headers('x-app-language') langHeader?: string,
+  ) {
+    const lang = resolveLanguageFromHeader(langHeader, language) as 'zh' | 'en';
+    return this.knowledge.listCategories(lang);
+  }
+
   @Get(':id')
   @Public()
   async getById(@Param('id') id: string) {

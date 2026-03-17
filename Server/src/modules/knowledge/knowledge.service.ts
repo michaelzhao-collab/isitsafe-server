@@ -88,4 +88,18 @@ export class KnowledgeService {
     });
     return { created: created.count, ids: [] };
   }
+
+  /** 客户端使用：根据语言获取启用中的分类列表 */
+  async listCategories(language: 'zh' | 'en' = 'zh') {
+    const rows = await this.prisma.knowledgeCategoryConfig.findMany({
+      where: { status: 'active' },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+    return rows.map((row) => ({
+      id: row.key,
+      name: language === 'en' ? row.nameEn : row.nameZh,
+      status: row.status,
+      sortOrder: row.sortOrder,
+    }));
+  }
 }

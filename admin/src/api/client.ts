@@ -85,6 +85,42 @@ export const api = {
     request<MembershipPlanItem>(`/admin/membership/plans/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   membershipPlanDelete: (id: string) =>
     request<{ success: boolean }>(`/admin/membership/plans/${id}`, { method: 'DELETE' }),
+  knowledgeCategories: (params?: { includeOffline?: boolean }) =>
+    request<Array<{ id: string; key: string; nameZh: string; nameEn: string; status: string; sortOrder: number; createdAt: string }>>(
+      '/admin/knowledge-categories',
+      { params: (params as any) || {} }
+    ),
+  createKnowledgeCategory: (body: {
+    key: string;
+    nameZh: string;
+    nameEn: string;
+    sortOrder?: number;
+    status?: string;
+  }) =>
+    request('/admin/knowledge-categories', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateKnowledgeCategory: (
+    id: string,
+    body: {
+      nameZh?: string;
+      nameEn?: string;
+      sortOrder?: number;
+      status?: string;
+    }
+  ) =>
+    request(`/admin/knowledge-categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deleteKnowledgeCategory: (id: string) =>
+    request<{ success: boolean }>(`/admin/knowledge-categories/${id}`, { method: 'DELETE' }),
+  updateKnowledgeCategoryStatus: (id: string, status: 'active' | 'offline') =>
+    request(`/admin/knowledge-categories/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
 };
 
 export interface MembershipPlanItem {

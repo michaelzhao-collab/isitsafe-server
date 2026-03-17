@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import * as XLSX from 'xlsx';
 import { getKnowledge, deleteKnowledge, bulkImportKnowledge, type KnowledgeItem, type KnowledgeListRes } from '../../api/knowledge';
-import { KNOWLEDGE_CATEGORIES } from '../../api/knowledge';
+import { api } from '../../api/client';
 
 export default function KnowledgeList() {
   const navigate = useNavigate();
@@ -17,6 +17,17 @@ export default function KnowledgeList() {
   const [language, setLanguage] = useState<string>('zh');
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    api
+      .knowledgeCategories()
+      .then((res) => {
+        const list = (res || []).filter((c: any) => c.status === 'active');
+        setCategories(list.map((c: any) => ({ id: c.key, name: `${c.key} / ${c.nameZh} / ${c.nameEn}` })));
+      })
+      .catch(() => {});
+  }, []);
 
   const load = () => {
     setLoading(true);
@@ -159,7 +170,7 @@ export default function KnowledgeList() {
             style={{ width: 140 }}
             value={category}
             onChange={setCategory}
-            options={KNOWLEDGE_CATEGORIES.map((c) => ({ label: c, value: c }))}
+            options={categories.map((c) => ({ label: c.name, value: c.id }))}
           />
           <Select
             style={{ width: 140 }}

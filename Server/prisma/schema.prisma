@@ -112,6 +112,22 @@ model KnowledgeCase {
 }
 
 // --------------------------------------------
+// 4.5) knowledge category config（知识库分类配置，Admin 管理，客户端按语言展示）
+// --------------------------------------------
+model KnowledgeCategoryConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique @db.VarChar(64) // 业务 key，用于与 KnowledgeCase.category 对应
+  nameZh    String   @db.VarChar(100)
+  nameEn    String   @db.VarChar(100)
+  status    String   @default("active") @db.VarChar(20) // active | offline
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([status, sortOrder])
+  @@map("knowledge_category_config")
+}
+
+// --------------------------------------------
 // 5) reports
 // --------------------------------------------
 model Report {
