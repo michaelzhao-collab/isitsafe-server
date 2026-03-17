@@ -29,6 +29,7 @@ const menuItems = [
   { key: '/reports', icon: <FlagOutlined />, label: 'Reports' },
   { key: '/risk-database', icon: <DatabaseOutlined />, label: 'Risk Database' },
   { key: '/knowledge', icon: <BookOutlined />, label: 'Knowledge Base' },
+  { key: '/knowledge-categories', icon: <BookOutlined />, label: '分类管理' },
   { key: '/ai-settings', icon: <ApiOutlined />, label: 'AI Settings' },
   { key: '/system-settings', icon: <SettingOutlined />, label: 'System Settings' },
   { key: '/messages', icon: <MessageOutlined />, label: '消息管理' },

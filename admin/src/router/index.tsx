@@ -12,6 +12,7 @@ import RiskList from '../pages/riskDatabase/RiskList';
 import RiskEdit from '../pages/riskDatabase/RiskEdit';
 import KnowledgeList from '../pages/knowledge/KnowledgeList';
 import KnowledgeEdit from '../pages/knowledge/KnowledgeEdit';
+import KnowledgeManagement from '../pages/KnowledgeManagement';
 import AIProviders from '../pages/aiSettings/AIProviders';
 import Settings from '../pages/systemSettings/Settings';
 import AnalyticsDashboard from '../pages/analytics/AnalyticsDashboard';
@@ -52,6 +53,7 @@ const router = createBrowserRouter([
       { path: 'knowledge', element: <KnowledgeList /> },
       { path: 'knowledge/new', element: <KnowledgeEdit /> },
       { path: 'knowledge/:id/edit', element: <KnowledgeEdit /> },
+      { path: 'knowledge-categories', element: <KnowledgeManagement /> },
       { path: 'ai-settings', element: <AIProviders /> },
       { path: 'system-settings', element: <Settings /> },
       { path: 'analytics', element: <AnalyticsDashboard /> },
