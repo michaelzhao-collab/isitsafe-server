@@ -11,7 +11,7 @@ window.APP_CONFIG = {
   /** Google Play 下载地址，留空则点击提示「市场正在审核中」 */
   googlePlayUrl: '',
   /** 联系邮箱（显示在页脚） */
-  contactEmail: 'support@example.com',
+  contactEmail: 'gjtoolservice@outlook.com',
   /** 隐私政策页面 */
   privacyUrl: 'privacy.html',
   /** 用户协议页面 */
