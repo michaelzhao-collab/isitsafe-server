@@ -1,14 +1,22 @@
-import { Injectable, UnauthorizedException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  HttpException,
+  HttpStatus,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { UserRole } from '@prisma/client';
-import { LoginPhoneDto, LoginEmailDto, LoginSmsDto } from './dto/login.dto';
+import { LoginPhoneDto, LoginEmailDto } from './dto/login.dto';
 
 const LOCK_KEY = 'auth:lock:';
 const ATTEMPTS_KEY = 'auth:attempts:';
 const REFRESH_PREFIX = 'refresh:';
+const SMS_SEND_PREFIX = 'sms:send:';
+const E164_RE = /^\+[1-9]\d{6,14}$/;
 
 @Injectable()
 export class AuthService {
@@ -27,24 +35,37 @@ export class AuthService {
     return parseInt(this.config.get('LOGIN_LOCK_MINUTES', '15'), 10);
   }
 
-  /** MVP 验证码写死为 123456，未传 code 时不校验（兼容旧端） */
+  /** MVP：验证码固定为 123456（不发真实短信） */
   private readonly MOCK_CODE = '123456';
 
+  private readonly smsMessage =
+    '[StarLensAI] Your verification code is: 123456. It will expire in 5 minutes.';
+
   /**
-   * 统一登录入口：body 含 phone 则按手机登录，含 email 则按邮箱登录；传了 code 时仅接受 123456
+   * 统一登录入口：手机登录需 smsCode 或 code 为 123456；邮箱登录传 code 时仅接受 123456
    */
   async login(
     body: { phone?: string; email?: string; code?: string; smsCode?: string },
     ip?: string,
   ) {
     if (body.phone) {
-      if (body.code != null && body.code !== this.MOCK_CODE) {
+      if (!E164_RE.test(body.phone)) {
+        throw new BadRequestException('Invalid phone number');
+      }
+      const otp = body.smsCode ?? body.code;
+      if (otp == null || String(otp).trim() === '') {
+        throw new UnauthorizedException('请输入验证码');
+      }
+      if (String(otp) !== this.MOCK_CODE) {
         throw new UnauthorizedException('验证码错误');
       }
       await this.checkLock(body.phone);
       const user = await this.prisma.user.upsert({
         where: { phone: body.phone },
-        create: { phone: body.phone, country: 'CN' },
+        create: {
+          phone: body.phone,
+          country: this.countryHintFromE164(body.phone),
+        },
         update: {},
       });
       await this.recordLogin(user.id);
@@ -69,15 +90,55 @@ export class AuthService {
   }
 
   async loginPhone(dto: LoginPhoneDto, ip?: string) {
-    return this.login({ phone: dto.phone, code: dto.code }, ip);
+    return this.login(
+      { phone: dto.phone, code: dto.code, smsCode: dto.smsCode },
+      ip,
+    );
   }
 
   async loginEmail(dto: LoginEmailDto, ip?: string) {
     return this.login({ email: dto.email, code: dto.code }, ip);
   }
 
-  async loginSms(dto: LoginSmsDto, ip?: string) {
-    return this.login({ phone: dto.phone, smsCode: dto.smsCode }, ip);
+  /** 同一号码 5 分钟内仅允许请求一次「验证码」；当前固定返回 123456 */
+  async sendSmsCode(phone: string) {
+    if (!E164_RE.test(phone)) {
+      throw new BadRequestException('Invalid phone number');
+    }
+    const key = SMS_SEND_PREFIX + phone;
+    try {
+      const existed = await this.redis.get(key);
+      if (existed) {
+        throw new HttpException(
+          'Too many requests. Please try again in 5 minutes.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      await this.redis.set(key, '1', 300);
+    } catch (e) {
+      if (e instanceof HttpException) throw e;
+      // Redis 不可用时跳过频控
+    }
+    return { message: this.smsMessage, code: this.MOCK_CODE };
+  }
+
+  /** 供客户端默认国家：优先 CDN 提供的国家码（如 Cloudflare），否则 null，由客户端用 Locale / IP 兜底 */
+  regionHint(req: { headers?: Record<string, string | string[] | undefined> }) {
+    const raw = req.headers?.['cf-ipcountry'];
+    const cf = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof cf === 'string' && /^[A-Z]{2}$/.test(cf)) {
+      return { countryCode: cf };
+    }
+    return { countryCode: null as string | null };
+  }
+
+  private countryHintFromE164(phone: string): string | undefined {
+    if (phone.startsWith('+86')) return 'CN';
+    if (phone.startsWith('+1')) return 'US';
+    if (phone.startsWith('+44')) return 'GB';
+    if (phone.startsWith('+81')) return 'JP';
+    if (phone.startsWith('+82')) return 'KR';
+    return undefined;
   }
 
   async recordFailedLogin(identifier: string) {

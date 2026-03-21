@@ -1,16 +1,16 @@
-import { Controller, Post, Get, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Req, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { LoginPhoneDto, LoginEmailDto, LoginSmsDto, RefreshTokenDto } from './dto/login.dto';
+import { LoginEmailDto, RefreshTokenDto, SendSmsCodeDto } from './dto/login.dto';
 
 @Controller('auth')
 @UseGuards(JwtAuthGuard)
 export class AuthController {
   constructor(private auth: AuthService) {}
 
-  /** 统一登录：body 传 phone 或 email（MVP mock，不校验验证码） */
+  /** 统一登录：手机为 E.164 + smsCode（或 code）123456；邮箱登录逻辑不变 */
   @Public()
   @Post('login')
   async login(
@@ -18,10 +18,28 @@ export class AuthController {
     @Req() req: any,
   ) {
     const ip = req.ip || req.connection?.remoteAddress;
-    if (body.phone) return this.auth.loginPhone({ phone: body.phone, code: body.code }, ip);
+    if (body.phone) {
+      return this.auth.loginPhone(
+        { phone: body.phone, code: body.code, smsCode: body.smsCode },
+        ip,
+      );
+    }
     if (body.email) return this.auth.loginEmail({ email: body.email, code: body.code }, ip);
-    if (body.smsCode && body.phone) return this.auth.loginSms({ phone: body.phone, smsCode: body.smsCode }, ip);
-    return this.auth.login(body, ip);
+    throw new UnauthorizedException('请提供 phone 或 email');
+  }
+
+  /** 模拟发短信：同一号码 5 分钟 1 次，返回固定验证码文案 */
+  @Public()
+  @Post('send-sms-code')
+  async sendSmsCode(@Body() dto: SendSmsCodeDto) {
+    return this.auth.sendSmsCode(dto.phone);
+  }
+
+  /** 默认国家码提示（无定位权限）；优先 CDN 头，否则客户端用 Locale / IP */
+  @Public()
+  @Get('region-hint')
+  regionHint(@Req() req: any) {
+    return this.auth.regionHint(req);
   }
 
   @Post('logout')
