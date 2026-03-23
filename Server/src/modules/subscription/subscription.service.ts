@@ -209,10 +209,10 @@ export class SubscriptionService {
       (input.originalTransactionId
         ? await this.prisma.subscription.findFirst({
             where: {
-              userId,
               OR: [
                 { originalTransactionId: input.originalTransactionId },
                 { transactionId: input.originalTransactionId },
+                { latestTransactionId: input.originalTransactionId },
               ],
             },
             orderBy: { updatedAt: 'desc' },
@@ -253,6 +253,8 @@ export class SubscriptionService {
     return this.prisma.subscription.update({
       where: { id: existing.id },
       data: {
+        // 允许同一 Apple 订阅在“当前登录账号”下生效，避免切换账号后 status 仍落在旧账号
+        userId,
         productId: data.productId,
         planType: data.planType,
         status: data.status,
