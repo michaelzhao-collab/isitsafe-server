@@ -183,15 +183,26 @@ model Subscription {
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   productId      String    @map("product_id")
   planType       String    @default("monthly") @map("plan_type") // weekly | monthly | yearly
-  status         String    // active | expired | cancelled
+  status         String    // active | expired | cancelled | refunded | revoked
   expireTime     DateTime  @map("expire_time")
   transactionId  String?   @map("transaction_id")
+  originalTransactionId String? @map("original_transaction_id")
+  latestTransactionId String? @map("latest_transaction_id")
+  environment    String?   @db.VarChar(20)
+  autoRenewStatus Boolean? @map("auto_renew_status")
+  purchaseTime   DateTime? @map("purchase_time")
+  refundedAt     DateTime? @map("refunded_at")
+  revokedAt      DateTime? @map("revoked_at")
+  lastEventType  String?   @map("last_event_type") @db.VarChar(80)
   historyLog     Json?     @map("history_log")
   paymentMethod  String    @map("payment_method") // Apple | Google
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   @@index([userId])
+  @@index([status, expireTime])
+  @@index([originalTransactionId])
+  @@index([latestTransactionId])
   @@map("subscriptions")
 }
 
@@ -206,6 +217,9 @@ model MembershipPlan {
   currency       String   @db.VarChar(10)
   period         String   @db.VarChar(20) // weekly | monthly | yearly
   description    String?  @db.Text
+  introPrice     Float?   @map("intro_price")
+  introPeriod    String?  @map("intro_period") @db.VarChar(20)
+  firstPurchaseOnly Boolean @default(false) @map("first_purchase_only")
   isActive       Boolean  @default(true) @map("is_active")
   sortOrder      Int      @default(0) @map("sort_order")
   isRecommended  Boolean  @default(false) @map("is_recommended")

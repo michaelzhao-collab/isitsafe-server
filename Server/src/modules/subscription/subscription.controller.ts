@@ -16,6 +16,14 @@ export class SubscriptionController {
     return {};
   }
 
+  /** Apple 服务器通知（推荐路径别名） */
+  @Post('apple/notifications')
+  @Public()
+  async appleNotifications(@Body() body: Record<string, unknown>) {
+    await this.sub.handleAppleNotification(body);
+    return {};
+  }
+
   @Post('verify')
   @UseGuards(JwtAuthGuard)
   async verify(

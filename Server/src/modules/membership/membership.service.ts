@@ -27,6 +27,9 @@ export class MembershipService {
         price: true,
         currency: true,
         period: true,
+        introPrice: true,
+        introPeriod: true,
+        firstPurchaseOnly: true,
         isRecommended: true,
       },
     });
