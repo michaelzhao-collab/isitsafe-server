@@ -3,7 +3,13 @@ import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import { LoginEmailDto, RefreshTokenDto, SendSmsCodeDto } from './dto/login.dto';
+import {
+  LoginEmailDto,
+  RefreshTokenDto,
+  SendSmsCodeDto,
+  AppleLoginDto,
+  SocialLoginDto,
+} from './dto/login.dto';
 
 @Controller('auth')
 @UseGuards(JwtAuthGuard)
@@ -33,6 +39,20 @@ export class AuthController {
   @Post('send-sms-code')
   async sendSmsCode(@Body() dto: SendSmsCodeDto) {
     return this.auth.sendSmsCode(dto.phone);
+  }
+
+  /** Apple 登录：客户端传 identityToken，服务端校验后签发本系统 token */
+  @Public()
+  @Post('apple/login')
+  async appleLogin(@Body() dto: AppleLoginDto) {
+    return this.auth.loginApple(dto);
+  }
+
+  /** 统一第三方登录入口（当前支持 apple；google 预留） */
+  @Public()
+  @Post('social/login')
+  async socialLogin(@Body() dto: SocialLoginDto) {
+    return this.auth.loginSocial(dto);
   }
 
   /** 默认国家码提示（无定位权限）；优先 CDN 头，否则客户端用 Locale / IP */

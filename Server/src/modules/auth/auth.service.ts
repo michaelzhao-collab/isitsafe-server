@@ -9,8 +9,16 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
+import { randomUUID, createPublicKey } from 'crypto';
+import * as nodeJwt from 'jsonwebtoken';
+import axios from 'axios';
 import { UserRole } from '@prisma/client';
-import { LoginPhoneDto, LoginEmailDto } from './dto/login.dto';
+import {
+  LoginPhoneDto,
+  LoginEmailDto,
+  AppleLoginDto,
+  SocialLoginDto,
+} from './dto/login.dto';
 
 const LOCK_KEY = 'auth:lock:';
 const ATTEMPTS_KEY = 'auth:attempts:';
@@ -18,8 +26,27 @@ const REFRESH_PREFIX = 'refresh:';
 const SMS_SEND_PREFIX = 'sms:send:';
 const E164_RE = /^\+[1-9]\d{6,14}$/;
 
+type AppleJwk = {
+  kty: string;
+  kid: string;
+  use: string;
+  alg: string;
+  n: string;
+  e: string;
+};
+
+type AppleIdTokenPayload = {
+  sub: string;
+  email?: string;
+  email_verified?: boolean | string;
+  nonce?: string;
+};
+
 @Injectable()
 export class AuthService {
+  private appleKeysCache: { at: number; keys: AppleJwk[] } | null = null;
+  private ensuredIdentityTable = false;
+
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
@@ -40,6 +67,25 @@ export class AuthService {
 
   private readonly smsMessage =
     '[StarLensAI] Your verification code is: 123456. It will expire in 5 minutes.';
+
+  private get appleAudience() {
+    return (
+      this.config.get('APPLE_BUNDLE_ID') ||
+      this.config.get('IOS_BUNDLE_ID') ||
+      this.config.get('APP_BUNDLE_ID') ||
+      ''
+    );
+  }
+
+  private get appleAutoLinkByEmail() {
+    const raw = (this.config.get('APPLE_AUTO_LINK_BY_EMAIL', 'true') || '').toLowerCase();
+    return !['0', 'false', 'off', 'no'].includes(raw);
+  }
+
+  private get googleLoginEnabled() {
+    const raw = (this.config.get('GOOGLE_LOGIN_ENABLED', 'false') || '').toLowerCase();
+    return ['1', 'true', 'on', 'yes'].includes(raw);
+  }
 
   /**
    * 统一登录入口：手机登录需 smsCode 或 code 为 123456；邮箱登录传 code 时仅接受 123456
@@ -98,6 +144,78 @@ export class AuthService {
 
   async loginEmail(dto: LoginEmailDto, ip?: string) {
     return this.login({ email: dto.email, code: dto.code }, ip);
+  }
+
+  async loginSocial(dto: SocialLoginDto) {
+    if (dto.provider === 'apple') {
+      return this.loginApple(dto);
+    }
+    if (dto.provider === 'google') {
+      if (!this.googleLoginEnabled) {
+        throw new HttpException('Google login is not enabled', HttpStatus.NOT_IMPLEMENTED);
+      }
+      // 预留：Google 接入时复用 auth_identities/provider=google
+      throw new HttpException('Google login is not implemented yet', HttpStatus.NOT_IMPLEMENTED);
+    }
+    throw new BadRequestException('Unsupported social provider');
+  }
+
+  async loginApple(dto: AppleLoginDto) {
+    const payload = await this.verifyAppleIdentityToken(dto.identityToken, dto.nonce);
+    if (!payload.sub) {
+      throw new UnauthorizedException('Invalid Apple identity token');
+    }
+
+    await this.ensureAuthIdentityTable();
+    const provider = 'apple';
+    const providerSub = payload.sub;
+    const providerEmail = payload.email ?? null;
+    const displayName = dto.displayName?.trim() || null;
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const identityRows = await tx.$queryRaw<{ user_id: string }[]>`
+        SELECT user_id
+        FROM auth_identities
+        WHERE provider = ${provider} AND provider_sub = ${providerSub}
+        LIMIT 1
+      `;
+
+      let userId = identityRows[0]?.user_id ?? null;
+      let user =
+        userId != null ? await tx.user.findUnique({ where: { id: userId } }) : null;
+
+      if (!user && providerEmail && this.appleAutoLinkByEmail) {
+        user = await tx.user.findUnique({ where: { email: providerEmail } });
+      }
+
+      if (!user) {
+        user = await tx.user.create({
+          data: {
+            email: providerEmail,
+            nickname: displayName,
+          },
+        });
+      } else if (!user.email && providerEmail) {
+        user = await tx.user.update({
+          where: { id: user.id },
+          data: { email: providerEmail, nickname: user.nickname ?? displayName },
+        });
+      }
+
+      const identityId = randomUUID();
+      await tx.$executeRaw`
+        INSERT INTO auth_identities (id, user_id, provider, provider_sub, provider_email, is_verified, created_at, updated_at)
+        VALUES (${identityId}, ${user.id}, ${provider}, ${providerSub}, ${providerEmail}, ${true}, NOW(), NOW())
+        ON CONFLICT (provider, provider_sub)
+        DO UPDATE SET
+          provider_email = EXCLUDED.provider_email,
+          updated_at = NOW()
+      `;
+      return user;
+    });
+
+    await this.recordLogin(user.id);
+    return this.issueTokens(user);
   }
 
   /** 同一号码 5 分钟内仅允许请求一次「验证码」；当前固定返回 123456 */
@@ -252,5 +370,82 @@ export class AuthService {
       birthday: u.birthday ? (u.birthday as Date).toISOString().slice(0, 10) : null,
       subscriptionExpire: u.subscriptionExpire ? (u.subscriptionExpire as Date).toISOString().slice(0, 10) : null,
     };
+  }
+
+  private async ensureAuthIdentityTable() {
+    if (this.ensuredIdentityTable) return;
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS auth_identities (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider VARCHAR(20) NOT NULL,
+        provider_sub VARCHAR(191) NOT NULL,
+        provider_email VARCHAR(191),
+        provider_phone VARCHAR(32),
+        is_verified BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE(provider, provider_sub)
+      );
+    `);
+    await this.prisma.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS idx_auth_identities_user_id ON auth_identities(user_id);`,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `CREATE INDEX IF NOT EXISTS idx_auth_identities_provider_email ON auth_identities(provider_email);`,
+    );
+    this.ensuredIdentityTable = true;
+  }
+
+  private async getAppleJwks(): Promise<AppleJwk[]> {
+    const now = Date.now();
+    if (this.appleKeysCache && now - this.appleKeysCache.at < 6 * 60 * 60 * 1000) {
+      return this.appleKeysCache.keys;
+    }
+    const resp = await axios.get<{ keys: AppleJwk[] }>(
+      'https://appleid.apple.com/auth/keys',
+      { timeout: 5000 },
+    );
+    const keys = Array.isArray(resp.data?.keys) ? resp.data.keys : [];
+    if (!keys.length) throw new UnauthorizedException('Apple keys unavailable');
+    this.appleKeysCache = { at: now, keys };
+    return keys;
+  }
+
+  private async verifyAppleIdentityToken(
+    identityToken: string,
+    nonce?: string,
+  ): Promise<AppleIdTokenPayload> {
+    const token = (identityToken || '').trim();
+    if (!token) throw new UnauthorizedException('identityToken is required');
+    const audience = this.appleAudience;
+    if (!audience) {
+      throw new UnauthorizedException('APPLE_BUNDLE_ID is not configured');
+    }
+
+    const decoded = nodeJwt.decode(token, { complete: true }) as
+      | { header?: { kid?: string; alg?: string } }
+      | null;
+    const kid = decoded?.header?.kid;
+    const alg = decoded?.header?.alg;
+    if (!kid || alg !== 'RS256') {
+      throw new UnauthorizedException('Invalid Apple token header');
+    }
+
+    const jwks = await this.getAppleJwks();
+    const jwk = jwks.find((k) => k.kid === kid && k.alg === 'RS256');
+    if (!jwk) throw new UnauthorizedException('Apple key not found');
+
+    const publicKey = createPublicKey({ key: jwk as any, format: 'jwk' });
+    const payload = nodeJwt.verify(token, publicKey, {
+      algorithms: ['RS256'],
+      issuer: 'https://appleid.apple.com',
+      audience,
+    }) as AppleIdTokenPayload;
+
+    if (nonce && payload.nonce && payload.nonce !== nonce) {
+      throw new UnauthorizedException('Invalid nonce');
+    }
+    return payload;
   }
 }

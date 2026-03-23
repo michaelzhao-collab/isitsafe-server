@@ -41,6 +41,29 @@ export class SendSmsCodeDto {
   phone: string;
 }
 
+export class AppleLoginDto {
+  @IsString()
+  identityToken: string;
+
+  @IsString()
+  @IsOptional()
+  appleUser?: string;
+
+  @IsString()
+  @IsOptional()
+  nonce?: string;
+
+  @IsString()
+  @IsOptional()
+  displayName?: string;
+}
+
+export class SocialLoginDto extends AppleLoginDto {
+  @IsString()
+  @Matches(/^(apple|google)$/, { message: 'Unsupported social provider' })
+  provider: string;
+}
+
 export class RefreshTokenDto {
   @IsString()
   refreshToken: string;
