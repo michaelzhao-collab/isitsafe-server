@@ -95,10 +95,13 @@ function extractAppleTransactionPayload(signed: string): AppleTransactionPayload
   };
 }
 
-function appendHistory(historyLog: Prisma.JsonValue | null, entry: Record<string, unknown>): Prisma.JsonValue {
+function appendHistory(
+  historyLog: Prisma.JsonValue | null,
+  entry: Record<string, unknown>,
+): Prisma.InputJsonValue {
   const arr = Array.isArray(historyLog) ? [...historyLog] : [];
   arr.push(entry as Prisma.JsonObject);
-  return arr as unknown as Prisma.JsonValue;
+  return arr as Prisma.InputJsonValue;
 }
 
 @Injectable()
