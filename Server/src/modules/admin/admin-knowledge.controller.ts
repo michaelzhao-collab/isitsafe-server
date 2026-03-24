@@ -47,6 +47,15 @@ export class AdminKnowledgeController {
     return this.knowledge.bulkCreate(body.items, defaultLang);
   }
 
+  /** 批量删除：body.ids 为知识库 ID 数组 */
+  @Post('bulk-delete')
+  async bulkDelete(@Body() body: { ids: string[] }) {
+    if (!Array.isArray(body?.ids) || body.ids.length === 0) {
+      return { deleted: 0, message: 'ids 不能为空' };
+    }
+    return this.knowledge.bulkDelete(body.ids);
+  }
+
   @Put(':id')
   async update(
     @Param('id') id: string,

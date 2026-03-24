@@ -1,9 +1,9 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, type Key } from 'react';
 import { Table, Card, Select, Input, Space, Button, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import * as XLSX from 'xlsx';
-import { getKnowledge, deleteKnowledge, bulkImportKnowledge, type KnowledgeItem, type KnowledgeListRes } from '../../api/knowledge';
+import { getKnowledge, deleteKnowledge, bulkImportKnowledge, bulkDeleteKnowledge, type KnowledgeItem, type KnowledgeListRes } from '../../api/knowledge';
 import { api } from '../../api/client';
 
 export default function KnowledgeList() {
@@ -16,8 +16,10 @@ export default function KnowledgeList() {
   const [search, setSearch] = useState('');
   const [language, setLanguage] = useState<string>('zh');
   const [importing, setImporting] = useState(false);
+  const [deletingBatch, setDeletingBatch] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
 
   useEffect(() => {
     api
@@ -54,6 +56,25 @@ export default function KnowledgeList() {
         load();
       })
       .catch((e) => message.error(e?.message ?? '删除失败'));
+  };
+
+  const handleBulkDelete = () => {
+    const ids = selectedRowKeys.map((k) => String(k));
+    if (!ids.length) {
+      message.warning('请先选择要删除的条目');
+      return;
+    }
+    if (!confirm(`确定批量删除选中的 ${ids.length} 条记录吗？`)) return;
+    setDeletingBatch(true);
+    bulkDeleteKnowledge(ids)
+      .then((res) => {
+        const deleted = (res as unknown as { deleted?: number }).deleted ?? ids.length;
+        message.success(`批量删除成功，已删除 ${deleted} 条`);
+        setSelectedRowKeys([]);
+        load();
+      })
+      .catch((e) => message.error(e?.message ?? '批量删除失败'))
+      .finally(() => setDeletingBatch(false));
   };
 
   const handleBulkImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -201,6 +222,14 @@ export default function KnowledgeList() {
           >
             批量导入
           </Button>
+          <Button
+            danger
+            loading={deletingBatch}
+            disabled={selectedRowKeys.length === 0}
+            onClick={handleBulkDelete}
+          >
+            批量删除
+          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -214,6 +243,10 @@ export default function KnowledgeList() {
           loading={loading}
           columns={columns}
           dataSource={data.items}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
+          }}
           pagination={{
             current: page,
             pageSize,

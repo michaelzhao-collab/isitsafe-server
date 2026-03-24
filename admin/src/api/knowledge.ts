@@ -65,3 +65,7 @@ export function bulkImportKnowledge(
     language,
   });
 }
+
+export function bulkDeleteKnowledge(ids: string[]) {
+  return request.post<{ deleted: number }>('/admin/knowledge/bulk-delete', { ids });
+}

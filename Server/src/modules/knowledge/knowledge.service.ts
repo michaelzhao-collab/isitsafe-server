@@ -71,6 +71,15 @@ export class KnowledgeService {
     return this.prisma.knowledgeCase.delete({ where: { id } });
   }
 
+  async bulkDelete(ids: string[]) {
+    const validIds = Array.from(new Set((ids || []).map((s) => String(s || '').trim()).filter(Boolean)));
+    if (!validIds.length) return { deleted: 0 };
+    const result = await this.prisma.knowledgeCase.deleteMany({
+      where: { id: { in: validIds } },
+    });
+    return { deleted: result.count };
+  }
+
   /** 批量导入：传入多行 { title, category, content, language? }，ID 由 Prisma 自动生成 */
   async bulkCreate(
     items: Array<{ title: string; category: string; content: string; language?: string }>,
