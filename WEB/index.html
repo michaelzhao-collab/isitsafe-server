@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>星识安全助手 - 官方AI风险识别，守护你的安全</title>
+  <title>StarLens AI - Official AI Risk Detection, Protecting Your Safety</title>
   <link rel="icon" type="image/png" href="assets/logo.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -12,13 +12,15 @@
     <div class="bg-image" id="bgImage"></div>
   </div>
   <div class="container">
-    <img src="assets/logo.png" alt="星识安全助手" class="logo" />
-    <h1 id="appName">星识安全助手</h1>
-    <p class="subtitle" id="appSubtitle">官方AI风险识别，守护你的安全</p>
-    <p class="intro">识别风险、防诈先行，用 AI 守护你的每一次决策。</p>
+    <img src="assets/logo.png" alt="StarLens AI" class="logo" />
+    <h1 id="appName">StarLens AI</h1>
+    <p class="subtitle" id="appSubtitle">Official AI Risk Detection, Protecting Your Safety</p>
+    <p class="intro">Detect risks before they happen. Let AI protect every decision you make.</p>
     <div class="description">
-      <p><strong>星识安全助手</strong>是一款以安全与防诈为核心的智能助手，依托 AI 与风险数据库，帮助你在面对链接、电话、公司信息时快速判断风险。</p>
-      <p>支持对可疑网址、短信、截图内容进行一键分析，给出风险等级与建议，助你远离诈骗与黑灰产。</p>
+      <p><strong>StarLens AI</strong> is an intelligent security assistant focused on scam prevention and risk detection.</p>
+      <p>Powered by advanced AI and a real-time risk database, it helps you quickly assess potential risks when dealing with links, phone numbers, or company information.</p>
+      <p>Analyze suspicious links, messages, and screenshots with one tap.</p>
+      <p>Get clear risk levels and actionable advice to help you stay safe and avoid scams or fraudulent activities.</p>
     </div>
     <div class="download-wrap">
       <a href="#" class="btn-download" id="btnApple" data-store="apple" target="_blank" rel="noopener noreferrer" aria-label="App Store 下载">
@@ -31,36 +33,36 @@
       </a>
     </div>
   </div>
-  <section class="carousel-section" aria-label="功能展示">
-    <h2>更多功能，一目了然</h2>
+  <section class="carousel-section" aria-label="Feature highlights">
+    <h2>Everything you need, at a glance</h2>
     <div class="carousel-track" id="carouselTrack">
       <div class="carousel-slide">
         <div class="carousel-image-wrap"><img src="assets/logo.png" alt="功能示意" /></div>
-        <div class="carousel-caption"><div class="slide-title">智能识别</div><div class="slide-desc">链接、短信、截图一键分析风险</div></div>
+        <div class="carousel-caption"><div class="slide-title">Smart Detection</div><div class="slide-desc">Analyze links, messages, and screenshots instantly</div></div>
       </div>
       <div class="carousel-slide">
         <div class="carousel-image-wrap"><img src="assets/logo.png" alt="功能示意" /></div>
-        <div class="carousel-caption"><div class="slide-title">风险库加持</div><div class="slide-desc">结合风险数据库，结果更可靠</div></div>
+        <div class="carousel-caption"><div class="slide-title">Powered by Risk Database</div><div class="slide-desc">More reliable results with real-world data support</div></div>
       </div>
       <div class="carousel-slide">
         <div class="carousel-image-wrap"><img src="assets/logo.png" alt="功能示意" /></div>
-        <div class="carousel-caption"><div class="slide-title">防诈先行</div><div class="slide-desc">守护每一次决策，远离诈骗</div></div>
+        <div class="carousel-caption"><div class="slide-title">Scam Prevention First</div><div class="slide-desc">Protect every decision and stay ahead of fraud</div></div>
       </div>
       <div class="carousel-slide">
         <div class="carousel-image-wrap"><img src="assets/logo.png" alt="功能示意" /></div>
-        <div class="carousel-caption"><div class="slide-title">安全守护</div><div class="slide-desc">AI 与风险库双重保障，识别更准</div></div>
+        <div class="carousel-caption"><div class="slide-title">Dual Protection</div><div class="slide-desc">AI + risk database for more accurate detection</div></div>
       </div>
     </div>
   </section>
 
   <footer class="page-footer" id="pageFooter">
     <div class="footer-links">
-      <a href="#" id="linkPrivacy" target="_blank" rel="noopener noreferrer">隐私政策</a>
+      <a href="#" id="linkPrivacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
       <span>|</span>
-      <a href="#" id="linkTerms" target="_blank" rel="noopener noreferrer">用户协议</a>
+      <a href="#" id="linkTerms" target="_blank" rel="noopener noreferrer">Terms of Service</a>
     </div>
-    <div class="copyright" id="copyright">© 2025 星识安全助手 版权所有</div>
-    <div class="contact">联系邮箱：<a href="#" id="linkEmail"></a></div>
+    <div class="copyright" id="copyright">© 2026 StarLens AI. All rights reserved.</div>
+    <div class="contact">Contact: <a href="#" id="linkEmail"></a></div>
   </footer>
 
   <div class="toast" id="toast" role="status" aria-live="polite">市场正在审核中</div>
@@ -69,8 +71,8 @@
   <script>
     (function() {
       var config = window.APP_CONFIG || {};
-      var appName = config.appName || '星识安全助手';
-      var appSubtitle = config.appSubtitle || '官方AI风险识别，守护你的安全';
+      var appName = config.appName || 'StarLens AI';
+      var appSubtitle = config.appSubtitle || 'Official AI Risk Detection, Protecting Your Safety';
       var appStoreUrl = (config.appStoreUrl || '').trim();
       var googlePlayUrl = (config.googlePlayUrl || '').trim();
       var contactEmail = config.contactEmail || 'gjtoolservice@outlook.com';
@@ -130,10 +132,10 @@
       }
 
       var defaultCarousel = [
-        { image: 'assets/logo.png', title: '智能识别', desc: '链接、短信、截图一键分析风险' },
-        { image: 'assets/logo.png', title: '风险库加持', desc: '结合风险数据库，结果更可靠' },
-        { image: 'assets/logo.png', title: '防诈先行', desc: '守护每一次决策，远离诈骗' },
-        { image: 'assets/logo.png', title: '安全守护', desc: 'AI 与风险库双重保障，识别更准' }
+        { image: 'assets/logo.png', title: 'Smart Detection', desc: 'Analyze links, messages, and screenshots instantly' },
+        { image: 'assets/logo.png', title: 'Powered by Risk Database', desc: 'More reliable results with real-world data support' },
+        { image: 'assets/logo.png', title: 'Scam Prevention First', desc: 'Protect every decision and stay ahead of fraud' },
+        { image: 'assets/logo.png', title: 'Dual Protection', desc: 'AI + risk database for more accurate detection' }
       ];
       var slidesToShow = [];
       if (carousel && Array.isArray(carousel) && carousel.length > 0) {

@@ -99,25 +99,31 @@ export default function KnowledgeList() {
           const title = String(row?.[0] ?? '').trim();
           const category = String(row?.[1] ?? '').trim();
           const content = String(row?.[2] ?? '').trim();
-          if (title || category || content) {
+          const languageCell = String(row?.[3] ?? '').trim();
+          if (title || category || content || languageCell) {
             items.push({
               title: title || '未命名',
               category: category || '未分类',
               content,
-              language: language || 'zh',
+              // 第4列“语言”优先（支持中英文文本/缩写），为空则交给后端自动识别
+              language: languageCell || undefined,
             });
           }
         }
         if (items.length === 0) {
-          message.warning('Excel 中无有效数据（需要至少：标题、分类、正文三列）');
+          message.warning('Excel 中无有效数据（至少需要标题/分类/正文，语言列可选）');
           e.target.value = '';
           return;
         }
         setImporting(true);
         bulkImportKnowledge(items, language)
           .then((res) => {
-            const data = res as unknown as { created: number };
-            message.success(`批量导入成功，共 ${data.created} 条`);
+            const data = res as unknown as { created: number; unknownCategories?: string[]; skippedByTitle?: number };
+            const skippedByTitle = data.skippedByTitle ?? 0;
+            message.success(`批量导入完成：成功 ${data.created} 条，按标题跳过 ${skippedByTitle} 条`);
+            if (Array.isArray(data.unknownCategories) && data.unknownCategories.length > 0) {
+              message.warning(`以下分类未匹配到后台分类配置，已按原值导入：${data.unknownCategories.join('、')}`);
+            }
             load();
           })
           .catch((err) => message.error(err?.response?.data?.message ?? err?.message ?? '导入失败'))
@@ -126,7 +132,7 @@ export default function KnowledgeList() {
             e.target.value = '';
           });
       } catch (err) {
-        message.error('解析 Excel 失败，请确认文件为 xlsx/xls 且包含标题、分类、正文三列');
+        message.error('解析 Excel 失败，请确认文件为 xlsx/xls，列顺序为：标题、分类、正文、语言(可选)');
         e.target.value = '';
       }
     };

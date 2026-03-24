@@ -60,7 +60,7 @@ export function bulkImportKnowledge(
   items: Array<{ title: string; category: string; content: string; language?: string }>,
   language?: string,
 ) {
-  return request.post<{ created: number; ids?: string[] }>('/admin/knowledge/bulk-import', {
+  return request.post<{ created: number; ids?: string[]; unknownCategories?: string[]; skippedByTitle?: number }>('/admin/knowledge/bulk-import', {
     items,
     language,
   });

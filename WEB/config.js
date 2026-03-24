@@ -3,9 +3,9 @@
  */
 window.APP_CONFIG = {
   /** 应用名称 */
-  appName: '星识安全助手',
+  appName: 'StarLens AI',
   /** 副标题 / Slogan */
-  appSubtitle: '官方AI风险识别，守护你的安全',
+  appSubtitle: 'Official AI Risk Detection, Protecting Your Safety',
   /** App Store 下载地址，留空则点击提示「市场正在审核中」 */
   appStoreUrl: '',
   /** Google Play 下载地址，留空则点击提示「市场正在审核中」 */
@@ -29,9 +29,9 @@ window.APP_CONFIG = {
    * 留空或不存在时使用页面内默认四张占位
    */
   carousel: [
-    { image: 'assets/logo.png', title: '智能识别', desc: '链接、短信、截图一键分析风险' },
-    { image: 'assets/logo.png', title: '风险库加持', desc: '结合风险数据库，结果更可靠' },
-    { image: 'assets/logo.png', title: '防诈先行', desc: '守护每一次决策，远离诈骗' },
-    { image: 'assets/logo.png', title: '安全守护', desc: 'AI 与风险库双重保障，识别更准' },
+    { image: 'assets/logo.png', title: 'Smart Detection', desc: 'Analyze links, messages, and screenshots instantly' },
+    { image: 'assets/logo.png', title: 'Powered by Risk Database', desc: 'More reliable results with real-world data support' },
+    { image: 'assets/logo.png', title: 'Scam Prevention First', desc: 'Protect every decision and stay ahead of fraud' },
+    { image: 'assets/logo.png', title: 'Dual Protection', desc: 'AI + risk database for more accurate detection' },
   ],
 };

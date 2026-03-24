@@ -68,6 +68,12 @@ export class AuthController {
     return this.auth.logout(userId);
   }
 
+  @Post('delete-account')
+  @UseGuards(JwtAuthGuard)
+  async deleteAccount(@CurrentUser('sub') userId: string) {
+    return this.auth.deleteAccount(userId);
+  }
+
   @Get('userinfo')
   @UseGuards(JwtAuthGuard)
   async userinfo(@CurrentUser('sub') userId: string) {

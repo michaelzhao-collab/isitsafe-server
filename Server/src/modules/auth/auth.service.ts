@@ -337,6 +337,27 @@ export class AuthService {
     return { success: true };
   }
 
+  async deleteAccount(userId: string) {
+    await this.ensureAuthIdentityTable();
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.query.deleteMany({ where: { userId } });
+      await tx.report.deleteMany({ where: { userId } });
+      await tx.subscription.deleteMany({ where: { userId } });
+      await tx.userMessageRead.deleteMany({ where: { userId } });
+      await tx.userFeedback.deleteMany({ where: { userId } });
+      await tx.user.delete({ where: { id: userId } });
+    });
+
+    await this.redis.del(REFRESH_PREFIX + userId);
+    return { success: true };
+  }
+
   /** 供管理后台等使用：根据已有用户签发 token（会更新 lastLogin） */
   async issueTokensForUser(user: { id: string; role: UserRole }) {
     await this.recordLogin(user.id);
