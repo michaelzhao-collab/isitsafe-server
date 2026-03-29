@@ -44,23 +44,52 @@ function normalizeRiskLevel(value: string | undefined): RiskLevel {
   return validLevels.includes(s as RiskLevel) ? (s as RiskLevel) : 'unknown';
 }
 
+/** 与 parse 失败兜底文案一致，供 URL+风险库命中时判断是否替换展示 */
+export const AI_PARSE_FALLBACK_SUMMARY = '无法确定风险';
+export const AI_PARSE_FALLBACK_REASON_FIRST = 'AI 返回格式异常或无法解析';
+
+export function isAiParseFallbackOutput(o: AiOutputSchema): boolean {
+  return (
+    o.summary === AI_PARSE_FALLBACK_SUMMARY &&
+    Array.isArray(o.reasons) &&
+    o.reasons[0] === AI_PARSE_FALLBACK_REASON_FIRST
+  );
+}
+
+function tryParseJsonObject(raw: string): Record<string, unknown> {
+  const stripped = raw.replace(/```json\s?/gi, '').replace(/```\s?/g, '').trim();
+  try {
+    return JSON.parse(stripped) as Record<string, unknown>;
+  } catch {
+    const start = stripped.indexOf('{');
+    const end = stripped.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      return JSON.parse(stripped.slice(start, end + 1)) as Record<string, unknown>;
+    }
+    throw new Error('no json object');
+  }
+}
+
 /** 校验并兜底：无效则返回 unknown + 低置信度；支持豆包返回中文 risk_level */
 export function parseAndValidateAiOutput(raw: string): AiOutputSchema {
   const fallback: AiOutputSchema = {
     risk_level: 'unknown',
     confidence: 50,
     risk_type: ['未知风险'],
-    summary: '无法确定风险',
-    reasons: ['AI 返回格式异常或无法解析', '请结合其他渠道核实', '勿轻信单方说法'],
+    summary: AI_PARSE_FALLBACK_SUMMARY,
+    reasons: [
+      AI_PARSE_FALLBACK_REASON_FIRST,
+      '请结合其他渠道核实',
+      '勿轻信单方说法',
+    ],
     advice: ['请谨慎对待，勿轻信对方', '可向官方渠道求证', '注意保护个人隐私与资金安全'],
   };
   try {
-    const cleaned = raw.replace(/```json\s?/g, '').replace(/```\s?/g, '').trim();
-    const obj = JSON.parse(cleaned) as Record<string, unknown>;
+    const obj = tryParseJsonObject(String(raw ?? ''));
     const level = normalizeRiskLevel((obj.risk_level as string) ?? undefined);
     const confidence = typeof obj.confidence === 'number' ? Math.max(0, Math.min(100, obj.confidence)) : 50;
     const risk_type = Array.isArray(obj.risk_type) ? obj.risk_type.map(String) : ['未知风险'];
-    const summary = typeof obj.summary === 'string' ? obj.summary : fallback.summary;
+    const summary = typeof obj.summary === 'string' ? obj.summary : AI_PARSE_FALLBACK_SUMMARY;
     let reasons = Array.isArray(obj.reasons) ? obj.reasons.map(String) : fallback.reasons;
     let advice = Array.isArray(obj.advice) ? obj.advice.map(String) : fallback.advice;
     if (reasons.length < 3) reasons = [...reasons, ...fallback.reasons].slice(0, 3);

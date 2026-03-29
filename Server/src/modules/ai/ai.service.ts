@@ -14,6 +14,7 @@ import { AiPromptsService } from './prompts/ai-prompts.service';
 import { AiProviderService, AiCallResult } from './providers/ai-provider.service';
 import {
   AiOutputSchema,
+  isAiParseFallbackOutput,
   parseAndValidateAiOutput,
   RiskLevel,
 } from './ai.types';
@@ -146,6 +147,9 @@ export class AiService {
         urlParsedAi = parseAndValidateAiOutput('');
         await this.logAiCall(provider, null, null, 0, null);
       }
+      if (recordCount > 0 && isAiParseFallbackOutput(urlParsedAi)) {
+        urlParsedAi = this.urlRiskDbCopyWhenAiParseFailed(language, urlResult, recordCount);
+      }
       if (urlAiResult) {
         await this.logAiCall(
           provider,
@@ -241,6 +245,79 @@ export class AiService {
 
     await this.writeQuery(userId, conversationId, parsed, final, provider, false, input.imageUrl);
     return { ...final, conversation_id: conversationId };
+  }
+
+  /**
+   * URL 流程：风险库已命中但大模型输出未能解析为 JSON 时，用库内等级与首条记录字段生成展示文案（无需后台单独录入 summary）。
+   */
+  private urlRiskDbCopyWhenAiParseFailed(
+    language: 'zh' | 'en',
+    urlResult: { risk_level: string; records?: unknown[] },
+    recordCount: number,
+  ): AiOutputSchema {
+    const levelRaw = (urlResult.risk_level || 'low').toLowerCase();
+    const level: RiskLevel =
+      levelRaw === 'high' || levelRaw === 'medium' || levelRaw === 'low' ? levelRaw : 'low';
+    const first = urlResult.records?.[0] as { riskCategory?: string | null; evidence?: string | null } | undefined;
+    const cat = first?.riskCategory?.trim();
+    const evidence = first?.evidence?.trim();
+
+    if (language === 'en') {
+      const summary =
+        level === 'high'
+          ? 'This URL matches records in our risk database. Treat it as high risk until verified.'
+          : level === 'medium'
+            ? 'This URL matches records in our risk database. Stay cautious and verify further.'
+            : 'This URL appears in the risk database with a lower-severity listing; confirm via official channels if unsure.';
+      const reasons: string[] = [
+        `Matched ${recordCount} risk record(s); database level for this match: ${level}.`,
+        cat
+          ? `Category: ${cat}.`
+          : 'Do not enter passwords or payment details on unverified pages.',
+        evidence && evidence.length > 0
+          ? evidence.length > 200
+            ? `${evidence.slice(0, 200)}…`
+            : evidence
+          : 'Confirm through official websites or app stores before taking action.',
+      ];
+      return {
+        risk_level: 'unknown',
+        confidence: level === 'high' ? 85 : level === 'medium' ? 65 : 45,
+        risk_type: ['Risk database match'],
+        summary,
+        reasons,
+        advice: [
+          'Proceed with caution; do not rely on this link alone.',
+          'Verify through official channels when in doubt.',
+          'Protect your personal information and funds.',
+        ],
+      };
+    }
+
+    const levelZh = level === 'high' ? '高' : level === 'medium' ? '中' : '低';
+    const summary =
+      level === 'high'
+        ? '根据风险数据库，该链接与已知风险记录匹配，请按高风险谨慎对待。'
+        : level === 'medium'
+          ? '根据风险数据库，该链接与已知风险记录匹配，建议保持警惕并进一步核实。'
+          : '该链接在风险数据库中有记录（风险等级偏低），仍建议通过官方渠道确认后再操作。';
+    const reasons: string[] = [
+      `风险库中匹配记录共 ${recordCount} 条，库内标示等级为「${levelZh}」。`,
+      cat ? `相关记录分类：${cat}。` : '请勿在未核实前点击可疑链接、扫码或安装未知来源应用。',
+      evidence && evidence.length > 0
+        ? evidence.length > 120
+          ? `${evidence.slice(0, 120)}…`
+          : evidence
+        : '涉及资金或账号操作时，请通过官网、应用商店或客服等官方渠道二次确认。',
+    ];
+    return {
+      risk_level: 'unknown',
+      confidence: level === 'high' ? 85 : level === 'medium' ? 65 : 45,
+      risk_type: ['风险库命中'],
+      summary,
+      reasons,
+      advice: ['请谨慎对待，勿轻信对方', '可向官方渠道求证', '注意保护个人隐私与资金安全'],
+    };
   }
 
   private async writeQuery(
