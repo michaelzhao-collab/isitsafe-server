@@ -1,10 +1,16 @@
 import request from './request';
 
 export interface AnalyticsOverview {
+  /** 未删除的查询总条数 */
+  totalQueries?: number;
+  /** 上海时区「今日」内创建的查询条数 */
   todayQueries?: number;
-  todayAiCalls?: number;
+  totalHighRiskCount?: number;
+  todayHighRiskCount?: number;
   riskDistribution?: { low?: number; medium?: number; high?: number; unknown?: number };
+  /** 兼容旧字段 */
   highRiskCount?: number;
+  todayAiCalls?: number;
   totalUsers?: number;
 }
 
@@ -22,13 +28,18 @@ export interface DailyQueries {
 export function getAnalyticsOverview() {
   return request
     .get<AnalyticsOverview>('/admin/analytics/overview')
-    .catch(() => request.get('/admin/ai/stats').then((r: any) => ({
-      todayQueries: r?.totalQueries ?? 0,
-      todayAiCalls: r?.aiLogsTotal ?? 0,
-      highRiskCount: r?.highRiskCount ?? 0,
-      totalUsers: undefined,
-      riskDistribution: undefined,
-    })));
+    .catch(() =>
+      request.get('/admin/ai/stats').then((r: any) => ({
+        totalQueries: r?.totalQueries ?? 0,
+        todayQueries: 0,
+        totalHighRiskCount: r?.highRiskCount ?? 0,
+        todayHighRiskCount: 0,
+        highRiskCount: r?.highRiskCount ?? 0,
+        todayAiCalls: r?.aiLogsTotal ?? 0,
+        totalUsers: undefined,
+        riskDistribution: undefined,
+      })),
+    );
 }
 
 export function getRiskStats(params?: { startDate?: string; endDate?: string }) {

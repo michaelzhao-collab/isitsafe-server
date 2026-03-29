@@ -12,9 +12,10 @@ const riskColor: Record<string, string> = {
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<{
+    totalQueries?: number;
     todayQueries?: number;
-    todayAiCalls?: number;
-    highRiskCount?: number;
+    totalHighRiskCount?: number;
+    todayHighRiskCount?: number;
     totalUsers?: number;
     riskDistribution?: Record<string, number>;
   }>({});
@@ -23,9 +24,10 @@ export default function Dashboard() {
     getAnalyticsOverview()
       .then((res: any) => {
         setData({
-          todayQueries: res.todayQueries ?? res.totalQueries ?? 0,
-          todayAiCalls: res.todayAiCalls ?? res.aiLogsTotal ?? 0,
-          highRiskCount: res.highRiskCount ?? 0,
+          totalQueries: res.totalQueries ?? 0,
+          todayQueries: res.todayQueries ?? 0,
+          totalHighRiskCount: res.totalHighRiskCount ?? res.highRiskCount ?? 0,
+          todayHighRiskCount: res.todayHighRiskCount ?? 0,
           totalUsers: res.totalUsers,
           riskDistribution: res.riskDistribution,
         });
@@ -47,22 +49,35 @@ export default function Dashboard() {
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="今日查询量" value={data.todayQueries ?? 0} />
+            <Statistic title="总的量" value={data.totalQueries ?? 0} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="今日 AI 调用量" value={data.todayAiCalls ?? 0} />
+            <Statistic title="今日的量" value={data.todayQueries ?? 0} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="高风险案例数" value={data.highRiskCount ?? 0} valueStyle={{ color: '#FF4D4F' }} />
+            <Statistic
+              title="总的高风险案例数"
+              value={data.totalHighRiskCount ?? 0}
+              valueStyle={{ color: '#FF4D4F' }}
+            />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="用户总数" value={data.totalUsers ?? '-'} />
+            <Statistic
+              title="今日高风险案例数"
+              value={data.todayHighRiskCount ?? 0}
+              valueStyle={{ color: '#FF4D4F' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic title="用户总数" value={data.totalUsers ?? 0} />
           </Card>
         </Col>
         {data.riskDistribution && Object.keys(data.riskDistribution).length > 0 && (

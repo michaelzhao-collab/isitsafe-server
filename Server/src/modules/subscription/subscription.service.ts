@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, Subscription } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -461,10 +461,14 @@ export class SubscriptionService {
     let purchaseDate: Date | null = null;
     let status = 'active';
 
-    if (paymentMethod === 'Apple' && receipt) {
+    if (paymentMethod === 'Apple') {
+      const trimmed = (receipt || '').trim();
+      if (!trimmed) {
+        throw new BadRequestException('Apple transaction JWS (receipt) is required');
+      }
       let txnPayload: Record<string, any>;
       try {
-        txnPayload = await this.verifyAppleSignedJws(receipt);
+        txnPayload = await this.verifyAppleSignedJws(trimmed);
       } catch (e: any) {
         console.warn('[SUBSCRIPTION_VERIFY_INVALID_SIGNATURE]', {
           message: e?.message,
@@ -474,7 +478,7 @@ export class SubscriptionService {
         throw new UnauthorizedException('Invalid Apple receipt signature');
       }
       const txn = {
-        ...extractAppleTransactionPayload(receipt),
+        ...extractAppleTransactionPayload(trimmed),
         productId: (txnPayload.productId ?? txnPayload.product_id) || undefined,
         transactionId: (txnPayload.transactionId ?? txnPayload.transaction_id) || undefined,
         originalTransactionId:
@@ -493,9 +497,13 @@ export class SubscriptionService {
       if (parseDate(txn.revocationDate)) {
         status = 'revoked';
       }
+      if (!expireTime) {
+        throw new UnauthorizedException('Invalid Apple subscription receipt: missing expiration');
+      }
     }
 
-    const finalExpire = expireTime || computeExpireTime(finalProductId);
+    const finalExpire =
+      paymentMethod === 'Apple' ? (expireTime as Date) : expireTime || computeExpireTime(finalProductId);
     if (finalExpire <= new Date() && status === 'active') {
       status = 'expired';
     }

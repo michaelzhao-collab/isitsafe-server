@@ -22,12 +22,12 @@ export default function AnalyticsDashboard() {
     ])
       .then(([ov, stats]: [any, any]) => {
         setOverview(ov);
+        const rd = (ov.riskDistribution ?? {}) as Record<string, number>;
         setRiskStats({
-          high: ov.highRiskCount ?? stats.highRiskCount ?? 0,
-          medium: 0,
-          low: 0,
-          unknown: 0,
-          ...ov.riskDistribution,
+          high: rd.high ?? ov.highRiskCount ?? stats.highRiskCount ?? 0,
+          medium: rd.medium ?? 0,
+          low: rd.low ?? 0,
+          unknown: rd.unknown ?? 0,
         });
       })
       .finally(() => setLoading(false));
@@ -47,26 +47,35 @@ export default function AnalyticsDashboard() {
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="每日查询量（当前统计）" value={(overview.todayQueries ?? overview.totalQueries ?? 0) as number} />
+            <Statistic title="总的量" value={(overview.totalQueries ?? 0) as number} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="AI 调用量" value={(overview.todayAiCalls ?? overview.aiLogsTotal ?? 0) as number} />
+            <Statistic title="今日的量" value={(overview.todayQueries ?? 0) as number} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="高风险数量"
-              value={(overview.highRiskCount ?? 0) as number}
+              title="总的高风险案例数"
+              value={(overview.totalHighRiskCount ?? overview.highRiskCount ?? 0) as number}
               valueStyle={{ color: '#FF4D4F' }}
             />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="用户总数" value={(overview.totalUsers ?? '-') as string | number} />
+            <Statistic
+              title="今日高风险案例数"
+              value={(overview.todayHighRiskCount ?? 0) as number}
+              valueStyle={{ color: '#FF4D4F' }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic title="用户总数" value={(overview.totalUsers ?? 0) as number} />
           </Card>
         </Col>
         <Col span={24}>
