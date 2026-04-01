@@ -149,6 +149,59 @@ async function main() {
     update: {},
   });
 
+  // ---------- 会员套餐（确保 productId 与 App Store Connect 一致）----------
+  // 先停用所有已有套餐（避免旧 productId 残留干扰），再 upsert 正确数据
+  await prisma.membershipPlan.updateMany({ data: { isActive: false } });
+
+  const planSeeds = [
+    {
+      id: 'seed-plan-weekly',
+      name: '周会员',
+      productId: 'starlens.weekly.subscription',
+      price: 0.99,
+      currency: 'USD',
+      period: 'weekly',
+      sortOrder: 1,
+      isRecommended: false,
+    },
+    {
+      id: 'seed-plan-monthly',
+      name: '月会员',
+      productId: 'starlens.monthly.subscription',
+      price: 4.99,
+      currency: 'USD',
+      period: 'monthly',
+      sortOrder: 2,
+      isRecommended: true,
+    },
+    {
+      id: 'seed-plan-yearly',
+      name: '年会员',
+      productId: 'starlens.yearly.subscription',
+      price: 24.99,
+      currency: 'USD',
+      period: 'yearly',
+      sortOrder: 3,
+      isRecommended: false,
+    },
+  ];
+  for (const plan of planSeeds) {
+    await prisma.membershipPlan.upsert({
+      where: { id: plan.id },
+      create: { ...plan, isActive: true },
+      update: {
+        productId: plan.productId,
+        price: plan.price,
+        currency: plan.currency,
+        period: plan.period,
+        sortOrder: plan.sortOrder,
+        isRecommended: plan.isRecommended,
+        isActive: true,
+      },
+    });
+  }
+  console.log('Membership plans seeded: weekly / monthly / yearly (starlens.*).');
+
   // ---------- settings 默认一条（MVP 可读 env，预留后台改）----------
   const existing = await prisma.settings.findFirst();
   if (!existing) {
