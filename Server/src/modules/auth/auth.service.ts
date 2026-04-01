@@ -416,10 +416,15 @@ export class AuthService {
     if (this.appleKeysCache && now - this.appleKeysCache.at < 6 * 60 * 60 * 1000) {
       return this.appleKeysCache.keys;
     }
-    const resp = await axios.get<{ keys: AppleJwk[] }>(
-      'https://appleid.apple.com/auth/keys',
-      { timeout: 5000 },
-    );
+    let resp: Awaited<ReturnType<typeof axios.get<{ keys: AppleJwk[] }>>>;
+    try {
+      resp = await axios.get<{ keys: AppleJwk[] }>(
+        'https://appleid.apple.com/auth/keys',
+        { timeout: 5000 },
+      );
+    } catch (e) {
+      throw new UnauthorizedException('Failed to fetch Apple public keys');
+    }
     const keys = Array.isArray(resp.data?.keys) ? resp.data.keys : [];
     if (!keys.length) throw new UnauthorizedException('Apple keys unavailable');
     this.appleKeysCache = { at: now, keys };
@@ -451,11 +456,18 @@ export class AuthService {
     if (!jwk) throw new UnauthorizedException('Apple key not found');
 
     const publicKey = createPublicKey({ key: jwk as any, format: 'jwk' });
-    const payload = nodeJwt.verify(token, publicKey, {
-      algorithms: ['RS256'],
-      issuer: 'https://appleid.apple.com',
-      audience,
-    }) as AppleIdTokenPayload;
+    let payload: AppleIdTokenPayload;
+    try {
+      payload = nodeJwt.verify(token, publicKey, {
+        algorithms: ['RS256'],
+        issuer: 'https://appleid.apple.com',
+        audience,
+      }) as AppleIdTokenPayload;
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      // 常见原因：APPLE_BUNDLE_ID 与 token 的 aud 不匹配，或 token 已过期
+      throw new UnauthorizedException(`Apple token verification failed: ${detail}`);
+    }
 
     if (nonce && payload.nonce && payload.nonce !== nonce) {
       throw new UnauthorizedException('Invalid nonce');
