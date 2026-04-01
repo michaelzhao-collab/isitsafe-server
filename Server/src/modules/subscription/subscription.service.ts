@@ -302,11 +302,22 @@ export class SubscriptionService {
       throw new UnauthorizedException('APPLE_BUNDLE_ID is not configured');
     }
     const decoded = nodeJwt.decode(token, { complete: true }) as
-      | { header?: { kid?: string; alg?: string } }
+      | { header?: { kid?: string; alg?: string; x5c?: string[] } }
       | null;
-    const kid = decoded?.header?.kid;
-    const alg = decoded?.header?.alg;
-    if (!kid || alg !== 'RS256') {
+    const header = decoded?.header;
+    const alg = header?.alg;
+    if (alg !== 'RS256') {
+      throw new UnauthorizedException('Invalid Apple signed payload header');
+    }
+
+    // StoreKit 2 JWS（购买凭证）使用 x5c 证书链，不走 JWKS
+    if (header?.x5c && Array.isArray(header.x5c) && header.x5c.length > 0) {
+      return this.verifyAppleJwsWithX5c(token, header.x5c);
+    }
+
+    // App Store Server Notifications 使用 kid + JWKS
+    const kid = header?.kid;
+    if (!kid) {
       throw new UnauthorizedException('Invalid Apple signed payload header');
     }
 
@@ -331,15 +342,35 @@ export class SubscriptionService {
         }) as Record<string, any>;
         return payload;
       } catch (fallbackErr: any) {
-        const header = (nodeJwt.decode(token, { complete: true }) as any)?.header || {};
+        const headerInfo = (nodeJwt.decode(token, { complete: true }) as any)?.header || {};
         console.warn('[APPLE_JWS_VERIFY_FAILED]', {
-          kid: header.kid,
-          alg: header.alg,
+          kid: headerInfo.kid,
+          alg: headerInfo.alg,
           first: firstErr?.message,
           fallback: fallbackErr?.message,
         });
         throw new UnauthorizedException('Apple signed payload verification failed');
       }
+    }
+  }
+
+  // StoreKit 2 JWS：用 x5c[0] 叶证书公钥直接验签
+  private verifyAppleJwsWithX5c(token: string, x5c: string[]): Record<string, any> {
+    const leafPem = [
+      '-----BEGIN CERTIFICATE-----',
+      ...(x5c[0].match(/.{1,64}/g) ?? [x5c[0]]),
+      '-----END CERTIFICATE-----',
+    ].join('\n');
+
+    try {
+      const payload = nodeJwt.verify(token, leafPem, {
+        algorithms: ['RS256'],
+        issuer: 'appstoreconnect-v1',
+      }) as Record<string, any>;
+      return payload;
+    } catch (e: any) {
+      console.warn('[APPLE_X5C_VERIFY_FAILED]', { message: e?.message });
+      throw new BadRequestException(`Apple receipt verification failed: ${e?.message}`);
     }
   }
 
@@ -473,7 +504,8 @@ export class SubscriptionService {
           userId,
           productId,
         });
-        throw new UnauthorizedException('Invalid Apple receipt signature');
+        // 用 400 而非 401，避免 iOS 端误判为会话过期并退出登录
+        throw new BadRequestException(e?.message || 'Invalid Apple receipt signature');
       }
       const txn = {
         ...extractAppleTransactionPayload(trimmed),
@@ -496,7 +528,7 @@ export class SubscriptionService {
         status = 'revoked';
       }
       if (!expireTime) {
-        throw new UnauthorizedException('Invalid Apple subscription receipt: missing expiration');
+        throw new BadRequestException('Invalid Apple subscription receipt: missing expiration');
       }
     }
 
