@@ -132,9 +132,7 @@ export class AiService {
         { risk_level: urlResult.risk_level, tags: urlResult.tags || [], records: urlResult.records || [] },
         language,
       );
-      console.log('[AI_FLOW] URL 调用豆包前 完整参数 systemPromptLen=' + urlSystemPrompt.length + ' userPromptLen=' + urlUserPrompt.length);
-      console.log('[AI_FLOW] URL 调用豆包前 SYSTEM_PROMPT_FULL:\n' + urlSystemPrompt);
-      console.log('[AI_FLOW] URL 调用豆包前 USER_PROMPT_FULL:\n' + urlUserPrompt);
+      console.log('[AI_FLOW] URL 调用豆包前 systemPromptLen=' + urlSystemPrompt.length + ' userPromptLen=' + urlUserPrompt.length);
       let urlAiResult: AiCallResult | null = null;
       let urlParsedAi: AiOutputSchema;
       try {
@@ -198,9 +196,7 @@ export class AiService {
       dbCheck?.risk_level ?? null,
     );
 
-    console.log('[AI_FLOW] 调用豆包前 完整参数 systemPromptLen=' + systemPrompt.length + ' userPromptLen=' + userPrompt.length);
-    console.log('[AI_FLOW] 调用豆包前 SYSTEM_PROMPT_FULL:\n' + systemPrompt);
-    console.log('[AI_FLOW] 调用豆包前 USER_PROMPT_FULL:\n' + userPrompt);
+    console.log('[AI_FLOW] 调用豆包前 systemPromptLen=' + systemPrompt.length + ' userPromptLen=' + userPrompt.length);
     let aiResult: AiCallResult | null = null;
     let parsedAi: AiOutputSchema;
     try {

@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 
 const CACHE_PREFIX = 'query:';
-const CACHE_TTL = 3600; // 1 hour
+const CACHE_TTL = 300; // 5 分钟（admin 更新风险库后最多 5 分钟生效）
 
 @Injectable()
 export class QueryService {

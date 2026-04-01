@@ -11,14 +11,33 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 import { normalizeContent } from '../../common/utils/normalize';
 
+const QUERY_CACHE_PREFIX = 'query:';
+
 @Controller('admin/risk-data')
 @UseGuards(JwtAuthGuard, AdminRoleGuard)
 export class AdminRiskDataController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
+
+  private async invalidateQueryCache(type: string, content: string) {
+    try {
+      await this.redis.del(`${QUERY_CACHE_PREFIX}${type}:${content}`);
+      // 同时尝试删除规范化后的 key
+      const norm = normalizeContent(content);
+      if (norm && norm !== content) {
+        await this.redis.del(`${QUERY_CACHE_PREFIX}${type}:${norm}`);
+      }
+    } catch {
+      // Redis 不可用时忽略
+    }
+  }
 
   @Get()
   async list(
@@ -76,7 +95,7 @@ export class AdminRiskDataController {
     const tagsArr =
       Array.isArray(body.tags) ? body.tags.map(String).filter(Boolean) : [];
 
-    return this.prisma.riskData.create({
+    const record = await this.prisma.riskData.create({
       data: {
         type,
         content,
@@ -85,10 +104,10 @@ export class AdminRiskDataController {
         source: body.source ?? null,
         evidence: body.evidence ?? null,
         tags: tagsArr as any,
-        // 额外冗余存一份标准化内容，方便后续检索（不新增字段，直接把规范写进 content 也不改）
-        // normalizeContent(content) 仅用于校验/后续可能的扩展，这里不改原 content
       },
     });
+    await this.invalidateQueryCache(type, content);
+    return record;
   }
 
   @Put(':id')
@@ -132,16 +151,27 @@ export class AdminRiskDataController {
       if (!norm) throw new BadRequestException('URL 内容无效');
     }
 
+    const existing = await this.prisma.riskData.findUnique({ where: { id } });
     await this.prisma.riskData.update({
       where: { id },
       data: data as any,
     });
+    if (existing) {
+      await this.invalidateQueryCache(existing.type, existing.content);
+      if (data.content && data.content !== existing.content) {
+        await this.invalidateQueryCache((data.type as string | undefined) ?? existing.type, data.content as string);
+      }
+    }
     return { success: true };
   }
 
   @Delete(':id')
   async remove(@Param('id') id: string) {
+    const existing = await this.prisma.riskData.findUnique({ where: { id } });
     await this.prisma.riskData.delete({ where: { id } });
+    if (existing) {
+      await this.invalidateQueryCache(existing.type, existing.content);
+    }
     return { success: true };
   }
 }

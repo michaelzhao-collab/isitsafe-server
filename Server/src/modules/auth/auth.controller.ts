@@ -6,7 +6,6 @@ import { Public } from '../../common/decorators/public.decorator';
 import {
   LoginEmailDto,
   RefreshTokenDto,
-  SendSmsCodeDto,
   AppleLoginDto,
   SocialLoginDto,
 } from './dto/login.dto';
@@ -16,29 +15,22 @@ import {
 export class AuthController {
   constructor(private auth: AuthService) {}
 
-  /** 统一登录：手机为 E.164 + smsCode（或 code）123456；邮箱登录逻辑不变 */
+  /** 统一登录/注册：手机号 + 密码（>= 8 位），新用户自动注册；邮箱登录保留为内部兜底 */
   @Public()
   @Post('login')
   async login(
-    @Body() body: { phone?: string; email?: string; code?: string; smsCode?: string },
+    @Body() body: { phone?: string; email?: string; password?: string; code?: string; smsCode?: string },
     @Req() req: any,
   ) {
     const ip = req.ip || req.connection?.remoteAddress;
     if (body.phone) {
       return this.auth.loginPhone(
-        { phone: body.phone, code: body.code, smsCode: body.smsCode },
+        { phone: body.phone, password: body.password, code: body.code, smsCode: body.smsCode },
         ip,
       );
     }
     if (body.email) return this.auth.loginEmail({ email: body.email, code: body.code }, ip);
     throw new UnauthorizedException('请提供 phone 或 email');
-  }
-
-  /** 模拟发短信：同一号码 5 分钟 1 次，返回固定验证码文案 */
-  @Public()
-  @Post('send-sms-code')
-  async sendSmsCode(@Body() dto: SendSmsCodeDto) {
-    return this.auth.sendSmsCode(dto.phone);
   }
 
   /** Apple 登录：客户端传 identityToken，服务端校验后签发本系统 token */

@@ -43,6 +43,14 @@ function planTypeFromProductId(productId: string): 'weekly' | 'monthly' | 'yearl
   return 'monthly';
 }
 
+function planTier(productId: string): number {
+  const plan = planTypeFromProductId(productId);
+  if (plan === 'weekly') return 1;
+  if (plan === 'monthly') return 2;
+  if (plan === 'yearly') return 3;
+  return 0;
+}
+
 function computeExpireTime(productId: string): Date {
   const now = new Date();
   const plan = planTypeFromProductId(productId);
@@ -120,11 +128,6 @@ export class SubscriptionService {
       this.config.get('APP_BUNDLE_ID') ||
       ''
     );
-  }
-
-  private get verifyAppleSignedPayload() {
-    const raw = (this.config.get('APPLE_VERIFY_SIGNED_PAYLOAD', 'true') || '').toLowerCase();
-    return !['0', 'false', 'off', 'no'].includes(raw);
   }
 
   private async recomputeUserSubscription(userId: string) {
@@ -293,12 +296,7 @@ export class SubscriptionService {
   }
 
   private async verifyAppleSignedJws(token: string): Promise<Record<string, any>> {
-    if (!this.verifyAppleSignedPayload) {
-      const decoded = decodeJWTPayload(token);
-      if (!decoded) throw new UnauthorizedException('Invalid Apple signed payload');
-      return decoded;
-    }
-
+    // 始终验证苹果签名，不允许绕过
     const bundleId = this.appleBundleId;
     if (!bundleId) {
       throw new UnauthorizedException('APPLE_BUNDLE_ID is not configured');
@@ -506,6 +504,17 @@ export class SubscriptionService {
       paymentMethod === 'Apple' ? (expireTime as Date) : expireTime || computeExpireTime(finalProductId);
     if (finalExpire <= new Date() && status === 'active') {
       status = 'expired';
+    }
+
+    // 防止套餐降级：若当前有更高等级的有效订阅，拒绝
+    const activeSub = await this.prisma.subscription.findFirst({
+      where: { userId, status: 'active', expireTime: { gt: new Date() } },
+      orderBy: { expireTime: 'desc' },
+    });
+    if (activeSub && planTier(finalProductId) < planTier(activeSub.productId)) {
+      throw new BadRequestException(
+        '不支持降级套餐，请等当前订阅到期后再切换到低级套餐，或直接升级到更高套餐。',
+      );
     }
 
     const sub = await this.upsertSubscriptionForUser(userId, {

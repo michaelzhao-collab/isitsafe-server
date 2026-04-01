@@ -11,6 +11,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { randomUUID, createPublicKey } from 'crypto';
 import * as nodeJwt from 'jsonwebtoken';
+import * as bcrypt from 'bcrypt';
 import axios from 'axios';
 import { UserRole } from '@prisma/client';
 import {
@@ -23,7 +24,6 @@ import {
 const LOCK_KEY = 'auth:lock:';
 const ATTEMPTS_KEY = 'auth:attempts:';
 const REFRESH_PREFIX = 'refresh:';
-const SMS_SEND_PREFIX = 'sms:send:';
 const E164_RE = /^\+[1-9]\d{6,14}$/;
 
 type AppleJwk = {
@@ -62,11 +62,8 @@ export class AuthService {
     return parseInt(this.config.get('LOGIN_LOCK_MINUTES', '15'), 10);
   }
 
-  /** MVP：验证码固定为 123456（不发真实短信） */
-  private readonly MOCK_CODE = '123456';
-
-  private readonly smsMessage =
-    '[StarLensAI] Your verification code is: 123456. It will expire in 5 minutes.';
+  private readonly PASSWORD_MIN_LEN = 8;
+  private readonly BCRYPT_ROUNDS = 10;
 
   private get appleAudience() {
     return (
@@ -88,40 +85,58 @@ export class AuthService {
   }
 
   /**
-   * 统一登录入口：手机登录需 smsCode 或 code 为 123456；邮箱登录传 code 时仅接受 123456
+   * 统一登录/注册入口：手机号 + 密码（>= 8 位）；新用户自动创建账号。
+   * 邮箱登录暂时保留（内部/兜底使用）。
    */
   async login(
-    body: { phone?: string; email?: string; code?: string; smsCode?: string },
+    body: { phone?: string; email?: string; password?: string; code?: string; smsCode?: string },
     ip?: string,
   ) {
     if (body.phone) {
       if (!E164_RE.test(body.phone)) {
         throw new BadRequestException('Invalid phone number');
       }
-      const otp = body.smsCode ?? body.code;
-      if (otp == null || String(otp).trim() === '') {
-        throw new UnauthorizedException('请输入验证码');
+      const password = body.password?.trim() ?? '';
+      if (password.length < this.PASSWORD_MIN_LEN) {
+        throw new BadRequestException('密码长度不能少于 8 位');
       }
-      if (String(otp) !== this.MOCK_CODE) {
-        throw new UnauthorizedException('验证码错误');
-      }
+
       await this.checkLock(body.phone);
-      const user = await this.prisma.user.upsert({
-        where: { phone: body.phone },
-        create: {
-          phone: body.phone,
-          country: this.countryHintFromE164(body.phone),
-        },
-        update: {},
-      });
-      await this.recordLogin(user.id);
-      await this.clearAttempts(body.phone);
-      return this.issueTokens(user);
+
+      const existing = await this.prisma.user.findUnique({ where: { phone: body.phone } });
+
+      if (existing) {
+        if (existing.passwordHash) {
+          // 已有密码：验证
+          const ok = await bcrypt.compare(password, existing.passwordHash);
+          if (!ok) {
+            await this.recordFailedLogin(body.phone);
+            throw new UnauthorizedException('手机号或密码错误');
+          }
+        } else {
+          // 旧版 OTP 账号：首次设置密码
+          const hash = await bcrypt.hash(password, this.BCRYPT_ROUNDS);
+          await this.prisma.user.update({ where: { id: existing.id }, data: { passwordHash: hash } });
+        }
+        await this.recordLogin(existing.id);
+        await this.clearAttempts(body.phone);
+        return this.issueTokens(existing);
+      } else {
+        // 新用户：创建账号
+        const hash = await bcrypt.hash(password, this.BCRYPT_ROUNDS);
+        const user = await this.prisma.user.create({
+          data: {
+            phone: body.phone,
+            country: this.countryHintFromE164(body.phone),
+            passwordHash: hash,
+          },
+        });
+        await this.recordLogin(user.id);
+        await this.clearAttempts(body.phone);
+        return this.issueTokens(user);
+      }
     }
     if (body.email) {
-      if (body.code != null && body.code !== this.MOCK_CODE) {
-        throw new UnauthorizedException('验证码错误');
-      }
       await this.checkLock(body.email);
       const user = await this.prisma.user.upsert({
         where: { email: body.email },
@@ -137,7 +152,7 @@ export class AuthService {
 
   async loginPhone(dto: LoginPhoneDto, ip?: string) {
     return this.login(
-      { phone: dto.phone, code: dto.code, smsCode: dto.smsCode },
+      { phone: dto.phone, password: dto.password, code: dto.code, smsCode: dto.smsCode },
       ip,
     );
   }
@@ -216,28 +231,6 @@ export class AuthService {
 
     await this.recordLogin(user.id);
     return this.issueTokens(user);
-  }
-
-  /** 同一号码 5 分钟内仅允许请求一次「验证码」；当前固定返回 123456 */
-  async sendSmsCode(phone: string) {
-    if (!E164_RE.test(phone)) {
-      throw new BadRequestException('Invalid phone number');
-    }
-    const key = SMS_SEND_PREFIX + phone;
-    try {
-      const existed = await this.redis.get(key);
-      if (existed) {
-        throw new HttpException(
-          'Too many requests. Please try again in 5 minutes.',
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
-      await this.redis.set(key, '1', 300);
-    } catch (e) {
-      if (e instanceof HttpException) throw e;
-      // Redis 不可用时跳过频控
-    }
-    return { message: this.smsMessage, code: this.MOCK_CODE };
   }
 
   /** 供客户端默认国家：优先 CDN 提供的国家码（如 Cloudflare），否则 null，由客户端用 Locale / IP 兜底 */

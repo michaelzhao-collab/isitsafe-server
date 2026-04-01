@@ -4,6 +4,7 @@ import { ReportModule } from '../report/report.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { SubscriptionModule } from '../subscription/subscription.module';
 import { SettingsModule } from '../settings/settings.module';
+import { RedisModule } from '../../redis/redis.module';
 import { AdminController } from './admin.controller';
 import { AdminAuthController } from './admin-auth.controller';
 import { AdminAuthService } from './admin-auth.service';
@@ -23,7 +24,7 @@ import { AdminRiskDataController } from './admin-risk-data.controller';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 
 @Module({
-  imports: [AuthModule, ReportModule, KnowledgeModule, SubscriptionModule, SettingsModule],
+  imports: [AuthModule, ReportModule, KnowledgeModule, SubscriptionModule, SettingsModule, RedisModule],
   controllers: [
     AdminController,
     AdminAuthController,

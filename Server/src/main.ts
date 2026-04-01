@@ -12,8 +12,15 @@ async function bootstrap() {
     }),
   );
   app.setGlobalPrefix('api');
+  // CORS_ORIGINS 逗号分隔，如 https://admin.example.com,https://web.example.com
+  // 不设置则只允许同域请求（Railway 生产环境务必配置此变量）
+  const rawOrigins = process.env.CORS_ORIGINS || '';
+  const allowedOrigins = rawOrigins
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: true, // 生产环境应配置具体域名
+    origin: allowedOrigins.length > 0 ? allowedOrigins : false,
     credentials: true,
   });
   const port = process.env.PORT || 3000;

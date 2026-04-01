@@ -8,6 +8,12 @@ export class LoginPhoneDto {
   @Matches(E164_REGEX, { message: 'Invalid phone number' })
   phone: string;
 
+  /** 手机号+密码登录（>= 8 位） */
+  @IsString()
+  @IsOptional()
+  password?: string;
+
+  /** 兼容旧字段，已废弃 */
   @IsString()
   @IsOptional()
   code?: string;
