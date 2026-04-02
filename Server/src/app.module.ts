@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Controller, Get } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -20,6 +20,17 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { HealthModule } from './modules/health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+
+/** 公开配置接口：GET /api/config，无需鉴权，供 iOS 读取服务端配置 */
+@Controller('config')
+class PublicConfigController {
+  @Get()
+  getPublicConfig() {
+    return {
+      freeQueriesPerDay: Number(process.env.FREE_DAILY_LIMIT ?? '5'),
+    };
+  }
+}
 
 @Module({
   imports: [
@@ -45,5 +56,6 @@ import { RedisModule } from './redis/redis.module';
     SettingsModule,
     HealthModule,
   ],
+  controllers: [PublicConfigController],
 })
 export class AppModule {}

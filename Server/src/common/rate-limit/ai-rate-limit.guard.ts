@@ -19,7 +19,8 @@ const PREFIX_MINUTE = 'rate:ai:';
 const PREFIX_DAY = 'ai:query:';
 const TTL_MINUTE = 60;
 const MAX_PER_MINUTE = 20;
-const MAX_FREE_PER_DAY = 5;
+/** 从环境变量 FREE_DAILY_LIMIT 读取，Railway 可直接配置，默认 5 */
+const MAX_FREE_PER_DAY = Number(process.env.FREE_DAILY_LIMIT ?? '5');
 
 function dateKey(): string {
   const d = new Date();
