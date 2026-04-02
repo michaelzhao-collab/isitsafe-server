@@ -111,7 +111,7 @@ export class AuthService {
           const ok = await bcrypt.compare(password, existing.passwordHash);
           if (!ok) {
             await this.recordFailedLogin(body.phone);
-            throw new UnauthorizedException('手机号或密码错误');
+            throw new BadRequestException('手机号或密码错误');
           }
         } else {
           // 旧版 OTP 账号：首次设置密码
