@@ -306,16 +306,16 @@ export class SubscriptionService {
       | null;
     const header = decoded?.header;
     const alg = header?.alg;
+
+    // StoreKit 2 JWS 使用 ES256 + x5c 证书链（购买凭证、App Store Server Notifications V2）
+    if (header?.x5c && Array.isArray(header.x5c) && header.x5c.length > 0) {
+      return this.verifyAppleJwsWithX5c(token, header.x5c, alg ?? 'ES256');
+    }
+
+    // Apple Identity Token 使用 RS256 + kid + JWKS
     if (alg !== 'RS256') {
       throw new UnauthorizedException('Invalid Apple signed payload header');
     }
-
-    // StoreKit 2 JWS（购买凭证）使用 x5c 证书链，不走 JWKS
-    if (header?.x5c && Array.isArray(header.x5c) && header.x5c.length > 0) {
-      return this.verifyAppleJwsWithX5c(token, header.x5c);
-    }
-
-    // App Store Server Notifications 使用 kid + JWKS
     const kid = header?.kid;
     if (!kid) {
       throw new UnauthorizedException('Invalid Apple signed payload header');
@@ -354,22 +354,24 @@ export class SubscriptionService {
     }
   }
 
-  // StoreKit 2 JWS：用 x5c[0] 叶证书公钥直接验签
-  private verifyAppleJwsWithX5c(token: string, x5c: string[]): Record<string, any> {
+  // StoreKit 2 / App Store Server Notifications V2：用 x5c[0] 叶证书公钥直接验签
+  // alg 通常为 ES256（P-256 椭圆曲线），苹果 2021 年后统一使用此算法
+  private verifyAppleJwsWithX5c(token: string, x5c: string[], alg: string): Record<string, any> {
     const leafPem = [
       '-----BEGIN CERTIFICATE-----',
       ...(x5c[0].match(/.{1,64}/g) ?? [x5c[0]]),
       '-----END CERTIFICATE-----',
     ].join('\n');
 
+    const algorithms = alg === 'RS256' ? ['RS256'] : ['ES256'];
     try {
       const payload = nodeJwt.verify(token, leafPem, {
-        algorithms: ['RS256'],
+        algorithms: algorithms as nodeJwt.Algorithm[],
         issuer: 'appstoreconnect-v1',
       }) as Record<string, any>;
       return payload;
     } catch (e: any) {
-      console.warn('[APPLE_X5C_VERIFY_FAILED]', { message: e?.message });
+      console.warn('[APPLE_X5C_VERIFY_FAILED]', { alg, message: e?.message });
       throw new BadRequestException(`Apple receipt verification failed: ${e?.message}`);
     }
   }
