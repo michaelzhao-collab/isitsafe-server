@@ -37,20 +37,16 @@
     <h2>Everything you need, at a glance</h2>
     <div class="carousel-track" id="carouselTrack">
       <div class="carousel-slide">
-        <div class="carousel-image-wrap"><img src="assets/logo.png" alt="功能示意" /></div>
+        <div class="carousel-image-wrap"><img src="assets/slide1.png" alt="功能示意" /></div>
         <div class="carousel-caption"><div class="slide-title">Smart Detection</div><div class="slide-desc">Analyze links, messages, and screenshots instantly</div></div>
       </div>
       <div class="carousel-slide">
-        <div class="carousel-image-wrap"><img src="assets/logo.png" alt="功能示意" /></div>
+        <div class="carousel-image-wrap"><img src="assets/slide2.png" alt="功能示意" /></div>
         <div class="carousel-caption"><div class="slide-title">Powered by Risk Database</div><div class="slide-desc">More reliable results with real-world data support</div></div>
       </div>
       <div class="carousel-slide">
-        <div class="carousel-image-wrap"><img src="assets/logo.png" alt="功能示意" /></div>
+        <div class="carousel-image-wrap"><img src="assets/slide3.png" alt="功能示意" /></div>
         <div class="carousel-caption"><div class="slide-title">Scam Prevention First</div><div class="slide-desc">Protect every decision and stay ahead of fraud</div></div>
-      </div>
-      <div class="carousel-slide">
-        <div class="carousel-image-wrap"><img src="assets/logo.png" alt="功能示意" /></div>
-        <div class="carousel-caption"><div class="slide-title">Dual Protection</div><div class="slide-desc">AI + risk database for more accurate detection</div></div>
       </div>
     </div>
   </section>
@@ -132,17 +128,16 @@
       }
 
       var defaultCarousel = [
-        { image: 'assets/logo.png', title: 'Smart Detection', desc: 'Analyze links, messages, and screenshots instantly' },
-        { image: 'assets/logo.png', title: 'Powered by Risk Database', desc: 'More reliable results with real-world data support' },
-        { image: 'assets/logo.png', title: 'Scam Prevention First', desc: 'Protect every decision and stay ahead of fraud' },
-        { image: 'assets/logo.png', title: 'Dual Protection', desc: 'AI + risk database for more accurate detection' }
+        { image: 'assets/slide1.png', title: 'Smart Detection', desc: 'Analyze links, messages, and screenshots instantly' },
+        { image: 'assets/slide2.png', title: 'Powered by Risk Database', desc: 'More reliable results with real-world data support' },
+        { image: 'assets/slide3.png', title: 'Scam Prevention First', desc: 'Protect every decision and stay ahead of fraud' },
       ];
       var slidesToShow = [];
       if (carousel && Array.isArray(carousel) && carousel.length > 0) {
-        slidesToShow = carousel.slice(0, 4);
+        slidesToShow = carousel.slice(0, 3);
       }
-      while (slidesToShow.length < 4) {
-        slidesToShow.push(defaultCarousel[slidesToShow.length % 4]);
+      while (slidesToShow.length < 3) {
+        slidesToShow.push(defaultCarousel[slidesToShow.length % 3]);
       }
       if (carouselTrack) {
         carouselTrack.innerHTML = '';

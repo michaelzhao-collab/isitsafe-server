@@ -29,9 +29,8 @@ window.APP_CONFIG = {
    * 留空或不存在时使用页面内默认四张占位
    */
   carousel: [
-    { image: 'assets/logo.png', title: 'Smart Detection', desc: 'Analyze links, messages, and screenshots instantly' },
-    { image: 'assets/logo.png', title: 'Powered by Risk Database', desc: 'More reliable results with real-world data support' },
-    { image: 'assets/logo.png', title: 'Scam Prevention First', desc: 'Protect every decision and stay ahead of fraud' },
-    { image: 'assets/logo.png', title: 'Dual Protection', desc: 'AI + risk database for more accurate detection' },
+    { image: 'assets/slide1.png', title: 'Smart Detection', desc: 'Analyze links, messages, and screenshots instantly' },
+    { image: 'assets/slide2.png', title: 'Powered by Risk Database', desc: 'More reliable results with real-world data support' },
+    { image: 'assets/slide3.png', title: 'Scam Prevention First', desc: 'Protect every decision and stay ahead of fraud' },
   ],
 };
