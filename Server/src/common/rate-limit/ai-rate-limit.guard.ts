@@ -19,8 +19,7 @@ const PREFIX_MINUTE = 'rate:ai:';
 const PREFIX_DAY = 'ai:query:';
 const TTL_MINUTE = 60;
 const MAX_PER_MINUTE = 20;
-// 临时放宽：联调阶段关闭每日免费次数限制（设为一个极大值）
-const MAX_FREE_PER_DAY = Number.MAX_SAFE_INTEGER;
+const MAX_FREE_PER_DAY = 5;
 
 function dateKey(): string {
   const d = new Date();
