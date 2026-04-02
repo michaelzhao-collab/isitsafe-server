@@ -25,6 +25,7 @@ import { QueryService } from '../query/query.service';
 const CACHE_PREFIX = 'cache:ai:';
 const TTL_DEFAULT = 90 * 24 * 3600;       // 90 天
 const TTL_HIGH_RISK = 365 * 24 * 3600;    // 365 天
+const CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 分钟
 
 const FALLBACK_REASONS = ['请结合其他渠道核实', '勿轻信单方说法', '注意保护个人隐私与资金安全'];
 const FALLBACK_ADVICE = ['请谨慎对待，勿轻信对方', '可向官方渠道求证', '注意保护个人隐私与资金安全'];
@@ -51,6 +52,8 @@ export interface AnalyzeInput {
   imageUrl?: string;
   /** 同一对话内连续提问时传上次返回的 conversation_id，历史按会话只显示一条 */
   conversationId?: string;
+  /** 上轮对话内容，用于追问时提供上下文（最多1轮：[{role:'user',content},{role:'assistant',content}]）*/
+  context?: Array<{ role: string; content: string }>;
 }
 
 export interface AnalyzeResult extends AiOutputSchema {
@@ -66,6 +69,32 @@ export interface AnalyzeResult extends AiOutputSchema {
 
 @Injectable()
 export class AiService {
+  /** 分类列表本地缓存（5 分钟过期，避免每次 AI 调用都查 DB） */
+  private categoryCache: { zh: string[]; en: string[]; at: number } | null = null;
+
+  private async getRiskTypeOptions(language: 'zh' | 'en'): Promise<string[]> {
+    const now = Date.now();
+    if (this.categoryCache && now - this.categoryCache.at < CATEGORY_CACHE_TTL_MS) {
+      return language === 'zh' ? this.categoryCache.zh : this.categoryCache.en;
+    }
+    try {
+      const cats = await this.prisma.knowledgeCategoryConfig.findMany({
+        where: { status: 'active' },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        select: { nameZh: true, nameEn: true },
+      });
+      this.categoryCache = {
+        zh: cats.map((c) => c.nameZh).filter(Boolean),
+        en: cats.map((c) => c.nameEn).filter(Boolean),
+        at: now,
+      };
+    } catch {
+      // DB 查询失败时降级为空数组（prompt 会使用内置兜底分类）
+      return [];
+    }
+    return language === 'zh' ? this.categoryCache.zh : this.categoryCache.en;
+  }
+
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
@@ -106,14 +135,17 @@ export class AiService {
     });
     console.log('[AI_FLOW] CACHE_KEY(用于判断是否命中缓存): ' + cacheKey);
 
-    const cached = await this.redis.get(cacheKey);
-    if (cached) {
-      try {
-        const obj = ensureFullResult(JSON.parse(cached) as AnalyzeResult);
-        console.log('[AI_FLOW] CACHE_HIT 未调豆包，直接使用缓存 risk_level=' + (obj?.risk_level ?? '?'));
-        await this.writeQuery(userId, conversationId, parsed, obj, provider, true, input.imageUrl);
-        return { ...obj, conversation_id: conversationId };
-      } catch {}
+    const hasContext = Array.isArray(input.context) && input.context.length > 0;
+    if (!hasContext) {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) {
+        try {
+          const obj = ensureFullResult(JSON.parse(cached) as AnalyzeResult);
+          console.log('[AI_FLOW] CACHE_HIT 未调豆包，直接使用缓存 risk_level=' + (obj?.risk_level ?? '?'));
+          await this.writeQuery(userId, conversationId, parsed, obj, provider, true, input.imageUrl);
+          return { ...obj, conversation_id: conversationId };
+        } catch {}
+      }
     }
     console.log('[AI_FLOW] CACHE_MISS 将调用豆包');
 
@@ -125,12 +157,14 @@ export class AiService {
       const recordCount = urlResult.records?.length ?? 0;
       console.log('[AI_FLOW] URL 风险库匹配后 结果: ' + JSON.stringify({ risk_level: urlResult.risk_level, tags: urlResult.tags, recordsCount: recordCount }));
 
-      const urlSystemPrompt = this.prompts.buildUrlSystemPrompt(language);
+      const riskTypes = await this.getRiskTypeOptions(language);
+      const urlSystemPrompt = this.prompts.buildUrlSystemPrompt(language, riskTypes);
       const urlUserPrompt = this.prompts.buildUrlUserPrompt(
         parsed.originalContent,
         extractedUrl,
         { risk_level: urlResult.risk_level, tags: urlResult.tags || [], records: urlResult.records || [] },
         language,
+        country,
       );
       console.log('[AI_FLOW] URL 调用豆包前 systemPromptLen=' + urlSystemPrompt.length + ' userPromptLen=' + urlUserPrompt.length);
       let urlAiResult: AiCallResult | null = null;
@@ -187,13 +221,16 @@ export class AiService {
     const ragCases = await this.rag.searchKnowledgeCases(keywords, 5, language);
     console.log('[AI_FLOW] 3.RAG keywords=' + JSON.stringify(keywords) + ' casesCount=' + ragCases.length);
 
-    const systemPrompt = this.prompts.buildSystemPrompt(language);
+    const riskTypes = await this.getRiskTypeOptions(language);
+    const systemPrompt = this.prompts.buildSystemPrompt(language, riskTypes);
     const userPrompt = this.prompts.buildUserPrompt(
       parsed.originalContent,
       parsed.inputType,
       language,
       ragCases,
       dbCheck?.risk_level ?? null,
+      country,
+      input.context,
     );
 
     console.log('[AI_FLOW] 调用豆包前 systemPromptLen=' + systemPrompt.length + ' userPromptLen=' + userPrompt.length);
@@ -236,8 +273,10 @@ export class AiService {
     });
     console.log('[AI_FLOW] 6.RESULT 最终返回 risk_level=' + final.risk_level + ' reasonsLen=' + (final.reasons?.length ?? 0) + ' adviceLen=' + (final.advice?.length ?? 0));
 
-    const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
-    await this.redis.set(cacheKey, JSON.stringify(final), ttl);
+    if (!final.is_conversational) {
+      const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
+      await this.redis.set(cacheKey, JSON.stringify(final), ttl);
+    }
 
     await this.writeQuery(userId, conversationId, parsed, final, provider, false, input.imageUrl);
     return { ...final, conversation_id: conversationId };
@@ -358,13 +397,14 @@ export class AiService {
     language?: 'zh' | 'en',
     imageUrl?: string,
     conversationId?: string,
+    context?: Array<{ role: string; content: string }>,
   ): Promise<AnalyzeResult> {
     const looksLikeBase64 =
       imageBase64OrText.startsWith('data:image') ||
       /^[A-Za-z0-9+/=]{100,}$/.test(imageBase64OrText.trim());
     if (!looksLikeBase64 && imageBase64OrText.trim().length > 0) {
       return this.analyze(
-        { content: imageBase64OrText.trim(), language, isScreenshot: true, imageUrl: imageUrl, conversationId },
+        { content: imageBase64OrText.trim(), language, isScreenshot: true, imageUrl: imageUrl, conversationId, context },
         userId,
       );
     }
@@ -388,7 +428,7 @@ export class AiService {
       };
     }
     return this.analyze(
-      { content: text, language, isScreenshot: true, imageUrl, conversationId },
+      { content: text, language, isScreenshot: true, imageUrl, conversationId, context },
       userId,
     );
   }

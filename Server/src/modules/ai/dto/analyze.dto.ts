@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsIn, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsIn, IsBoolean, IsArray } from 'class-validator';
 
 export class AnalyzeTextDto {
   @IsString()
@@ -16,6 +16,11 @@ export class AnalyzeTextDto {
   @IsOptional()
   @IsString()
   conversation_id?: string;
+
+  /** 上轮对话内容，用于追问时提供上下文（[{role:'user'|'assistant', content:string}]，最多1轮）*/
+  @IsOptional()
+  @IsArray()
+  context?: Array<{ role: string; content: string }>;
 }
 
 export class AnalyzeScreenshotDto {
@@ -40,4 +45,9 @@ export class AnalyzeScreenshotDto {
   @IsOptional()
   @IsString()
   conversation_id?: string;
+
+  /** 上轮对话内容（同 AnalyzeTextDto）*/
+  @IsOptional()
+  @IsArray()
+  context?: Array<{ role: string; content: string }>;
 }

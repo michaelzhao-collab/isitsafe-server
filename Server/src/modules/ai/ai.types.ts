@@ -26,6 +26,7 @@ export interface AiOutputSchema {
   summary: string;
   reasons: string[];
   advice: string[];
+  is_conversational?: boolean;
 }
 
 const ZH_TO_EN: Record<string, RiskLevel> = {
@@ -90,11 +91,14 @@ export function parseAndValidateAiOutput(raw: string): AiOutputSchema {
     const confidence = typeof obj.confidence === 'number' ? Math.max(0, Math.min(100, obj.confidence)) : 50;
     const risk_type = Array.isArray(obj.risk_type) ? obj.risk_type.map(String) : ['未知风险'];
     const summary = typeof obj.summary === 'string' ? obj.summary : AI_PARSE_FALLBACK_SUMMARY;
+    const is_conversational = obj.is_conversational === true;
     let reasons = Array.isArray(obj.reasons) ? obj.reasons.map(String) : fallback.reasons;
     let advice = Array.isArray(obj.advice) ? obj.advice.map(String) : fallback.advice;
-    if (reasons.length < 3) reasons = [...reasons, ...fallback.reasons].slice(0, 3);
-    if (advice.length < 3) advice = [...advice, ...fallback.advice].slice(0, 3);
-    return { risk_level: level, confidence, risk_type, summary, reasons, advice };
+    if (!is_conversational) {
+      if (reasons.length < 3) reasons = [...reasons, ...fallback.reasons].slice(0, 3);
+      if (advice.length < 3) advice = [...advice, ...fallback.advice].slice(0, 3);
+    }
+    return { risk_level: level, confidence, risk_type, summary, reasons, advice, is_conversational };
   } catch (e) {
     console.log('[AI_PARSE] 解析失败，使用兜底 fallback | raw 前500字: ' + String(raw).slice(0, 500) + ' | error: ' + (e instanceof Error ? e.message : String(e)));
     return fallback;

@@ -26,6 +26,7 @@ export class AiController {
         language: dto.language,
         country: dto.country,
         conversationId: dto.conversation_id,
+        context: dto.context,
       },
       userId ?? null,
     );
@@ -42,6 +43,7 @@ export class AiController {
       dto.language,
       dto.imageUrl,
       dto.conversation_id,
+      dto.context,
     );
   }
 }
