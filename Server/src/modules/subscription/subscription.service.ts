@@ -356,6 +356,7 @@ export class SubscriptionService {
 
   // StoreKit 2 / App Store Server Notifications V2：用 x5c[0] 叶证书公钥直接验签
   // alg 通常为 ES256（P-256 椭圆曲线），苹果 2021 年后统一使用此算法
+  // StoreKit 2 Transaction JWS 不含 iss/aud 标准字段，改为验证 payload.bundleId
   private verifyAppleJwsWithX5c(token: string, x5c: string[], alg: string): Record<string, any> {
     const leafPem = [
       '-----BEGIN CERTIFICATE-----',
@@ -364,16 +365,25 @@ export class SubscriptionService {
     ].join('\n');
 
     const algorithms = alg === 'RS256' ? ['RS256'] : ['ES256'];
+    let payload: Record<string, any>;
     try {
-      const payload = nodeJwt.verify(token, leafPem, {
+      payload = nodeJwt.verify(token, leafPem, {
         algorithms: algorithms as nodeJwt.Algorithm[],
-        issuer: 'appstoreconnect-v1',
       }) as Record<string, any>;
-      return payload;
     } catch (e: any) {
       console.warn('[APPLE_X5C_VERIFY_FAILED]', { alg, message: e?.message });
       throw new BadRequestException(`Apple receipt verification failed: ${e?.message}`);
     }
+
+    // 验证 bundleId 与服务器配置一致（StoreKit 2 用 bundleId 而非 aud）
+    const bundleId = this.appleBundleId;
+    const tokenBundleId = payload.bundleId;
+    if (bundleId && tokenBundleId && tokenBundleId !== bundleId) {
+      console.warn('[APPLE_X5C_BUNDLE_MISMATCH]', { expected: bundleId, got: tokenBundleId });
+      throw new BadRequestException('Apple receipt bundle ID mismatch');
+    }
+
+    return payload;
   }
 
   /**
