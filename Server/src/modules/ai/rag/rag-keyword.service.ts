@@ -44,9 +44,20 @@ export class RagKeywordService {
   ): Promise<KnowledgeCaseHit[]> {
     if (keywords.length === 0) return [];
 
+    // 明确指定 select 字段：
+    // 1) 性能 —— contentBlocks/coverImage 是大 JSON/URL，RAG 用不上不必拉
+    // 2) 抗 schema 漂移 —— 即使 prisma migrate 还没把新列加上去，本查询也能成功
     const cases = await this.prisma.knowledgeCase.findMany({
       where: { language },
       take: topK * 3, // 多取一些再排序
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        content: true,
+        tags: true,
+        language: true,
+      },
     });
 
     const scored = cases.map((c) => {
