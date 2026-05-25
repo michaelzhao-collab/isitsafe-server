@@ -34,8 +34,12 @@ export class AiProviderService {
 
   private async getDoubaoConfig() {
     const key = await this.settings.getDoubaoKey() ?? this.config.get('DOUBAO_API_KEY');
-    // 豆包 baseUrl 单独配置，不复用 AI_BASE_URL（避免被 OpenAI/DeepSeek 覆盖）
-    const baseUrl = this.config.get('DOUBAO_API_URL', 'https://ark.cn-beijing.volces.com/api/v3');
+    // baseUrl 优先级：DOUBAO_API_URL env > AI_BASE_URL/Settings.aiBaseUrl（兼容旧配置）> 默认 ark
+    // 之前的部署可能把豆包代理写在 AI_BASE_URL 里（Railway 新加坡直连北京 ark 不稳定），必须保留此回落
+    const baseUrl =
+      this.config.get('DOUBAO_API_URL') ||
+      (await this.settings.getAiBaseUrl()) ||
+      'https://ark.cn-beijing.volces.com/api/v3';
     return { apiKey: key, baseUrl };
   }
 
@@ -228,21 +232,19 @@ export class AiProviderService {
 
   /**
    * 调用主 provider，失败自动切换备用 provider 重试一次。
-   * - 显式传入 provider 参数时，禁用故障转移（兜底逻辑由调用方控制，比如 admin 测试某个 provider）
-   * - 主/备相同时不重试，直接抛错
-   * - 备用未配置 key 也不算 fallback 成功，错误继续抛出
+   * - provider 参数为"建议的主 provider"，省略时按 settings.defaultProvider；任何情况下失败都会尝试 fallback
+   * - 主/备相同 或 备用未配置时，直接抛主错误
+   * - 兜底成功时记录 [AI_FAILOVER_OK]，方便排查；失败时记录 [AI_FAILOVER_FAILED] 抛主错误
+   *
+   * 注意：之前的版本里 `if (provider) return callProvider(...)` 提前 return 导致 fallback 永远不触发，
+   * 而 ai.service.ts 总是显式传 provider —— 等于 fallback 完全是死代码。此处修复。
    */
   async analyze(
     prompt: string,
     systemPrompt: string,
     provider?: AiProviderName,
   ): Promise<AiCallResult> {
-    if (provider) {
-      // 调用方明确指定了 provider，不做 fallback
-      return this.callProvider(provider, prompt, systemPrompt);
-    }
-
-    const primary = await this.getDefaultProvider();
+    const primary = provider ?? (await this.getDefaultProvider());
     try {
       return await this.callProvider(primary, prompt, systemPrompt);
     } catch (primaryErr: any) {
