@@ -70,7 +70,9 @@ public final class HomeViewModel: ObservableObject {
                     } else {
                         result = .failure("暂无结果")
                     }
+                    // 用服务端 row.id 派生稳定 UUID，多次刷新同一 turn 的 id 不变，避免 ForEach 整行重绘
                     return ChatTurn(
+                        id: ChatTurn.stableId(from: row.id),
                         userText: userText.isEmpty ? nil : userText,
                         userImage: nil,
                         imageUrl: row.imageUrl,
@@ -316,14 +318,16 @@ public final class HomeViewModel: ObservableObject {
                             result = .failure("暂无结果")
                         }
                         let isScreenshot = row.inputType.lowercased() == QueryInputType.screenshot.rawValue
+                        // 用 row.id 派生稳定 UUID，刷新或离线降级后 ForEach 不会闪烁
+                        let stableId = ChatTurn.stableId(from: row.id)
                         if isScreenshot {
                             let contentKey = userText
                             let imageKey = (row.imageUrl?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
                                 ? (contentKey.isEmpty ? nil : contentKey)
                                 : row.imageUrl
-                            return ChatTurn(userText: nil, userImage: nil, imageUrl: imageKey, status: .done(result))
+                            return ChatTurn(id: stableId, userText: nil, userImage: nil, imageUrl: imageKey, status: .done(result))
                         } else {
-                            return ChatTurn(userText: userText.isEmpty ? nil : userText, userImage: nil, imageUrl: row.imageUrl, status: .done(result))
+                            return ChatTurn(id: stableId, userText: userText.isEmpty ? nil : userText, userImage: nil, imageUrl: row.imageUrl, status: .done(result))
                         }
                     }
                 }

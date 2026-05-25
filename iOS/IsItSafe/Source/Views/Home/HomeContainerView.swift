@@ -165,8 +165,15 @@ public struct HomeContainerView: View {
         } message: {
             Text(languageCode == "en" ? "Paste clipboard content into the input box?" : "是否将剪贴板内容填入输入框？")
         }
-        .onChange(of: scenePhase) { _, newPhase in
+        .onChange(of: scenePhase) { oldPhase, newPhase in
             previousScenePhase = newPhase
+            // 从后台/未激活回到 active：刷新登录态 + 订阅状态，避免显示过期信息
+            if newPhase == .active && oldPhase != .active {
+                Task {
+                    await MainActor.run { appState.refreshLoginState() }
+                    await appState.refreshSubscriptionState()
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
             // 从后台回到前台不新开对话，仅检查剪贴板
@@ -327,6 +334,13 @@ public struct HomeContainerView: View {
                             voiceHintText = (languageCode == "en" ? "Hold to speak" : "按住说话")
                             SpeechRecognitionService.shared.stopRecording()
                         },
+                        onVoiceCancel: {
+                            // 上滑取消：不解析识别结果，直接放弃整段录音
+                            voiceHintText = (languageCode == "en" ? "Hold to speak" : "按住说话")
+                            SpeechRecognitionService.shared.stopRecording()
+                            voiceRecordingTask?.cancel()
+                            voiceRecordingTask = nil
+                        },
                         voiceHintText: voiceHintText,
                         isFocused: $isInputFocused
                     )
@@ -343,6 +357,10 @@ public struct HomeContainerView: View {
                             .font(.system(size: 18, weight: .medium))
                             .foregroundColor(AppTheme.primary)
                     }
+                    .a11y(
+                        label: languageCode == "en" ? "Open menu" : "打开菜单",
+                        hint: languageCode == "en" ? "View history and settings" : "查看历史与设置"
+                    )
                 }
                 ToolbarItem(placement: .principal) {
                     Text(languageCode == "en" ? "StarLens AI" : "星识安全助手")
@@ -358,6 +376,10 @@ public struct HomeContainerView: View {
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(AppTheme.primary)
                     }
+                    .a11y(
+                        label: languageCode == "en" ? "Start new chat" : "开始新对话",
+                        hint: languageCode == "en" ? "Clear current conversation" : "清空当前对话"
+                    )
                 }
             }
         }

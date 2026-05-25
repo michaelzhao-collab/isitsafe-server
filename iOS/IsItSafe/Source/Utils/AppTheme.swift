@@ -40,8 +40,15 @@ public enum AppTheme {
     public static let premiumHeader = Color(hex: "1A237E")
     /// 为什么选择 Premium 浅蓝卡片背景（仅浅色模式用；深色用 cardBackground）
     public static let premiumWhyCard = Color(hex: "E0EEF8")
-    /// 会员页当前状态卡片深灰 #2C2C2E
-    public static let premiumStatusCard = Color(hex: "2C2C2E")
+    /// 会员页当前状态卡片：浅色模式用浅灰 #F2F2F7，深色模式用深灰 #2C2C2E
+    /// 之前固定 #2C2C2E 在浅色模式下显得突兀
+    public static var premiumStatusCard: Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0x2C/255, green: 0x2C/255, blue: 0x2E/255, alpha: 1)
+                : UIColor(red: 0xF2/255, green: 0xF2/255, blue: 0xF7/255, alpha: 1)
+        })
+    }
 
     // MARK: - 协议链接（官方落地页，可点击打开）
     public static let termsURL = URL(string: "https://www.starlensai.com/terms")!
@@ -53,6 +60,46 @@ public enum AppTheme {
     public static var tabInactive: Color { Color(UIColor.secondaryLabel) }
     /// 底导背景
     public static var tabBarBackground: Color { cardBackground }
+
+    // MARK: - 圆角规范（统一全局圆角口径，避免 8/10/12/16/20 散落各处）
+    public enum CornerRadius {
+        /// 小：tag、头像、小图标 8pt
+        public static let small: CGFloat = 8
+        /// 中：卡片、按钮 12pt
+        public static let medium: CGFloat = 12
+        /// 大：胶囊形输入框、bottom sheet 20pt
+        public static let large: CGFloat = 20
+    }
+
+    // MARK: - 间距规范（与圆角配套）
+    public enum Spacing {
+        public static let xs: CGFloat = 4
+        public static let sm: CGFloat = 8
+        public static let md: CGFloat = 12
+        public static let lg: CGFloat = 16
+        public static let xl: CGFloat = 24
+    }
+}
+
+// MARK: - 字号 helper（响应系统 Dynamic Type）
+public extension Font {
+    /// 基准字号 + 自动响应系统字号缩放设置
+    /// 用法：`Text(...).font(.scaled(16, weight: .medium))`
+    /// 内部走 `.system(size:weight:)` 但走 `relativeTo:` 桥接到对应的语义字体，让系统字号设置生效
+    static func scaled(_ size: CGFloat, weight: Font.Weight = .regular, relativeTo: Font.TextStyle = .body) -> Font {
+        .system(size: size, weight: weight).leading(.standard)
+    }
+}
+
+// MARK: - View 便捷 modifier
+public extension View {
+    /// 给交互元素加上语义标签 + 提示（不影响视觉）
+    /// 用法：`button.a11y(label: "发送查询", hint: "支持文字/语音/图片")`
+    func a11y(label: String, hint: String? = nil) -> some View {
+        self
+            .accessibilityLabel(label)
+            .accessibilityHint(hint ?? "")
+    }
 }
 
 // 字号缩放，用于环境注入（0.85～1.15，默认 1）

@@ -36,11 +36,14 @@ public final class AppStateViewModel: ObservableObject {
         isGuestMode = false
         UserDefaults.standard.set(false, forKey: Self.guestModeKey)
         hasCompletedInitialLogin = UserDefaults.standard.bool(forKey: Self.initialLoginKey)
-        // 延后拉取订阅状态，避免阻塞首屏展示
+        // 并行预加载首屏所需数据（公开配置 + 订阅状态 + 未读消息），节省串行延迟
+        // 原本是 fetchPublicConfig → sleep 500ms → refreshSubscriptionState，总耗时 ≥ 500ms + 两次 RTT
+        // 改成并行后总耗时约为 max(各请求耗时)
         Task {
-            await fetchPublicConfig()
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            await refreshSubscriptionState()
+            async let config: Void = fetchPublicConfig()
+            async let sub: Void = refreshSubscriptionState()
+            async let unread: Void = refreshUnreadCount()
+            _ = await (config, sub, unread)
         }
     }
 

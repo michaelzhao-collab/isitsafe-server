@@ -99,6 +99,9 @@ public final class NetworkManager {
         body: Encodable? = nil,
         retries: Int = 0
     ) async throws -> T {
+        // 已登录场景：access token 临近过期主动刷新，避免被动 401
+        // 没 token / 没 exp 字段时 no-op（详见 AuthService.ensureFreshTokenIfNearExpiry）
+        await AuthService.shared.ensureFreshTokenIfNearExpiry()
         let token = AuthInterceptor.token()
         let req = try RequestBuilder.build(endpoint: endpoint, baseURL: AppConfiguration.shared.baseURL, body: body, authToken: token)
         printRequest(req, endpoint: endpoint, body: body)
@@ -227,9 +230,11 @@ public final class NetworkManager {
         #endif
     }
 
-    // MARK: - Forced prints (Debug/Release 都输出)
+    // MARK: - Network 日志
+    // Debug：完整请求/响应；Release：只打 method + path + status，避免 token/用户内容外泄
     private func printRequest(_ request: URLRequest, endpoint: APIEndpoint, body: Encodable?) {
         let method = request.httpMethod ?? endpoint.method.rawValue
+        #if DEBUG
         let url = request.url?.absoluteString ?? ""
         print("\(forcedNetworkPrintPrefix) REQUEST:", method, url)
 
@@ -246,14 +251,16 @@ public final class NetworkManager {
         } else if let raw = request.httpBody, !raw.isEmpty, let str = String(data: raw, encoding: .utf8) {
             print("\(forcedNetworkPrintPrefix) REQUEST_BODY_RAW:", str)
         }
+        #else
+        // Release 仅输出方法 + 路径，不含 query / body / token
+        print("\(forcedNetworkPrintPrefix) REQUEST:", method, endpoint.path)
+        #endif
     }
 
     private func printResponse(data: Data?, response: URLResponse?, endpoint: APIEndpoint) {
-        if let http = response as? HTTPURLResponse {
-            print("\(forcedNetworkPrintPrefix) RESPONSE:", endpoint.path, "status=\(http.statusCode)")
-        } else {
-            print("\(forcedNetworkPrintPrefix) RESPONSE:", endpoint.path, "status=unknown")
-        }
+        let status: String = (response as? HTTPURLResponse).map { "\($0.statusCode)" } ?? "unknown"
+        #if DEBUG
+        print("\(forcedNetworkPrintPrefix) RESPONSE:", endpoint.path, "status=\(status)")
         if let data = data {
             if let str = String(data: data, encoding: .utf8) {
                 print("\(forcedNetworkPrintPrefix) RESPONSE_BODY:", str)
@@ -263,16 +270,24 @@ public final class NetworkManager {
         } else {
             print("\(forcedNetworkPrintPrefix) RESPONSE_BODY:", "<empty>")
         }
+        #else
+        // Release 只记录状态码、内容大小，不打 body
+        let size = data?.count ?? 0
+        print("\(forcedNetworkPrintPrefix) RESPONSE:", endpoint.path, "status=\(status) size=\(size)")
+        #endif
     }
 
     private func printDecodeError(_ error: Error, data: Data?, endpoint: APIEndpoint) {
+        // 解码失败一律记录到日志（无论 Debug/Release），但 Release 下不打原始响应体
         print("\(forcedNetworkPrintPrefix) DECODE_ERROR:", endpoint.path, error.localizedDescription)
+        #if DEBUG
         if let error = error as? DecodingError {
             print("\(forcedNetworkPrintPrefix) DECODE_ERROR_DETAIL:", String(describing: error))
         }
         if let data = data, let str = String(data: data, encoding: .utf8) {
             print("\(forcedNetworkPrintPrefix) DECODE_ERROR_RAW_BODY:", str)
         }
+        #endif
     }
 }
 

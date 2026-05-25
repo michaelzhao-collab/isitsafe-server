@@ -69,4 +69,34 @@ public final class AuthService {
             sessionStore.clearSession()
         }
     }
+
+    /// 主动刷新阈值：accessToken 距离过期 ≤ 此秒数时触发刷新（提前于 401）
+    /// 30s 留出网络 + 服务端时钟漂移余量
+    private static let proactiveRefreshThreshold: TimeInterval = 30
+
+    /// 多个并发请求同时触发刷新时共享同一个 Task，避免重复消耗 refreshToken
+    @MainActor private var inFlightRefresh: Task<Void, Never>?
+
+    /// NetworkManager 在每次请求前调用：仅当 access token 即将过期才发起刷新
+    /// 无 token / 无 refresh / 没有 exp 字段时一律 no-op，不影响匿名请求
+    public func ensureFreshTokenIfNearExpiry() async {
+        // 没登录 → 直接 return
+        guard tokenStore.accessToken != nil, tokenStore.refreshToken != nil else { return }
+        // 没有 exp 字段（旧 token 或非标 JWT） → 不主动刷新，仍走 401 路径兜底
+        guard let exp = tokenStore.accessTokenExpiry else { return }
+        let secondsLeft = exp.timeIntervalSinceNow
+        guard secondsLeft <= Self.proactiveRefreshThreshold else { return }
+
+        // 复用进行中的 refresh，避免并发刷新
+        if let existing = await MainActor.run(body: { inFlightRefresh }) {
+            await existing.value
+            return
+        }
+        let task = Task<Void, Never> { [weak self] in
+            await self?.refreshTokenIfNeeded()
+        }
+        await MainActor.run { inFlightRefresh = task }
+        await task.value
+        await MainActor.run { inFlightRefresh = nil }
+    }
 }

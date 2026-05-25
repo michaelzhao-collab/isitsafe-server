@@ -35,6 +35,37 @@ public final class TokenStore {
         refreshToken = nil
     }
 
+    /// 解析当前 accessToken 的 JWT exp 字段，返回过期时刻；token 不合法/无 exp 时返回 nil。
+    /// 用于 NetworkManager 在请求前主动判断是否需要刷新，避免被动等 401。
+    public var accessTokenExpiry: Date? {
+        guard let token = accessToken else { return nil }
+        return Self.expiryDate(from: token)
+    }
+
+    /// JWT 不会很大，本地解析比走 keychain 多次读取更快；仅读 header.payload 不验签。
+    private static func expiryDate(from jwt: String) -> Date? {
+        let parts = jwt.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count >= 2 else { return nil }
+        var payload = String(parts[1])
+        // base64url → base64 + padding
+        payload = payload
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let mod = payload.count % 4
+        if mod > 0 { payload += String(repeating: "=", count: 4 - mod) }
+        guard let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        if let exp = json["exp"] as? TimeInterval {
+            return Date(timeIntervalSince1970: exp)
+        }
+        if let expInt = json["exp"] as? Int {
+            return Date(timeIntervalSince1970: TimeInterval(expInt))
+        }
+        return nil
+    }
+
     private func save(key: String, value: String) {
         guard let data = value.data(using: .utf8) else { return }
         let query: [String: Any] = [

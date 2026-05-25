@@ -20,10 +20,18 @@ public struct AnalyzeInputBar: View {
     public var onPlus: () -> Void
     public var onVoiceHoldStart: (() -> Void)?
     public var onVoiceHoldEnd: (() -> Void)?
+    /// 上滑取消录音回调；为 nil 时退化为普通 hold-end
+    public var onVoiceCancel: (() -> Void)?
     /// 语音状态文案：按住说话 / 请说话...... / 说话中......
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     public var voiceHintText: String = "按住说话"
     @FocusState.Binding public var isFocused: Bool
+
+    // 录音手势状态
+    @State private var isRecording = false
+    @State private var isCancellableMode = false
+    /// 上滑超过此阈值进入取消态（点单位）
+    private let cancelThreshold: CGFloat = 60
 
     private var localizedVoiceHintText: String {
         if languageCode == "en" {
@@ -45,6 +53,7 @@ public struct AnalyzeInputBar: View {
         onPlus: @escaping () -> Void,
         onVoiceHoldStart: (() -> Void)? = nil,
         onVoiceHoldEnd: (() -> Void)? = nil,
+        onVoiceCancel: (() -> Void)? = nil,
         voiceHintText: String = "按住说话",
         isFocused: FocusState<Bool>.Binding
     ) {
@@ -59,6 +68,7 @@ public struct AnalyzeInputBar: View {
         self.onPlus = onPlus
         self.onVoiceHoldStart = onVoiceHoldStart
         self.onVoiceHoldEnd = onVoiceHoldEnd
+        self.onVoiceCancel = onVoiceCancel
         self.voiceHintText = voiceHintText
         self._isFocused = isFocused
     }
@@ -151,49 +161,129 @@ public struct AnalyzeInputBar: View {
     }
 
     private var voiceModeContent: some View {
-        HStack(alignment: .center, spacing: 10) {
-            if let img = pendingImage {
-                ZStack(alignment: .topTrailing) {
-                    Image(uiImage: img)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    Button(action: onRemovePendingImage) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(.white)
-                            .shadow(radius: 1)
+        VStack(spacing: 6) {
+            // 录音激活时上方显示"上滑取消"hint；进入取消态后变红强提示
+            if isRecording {
+                HStack(spacing: 4) {
+                    Image(systemName: isCancellableMode ? "xmark.circle.fill" : "chevron.up")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(cancelHintText)
+                        .font(.caption)
+                }
+                .foregroundColor(isCancellableMode ? .red : AppTheme.secondaryText)
+                .transition(.opacity)
+            }
+            HStack(alignment: .center, spacing: 10) {
+                if let img = pendingImage {
+                    ZStack(alignment: .topTrailing) {
+                        Image(uiImage: img)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 44, height: 44)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Button(action: onRemovePendingImage) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(.white)
+                                .shadow(radius: 1)
+                        }
+                        .offset(x: 6, y: -6)
                     }
-                    .offset(x: 6, y: -6)
+                }
+                Text(voiceButtonText)
+                    .font(.subheadline)
+                    .foregroundColor(isCancellableMode ? .white : AppTheme.secondaryText)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(voiceButtonBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .contentShape(Rectangle())
+                    .gesture(voiceGesture)
+                    .accessibilityLabel(isRecording
+                        ? (isCancellableMode
+                            ? (languageCode == "en" ? "Release to cancel" : "松手取消")
+                            : (languageCode == "en" ? "Recording, slide up to cancel" : "录音中，上滑取消"))
+                        : (languageCode == "en" ? "Hold to speak" : "按住说话"))
+                Button(action: {
+                    isVoiceMode = false
+                    onVoiceToggle()
+                }) {
+                    Image(systemName: "keyboard")
+                        .font(.system(size: 32))
+                        .foregroundColor(AppTheme.primary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(.easeInOut(duration: 0.15), value: isCancellableMode)
+        .animation(.easeInOut(duration: 0.15), value: isRecording)
+    }
+
+    private var voiceButtonText: String {
+        if isCancellableMode {
+            return languageCode == "en" ? "Release to cancel" : "松手取消"
+        }
+        if isRecording {
+            return languageCode == "en" ? "Listening…" : "正在录音…"
+        }
+        return localizedVoiceHintText
+    }
+
+    private var cancelHintText: String {
+        if isCancellableMode {
+            return languageCode == "en" ? "Release to cancel" : "松手取消发送"
+        }
+        return languageCode == "en" ? "Slide up to cancel" : "上滑取消"
+    }
+
+    private var voiceButtonBackground: Color {
+        if isCancellableMode { return .red.opacity(0.85) }
+        if isRecording { return AppTheme.primary.opacity(0.18) }
+        return Color(UIColor.tertiarySystemFill)
+    }
+
+    /// 长按 0.25s 进入录音 → DragGesture 跟踪上滑距离 → 释放时根据 isCancellableMode 决定 cancel 或 end
+    private var voiceGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.25)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
+            .onChanged { value in
+                switch value {
+                case .first:
+                    // 长按阶段——但 DragGesture 还未触发，等下个 changed 才进入第二阶段
+                    break
+                case .second(true, let drag):
+                    if !isRecording {
+                        isRecording = true
+                        onVoiceHoldStart?()
+                    }
+                    if let drag = drag {
+                        let dy = -drag.translation.height  // 上滑为正
+                        let shouldCancel = dy > cancelThreshold
+                        if shouldCancel != isCancellableMode {
+                            isCancellableMode = shouldCancel
+                        }
+                    }
+                default:
+                    break
                 }
             }
-            Text(localizedVoiceHintText)
-                .font(.subheadline)
-                .foregroundColor(AppTheme.secondaryText)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(Color(UIColor.tertiarySystemFill))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .contentShape(Rectangle())
-                .onLongPressGesture(minimumDuration: 0.25, maximumDistance: .infinity, pressing: { pressing in
-                    if pressing {
-                        onVoiceHoldStart?()
+            .onEnded { _ in
+                if isRecording {
+                    if isCancellableMode {
+                        // 优先调用 cancel，回调缺失则退化为 end
+                        if let onCancel = onVoiceCancel {
+                            onCancel()
+                        } else {
+                            onVoiceHoldEnd?()
+                        }
                     } else {
                         onVoiceHoldEnd?()
                     }
-                }, perform: {})
-            Button(action: {
-                isVoiceMode = false
-                onVoiceToggle()
-            }) {
-                Image(systemName: "keyboard")
-                    .font(.system(size: 32))
-                    .foregroundColor(AppTheme.primary)
+                }
+                isRecording = false
+                isCancellableMode = false
             }
-            .buttonStyle(.plain)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var sendButton: some View {
@@ -203,6 +293,10 @@ public struct AnalyzeInputBar: View {
                 .foregroundColor(AppTheme.primary)
         }
         .buttonStyle(.plain)
+        .a11y(
+            label: languageCode == "en" ? "Send query" : "发送查询",
+            hint: languageCode == "en" ? "Submit your question to AI" : "提交你的问题给 AI 分析"
+        )
     }
 
     private var canSend: Bool {

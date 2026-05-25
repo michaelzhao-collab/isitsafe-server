@@ -114,5 +114,34 @@ public enum L10n {
         case .system: return "English"
         }
     }
+
+    // MARK: - 通用翻译 helper
+    /// 提供中英文，自动按当前语言返回。让新代码少写 `if languageCode == "en" {} else {}` 模板
+    /// 用法：`L10n.tr(zh: "确认删除", en: "Confirm delete")`
+    public static func tr(zh: String, en: String) -> String {
+        current == .en ? en : zh
+    }
+
+    /// 带占位的格式化版：`L10n.tr(zh: "共 %d 条", en: "%d items", args: 5)`
+    public static func tr(zh: String, en: String, args: CVarArg...) -> String {
+        let template = current == .en ? en : zh
+        return String(format: template, arguments: args)
+    }
+
+    /// 复数 helper：根据 count 返回单/复数（仅英文有意义，中文统一）
+    /// 用法：`L10n.plural(n, zh: "%d 条记录", enSingular: "%d record", enPlural: "%d records")`
+    public static func plural(_ count: Int, zh: String, enSingular: String, enPlural: String) -> String {
+        let template = current == .en ? (count == 1 ? enSingular : enPlural) : zh
+        return String(format: template, count)
+    }
+}
+
+// MARK: - String 便捷扩展
+public extension String {
+    /// 简写：`"确认".l10n(en: "Confirm")`
+    /// 不强制迁移所有现有调用点；新代码与重构时优先使用
+    func l10n(en: String) -> String {
+        L10n.tr(zh: self, en: en)
+    }
 }
 
