@@ -11,7 +11,7 @@ export interface QueryItem {
   confidence?: number;
   aiProvider?: string;
   createdAt: string;
-  user?: { id: string; phone: string | null; email: string | null };
+  user?: { id: string; phone: string | null; email: string | null; nickname?: string | null };
 }
 
 export interface QueriesRes {
@@ -27,7 +27,10 @@ export function getQueries(params?: {
   riskLevel?: string;
   startDate?: string;
   endDate?: string;
-  search?: string;
+  /** 用户 ID 精确匹配 */
+  userId?: string;
+  /** 用户关键字（手机号/邮箱/昵称模糊） */
+  userKeyword?: string;
 }) {
   const q: Record<string, string> = {};
   if (params?.page != null) q.page = String(params.page);
@@ -35,6 +38,8 @@ export function getQueries(params?: {
   if (params?.riskLevel) q.riskLevel = params.riskLevel;
   if (params?.startDate) q.startDate = params.startDate;
   if (params?.endDate) q.endDate = params.endDate;
+  if (params?.userId) q.userId = params.userId;
+  if (params?.userKeyword) q.userKeyword = params.userKeyword;
   return request.get<QueriesRes>('/admin/queries', { params: q });
 }
 

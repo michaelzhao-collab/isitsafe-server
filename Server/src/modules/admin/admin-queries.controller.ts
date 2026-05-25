@@ -16,6 +16,9 @@ export class AdminQueriesController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('includeDeleted') includeDeleted?: string,
+    // 用户搜索：userId 精确匹配；userKeyword 在 phone/email/nickname 上模糊匹配
+    @Query('userId') userId?: string,
+    @Query('userKeyword') userKeyword?: string,
   ) {
     const skip = (parseInt(page, 10) - 1) * parseInt(pageSize, 10);
     const where: any = {};
@@ -26,13 +29,27 @@ export class AdminQueriesController {
       if (startDate) where.createdAt.gte = new Date(startDate);
       if (endDate) where.createdAt.lte = new Date(endDate);
     }
+    const trimmedUserId = userId?.trim();
+    if (trimmedUserId) {
+      where.userId = trimmedUserId;
+    }
+    const trimmedKw = userKeyword?.trim();
+    if (trimmedKw) {
+      where.user = {
+        OR: [
+          { phone: { contains: trimmedKw, mode: 'insensitive' } },
+          { email: { contains: trimmedKw, mode: 'insensitive' } },
+          { nickname: { contains: trimmedKw, mode: 'insensitive' } },
+        ],
+      };
+    }
     const [items, total] = await Promise.all([
       this.prisma.query.findMany({
         where,
         skip,
         take: parseInt(pageSize, 10),
         orderBy: { createdAt: 'desc' },
-        include: { user: { select: { id: true, phone: true, email: true } } },
+        include: { user: { select: { id: true, phone: true, email: true, nickname: true } } },
       }),
       this.prisma.query.count({ where }),
     ]);
@@ -43,7 +60,7 @@ export class AdminQueriesController {
   async get(@Param('id') id: string) {
     return this.prisma.query.findUniqueOrThrow({
       where: { id },
-      include: { user: { select: { id: true, phone: true, email: true } } },
+      include: { user: { select: { id: true, phone: true, email: true, nickname: true } } },
     });
   }
 }
