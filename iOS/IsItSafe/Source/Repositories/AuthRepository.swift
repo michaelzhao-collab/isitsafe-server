@@ -19,8 +19,25 @@ public final class AuthRepository {
         try await network.request(endpoint: .authLogin, body: request)
     }
 
+    public func appleLogin(_ request: AppleLoginRequest) async throws -> LoginResponse {
+        try await network.request(endpoint: .authAppleLogin, body: request)
+    }
+
+    public func sendSmsCode(phone: String) async throws -> SendSmsCodeResponse {
+        struct Body: Encodable { let phone: String }
+        return try await network.request(endpoint: .authSendCode, body: Body(phone: phone))
+    }
+
+    public func regionHint() async throws -> RegionHintResponse {
+        try await network.request(endpoint: .authRegionHint)
+    }
+
     public func logout() async throws -> LogoutResponse {
         try await network.request(endpoint: .authLogout)
+    }
+
+    public func deleteAccount() async throws -> LogoutResponse {
+        try await network.request(endpoint: .authDeleteAccount)
     }
 
     public func userInfo() async throws -> UserInfoResponse {

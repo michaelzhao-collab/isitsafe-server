@@ -12,29 +12,72 @@ public final class AppStateViewModel: ObservableObject {
     @Published public private(set) var isLoggedIn = false
     @Published public private(set) var user: UserInfoResponse?
     @Published public private(set) var subscriptionActive = false
+    @Published public private(set) var hasCompletedInitialLogin = false
+    @Published public private(set) var hasUnreadMessages = false
     @Published public var isGuestMode = false {
         didSet { UserDefaults.standard.set(isGuestMode, forKey: Self.guestModeKey) }
     }
     @Published public var errorMessage: String?
     @Published public var showError = false
+    @Published public var successMessage: String?
+    @Published public var showSuccess = false
 
     private static let guestModeKey = "isitsafe.isGuestMode"
+    private static let initialLoginKey = "isitsafe.hasCompletedInitialLogin"
     private let auth = AuthService.shared
     private let subscription = SubscriptionService.shared
 
-    /// 有有效会话：已登录或游客模式，可进入主界面
-    public var hasValidSession: Bool { isLoggedIn || isGuestMode }
+    /// 有有效会话：必须完成一次登录流程后才可进入主界面
+    public var hasValidSession: Bool { isLoggedIn && hasCompletedInitialLogin }
 
     private init() {
         isLoggedIn = auth.isLoggedIn
         user = auth.currentUser
-        isGuestMode = UserDefaults.standard.bool(forKey: Self.guestModeKey)
-        Task { await refreshSubscriptionState() }
+        isGuestMode = false
+        UserDefaults.standard.set(false, forKey: Self.guestModeKey)
+        hasCompletedInitialLogin = UserDefaults.standard.bool(forKey: Self.initialLoginKey)
+        // 延后拉取订阅状态，避免阻塞首屏展示
+        Task {
+            await fetchPublicConfig()
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            await refreshSubscriptionState()
+        }
+    }
+
+    /// 拉取服务端公开配置（每日免费次数等），失败时沿用本地缓存或默认值
+    private func fetchPublicConfig() async {
+        struct PublicConfigResponse: Decodable {
+            let freeQueriesPerDay: Int
+        }
+        do {
+            let config: PublicConfigResponse = try await NetworkManager.shared.request(endpoint: .publicConfig)
+            AppSettingsStore.maxFreeQueriesPerDay = config.freeQueriesPerDay
+        } catch {
+            // 失败静默处理，使用缓存值或默认 5
+        }
     }
 
     public func refreshLoginState() {
         isLoggedIn = auth.isLoggedIn
         user = auth.currentUser
+        if isLoggedIn {
+            Task { await refreshUnreadCount() }
+        } else {
+            hasUnreadMessages = false
+        }
+    }
+
+    public func setHasUnreadMessages(_ value: Bool) {
+        hasUnreadMessages = value
+    }
+
+    public func refreshUnreadCount() async {
+        guard auth.isLoggedIn else {
+            await MainActor.run { hasUnreadMessages = false }
+            return
+        }
+        let count = await MessageService.shared.unreadCount()
+        await MainActor.run { hasUnreadMessages = count > 0 }
     }
 
     public func refreshSubscriptionState() async {
@@ -44,7 +87,9 @@ public final class AppStateViewModel: ObservableObject {
         }
         do {
             let status = try await subscription.fetchStatus()
-            await MainActor.run { subscriptionActive = status.active }
+            await MainActor.run {
+                subscriptionActive = status.isPremium ?? status.active
+            }
         } catch {
             await MainActor.run { subscriptionActive = false }
         }
@@ -53,6 +98,12 @@ public final class AppStateViewModel: ObservableObject {
     public func setUser(_ u: UserInfoResponse?) {
         user = u
         isLoggedIn = u != nil
+    }
+
+    /// 在登录成功后调用：标记用户已完成一次正式登录
+    public func markInitialLoginCompleted() {
+        hasCompletedInitialLogin = true
+        UserDefaults.standard.set(true, forKey: Self.initialLoginKey)
     }
 
     public func setSubscriptionActive(_ active: Bool) {
@@ -72,5 +123,15 @@ public final class AppStateViewModel: ObservableObject {
     public func clearError() {
         showError = false
         errorMessage = nil
+    }
+
+    public func showSuccess(_ msg: String) {
+        successMessage = msg
+        showSuccess = true
+    }
+
+    public func clearSuccess() {
+        showSuccess = false
+        successMessage = nil
     }
 }

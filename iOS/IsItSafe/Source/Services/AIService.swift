@@ -13,16 +13,16 @@ public final class AIService {
 
     private init() {}
 
-    public func analyzeText(content: String, language: String? = "zh", country: String? = nil) async throws -> RiskAnalysisViewData {
-        let req = RiskAnalysisRequest(content: content, language: language, country: country)
+    public func analyzeText(content: String, language: String? = nil, country: String? = nil, conversationId: String? = nil, context: [[String: String]]? = nil) async throws -> RiskAnalysisViewData {
+        let req = RiskAnalysisRequest(content: content, language: language, country: country, conversationId: conversationId, context: context)
         let result = try await repo.analyze(req)
         cache.lastAnalysisResult = result
         recent.add(content)
         return RiskAnalysisViewData(from: result)
     }
 
-    public func analyzeScreenshot(content: String, language: String? = "zh", imageUrl: String? = nil) async throws -> RiskAnalysisViewData {
-        let req = ScreenshotAnalyzeRequest(content: content, language: language, isScreenshot: true, imageUrl: imageUrl)
+    public func analyzeScreenshot(content: String, language: String? = nil, imageUrl: String? = nil, conversationId: String? = nil, context: [[String: String]]? = nil) async throws -> RiskAnalysisViewData {
+        let req = ScreenshotAnalyzeRequest(content: content, language: language, isScreenshot: true, imageUrl: imageUrl, conversationId: conversationId, context: context)
         let result = try await repo.analyzeScreenshot(req)
         cache.lastAnalysisResult = result
         return RiskAnalysisViewData(from: result)

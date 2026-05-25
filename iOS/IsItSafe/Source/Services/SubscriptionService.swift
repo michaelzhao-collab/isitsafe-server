@@ -20,4 +20,8 @@ public final class SubscriptionService {
     public func fetchStatus() async throws -> SubscriptionStatusResponse {
         try await repo.status()
     }
+
+    public func fetchPlans() async throws -> [MembershipPlanResponse] {
+        try await repo.fetchPlans()
+    }
 }

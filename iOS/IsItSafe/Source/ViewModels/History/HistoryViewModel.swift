@@ -69,7 +69,7 @@ public final class HistoryViewModel: ObservableObject {
         loadFirstPage()
     }
 
-    /// 删除一条历史记录，完成后回调 success。若当前首页正在查看该条，调用方应切回新对话。
+    /// 删除一条历史记录：有 conversationId 时按会话删，否则按单条 id 删（兼容旧数据）
     public func deleteItem(_ item: QueryHistoryItem, completion: @escaping (Bool) -> Void) {
         if MockData.isMockModeEnabled {
             items.removeAll { $0.id == item.id }
@@ -79,7 +79,11 @@ public final class HistoryViewModel: ObservableObject {
         }
         Task {
             do {
-                try await queryService.deleteHistory(id: item.id)
+                if let cid = item.conversationId, !cid.isEmpty {
+                    try await queryService.deleteConversation(conversationId: cid)
+                } else {
+                    try await queryService.deleteHistory(id: item.id)
+                }
                 await MainActor.run {
                     items.removeAll { $0.id == item.id }
                     total = max(0, total - 1)
@@ -106,8 +110,8 @@ public final class HistoryViewModel: ObservableObject {
             }
         } catch {
             await MainActor.run {
+                // 历史记录是后台非关键加载，静默失败，不弹全局 Toast 干扰当前页面
                 state = .failure(error)
-                appState.showError((error as? APIError)?.userMessage ?? error.localizedDescription)
             }
         }
     }

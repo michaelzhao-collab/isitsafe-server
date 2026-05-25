@@ -23,12 +23,17 @@ public final class QueryRepository {
         try await network.request(endpoint: .queryCompany, body: request)
     }
 
-    public func history(page: Int, pageSize: Int, riskLevel: String?) async throws -> QueryHistoryListResponse {
-        try await network.request(endpoint: .queryHistory(page: page, pageSize: pageSize, riskLevel: riskLevel))
+    public func history(page: Int, pageSize: Int, riskLevel: String?, conversationId: String? = nil) async throws -> QueryHistoryListResponse {
+        try await network.request(endpoint: .queryHistory(page: page, pageSize: pageSize, riskLevel: riskLevel, conversationId: conversationId))
     }
 
     public func deleteQuery(id: String) async throws {
         try await network.requestVoid(endpoint: .deleteQuery(id: id))
+    }
+
+    /// 按会话删除（历史列表按会话展示时，一条记录对应一个 conversation）
+    public func deleteConversation(conversationId: String) async throws {
+        try await network.requestVoid(endpoint: .deleteQueryConversation(conversationId: conversationId))
     }
 
     public func tags() async throws -> [String] {

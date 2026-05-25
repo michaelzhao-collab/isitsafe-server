@@ -32,7 +32,16 @@ export class AdminKnowledgeController {
 
   @Post('upload')
   async upload(
-    @Body() body: { title: string; content: string; category: string; tags?: string[]; language?: string; source?: string },
+    @Body() body: {
+      title: string;
+      content: string;
+      category: string;
+      tags?: string[];
+      language?: string;
+      source?: string;
+      contentBlocks?: unknown | null;
+      coverImage?: string | null;
+    },
   ) {
     return this.knowledge.create(body);
   }
@@ -59,7 +68,15 @@ export class AdminKnowledgeController {
   @Put(':id')
   async update(
     @Param('id') id: string,
-    @Body() body: { title?: string; content?: string; category?: string; tags?: string[]; source?: string },
+    @Body() body: {
+      title?: string;
+      content?: string;
+      category?: string;
+      tags?: string[];
+      source?: string;
+      contentBlocks?: unknown | null;
+      coverImage?: string | null;
+    },
   ) {
     return this.knowledge.update(id, body);
   }

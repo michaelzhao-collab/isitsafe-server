@@ -2,27 +2,28 @@
 //  AppTheme.swift
 //  IsItSafe
 //
-//  统一配色，与 docs/COLOR-PALETTE.md 一致。APP 与 Admin 共用此规范。
+//  统一配色；基础背景/文字随系统深浅模式自适应。
 //
 
 import SwiftUI
+import UIKit
 
 public enum AppTheme {
-    // MARK: - 基础色
+    // MARK: - 基础色（随系统浅色/深色自适应）
     /// 主色 #2F6BFF
     public static let primary = Color(hex: "2F6BFF")
-    /// 主背景 #F6F8FC
-    public static let background = Color(hex: "F6F8FC")
-    /// 卡片 #FFFFFF
-    public static let cardBackground = Color(hex: "FFFFFF")
-    /// 边框 #E6EAF0
-    public static let border = Color(hex: "E6EAF0")
+    /// 主背景（浅色 #F6F8FC，深色 系统背景）
+    public static var background: Color { Color(UIColor.systemGroupedBackground) }
+    /// 卡片背景（浅色 #FFFFFF，深色 次级系统背景）
+    public static var cardBackground: Color { Color(UIColor.secondarySystemGroupedBackground) }
+    /// 边框/分割线
+    public static var border: Color { Color(UIColor.separator) }
 
-    // MARK: - 文字
-    /// 主文字 #1F2D3D
-    public static let textPrimary = Color(hex: "1F2D3D")
-    /// 次要文字 #5F6B7A
-    public static let textSecondary = Color(hex: "5F6B7A")
+    // MARK: - 文字（随系统自适应）
+    /// 主文字
+    public static var textPrimary: Color { Color(UIColor.label) }
+    /// 次要文字
+    public static var textSecondary: Color { Color(UIColor.secondaryLabel) }
 
     // MARK: - 风险等级
     /// 低风险 #2ECC71
@@ -37,17 +38,32 @@ public enum AppTheme {
     // MARK: - 会员页
     /// 会员页头部深蓝 #1A237E
     public static let premiumHeader = Color(hex: "1A237E")
-    /// 为什么选择 Premium 浅蓝卡片背景 #E0EEF8
+    /// 为什么选择 Premium 浅蓝卡片背景（仅浅色模式用；深色用 cardBackground）
     public static let premiumWhyCard = Color(hex: "E0EEF8")
     /// 会员页当前状态卡片深灰 #2C2C2E
     public static let premiumStatusCard = Color(hex: "2C2C2E")
 
+    // MARK: - 协议链接（官方落地页，可点击打开）
+    public static let termsURL = URL(string: "https://www.starlensai.com/terms")!
+    public static let privacyURL = URL(string: "https://www.starlensai.com/privacy")!
+
     // MARK: - 兼容旧用法
-    public static let secondaryText = textSecondary
-    /// Tab 未选中
-    public static let tabInactive = Color(hex: "5F6B7A").opacity(0.8)
+    public static var secondaryText: Color { textSecondary }
+    /// Tab 未选中（随系统）
+    public static var tabInactive: Color { Color(UIColor.secondaryLabel) }
     /// 底导背景
-    public static let tabBarBackground = cardBackground
+    public static var tabBarBackground: Color { cardBackground }
+}
+
+// 字号缩放，用于环境注入（0.85～1.15，默认 1）
+public struct FontScaleKey: EnvironmentKey {
+    public static let defaultValue: CGFloat = 1.0
+}
+extension EnvironmentValues {
+    public var fontScale: CGFloat {
+        get { self[FontScaleKey.self] }
+        set { self[FontScaleKey.self] = newValue }
+    }
 }
 
 extension Color {

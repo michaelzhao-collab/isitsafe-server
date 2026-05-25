@@ -1,6 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
+/**
+ * 从 TipTap JSON 节点树递归提取纯文本，用于：
+ * 1) 写入 content 字段供 RAG 关键词搜索使用
+ * 2) 列表预览（截断）
+ * 当 blocks 为 null/解析失败时返回空串，调用方应在此时保留入参 content。
+ */
+function extractPlainTextFromBlocks(blocks: unknown): string {
+  if (!blocks || typeof blocks !== 'object') return '';
+  const parts: string[] = [];
+  const walk = (node: any) => {
+    if (!node) return;
+    if (typeof node.text === 'string') {
+      parts.push(node.text);
+    }
+    // 图片节点占位：保留 alt 文本但不会出现在搜索匹配中
+    if (node.type === 'image' && node.attrs?.alt) {
+      // 不把 alt 推入 parts，避免 alt 中的关键词污染搜索；如需收录可解开
+    }
+    if (Array.isArray(node.content)) {
+      for (const child of node.content) walk(child);
+    }
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child);
+    }
+  };
+  walk(blocks);
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
 @Injectable()
 export class KnowledgeService {
   constructor(private prisma: PrismaService) {}
@@ -50,32 +79,56 @@ export class KnowledgeService {
     tags?: string[];
     language?: string;
     source?: string;
+    contentBlocks?: unknown | null;
+    coverImage?: string | null;
   }) {
+    // 优先用 contentBlocks 派生 content；空时回落 data.content
+    const derivedContent = data.contentBlocks
+      ? extractPlainTextFromBlocks(data.contentBlocks) || data.content
+      : data.content;
     return this.prisma.knowledgeCase.create({
       data: {
         title: data.title,
-        content: data.content,
+        content: derivedContent,
         category: data.category,
         tags: (data.tags || []) as any,
         language: data.language || 'zh',
         source: data.source ?? null,
-      },
+        ...(data.contentBlocks !== undefined && { contentBlocks: data.contentBlocks as any }),
+        ...(data.coverImage !== undefined && { coverImage: data.coverImage }),
+      } as any,
     });
   }
 
   async update(
     id: string,
-    data: { title?: string; content?: string; category?: string; tags?: string[]; source?: string },
+    data: {
+      title?: string;
+      content?: string;
+      category?: string;
+      tags?: string[];
+      source?: string;
+      contentBlocks?: unknown | null;
+      coverImage?: string | null;
+    },
   ) {
+    // 若同时传 content 和 contentBlocks，优先用 blocks 派生 content
+    let nextContent = data.content;
+    if (data.contentBlocks !== undefined && data.contentBlocks !== null) {
+      const derived = extractPlainTextFromBlocks(data.contentBlocks);
+      if (derived) nextContent = derived;
+    }
     return this.prisma.knowledgeCase.update({
       where: { id },
       data: {
         ...(data.title && { title: data.title }),
-        ...(data.content && { content: data.content }),
+        ...(nextContent && { content: nextContent }),
         ...(data.category && { category: data.category }),
         ...(data.tags && { tags: data.tags as any }),
         ...(data.source !== undefined && { source: data.source }),
-      },
+        ...(data.contentBlocks !== undefined && { contentBlocks: data.contentBlocks as any }),
+        ...(data.coverImage !== undefined && { coverImage: data.coverImage }),
+      } as any,
     });
   }
 

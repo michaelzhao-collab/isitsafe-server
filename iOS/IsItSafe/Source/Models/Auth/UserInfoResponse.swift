@@ -15,6 +15,8 @@ public struct UserInfoResponse: Codable {
 
     public let avatar: String?
     public let nickname: String?
+    /// 微信登录时的昵称，优先于 nickname 展示
+    public let wechatNickname: String?
     public let gender: String?
     public let birthday: String?
 
@@ -25,7 +27,7 @@ public struct UserInfoResponse: Codable {
     public let subscriptionExpire: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, phone, email, country, role, avatar, nickname, gender, birthday, createdAt
+        case id, phone, email, country, role, avatar, nickname, wechatNickname, gender, birthday, createdAt
         case lastLogin = "last_login"
         case subscriptionStatus = "subscriptionStatus"
         case subscriptionExpire = "subscriptionExpire"

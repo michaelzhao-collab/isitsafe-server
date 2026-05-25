@@ -12,10 +12,10 @@ public struct SettingsView: View {
     @EnvironmentObject private var appState: AppStateViewModel
     @State private var showUserAgreement = false
     @State private var showPrivacyPolicy = false
-    @State private var showHelp = false
-    @State private var showFeedback = false
     @State private var showAbout = false
     @State private var showLogoutConfirm = false
+    @State private var showDeleteAccountPage = false
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     public init() {}
 
@@ -25,47 +25,57 @@ public struct SettingsView: View {
                 if MockData.isMockModeEnabled {
                     Section {
                         HStack {
-                            Text("当前为预览模式")
+                            Text(languageCode == "en" ? "Preview mode" : "当前为预览模式")
                             Spacer()
-                            Text("假数据")
+                            Text(languageCode == "en" ? "Mock data" : "假数据")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
-                        Button("退出预览模式", role: .destructive) {
+                        Button(languageCode == "en" ? "Exit preview" : "退出预览模式", role: .destructive) {
                             exitPreviewMode()
                             dismiss()
                         }
                     }
                 }
 
-                Section("系统设置") {
-                    NavigationLink("用户协议") { WebPlaceholderView(title: "用户协议") }
-                    NavigationLink("隐私协议") { WebPlaceholderView(title: "隐私协议") }
-                    NavigationLink("字号设置") { FontSizeSettingsView() }
-                    NavigationLink("使用帮助") { WebPlaceholderView(title: "使用帮助") }
-                    NavigationLink("意见反馈") { WebPlaceholderView(title: "意见反馈") }
-                    NavigationLink("关于我们") { WebPlaceholderView(title: "关于我们") }
+                Section(languageCode == "en" ? "Settings" : "系统设置") {
+                    NavigationLink {
+                        InAppWebView(url: AppTheme.termsURL, title: languageCode == "en" ? "User Agreement" : "用户协议")
+                            .mainTabBarHidden()
+                    } label: {
+                        Text(languageCode == "en" ? "User Agreement" : "用户协议")
+                    }
+                    NavigationLink {
+                        InAppWebView(url: AppTheme.privacyURL, title: languageCode == "en" ? "Privacy Policy" : "隐私协议")
+                            .mainTabBarHidden()
+                    } label: {
+                        Text(languageCode == "en" ? "Privacy Policy" : "隐私协议")
+                    }
+                    NavigationLink(languageCode == "en" ? "Font size" : "字号设置") {
+                        FontSizeSettingsView()
+                            .mainTabBarHidden()
+                    }
+                    NavigationLink(languageCode == "en" ? "About" : "关于我们") {
+                        AboutView()
+                            .mainTabBarHidden()
+                    }
                 }
 
                 if appState.isLoggedIn {
                     Section {
-                        Button("退出登录", role: .destructive) {
-                            showLogoutConfirm = true
+                        Button(languageCode == "en" ? "Delete account" : "删除账号", role: .destructive) {
+                            showDeleteAccountPage = true
                         }
                     }
                 }
             }
             .listStyle(.insetGrouped)
             .background(AppTheme.background)
-            .navigationTitle("系统设置")
+            .navigationTitle(languageCode == "en" ? "Settings" : "系统设置")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { dismiss() }
-                }
-            }
-            .confirmationDialog("退出登录", isPresented: $showLogoutConfirm) {
-                Button("退出", role: .destructive) {
+            .alert(languageCode == "en" ? "Log out" : "退出登录", isPresented: $showLogoutConfirm) {
+                Button(languageCode == "en" ? "Cancel" : "取消", role: .cancel) {}
+                Button(languageCode == "en" ? "Log out" : "退出", role: .destructive) {
                     Task {
                         try? await AuthService.shared.logout()
                         await MainActor.run {
@@ -75,9 +85,38 @@ public struct SettingsView: View {
                         }
                     }
                 }
-                Button("取消", role: .cancel) { }
             } message: {
-                Text("确定要退出登录吗？")
+                Text(languageCode == "en" ? "Are you sure you want to log out?" : "确定要退出当前账号吗？")
+            }
+            .fullScreenCover(isPresented: $showDeleteAccountPage) {
+                NavigationStack {
+                    DeleteAccountView()
+                        .environmentObject(appState)
+                        .mainTabBarHidden()
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                if appState.isLoggedIn {
+                    Button {
+                        showLogoutConfirm = true
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Text(languageCode == "en" ? "Log out" : "退出登录")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            Spacer()
+                        }
+                        .frame(height: 48)
+                        .background(Color.red)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(AppTheme.background)
+                }
             }
         }
     }
@@ -89,25 +128,158 @@ public struct SettingsView: View {
     }
 }
 
+private struct DeleteAccountView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appState: AppStateViewModel
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    @State private var countdown = 10
+    @State private var isSubmitting = false
+    @State private var showConfirmAlert = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(languageCode == "en"
+                 ? "After deleting your account, all your data will be permanently deleted and cannot be recovered."
+                 : "删除账号后，您的所有数据将被永久删除，且无法恢复。")
+                .font(.body)
+                .foregroundColor(AppTheme.textPrimary)
+
+            Text(languageCode == "en"
+                 ? "This includes your query history, account information, and related data."
+                 : "包括您的查询记录、账户信息等数据都将被清除。")
+                .font(.body)
+                .foregroundColor(AppTheme.textPrimary)
+
+            Text(languageCode == "en"
+                 ? "If you sign in again using the same phone number or email, you will be treated as a new user, and previous data cannot be restored."
+                 : "请注意：使用相同手机号或邮箱再次登录时，将被视为新用户，无法恢复之前的数据。")
+                .font(.body)
+                .foregroundColor(AppTheme.textPrimary)
+
+            Spacer()
+
+            Button {
+                showConfirmAlert = true
+            } label: {
+                HStack {
+                    Spacer()
+                    if isSubmitting {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    } else if countdown > 0 {
+                        Text(languageCode == "en" ? "Delete account (\(countdown)s)" : "删除账号（\(countdown)秒）")
+                            .font(.headline)
+                    } else {
+                        Text(languageCode == "en" ? "Delete account" : "删除账号")
+                            .font(.headline)
+                    }
+                    Spacer()
+                }
+                .frame(height: 48)
+                .foregroundColor(.white)
+                .background((countdown == 0 && !isSubmitting) ? Color.red : Color.red.opacity(0.35))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(countdown > 0 || isSubmitting)
+        }
+        .padding(20)
+        .navigationTitle(languageCode == "en" ? "Delete account" : "删除账号")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button(languageCode == "en" ? "Back" : "返回") {
+                    dismiss()
+                }
+            }
+        }
+        .task {
+            while countdown > 0 {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if Task.isCancelled { break }
+                countdown -= 1
+            }
+        }
+        .alert(languageCode == "en" ? "Confirm deletion" : "确认删除", isPresented: $showConfirmAlert) {
+            Button(languageCode == "en" ? "Cancel" : "取消", role: .cancel) {}
+            Button(languageCode == "en" ? "Delete now" : "确认删除", role: .destructive) {
+                submitDelete()
+            }
+        } message: {
+            Text(languageCode == "en"
+                 ? "This action is irreversible. Are you sure you want to delete your account?"
+                 : "该操作不可撤销，确认删除当前账号吗？")
+        }
+    }
+
+    private func submitDelete() {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+        Task {
+            do {
+                try await AuthService.shared.deleteAccount()
+                await MainActor.run {
+                    isSubmitting = false
+                    appState.exitGuestMode()
+                    appState.refreshLoginState()
+                    AppStateViewModel.shared.showSuccess(languageCode == "en" ? "Deleted successfully" : "删除成功")
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isSubmitting = false
+                    AppStateViewModel.shared.showError((error as? APIError)?.userMessage ?? error.localizedDescription)
+                }
+            }
+        }
+    }
+}
+
 /// 占位：后续可替换为真实 WebView 或静态页
 private struct WebPlaceholderView: View {
     let title: String
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     var body: some View {
-        Text("\(title) 页面建设中")
+        Text(languageCode == "en" ? "\(title) (Coming soon)" : "\(title) 页面建设中")
             .foregroundColor(AppTheme.secondaryText)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
-/// 字号设置（示例：大/中/小）
+/// 字号设置：进度条方式，默认正常，可缩小或放大
 private struct FontSizeSettingsView: View {
-    @AppStorage("app.fontSize") private var fontSize: String = "medium"
+    @AppStorage("app.fontScale") private var fontScale: Double = 1.0
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    private let range: ClosedRange<Double> = 0.85...1.15
+
     var body: some View {
-        Picker("字号", selection: $fontSize) {
-            Text("小").tag("small")
-            Text("中").tag("medium")
-            Text("大").tag("large")
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text(languageCode == "en" ? "Small" : "小")
+                    .font(.caption)
+                    .foregroundColor(AppTheme.textSecondary)
+                Slider(value: $fontScale, in: range, step: 0.05)
+                Text(languageCode == "en" ? "Large" : "大")
+                    .font(.caption)
+                    .foregroundColor(AppTheme.textSecondary)
+            }
+            Text((languageCode == "en" ? "Current: " : "当前：") + scaleLabel)
+                .font(.subheadline)
+                .foregroundColor(AppTheme.textSecondary)
+            Text(languageCode == "en" ? "Preview text" : "预览文字效果")
+                .font(.system(size: 16 * fontScale))
+                .foregroundColor(AppTheme.textPrimary)
+                .padding(.top, 8)
         }
-        .pickerStyle(.inline)
+        .padding(.vertical, 8)
+        .navigationTitle(languageCode == "en" ? "Font size" : "字号设置")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var scaleLabel: String {
+        if fontScale <= 0.9 { return languageCode == "en" ? "Smaller" : "缩小" }
+        if fontScale >= 1.1 { return languageCode == "en" ? "Larger" : "放大" }
+        return languageCode == "en" ? "Normal" : "正常"
     }
 }
+

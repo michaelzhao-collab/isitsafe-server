@@ -52,11 +52,11 @@ public struct AppEnvironment {
         enableLogging: true
     )
 
-    /// 生产环境（正式域名）
+    /// 生产环境（正式域名）。与后端调用豆包的超时保持一致（300 秒），避免 AI 长推理时客户端先超时
     public static let productionCN = AppEnvironment(
         type: .productionCN,
         baseURL: "https://api.starlensai.com",
-        timeout: 30,
+        timeout: 300,
         enableLogging: false
     )
 
@@ -64,7 +64,7 @@ public struct AppEnvironment {
     public static let productionGlobal = AppEnvironment(
         type: .productionGlobal,
         baseURL: "https://api.starlensai.com",
-        timeout: 30,
+        timeout: 300,
         enableLogging: false
     )
 

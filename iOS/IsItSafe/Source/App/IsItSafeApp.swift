@@ -12,23 +12,60 @@ import SwiftUI
 struct IsItSafeApp: App {
     @StateObject private var appState = AppStateViewModel.shared
     @StateObject private var router = AppRouter.shared
+    @AppStorage("app.fontScale") private var fontScale: Double = 1.0
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+
+    @State private var isSplashVisible = true
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if appState.hasValidSession {
-                    MainTabView()
-                } else {
+            ZStack {
+                Group {
+                    if appState.hasValidSession {
+                        MainTabView()
+                    } else {
+                        LoginView()
+                    }
+                }
+                .environment(\.fontScale, fontScale)
+                .environment(\.dynamicTypeSize, dynamicTypeSizeFromScale(fontScale))
+                .environmentObject(appState)
+                .environmentObject(router)
+                .sheet(isPresented: $router.isShowingLogin) {
                     LoginView()
+                        .environmentObject(appState)
+                        .environmentObject(router)
+                }
+                .onAppear {
+                    // 每次启动按系统语言同步：中文系统 -> zh；其他 -> en
+                    let preferred = Locale.preferredLanguages.first?.lowercased() ?? "en"
+                    languageCode = preferred.hasPrefix("zh") ? "zh" : "en"
+                    // 启动时触发网络预热
+                    Task { await AuthService.shared.refreshTokenIfNeeded() }
+                }
+
+                if isSplashVisible {
+                    SplashView()
+                        .ignoresSafeArea()
+                        .transition(.opacity)
+                        .zIndex(999)
                 }
             }
-            .environmentObject(appState)
-            .environmentObject(router)
-            .sheet(isPresented: $router.isShowingLogin) {
-                LoginView()
-                    .environmentObject(appState)
-                    .environmentObject(router)
+            .onAppear {
+                Task {
+                    try? await Task.sleep(nanoseconds: 1_200_000_000)
+                    withAnimation(.easeOut(duration: 0.35)) {
+                        isSplashVisible = false
+                    }
+                }
             }
         }
     }
+}
+
+/// 字号设置：仅放大/缩小字体，不改变布局（通过 Dynamic Type 影响使用语义字体的文案）
+private func dynamicTypeSizeFromScale(_ scale: Double) -> DynamicTypeSize {
+    if scale <= 0.9 { return .small }
+    if scale >= 1.1 { return .large }
+    return .medium
 }

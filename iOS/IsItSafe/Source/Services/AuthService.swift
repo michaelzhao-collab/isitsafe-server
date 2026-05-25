@@ -13,9 +13,17 @@ public final class AuthService {
 
     private init() {}
 
-    public func login(phone: String?, email: String?, code: String?, smsCode: String?) async throws {
-        let req = LoginRequest(phone: phone, email: email, code: code, smsCode: smsCode)
+    public func login(phone: String?, email: String?, password: String?) async throws {
+        let req = LoginRequest(phone: phone, email: email, password: password)
         let res = try await repo.login(req)
+        tokenStore.saveToken(access: res.accessToken, refresh: res.refreshToken)
+        let user = try await repo.userInfo()
+        sessionStore.updateUser(user)
+    }
+
+    public func loginWithApple(identityToken: String, appleUser: String?, displayName: String?) async throws {
+        let req = AppleLoginRequest(identityToken: identityToken, appleUser: appleUser, displayName: displayName)
+        let res = try await repo.appleLogin(req)
         tokenStore.saveToken(access: res.accessToken, refresh: res.refreshToken)
         let user = try await repo.userInfo()
         sessionStore.updateUser(user)
@@ -23,6 +31,11 @@ public final class AuthService {
 
     public func logout() async throws {
         _ = try? await repo.logout()
+        sessionStore.clearSession()
+    }
+
+    public func deleteAccount() async throws {
+        _ = try await repo.deleteAccount()
         sessionStore.clearSession()
     }
 

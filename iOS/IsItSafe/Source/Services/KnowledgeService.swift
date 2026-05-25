@@ -18,4 +18,8 @@ public final class KnowledgeService {
     public func fetchDetail(id: String) async throws -> KnowledgeDetailResponse {
         try await repo.detail(id: id)
     }
+
+    public func fetchCategories(language: String) async throws -> [KnowledgeCategoryItem] {
+        try await repo.categories(language: language)
+    }
 }

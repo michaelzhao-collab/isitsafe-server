@@ -19,6 +19,7 @@ public enum APIError: Error, LocalizedError {
     case aiAnalysisFailed
     case ocrFailed
     case subscriptionVerifyFailed
+    case purchaseCancelledByUser
     case riskDatabaseQueryFailed
     case knowledgeQueryFailed
     case serverError(statusCode: Int, message: String?)
@@ -37,6 +38,7 @@ public enum APIError: Error, LocalizedError {
         case .aiAnalysisFailed: return "分析失败，请稍后重试"
         case .ocrFailed: return "图片识别失败，请重试或手动输入文字"
         case .subscriptionVerifyFailed: return "订阅验证失败，请稍后重试或联系客服"
+        case .purchaseCancelledByUser: return nil
         case .riskDatabaseQueryFailed: return "查询失败，请稍后重试"
         case .knowledgeQueryFailed: return "加载失败，请稍后重试"
         case .serverError(_, let msg): return msg ?? "服务暂时异常，请稍后重试"
@@ -54,6 +56,7 @@ public enum APIError: Error, LocalizedError {
             return true
         case .tooManyRequests: return true // 延迟后可重试
         case .unauthorized, .forbidden: return false
+        case .purchaseCancelledByUser: return false
         case .invalidURL, .decodingError, .notFound, .ocrFailed, .subscriptionVerifyFailed:
             return true
         }

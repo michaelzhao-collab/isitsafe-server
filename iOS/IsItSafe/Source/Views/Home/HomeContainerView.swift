@@ -7,10 +7,11 @@
 
 import SwiftUI
 import UIKit
+import Foundation
 
 public struct HomeContainerView: View {
-    @StateObject private var homeVm = HomeViewModel()
-    @StateObject private var historyVm = HistoryViewModel()
+    @ObservedObject var homeVm: HomeViewModel
+    @ObservedObject var historyVm: HistoryViewModel
     @FocusState private var isInputFocused: Bool
     @State private var showSidebar = false
     @State private var showScreenshotSheet = false
@@ -18,25 +19,66 @@ public struct HomeContainerView: View {
     @State private var showImagePicker = false
     @State private var showPhotoLibrary = false
     @State private var showCameraCapture = false
-    @State private var showConfirmPhoto = false
-    @State private var capturedImageForConfirm: UIImage?
+    @State private var confirmPhotoItem: ConfirmPhotoItem?
     @State private var showClipboardAlert = false
     @State private var previousScenePhase: ScenePhase?
     @State private var showSettings = false
+    @State private var showPremiumSheet = false
     @State private var historySearchText = ""
     @State private var selectedHistoryItem: QueryHistoryItem?
     @State private var historyItemToDelete: QueryHistoryItem?
     @State private var voiceRecordingTask: Task<Void, Never>?
+    @State private var voiceHintText = "按住说话"
     @EnvironmentObject private var appState: AppStateViewModel
     @EnvironmentObject private var router: AppRouter
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
-    public init() {}
+    public init(homeVm: HomeViewModel, historyVm: HistoryViewModel) {
+        self.homeVm = homeVm
+        self.historyVm = historyVm
+    }
 
     /// 冷启动剪贴板只弹一次：底导切回首页会再次 onAppear，用此标记区分
     private static var hasDoneColdStartClipboardCheck = false
 
     private let sidebarWidth = min(320, UIScreen.main.bounds.width * 0.85)
+
+    private func maybeInjectLocalDefaultQAIfNeeded() {
+        // 只在当前页面没有消息时才注入，避免干扰用户正常会话
+        guard homeVm.turns.isEmpty, homeVm.loadedHistoryId == nil else { return }
+        guard LocalDefaultQAStore.shared.shouldShowDefaultQA() else { return }
+
+        let now = Date()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let localId = UUID().uuidString
+        let record = LocalDefaultConversationRecord(
+            localConversationId: localId,
+            createdAtISO: formatter.string(from: now),
+            serverConversationId: nil
+        )
+
+        LocalDefaultQAStore.shared.saveDefaultConversationRecord(record)
+        LocalDefaultQAStore.shared.markDefaultQAShown()
+
+        homeVm.reset()
+        homeVm.turns = LocalDefaultQAContent.defaultTurns(languageCode: languageCode)
+        homeVm.loadedHistoryId = localId
+        homeVm.currentConversationId = nil
+        homeVm.state = .idle
+    }
+
+    private func localDefaultConversationTitle() -> String {
+        // 对齐 HistoryTitleHelper：只取第一句并做截断
+        let raw = languageCode == "en"
+        ? "Someone asked me to send money. Scam?"
+        : "有人让我转钱，这是诈骗吗？"
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.count <= 28 { return raw }
+        return String(raw.prefix(28)) + "…"
+    }
 
     public var body: some View {
         ZStack(alignment: .leading) {
@@ -61,64 +103,87 @@ public struct HomeContainerView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(appState)
+                .mainTabBarHidden()
+        }
+        .sheet(isPresented: $showPremiumSheet) {
+            NavigationStack {
+                PremiumSubscriptionView()
+                    .environmentObject(appState)
+            }
         }
         .sheet(isPresented: $showImagePicker) {
-            ImagePickerSheet(onCamera: {
-                showImagePicker = false
-                showCameraCapture = true
-            }, onPhotoLibrary: {
-                showImagePicker = false
-                showPhotoLibrary = true
-            })
+            MediaPickerSheet(
+                onCamera: {
+                    showImagePicker = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showCameraCapture = true
+                    }
+                },
+                onPhotoLibrary: {
+                    showImagePicker = false
+                    showPhotoLibrary = true
+                },
+                onSelectRecent: { img in
+                    homeVm.pendingImage = img
+                    showImagePicker = false
+                }
+            )
+            .presentationDetents([.height(380), .medium])
+            .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $showPhotoLibrary) {
+        .fullScreenCover(isPresented: $showPhotoLibrary) {
             PhotoLibraryPicker { data in
                 if let data = data, let img = UIImage(data: data) {
                     homeVm.pendingImage = img
                 }
-                showPhotoLibrary = false
+                DispatchQueue.main.async { showPhotoLibrary = false }
             }
         }
         .fullScreenCover(isPresented: $showCameraCapture) {
             CameraCaptureView(
                 onImage: { img in
                     showCameraCapture = false
-                    capturedImageForConfirm = img
-                    showConfirmPhoto = true
+                    confirmPhotoItem = ConfirmPhotoItem(image: img)
                 },
                 onCancel: { showCameraCapture = false }
             )
         }
-        .sheet(isPresented: $showConfirmPhoto) {
-            if let img = capturedImageForConfirm {
-                ConfirmPhotoSheet(image: img) {
-                    homeVm.pendingImage = img
-                    capturedImageForConfirm = nil
-                }
-            }
+        .sheet(item: $confirmPhotoItem) { item in
+            ConfirmPhotoSheet(image: item.image, onConfirm: {
+                homeVm.pendingImage = item.image
+                confirmPhotoItem = nil
+            }, onCancel: { confirmPhotoItem = nil })
         }
-        .alert("剪贴板", isPresented: $showClipboardAlert) {
-            Button("允许") {
+        .alert(languageCode == "en" ? "Clipboard" : "剪贴板", isPresented: $showClipboardAlert) {
+            Button(languageCode == "en" ? "Allow" : "允许") {
                 if let str = UIPasteboard.general.string, !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     homeVm.inputText = str
                     isInputFocused = true
                 }
             }
-            Button("不允许", role: .cancel) { }
+            Button(languageCode == "en" ? "Don't allow" : "不允许", role: .cancel) { }
         } message: {
-            Text("是否将剪贴板内容填入输入框？")
+            Text(languageCode == "en" ? "Paste clipboard content into the input box?" : "是否将剪贴板内容填入输入框？")
         }
         .onChange(of: scenePhase) { _, newPhase in
-            let cameFromBackground = (previousScenePhase == .background)
             previousScenePhase = newPhase
-            if newPhase == .active, cameFromBackground,
-               let str = UIPasteboard.general.string, !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // 从后台回到前台不新开对话，仅检查剪贴板
+            if let str = UIPasteboard.general.string, !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 showClipboardAlert = true
             }
+        }
+        .onChange(of: showSidebar) { _, isOpen in
+            if isOpen { historyVm.refresh() }
+        }
+        .onChange(of: homeVm.showDailyQuotaAlert) { _, isShowing in
+            if isShowing { isInputFocused = false }
         }
         .onAppear {
             if previousScenePhase == nil {
                 previousScenePhase = scenePhase
+                maybeInjectLocalDefaultQAIfNeeded()
                 if !Self.hasDoneColdStartClipboardCheck {
                     Self.hasDoneColdStartClipboardCheck = true
                     if let str = UIPasteboard.general.string, !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -129,28 +194,41 @@ public struct HomeContainerView: View {
         }
         .navigationDestination(item: $selectedHistoryItem) { item in
             HistoryDetailView(item: item)
+                .mainTabBarHidden()
         }
-        .onChange(of: homeVm.turns.count) { _, newCount in
-            if newCount > 0 { historyVm.refresh() }
-        }
-        .onChange(of: homeVm.historyRefreshTrigger) { _, _ in
-            historyVm.refresh()
+        .alert(
+            languageCode == "en" ? "Daily Limit Reached" : "今日额度已用完",
+            isPresented: $homeVm.showDailyQuotaAlert
+        ) {
+            Button(languageCode == "en" ? "Subscribe Now" : "立即订阅") {
+                showPremiumSheet = true
+            }
+            Button(languageCode == "en" ? "Later" : "稍后再说", role: .cancel) {}
+        } message: {
+            let limit = AppSettingsStore.maxFreeQueriesPerDay
+            Text(languageCode == "en"
+                 ? "You've used all \(limit) free queries today. Subscribe to get unlimited access."
+                 : "今日 \(limit) 次免费额度已用完，订阅会员后可无限次咨询。")
         }
         .confirmationDialog("删除历史记录", isPresented: Binding(
             get: { historyItemToDelete != nil },
             set: { if !$0 { historyItemToDelete = nil } }
         )) {
-            Button("取消", role: .cancel) { historyItemToDelete = nil }
-            Button("删除", role: .destructive) {
+            Button(languageCode == "en" ? "Cancel" : "取消", role: .cancel) { historyItemToDelete = nil }
+            Button(languageCode == "en" ? "Delete" : "删除", role: .destructive) {
                 if let item = historyItemToDelete {
                     historyVm.deleteItem(item) { success in
-                        if success, homeVm.loadedHistoryId == item.id { homeVm.startNewConversation() }
+                        if success {
+                            if homeVm.loadedHistoryId == item.id { homeVm.startNewConversation() }
+                        }
                         historyItemToDelete = nil
                     }
                 }
             }
         } message: {
-            Text("确定删除该条记录，删除后将不再展示，并且无法撤回。")
+            Text(languageCode == "en"
+                 ? "Are you sure you want to delete this record? It will no longer be shown and cannot be undone."
+                 : "确定删除该条记录，删除后将不再展示，并且无法撤回。")
         }
     }
 
@@ -169,6 +247,9 @@ public struct HomeContainerView: View {
                     }
                     .padding(.vertical, 12)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    // 点击消息列表空白区域收起键盘
+                    .contentShape(Rectangle())
+                    .onTapGesture { isInputFocused = false }
                 }
                 .onChange(of: homeVm.turns.count) { _, _ in
                     if let last = homeVm.turns.last {
@@ -184,21 +265,38 @@ public struct HomeContainerView: View {
                     }
                     homeVm.scrollToTurnId = nil
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
             .scrollContentBackground(.hidden)
             .background(AppTheme.background)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 VStack(spacing: 0) {
+                    // 仅在新对话、且输入框无内容时显示；用户输入或已有对话后隐藏
+                    if !isInputFocused, homeVm.turns.isEmpty, homeVm.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(languageCode == "en" ? "Trusted by 10,000+ users" : "受 10,000+ 用户信任")
+                            .font(.caption)
+                            .foregroundColor(AppTheme.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 6)
+                    }
                     AnalyzeInputBar(
                         text: $homeVm.inputText,
                         pendingImage: homeVm.pendingImage,
                         onRemovePendingImage: { homeVm.clearPendingImage() },
-                        onSubmit: { homeVm.analyze() },
+                        onSubmit: {
+                            if let img = homeVm.pendingImage {
+                                let t = homeVm.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !t.isEmpty { homeVm.analyzeImageAndText(img, text: homeVm.inputText) }
+                                else { homeVm.analyzeImage(img) }
+                            } else {
+                                homeVm.analyze()
+                            }
+                        },
                         onSendWithImage: { homeVm.analyzeImage($0) },
                         onSendWithImageAndText: { homeVm.analyzeImageAndText($0, text: $1) },
                         onCamera: {
-                            // 左侧相机：直接打开相机拍摄
                             showCameraCapture = true
                         },
                         onVoiceToggle: {
@@ -208,6 +306,12 @@ public struct HomeContainerView: View {
                         },
                         onPlus: { showImagePicker = true },
                         onVoiceHoldStart: {
+                            voiceHintText = (languageCode == "en" ? "Please speak..." : "请说话......")
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                if voiceHintText == (languageCode == "en" ? "Please speak..." : "请说话......") {
+                                    voiceHintText = (languageCode == "en" ? "Listening..." : "说话中......")
+                                }
+                            }
                             voiceRecordingTask = Task {
                                 let text = try? await SpeechRecognitionService.shared.startRecording()
                                 await MainActor.run {
@@ -220,11 +324,13 @@ public struct HomeContainerView: View {
                             }
                         },
                         onVoiceHoldEnd: {
+                            voiceHintText = (languageCode == "en" ? "Hold to speak" : "按住说话")
                             SpeechRecognitionService.shared.stopRecording()
                         },
+                        voiceHintText: voiceHintText,
                         isFocused: $isInputFocused
                     )
-                    Color.clear.frame(height: 56)
+                    Color.clear.frame(height: isInputFocused ? 12 : 56)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -235,17 +341,18 @@ public struct HomeContainerView: View {
                     } label: {
                         Image(systemName: "line.3.horizontal")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.primary)
+                            .foregroundColor(AppTheme.primary)
                     }
                 }
                 ToolbarItem(placement: .principal) {
-                    Text("防骗助手")
+                    Text(languageCode == "en" ? "StarLens AI" : "星识安全助手")
                         .font(.headline)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showSidebar = false
                         homeVm.startNewConversation()
+                        historyVm.refresh()
                     } label: {
                         Image(systemName: "square.and.pencil")
                             .font(.system(size: 16, weight: .medium))
@@ -262,7 +369,7 @@ public struct HomeContainerView: View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 // 顶部标题（顶到屏幕顶部，无关闭按钮）
-                Text("防骗助手")
+                Text(languageCode == "en" ? "StarLens AI" : "星识安全助手")
                     .font(.headline)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
@@ -273,10 +380,11 @@ public struct HomeContainerView: View {
                 Button {
                     showSidebar = false
                     homeVm.startNewConversation()
+                    historyVm.refresh()
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "plus.circle.fill")
-                        Text("新建对话")
+                        Text(languageCode == "en" ? "New chat" : "新建对话")
                     }
                     .font(.subheadline.weight(.medium))
                     .foregroundColor(.white)
@@ -292,7 +400,7 @@ public struct HomeContainerView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(AppTheme.secondaryText)
-                    TextField("搜索咨询历史", text: $historySearchText)
+                    TextField(languageCode == "en" ? "Search history" : "搜索咨询历史", text: $historySearchText)
                         .textFieldStyle(.plain)
                 }
                 .padding(12)
@@ -303,12 +411,12 @@ public struct HomeContainerView: View {
 
                 // 历史咨询列表（最新在上）；设置入口已隐藏
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("历史咨询")
+                    Text(languageCode == "en" ? "History" : "历史咨询")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.secondaryText)
                         .padding(.horizontal, 20)
                     if !appState.isLoggedIn {
-                        Text("登录后查看历史记录")
+                        Text(languageCode == "en" ? "Log in to view history" : "登录后查看历史记录")
                             .font(.caption)
                             .foregroundStyle(AppTheme.secondaryText)
                             .padding(.horizontal, 20)
@@ -333,45 +441,74 @@ public struct HomeContainerView: View {
     }
 
     private var sidebarHistoryList: some View {
-        let list = historySearchText.isEmpty
+        let localRecord = LocalDefaultQAStore.shared.defaultConversationRecord
+
+        // 服务器历史（按搜索过滤后）；
+        // 若本地默认会话已拿到 serverConversationId，则过滤掉服务端同一会话，避免重复。
+        var serverList = historySearchText.isEmpty
             ? historyVm.items
             : historyVm.items.filter { $0.content.localizedCaseInsensitiveContains(historySearchText) }
-        let sorted = list.sorted { (a, b) in (a.createdAt ?? "") > (b.createdAt ?? "") }
-        let (todayItems, earlierItems) = Self.groupByTodayAndEarlier(sorted)
-        let showCurrentPlaceholder = homeVm.turns.isEmpty && homeVm.loadedHistoryId == nil
+        if let localServerId = localRecord?.serverConversationId, !localServerId.isEmpty {
+            serverList = serverList.filter { $0.id != localServerId && $0.conversationId != localServerId }
+        }
+        let sortedServer = serverList.sorted { (a, b) in (a.createdAt ?? "") > (b.createdAt ?? "") }
+        let (todayItems, earlierItems) = Self.groupByTodayAndEarlier(sortedServer)
+
+        // 本地默认会话分组（今天/更早）
+        let localTitle = localDefaultConversationTitle()
+        let localMatchesSearch = historySearchText.isEmpty || localTitle.localizedCaseInsensitiveContains(historySearchText)
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: Date())
+        let localDate = localRecord.flatMap { Formatter.isoDate($0.createdAtISO) }
+        let localIsToday = localDate.map { calendar.isDate($0, inSameDayAs: todayStart) } ?? false
+        let localTodayRecord = (localRecord != nil && localMatchesSearch && localIsToday) ? localRecord : nil
+        let localEarlierRecord = (localRecord != nil && localMatchesSearch && !localIsToday) ? localRecord : nil
 
         return ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                if historyVm.state.isLoading && historyVm.items.isEmpty {
+                if historyVm.state.isLoading && historyVm.items.isEmpty && localRecord == nil {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                         .padding()
                 } else {
-                    if showCurrentPlaceholder {
+                    if homeVm.loadedHistoryId == nil {
                         HStack(spacing: 8) {
-                            Text("新对话")
-                                .font(.subheadline)
-                                .foregroundColor(AppTheme.secondaryText)
-                                .lineLimit(1)
-                            Spacer(minLength: 0)
+                            Button {
+                                showSidebar = false
+                            } label: {
+                                Text(homeVm.currentConversationTitle)
+                                    .font(.subheadline)
+                                    .foregroundColor(.primary)
+                                    .lineLimit(1)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.plain)
                         }
                         .padding(.vertical, 10)
                         .padding(.horizontal, 4)
                     }
-                    if !todayItems.isEmpty {
-                        sectionHeader("今天")
+                    if !todayItems.isEmpty || localTodayRecord != nil {
+                        sectionHeader(languageCode == "en" ? "Today" : "今天")
+                        if let rec = localTodayRecord {
+                            sidebarLocalDefaultConversationRow(record: rec)
+                        }
                         ForEach(todayItems, id: \.id) { item in
                             sidebarHistoryRow(item: item)
                         }
                     }
-                    if !earlierItems.isEmpty {
-                        sectionHeader("更早")
+                    if !earlierItems.isEmpty || localEarlierRecord != nil {
+                        sectionHeader(languageCode == "en" ? "Earlier" : "更早")
+                        if let rec = localEarlierRecord {
+                            sidebarLocalDefaultConversationRow(record: rec)
+                        }
                         ForEach(earlierItems, id: \.id) { item in
                             sidebarHistoryRow(item: item)
                         }
                     }
-                    if !showCurrentPlaceholder && todayItems.isEmpty && earlierItems.isEmpty {
-                        Text("暂无记录")
+                    if (homeVm.loadedHistoryId != nil || !homeVm.turns.isEmpty)
+                        && todayItems.isEmpty && earlierItems.isEmpty
+                        && localTodayRecord == nil && localEarlierRecord == nil {
+                        Text(languageCode == "en" ? "No records" : "暂无记录")
                             .font(.caption)
                             .foregroundStyle(AppTheme.secondaryText)
                             .frame(maxWidth: .infinity)
@@ -380,6 +517,10 @@ public struct HomeContainerView: View {
                 }
             }
             .padding(.horizontal, 20)
+            .padding(.bottom, 24)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: 88)
         }
     }
 
@@ -417,6 +558,36 @@ public struct HomeContainerView: View {
         .padding(.horizontal, 4)
     }
 
+    private func sidebarLocalDefaultConversationRow(record: LocalDefaultConversationRecord) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                homeVm.loadLocalDefaultConversation(record, languageCode: languageCode)
+                showSidebar = false
+            } label: {
+                Text(localDefaultConversationTitle())
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                LocalDefaultQAStore.shared.clearDefaultConversationRecord()
+                if homeVm.loadedHistoryId == record.localConversationId {
+                    homeVm.startNewConversation()
+                    historyVm.refresh()
+                }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 14))
+                    .foregroundColor(AppTheme.secondaryText)
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 4)
+    }
+
     private static func groupByTodayAndEarlier(_ items: [QueryHistoryItem]) -> (today: [QueryHistoryItem], earlier: [QueryHistoryItem]) {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: Date())
@@ -437,23 +608,67 @@ public struct HomeContainerView: View {
     }
 }
 
-// 加号菜单：相机 / 相册 / 所有照片
-private struct ImagePickerSheet: View {
+private struct ConfirmPhotoItem: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
+// 加号菜单：相机 + 相册 在顶部，下方为最近照片；关闭按钮已隐藏，靠下拉关闭
+private struct MediaPickerSheet: View {
     var onCamera: () -> Void
     var onPhotoLibrary: () -> Void
+    var onSelectRecent: (UIImage) -> Void
+
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     var body: some View {
-        VStack(spacing: 16) {
-            Button("相机") { onCamera() }
-                .frame(maxWidth: .infinity)
-                .padding()
-            Button("相册") { onPhotoLibrary() }
-                .frame(maxWidth: .infinity)
-                .padding()
-            Button("所有照片", action: onPhotoLibrary)
-                .frame(maxWidth: .infinity)
-                .padding()
+        VStack(spacing: 10) {
+            HStack(spacing: 16) {
+                Button { onCamera() } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(AppTheme.primary)
+                        Text(languageCode == "en" ? "Camera" : "相机")
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+
+                Button { onPhotoLibrary() } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 28))
+                            .foregroundColor(AppTheme.primary)
+                        Text(languageCode == "en" ? "Photos" : "相册")
+                            .font(.subheadline)
+                            .foregroundColor(.primary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal)
+
+            Text(languageCode == "en" ? "Recent photos" : "最近照片")
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
+
+            RecentPhotosView(onSelect: onSelectRecent)
+                .frame(maxHeight: .infinity)
         }
-        .padding()
+        .padding(.top, 8)
+        .padding(.bottom, 12)
     }
 }

@@ -18,4 +18,8 @@ public final class KnowledgeRepository {
     public func detail(id: String) async throws -> KnowledgeDetailResponse {
         try await network.request(endpoint: .knowledgeDetail(id: id))
     }
+
+    public func categories(language: String) async throws -> [KnowledgeCategoryItem] {
+        try await network.request(endpoint: .knowledgeCategories(language: language))
+    }
 }

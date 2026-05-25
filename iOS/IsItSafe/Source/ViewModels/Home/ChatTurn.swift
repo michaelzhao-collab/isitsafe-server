@@ -12,12 +12,15 @@ public struct ChatTurn: Identifiable {
     public let id: UUID
     public var userText: String?
     public var userImage: UIImage?
+    /// 历史记录中的图片 CDN 地址，无 userImage 时用此加载展示
+    public var imageUrl: String?
     public var status: TurnStatus
 
-    public init(id: UUID = UUID(), userText: String? = nil, userImage: UIImage? = nil, status: TurnStatus) {
+    public init(id: UUID = UUID(), userText: String? = nil, userImage: UIImage? = nil, imageUrl: String? = nil, status: TurnStatus) {
         self.id = id
         self.userText = userText
         self.userImage = userImage
+        self.imageUrl = imageUrl
         self.status = status
     }
 

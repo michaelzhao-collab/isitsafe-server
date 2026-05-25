@@ -31,7 +31,11 @@ public struct SearchBar: View {
             }
         }
         .padding(10)
-        .background(Color(.systemGray6))
+        .background(AppTheme.cardBackground)
         .cornerRadius(10)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(UIColor.separator), lineWidth: 0.6)
+        )
     }
 }

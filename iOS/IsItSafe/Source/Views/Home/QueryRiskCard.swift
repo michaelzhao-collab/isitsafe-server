@@ -20,8 +20,8 @@ public struct QueryRiskCard: View {
                     .foregroundColor(riskColor)
                 Spacer()
             }
-            if !response.tags.isEmpty {
-                Text("标签：\(response.tags.joined(separator: "、"))")
+            if let tags = response.tags, !tags.isEmpty {
+                Text("标签：\(tags.joined(separator: "、"))")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -33,7 +33,8 @@ public struct QueryRiskCard: View {
     }
 
     private var riskDisplay: String {
-        switch response.riskLevel.lowercased() {
+        let level = response.riskLevel?.lowercased() ?? "unknown"
+        switch level {
         case "high": return "高风险"
         case "medium": return "中风险"
         default: return "低风险"
@@ -41,7 +42,8 @@ public struct QueryRiskCard: View {
     }
 
     private var riskColor: Color {
-        switch response.riskLevel.lowercased() {
+        let level = response.riskLevel?.lowercased() ?? "unknown"
+        switch level {
         case "high": return AppTheme.riskHigh
         case "medium": return AppTheme.riskMedium
         case "low": return AppTheme.riskLow

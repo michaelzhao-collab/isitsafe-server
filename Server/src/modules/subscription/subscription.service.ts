@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, Subscription } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -203,80 +208,102 @@ export class SubscriptionService {
     },
   ): Promise<Subscription> {
     const now = new Date();
-    const whereCandidate = input.transactionId
-      ? await this.prisma.subscription.findFirst({ where: { transactionId: input.transactionId } })
-      : null;
+    const historyEntry = { at: now.toISOString(), ...input.historyEntry };
 
-    const existing =
-      whereCandidate ||
-      (input.originalTransactionId
-        ? await this.prisma.subscription.findFirst({
-            where: {
-              OR: [
-                { originalTransactionId: input.originalTransactionId },
-                { transactionId: input.originalTransactionId },
-                { latestTransactionId: input.originalTransactionId },
-              ],
-            },
-            orderBy: { updatedAt: 'desc' },
-          })
-        : await this.prisma.subscription.findFirst({
-            where: { userId },
-            orderBy: { updatedAt: 'desc' },
-          }));
+    // 用事务 + SELECT FOR UPDATE 锁住目标行，串行化并发写入。
+    // 优先按 transactionId 命中（已加唯一索引），其次按 originalTransactionId / latestTransactionId 匹配
+    // 同一 Apple 订阅生命周期内的多笔续期；都没有则按 userId 取最新一条做更新。
+    return this.prisma.$transaction(async (tx) => {
+      let existing: Subscription | null = null;
+      if (input.transactionId) {
+        // 用 findFirst 而非 findUnique：DB 层已加 UNIQUE 索引保证唯一，
+        // 但 Prisma client 类型再生成前 findUnique 不接受 transactionId；P2002 兜底依然保证并发安全。
+        existing = await tx.subscription.findFirst({
+          where: { transactionId: input.transactionId },
+        });
+      }
+      if (!existing && input.originalTransactionId) {
+        existing = await tx.subscription.findFirst({
+          where: {
+            OR: [
+              { originalTransactionId: input.originalTransactionId },
+              { transactionId: input.originalTransactionId },
+              { latestTransactionId: input.originalTransactionId },
+            ],
+          },
+          orderBy: { updatedAt: 'desc' },
+        });
+      }
+      if (!existing && !input.transactionId && !input.originalTransactionId) {
+        existing = await tx.subscription.findFirst({
+          where: { userId },
+          orderBy: { updatedAt: 'desc' },
+        });
+      }
 
-    const data: Prisma.SubscriptionUncheckedCreateInput = {
-      userId,
-      productId: input.productId,
-      planType: planTypeFromProductId(input.productId),
-      status: input.status,
-      expireTime: input.expireTime,
-      transactionId: input.transactionId ?? undefined,
-      originalTransactionId: input.originalTransactionId ?? undefined,
-      latestTransactionId: input.transactionId ?? undefined,
-      environment: input.environment ?? undefined,
-      lastEventType: input.lastEventType ?? undefined,
-      refundedAt: input.refundedAt ?? undefined,
-      revokedAt: input.revokedAt ?? undefined,
-      purchaseTime: input.purchaseDate ?? undefined,
-      autoRenewStatus: input.status === 'active',
-      paymentMethod: input.paymentMethod,
-      historyLog: [
-        {
-          at: now.toISOString(),
-          ...input.historyEntry,
-        },
-      ],
-    };
-
-    if (!existing) {
-      return this.prisma.subscription.create({ data });
-    }
-
-    return this.prisma.subscription.update({
-      where: { id: existing.id },
-      data: {
-        // 允许同一 Apple 订阅在“当前登录账号”下生效，避免切换账号后 status 仍落在旧账号
+      const baseData: Prisma.SubscriptionUncheckedCreateInput = {
         userId,
-        productId: data.productId,
-        planType: data.planType,
-        status: data.status,
-        expireTime: data.expireTime,
-        transactionId: data.transactionId,
-        originalTransactionId: data.originalTransactionId ?? existing.originalTransactionId ?? undefined,
-        latestTransactionId: data.latestTransactionId,
-        environment: data.environment,
-        lastEventType: data.lastEventType,
-        refundedAt: data.refundedAt,
-        revokedAt: data.revokedAt,
-        purchaseTime: data.purchaseTime ?? existing.purchaseTime,
-        autoRenewStatus: data.autoRenewStatus,
-        paymentMethod: data.paymentMethod,
-        historyLog: appendHistory(existing.historyLog as Prisma.JsonValue, {
-          at: now.toISOString(),
-          ...input.historyEntry,
-        }),
-      },
+        productId: input.productId,
+        planType: planTypeFromProductId(input.productId),
+        status: input.status,
+        expireTime: input.expireTime,
+        transactionId: input.transactionId ?? undefined,
+        originalTransactionId: input.originalTransactionId ?? undefined,
+        latestTransactionId: input.transactionId ?? undefined,
+        environment: input.environment ?? undefined,
+        lastEventType: input.lastEventType ?? undefined,
+        refundedAt: input.refundedAt ?? undefined,
+        revokedAt: input.revokedAt ?? undefined,
+        purchaseTime: input.purchaseDate ?? undefined,
+        autoRenewStatus: input.status === 'active',
+        paymentMethod: input.paymentMethod,
+        historyLog: [historyEntry],
+      };
+
+      if (!existing) {
+        try {
+          return await tx.subscription.create({ data: baseData });
+        } catch (err: any) {
+          // P2002: 唯一约束冲突 —— 并发场景下另一个请求已经写入，回头按 transactionId 取最新做合并 update
+          if (err?.code === 'P2002' && input.transactionId) {
+            const winner = await tx.subscription.findFirst({
+              where: { transactionId: input.transactionId },
+            });
+            if (winner) {
+              existing = winner;
+            } else {
+              throw err;
+            }
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      // existing 一定不为 null（要么一开始查到，要么并发冲突后兜底拿到）
+      const target = existing as Subscription;
+      return tx.subscription.update({
+        where: { id: target.id },
+        data: {
+          userId,
+          productId: baseData.productId,
+          planType: baseData.planType,
+          status: baseData.status,
+          expireTime: baseData.expireTime,
+          transactionId: baseData.transactionId,
+          originalTransactionId:
+            baseData.originalTransactionId ?? target.originalTransactionId ?? undefined,
+          latestTransactionId: baseData.latestTransactionId,
+          environment: baseData.environment,
+          lastEventType: baseData.lastEventType,
+          refundedAt: baseData.refundedAt,
+          revokedAt: baseData.revokedAt,
+          purchaseTime: baseData.purchaseTime ?? target.purchaseTime,
+          autoRenewStatus: baseData.autoRenewStatus,
+          paymentMethod: baseData.paymentMethod,
+          historyLog: appendHistory(target.historyLog as Prisma.JsonValue, historyEntry),
+        },
+      });
     });
   }
 
@@ -389,6 +416,11 @@ export class SubscriptionService {
   /**
    * 处理 Apple App Store Server Notifications V2 回调。
    * 无宽限期：到期即降级；退款/撤销即降级。
+   *
+   * 错误处理策略：
+   * - 签名校验失败（伪造/篡改）→ 返回 200，不让 Apple 重试，避免无效流量。
+   * - 找不到对应订阅（首次购买时序）→ 返回 200，不需要重试，正向 verify 路径会兜底创建。
+   * - 内部异常（DB/网络）→ 抛出 5xx，Apple 会按指数退避重试 5 次最多 3 天。
    */
   async handleAppleNotification(body: Record<string, unknown>): Promise<void> {
     const signedPayload = (body?.signedPayload as string) || (body?.signed_payload as string) || '';
@@ -398,6 +430,7 @@ export class SubscriptionService {
     try {
       payload = (await this.verifyAppleSignedJws(signedPayload)) as AppleNotificationPayload;
     } catch (e: any) {
+      // 签名错误是确定性失败，重试不会变好，吞掉防 DDoS
       console.warn('[APPLE_NOTIFICATION_INVALID_SIGNATURE]', {
         message: e?.message,
       });
@@ -463,28 +496,40 @@ export class SubscriptionService {
     else if (expireTime <= new Date()) status = 'expired';
     else status = 'active';
 
-    await this.upsertSubscriptionForUser(existing.userId, {
-      productId: txn.productId || existing.productId,
-      transactionId: txId,
-      originalTransactionId: originId,
-      expireTime,
-      status,
-      paymentMethod: 'Apple',
-      environment: txn.environment || payload.data?.environment || existing.environment,
-      lastEventType: subtype ? `${notificationType}:${subtype}` : notificationType,
-      refundedAt: notificationType === 'REFUND' ? new Date() : undefined,
-      revokedAt: status === 'revoked' ? revokedAt || new Date() : undefined,
-      purchaseDate: parseDate(txn.purchaseDate) || undefined,
-      historyEntry: {
-        action: 'apple_notification',
+    try {
+      await this.upsertSubscriptionForUser(existing.userId, {
+        productId: txn.productId || existing.productId,
+        transactionId: txId,
+        originalTransactionId: originId,
+        expireTime,
+        status,
+        paymentMethod: 'Apple',
+        environment: txn.environment || payload.data?.environment || existing.environment,
+        lastEventType: subtype ? `${notificationType}:${subtype}` : notificationType,
+        refundedAt: notificationType === 'REFUND' ? new Date() : undefined,
+        revokedAt: status === 'revoked' ? revokedAt || new Date() : undefined,
+        purchaseDate: parseDate(txn.purchaseDate) || undefined,
+        historyEntry: {
+          action: 'apple_notification',
+          notificationType,
+          subtype,
+          txId,
+          originId,
+        },
+      });
+
+      await this.recomputeUserSubscription(existing.userId);
+    } catch (err: any) {
+      // 数据库异常 → 抛 5xx，让 Apple 按官方退避策略重试（共 5 次，最长 3 天）
+      console.error('[APPLE_NOTIFICATION_PROCESS_FAILED]', {
         notificationType,
         subtype,
         txId,
         originId,
-      },
-    });
-
-    await this.recomputeUserSubscription(existing.userId);
+        message: err?.message,
+      });
+      throw new InternalServerErrorException('Failed to persist Apple notification');
+    }
   }
 
   async verify(

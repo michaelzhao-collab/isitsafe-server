@@ -172,7 +172,7 @@ dist/
 30. **PORT**：若 Railway 未自动注入，则手动添加 **`PORT`**，值 **`3000`**（多数情况 Railway 会自动注入，可先不填，若启动报错再补）。
 31. （可选）若使用 **豆包 AI**：添加 **`AI_PROVIDER`** = **`doubao`**，以及 **`DOUBAO_API_KEY`**、**`DOUBAO_API_URL`**、**`DOUBAO_MODEL`**（按你实际配置）。
 32. （可选）若使用 **OpenAI**：添加 **`AI_PROVIDER`** = **`openai`** 以及 **`OPENAI_API_KEY`** 等。
-33. （可选）若使用 **阿里云 OSS**：添加 **`OSS_REGION`**、**`OSS_BUCKET`**、**`OSS_ACCESS_KEY_ID`**、**`OSS_ACCESS_KEY_SECRET`**、**`CDN_DOMAIN`**。
+33. （可选）若使用 **阿里云 OSS**（头像/反馈图片上传）：添加 **`OSS_REGION`**、**`OSS_BUCKET`**、**`OSS_ACCESS_KEY_ID`**、**`OSS_ACCESS_KEY_SECRET`**，可选 **`CDN_DOMAIN`**。**详细步骤见《[OSS配置教程](./OSS配置教程.md)》。**
 34. 确认 **Variables** 列表中至少包含：**`DATABASE_URL`**、**`REDIS_URL`**、**`JWT_SECRET`**、**`JWT_REFRESH_SECRET`**、**`JWT_EXPIRES_IN`**、**`JWT_REFRESH_EXPIRES_IN`**。
 35. 保存所有变量（若有保存按钮）。
 
@@ -340,6 +340,18 @@ npx prisma db seed
 - **Prisma 迁移失败**：查看部署 Logs；常见为 `DATABASE_URL` 错误或迁移与 schema 不一致，可在本地用同一 `DATABASE_URL` 执行 `npx prisma migrate deploy` 复现。
 - **Admin 白屏或接口 404**：确认 `VITE_API_BASE_URL` 为完整 API 根路径（含 `https://` 和 `/api`），且修改后已重新部署 Admin；确认 Server `/api/health` 可访问。
 - **CORS 错误**：当前 Server 为 `origin: true`，一般不会出现；若已改为指定域名，请确保 Admin 访问域名在 CORS 的 origin 列表中。
+
+### `npx prisma migrate deploy` 在哪里执行、怎么执行？
+
+**作用**：把 `Server/prisma/migrations/` 里尚未应用到数据库的迁移脚本执行到当前数据库（生产用 `migrate deploy`，不生成新迁移文件）。
+
+**执行目录**：必须在 **Server 目录**（即包含 `package.json` 和 `prisma/` 的目录）。
+
+- **Railway 自动执行（推荐）**：若 Server 的 **Custom Start Command** 已是 **`npx prisma migrate deploy && node dist/src/main.js`**，每次部署/重启时会自动执行迁移，无需手动跑。
+- **本地手动执行（针对生产库）**：在终端先 `cd` 到 Server 目录，再任选其一：
+  - 使用 Railway CLI（需先 `railway link`）：`railway run npx prisma migrate deploy` 或 `railway run npm run prisma:migrate:deploy`。
+  - 不用 CLI：从 Railway 的 PostgreSQL 服务复制 `DATABASE_URL`，执行 `DATABASE_URL='postgresql://...' npx prisma migrate deploy`（连接串用单引号包住）。
+- **仅用 npm 脚本**：在 Server 目录执行 `npm run prisma:migrate:deploy`，同样需当前环境有正确的 `DATABASE_URL`。
 
 ---
 

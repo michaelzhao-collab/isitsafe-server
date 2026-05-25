@@ -6,10 +6,18 @@
 //
 
 import SwiftUI
+import UIKit
 
 public struct ToastView: View {
     public var message: String
+    public var isSuccess: Bool
     public var onDismiss: () -> Void
+
+    public init(message: String, isSuccess: Bool = false, onDismiss: @escaping () -> Void) {
+        self.message = message
+        self.isSuccess = isSuccess
+        self.onDismiss = onDismiss
+    }
 
     public var body: some View {
         Text(message)
@@ -18,7 +26,7 @@ public struct ToastView: View {
             .multilineTextAlignment(.center)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
-            .background(Color.black.opacity(0.8))
+            .background((isSuccess ? Color(UIColor.systemGray) : Color.black).opacity(0.85))
             .cornerRadius(8)
             .onTapGesture(perform: onDismiss)
             .onAppear {

@@ -6,18 +6,92 @@
 //
 
 import Foundation
+import CryptoKit
+
+// MARK: - TLS 证书固定代理
+// 使用服务器叶证书的 DER SHA256 指纹做固定（certificate pinning）。
+// 获取服务器证书指纹（终端执行）：
+//   openssl s_client -connect api.starlensai.com:443 2>/dev/null \
+//     | openssl x509 -outform der \
+//     | openssl dgst -sha256 -binary \
+//     | base64
+// 将输出的 Base64 字符串填入下方数组。Let's Encrypt 证书每 90 天续期，续期后需更新并发版。
+// 留空则退回 iOS 系统信任链验证。
+private final class TLSValidationDelegate: NSObject, URLSessionDelegate {
+    static let pinnedHashes: Set<String> = [
+        // 请用上方命令重新计算后替换此行：
+        // "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX="
+    ]
+
+    func urlSession(
+        _ session: URLSession,
+        didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let serverTrust = challenge.protectionSpace.serverTrust else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+
+        // 先做系统信任链校验
+        var error: CFError?
+        let trusted = SecTrustEvaluateWithError(serverTrust, &error)
+        guard trusted else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+
+        // 若配置了 pinnedHashes，额外做 SPKI 指纹校验
+        if !Self.pinnedHashes.isEmpty {
+            var matched = false
+            let certs: [SecCertificate]
+            if #available(iOS 15.0, *) {
+                certs = (SecTrustCopyCertificateChain(serverTrust) as? [SecCertificate]) ?? []
+            } else {
+                certs = (0..<SecTrustGetCertificateCount(serverTrust)).compactMap {
+                    SecTrustGetCertificateAtIndex(serverTrust, $0)
+                }
+            }
+            for cert in certs {
+                if let spkiHash = Self.spkiSHA256(cert), Self.pinnedHashes.contains(spkiHash) {
+                    matched = true
+                    break
+                }
+            }
+            if !matched {
+                completionHandler(.cancelAuthenticationChallenge, nil)
+                return
+            }
+        }
+
+        completionHandler(.useCredential, URLCredential(trust: serverTrust))
+    }
+
+    private static func spkiSHA256(_ certificate: SecCertificate) -> String? {
+        guard let key = SecCertificateCopyKey(certificate),
+              let keyData = SecKeyCopyExternalRepresentation(key, nil) as Data? else { return nil }
+        let hash = SHA256.hash(data: keyData)
+        return Data(hash).base64EncodedString()
+    }
+}
 
 public final class NetworkManager {
     public static let shared = NetworkManager()
     private let session: URLSession
     private let decoder: JSONDecoder
+    private let forcedNetworkPrintPrefix = "NETWORK"
 
     private init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = AppConfiguration.shared.apiTimeout
-        session = URLSession(configuration: config)
+        // 使用 TLSValidationDelegate 做证书校验（填入 pinnedHashes 后自动启用固定）
+        session = URLSession(configuration: config, delegate: TLSValidationDelegate(), delegateQueue: nil)
         decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        // 强制打印一次当前 baseURL（方便确认不是 localhost）
+        print("\(forcedNetworkPrintPrefix) BASE_URL:", AppConfiguration.shared.baseURL)
     }
 
     public func request<T: Decodable>(
@@ -26,20 +100,24 @@ public final class NetworkManager {
         retries: Int = 0
     ) async throws -> T {
         let token = AuthInterceptor.token()
-        var req = try RequestBuilder.build(endpoint: endpoint, baseURL: AppConfiguration.shared.baseURL, body: body, authToken: token)
-        if AppConfiguration.shared.enableLogging {
-            logRequest(req, body: body)
-        }
+        let req = try RequestBuilder.build(endpoint: endpoint, baseURL: AppConfiguration.shared.baseURL, body: body, authToken: token)
+        printRequest(req, endpoint: endpoint, body: body)
+        if AppConfiguration.shared.enableLogging { logRequest(req, body: body) }
         var lastError: Error?
         for attempt in 0...retries {
             do {
                 let (data, response) = try await session.data(for: req)
+                printResponse(data: data, response: response, endpoint: endpoint)
                 try ResponseValidator.validate(data: data, response: response)
-                let decoded = try decoder.decode(T.self, from: data)
-                if AppConfiguration.shared.enableLogging {
-                    logResponse(data, for: endpoint)
+                do {
+                    let decoded = try decoder.decode(T.self, from: data)
+                    if AppConfiguration.shared.enableLogging { logResponse(data, for: endpoint) }
+                    return decoded
+                } catch {
+                    // 解码失败时把原始响应也打印出来，便于定位字段不匹配
+                    printDecodeError(error, data: data, endpoint: endpoint)
+                    throw error
                 }
-                return decoded
             } catch {
                 lastError = error
                 if attempt < retries, (error as? APIError)?.canRetry == true {
@@ -147,6 +225,54 @@ public final class NetworkManager {
             print("[API] response \(endpoint.path): \(str.prefix(300))...")
         }
         #endif
+    }
+
+    // MARK: - Forced prints (Debug/Release 都输出)
+    private func printRequest(_ request: URLRequest, endpoint: APIEndpoint, body: Encodable?) {
+        let method = request.httpMethod ?? endpoint.method.rawValue
+        let url = request.url?.absoluteString ?? ""
+        print("\(forcedNetworkPrintPrefix) REQUEST:", method, url)
+
+        if let headers = request.allHTTPHeaderFields, !headers.isEmpty {
+            var safeHeaders = headers
+            if let auth = safeHeaders["Authorization"], !auth.isEmpty {
+                safeHeaders["Authorization"] = "Bearer <redacted>"
+            }
+            print("\(forcedNetworkPrintPrefix) REQUEST_HEADERS:", safeHeaders)
+        }
+
+        if let b = body, let data = try? JSONEncoder().encode(AnyEncodable(b)), let str = String(data: data, encoding: .utf8) {
+            print("\(forcedNetworkPrintPrefix) REQUEST_BODY:", str)
+        } else if let raw = request.httpBody, !raw.isEmpty, let str = String(data: raw, encoding: .utf8) {
+            print("\(forcedNetworkPrintPrefix) REQUEST_BODY_RAW:", str)
+        }
+    }
+
+    private func printResponse(data: Data?, response: URLResponse?, endpoint: APIEndpoint) {
+        if let http = response as? HTTPURLResponse {
+            print("\(forcedNetworkPrintPrefix) RESPONSE:", endpoint.path, "status=\(http.statusCode)")
+        } else {
+            print("\(forcedNetworkPrintPrefix) RESPONSE:", endpoint.path, "status=unknown")
+        }
+        if let data = data {
+            if let str = String(data: data, encoding: .utf8) {
+                print("\(forcedNetworkPrintPrefix) RESPONSE_BODY:", str)
+            } else {
+                print("\(forcedNetworkPrintPrefix) RESPONSE_BODY:", "<non-utf8 \(data.count) bytes>")
+            }
+        } else {
+            print("\(forcedNetworkPrintPrefix) RESPONSE_BODY:", "<empty>")
+        }
+    }
+
+    private func printDecodeError(_ error: Error, data: Data?, endpoint: APIEndpoint) {
+        print("\(forcedNetworkPrintPrefix) DECODE_ERROR:", endpoint.path, error.localizedDescription)
+        if let error = error as? DecodingError {
+            print("\(forcedNetworkPrintPrefix) DECODE_ERROR_DETAIL:", String(describing: error))
+        }
+        if let data = data, let str = String(data: data, encoding: .utf8) {
+            print("\(forcedNetworkPrintPrefix) DECODE_ERROR_RAW_BODY:", str)
+        }
     }
 }
 

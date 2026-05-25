@@ -17,7 +17,7 @@ public struct ChatMessageView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // 右侧：用户发送的内容（文案 / 图片 / 链接等）
-            if turn.userText != nil || turn.userImage != nil {
+            if turn.userText != nil || turn.userImage != nil || (turn.imageUrl != nil && !(turn.imageUrl?.isEmpty ?? true)) {
                 HStack(alignment: .bottom, spacing: 0) {
                     Spacer(minLength: 48)
                     userBubble
@@ -38,31 +38,26 @@ public struct ChatMessageView: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
     }
 
     private var userBubble: some View {
-        let hasImage = turn.userImage != nil
+        let hasImage = turn.userImage != nil || (turn.imageUrl != nil && !(turn.imageUrl?.isEmpty ?? true))
         let hasText = turn.userText.map { !$0.isEmpty } ?? false
         let imageOnTopTextBelow = hasImage && hasText
 
         return Group {
             if imageOnTopTextBelow {
-                VStack(alignment: .leading, spacing: 8) {
-                    if let img = turn.userImage {
-                        Image(uiImage: img)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 200, maxHeight: 160)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
+                HStack(alignment: .bottom, spacing: 8) {
                     if let text = turn.userText, !text.isEmpty {
                         Text(text)
                             .font(.subheadline)
                             .foregroundColor(.primary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    userMessageImage
                 }
                 .padding(12)
                 .background(AppTheme.primary.opacity(0.12))
@@ -70,13 +65,7 @@ public struct ChatMessageView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
             } else {
                 VStack(alignment: hasImage ? .leading : .trailing, spacing: 6) {
-                    if let img = turn.userImage {
-                        Image(uiImage: img)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: 200, maxHeight: 160)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
+                    userMessageImage
                     if let text = turn.userText, !text.isEmpty {
                         Text(text)
                             .font(.subheadline)
@@ -85,6 +74,13 @@ public struct ChatMessageView: View {
                             .padding(.vertical, 10)
                             .background(AppTheme.primary.opacity(0.12))
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .contextMenu {
+                                Button {
+                                    UIPasteboard.general.string = text
+                                } label: {
+                                    Label("复制", systemImage: "doc.on.doc")
+                                }
+                            }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
@@ -93,23 +89,63 @@ public struct ChatMessageView: View {
     }
 
     @ViewBuilder
+    private var userMessageImage: some View {
+        if let img = turn.userImage {
+            Image(uiImage: img)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 200, maxHeight: 160)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        } else if let urlString = turn.imageUrl, !urlString.isEmpty {
+            CachedNetworkImageView(urlString: urlString, maxWidth: 200, maxHeight: 160)
+        }
+    }
+
+    @ViewBuilder
     private func replyBubble(result: ChatTurnResult) -> some View {
         Group {
             switch result {
             case .analysis(let data):
-                RiskResultCard(data: data)
+                if data.isConversational {
+                    conversationalBubble(text: data.summary)
+                } else {
+                    RiskResultCard(data: data)
+                }
             case .query(let response):
                 QueryRiskCard(response: response)
             case .failure(let message):
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundColor(.red)
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.red.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                if message.isEmpty {
+                    EmptyView()
+                } else {
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.red.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func conversationalBubble(text: String) -> some View {
+        Text(text.isEmpty ? "…" : text)
+            .font(.subheadline)
+            .foregroundColor(AppTheme.textPrimary)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(AppTheme.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .contextMenu {
+                Button {
+                    UIPasteboard.general.string = text
+                } label: {
+                    Label("复制", systemImage: "doc.on.doc")
+                }
+            }
     }
 }

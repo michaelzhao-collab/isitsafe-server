@@ -19,7 +19,7 @@ public enum ImageOCR {
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             do {
                 try handler.perform([request])
-                guard let results = request.results as? [VNRecognizedTextObservation] else { return "" }
+                guard let results = request.results else { return "" }
                 return results.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
             } catch {
                 return ""

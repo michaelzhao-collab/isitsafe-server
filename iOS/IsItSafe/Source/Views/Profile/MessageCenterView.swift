@@ -9,6 +9,7 @@ import SwiftUI
 
 public struct MessageCenterView: View {
     @State private var items: [AppMessageItem] = []
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var loading = true
     @State private var errorMessage: String?
     @Environment(\.dismiss) private var dismiss
@@ -27,7 +28,7 @@ public struct MessageCenterView: View {
                         .foregroundColor(AppTheme.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if items.isEmpty {
-                    Text("暂无消息")
+                    Text(languageCode == "en" ? "No messages" : "暂无消息")
                         .foregroundColor(AppTheme.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -42,13 +43,8 @@ public struct MessageCenterView: View {
                 }
             }
             .background(AppTheme.background)
-            .navigationTitle("消息中心")
+            .navigationTitle(languageCode == "en" ? "Messages" : "消息中心")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { dismiss() }
-                }
-            }
             .onAppear { load() }
         }
     }
@@ -63,6 +59,8 @@ public struct MessageCenterView: View {
                 await MainActor.run {
                     items = res.items
                     loading = false
+                    // 进入消息中心并成功加载列表后，认为所有消息已查看，清空未读红点
+                    appState.setHasUnreadMessages(false)
                 }
             } catch {
                 await MainActor.run {
@@ -94,6 +92,18 @@ private struct MessageRow: View {
     let item: AppMessageItem
     let onTap: () -> Void
 
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy/MM/dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    private var dateText: String {
+        guard let date = Formatter.isoDate(item.createdAt) else { return item.createdAt }
+        return Self.dateFormatter.string(from: date)
+    }
+
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 6) {
@@ -107,14 +117,13 @@ private struct MessageRow: View {
                             .frame(width: 8, height: 8)
                     }
                     Spacer(minLength: 0)
-                    Text(Formatter.isoDate(item.createdAt)?.formatted(date: .abbreviated, time: .shortened) ?? item.createdAt)
+                    Text(dateText)
                         .font(.caption)
                         .foregroundColor(AppTheme.secondaryText)
                 }
                 Text(item.content)
                     .font(.subheadline)
                     .foregroundColor(AppTheme.secondaryText)
-                    .lineLimit(2)
                 if let link = item.link, !link.isEmpty {
                     Text(link)
                         .font(.caption)

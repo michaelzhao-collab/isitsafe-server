@@ -8,8 +8,12 @@ import SwiftUI
 
 public struct MainTabView: View {
     @State private var selectedTab = 0
+    @StateObject private var homeVm = HomeViewModel()
+    @StateObject private var historyVm = HistoryViewModel()
     @EnvironmentObject private var appState: AppStateViewModel
     @EnvironmentObject private var router: AppRouter
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    @StateObject private var tabBarVisibility = TabBarVisibility.shared
 
     public init() {}
 
@@ -18,19 +22,22 @@ public struct MainTabView: View {
             Group {
                 switch selectedTab {
                 case 0:
-                    HomeContainerView()
+                    HomeContainerView(homeVm: homeVm, historyVm: historyVm)
                 case 1:
                     KnowledgeView()
                 case 2:
                     ProfileView()
                 default:
-                    HomeContainerView()
+                    HomeContainerView(homeVm: homeVm, historyVm: historyVm)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.none, value: selectedTab)
 
             // 底导：贴边、正常高度、背景与主页面区分
-            tabBar
+            if !tabBarVisibility.isHidden {
+                tabBar
+            }
         }
         .ignoresSafeArea(.keyboard)
         .overlay(alignment: .center) {
@@ -39,14 +46,19 @@ public struct MainTabView: View {
                     .transition(.opacity)
                     .zIndex(1)
             }
+            if appState.showSuccess, let msg = appState.successMessage {
+                ToastView(message: msg, isSuccess: true, onDismiss: { appState.clearSuccess() })
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
         }
     }
 
     private var tabBar: some View {
         HStack(spacing: 0) {
-            tabItem(index: 0, icon: "bubble.left.and.text.bubble.right", title: "问助手")
-            tabItem(index: 1, icon: "book.closed", title: "防诈案例")
-            tabItem(index: 2, icon: "person", title: "我的")
+            tabItem(index: 0, icon: "bubble.left.and.text.bubble.right", title: languageCode == "en" ? "Assistant" : "问助手")
+            tabItem(index: 1, icon: "book.closed", title: languageCode == "en" ? "Cases" : "防诈案例")
+            tabItem(index: 2, icon: "person", title: languageCode == "en" ? "Profile" : "我的")
         }
         .padding(.top, 6)
         .padding(.bottom, 12)
@@ -59,14 +71,35 @@ public struct MainTabView: View {
         Button {
             selectedTab = index
         } label: {
-            VStack(spacing: 2) {
-                Image(systemName: icon)
-                    .font(.system(size: 20, weight: .medium))
+            let isSelected = selectedTab == index
+            VStack(spacing: 4) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(isSelected ? .white : AppTheme.tabInactive)
+                        .frame(width: 32, height: 32)
+                        .background(
+                            Group {
+                                if isSelected {
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(AppTheme.primary)
+                                } else {
+                                    Color.clear
+                                }
+                            }
+                        )
+                    if index == 2, appState.hasUnreadMessages {
+                        Circle()
+                            .fill(Color.red)
+                            .frame(width: 8, height: 8)
+                            .offset(x: 8, y: -6)
+                    }
+                }
                 Text(title)
                     .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(isSelected ? AppTheme.primary : AppTheme.tabInactive)
             }
             .frame(maxWidth: .infinity)
-            .foregroundColor(selectedTab == index ? AppTheme.primary : AppTheme.tabInactive)
         }
         .buttonStyle(.plain)
     }

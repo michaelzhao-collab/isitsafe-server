@@ -23,7 +23,9 @@ export class AdminSettingsController {
     @Body()
     body: {
       defaultProvider?: string;
+      fallbackProvider?: string | null;
       doubaoKey?: string | null;
+      deepseekKey?: string | null;
       openaiKey?: string | null;
       aiBaseUrl?: string | null;
     },

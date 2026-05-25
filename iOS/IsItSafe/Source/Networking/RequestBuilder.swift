@@ -28,6 +28,9 @@ public final class RequestBuilder {
         request.timeoutInterval = AppConfiguration.shared.apiTimeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // 统一传递 App 语言给服务端，用于返回对应语言内容
+        let lang = AppSettingsStore.shared.languageCode == "en" ? "en" : "zh"
+        request.setValue(lang, forHTTPHeaderField: "X-App-Language")
 
         if endpoint.requiresAuth, let token = authToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

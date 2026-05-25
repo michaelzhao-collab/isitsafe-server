@@ -15,6 +15,10 @@ public struct RiskAnalysisViewData {
     public let reasons: [String]
     public let advice: [String]
     public let score: Int?
+    /// 当前对话 id，同对话内下次提问时传回
+    public let conversationId: String?
+    /// true 表示追问/闲聊回复，只展示 summary 文字气泡，不显示风险卡片
+    public let isConversational: Bool
 
     public init(from result: RiskAnalysisResult) {
         riskLevel = result.riskLevel ?? "unknown"
@@ -24,6 +28,8 @@ public struct RiskAnalysisViewData {
         reasons = result.reasons ?? []
         advice = result.advice ?? []
         score = result.score
+        conversationId = result.conversationId
+        isConversational = result.isConversational ?? false
     }
 
     /// 图片中未识别到文字时，展示与正常分析一致的卡片，不报错
@@ -43,11 +49,12 @@ public struct RiskAnalysisViewData {
                 "或直接输入您要检测的文字内容",
                 "如有疑问可联系客服",
             ],
-            score: nil
+            score: nil,
+            conversationId: nil
         )
     }()
 
-    public init(riskLevel: String, confidence: Int, riskType: [String], summary: String, reasons: [String], advice: [String], score: Int?) {
+    public init(riskLevel: String, confidence: Int, riskType: [String], summary: String, reasons: [String], advice: [String], score: Int?, conversationId: String? = nil, isConversational: Bool = false) {
         self.riskLevel = riskLevel
         self.confidence = confidence
         self.riskType = riskType
@@ -55,15 +62,14 @@ public struct RiskAnalysisViewData {
         self.reasons = reasons
         self.advice = advice
         self.score = score
+        self.conversationId = conversationId
+        self.isConversational = isConversational
     }
 
     public var riskLevelDisplay: String {
-        switch riskLevel.lowercased() {
-        case "high": return "高风险"
-        case "medium": return "中风险"
-        case "low": return "低风险"
-        case "unknown": return "未知"
-        default: return riskLevel
-        }
+        // 直接使用服务端返回的 riskLevel 字段（如 high/medium/low/unknown），
+        // 具体展示文案交给 UI 层根据 languageCode 再做本地化。
+        return riskLevel
     }
 }
+

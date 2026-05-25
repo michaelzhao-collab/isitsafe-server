@@ -5,6 +5,10 @@ export interface KnowledgeItem {
   title: string;
   category: string;
   content: string;
+  /** TipTap JSON（type/content/attrs）；为 null 表示旧版纯文本案例 */
+  contentBlocks?: unknown | null;
+  /** 封面图 R2 URL */
+  coverImage?: string | null;
   tags: string[];
   source: string | null;
   language: string;
@@ -41,15 +45,40 @@ export function createKnowledge(data: {
   tags?: string[];
   source?: string;
   language?: string;
+  contentBlocks?: unknown | null;
+  coverImage?: string | null;
 }) {
   return request.post<KnowledgeItem>('/admin/knowledge/upload', data);
 }
 
 export function updateKnowledge(
   id: string,
-  data: { title?: string; content?: string; category?: string; tags?: string[]; source?: string }
+  data: {
+    title?: string;
+    content?: string;
+    category?: string;
+    tags?: string[];
+    source?: string;
+    contentBlocks?: unknown | null;
+    coverImage?: string | null;
+  }
 ) {
   return request.put<KnowledgeItem>(`/admin/knowledge/${id}`, data);
+}
+
+/**
+ * 上传图片到 R2（通过统一 /upload/file 接口；admin 与 iOS 共用同一接口）
+ * type 用 'article' 区分文章正文图片；返回 CDN URL 直接可嵌入 TipTap
+ */
+export async function uploadArticleImage(file: File, type: 'article' | 'case' | 'knowledge' = 'article'): Promise<string> {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('type', type);
+  const res = await request.post<{ url: string }>('/upload/file', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000,
+  });
+  return (res as any).url;
 }
 
 export function deleteKnowledge(id: string) {

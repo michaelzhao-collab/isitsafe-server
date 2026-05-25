@@ -18,6 +18,10 @@ public final class SubscriptionRepository {
     public func status() async throws -> SubscriptionStatusResponse {
         try await network.request(endpoint: .subscriptionStatus)
     }
+
+    public func fetchPlans() async throws -> [MembershipPlanResponse] {
+        try await network.request(endpoint: .membershipPlans)
+    }
 }
 
 public struct SubscriptionVerifyResponse: Codable {

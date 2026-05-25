@@ -24,6 +24,7 @@ public enum MockData {
         country: "CN",
         avatar: nil,
         nickname: "预览用户",
+        wechatNickname: nil,
         gender: "male",
         birthday: "1995-03-12",
         role: "USER",
@@ -41,7 +42,9 @@ public enum MockData {
         summary: "该链接存在较高风险，疑似钓鱼或诈骗页面。",
         reasons: ["域名非常规", "与已知诈骗样本相似"],
         advice: ["切勿输入账号密码", "建议举报"],
-        score: 88
+        score: 88,
+        conversationId: nil,
+        isConversational: nil
     )
     private static let fakeResultMedium = RiskAnalysisResult(
         riskLevel: "medium",
@@ -50,7 +53,9 @@ public enum MockData {
         summary: "内容涉及高收益承诺，存在诱导投资风险。",
         reasons: ["承诺保本高收益", "无正规资质"],
         advice: ["谨慎对待", "核实平台资质"],
-        score: 55
+        score: 55,
+        conversationId: nil,
+        isConversational: nil
     )
     private static let fakeResultLow = RiskAnalysisResult(
         riskLevel: "low",
@@ -59,12 +64,15 @@ public enum MockData {
         summary: "未发现明显风险特征。",
         reasons: ["来源可信"],
         advice: ["保持警惕"],
-        score: 15
+        score: 15,
+        conversationId: nil,
+        isConversational: nil
     )
 
     public static let fakeHistoryItems: [QueryHistoryItem] = [
         QueryHistoryItem(
             id: "q_001",
+            conversationId: "conv_mock_001",
             userId: "mock_user_001",
             inputType: "text",
             content: "https://xxx-fake-website.com/win",
@@ -72,10 +80,12 @@ public enum MockData {
             riskLevel: "high",
             confidence: 92,
             aiProvider: "doubao",
-            createdAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-3600))
+            createdAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-3600)),
+            imageUrl: nil
         ),
         QueryHistoryItem(
             id: "q_002",
+            conversationId: "conv_mock_002",
             userId: "mock_user_001",
             inputType: "phone",
             content: "+86 170 0000 8888",
@@ -83,10 +93,12 @@ public enum MockData {
             riskLevel: "medium",
             confidence: 65,
             aiProvider: "doubao",
-            createdAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-7200))
+            createdAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-7200)),
+            imageUrl: nil
         ),
         QueryHistoryItem(
             id: "q_003",
+            conversationId: "conv_mock_003",
             userId: "mock_user_001",
             inputType: "text",
             content: "某银行官方客服电话 95588",
@@ -94,10 +106,12 @@ public enum MockData {
             riskLevel: "low",
             confidence: 95,
             aiProvider: "doubao",
-            createdAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-86400))
+            createdAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-86400)),
+            imageUrl: nil
         ),
         QueryHistoryItem(
             id: "q_004",
+            conversationId: "conv_mock_004",
             userId: "mock_user_001",
             inputType: "company",
             content: "某某高收益理财公司",
@@ -105,7 +119,8 @@ public enum MockData {
             riskLevel: "medium",
             confidence: 70,
             aiProvider: "doubao",
-            createdAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-172800))
+            createdAt: ISO8601DateFormatter().string(from: Date().addingTimeInterval(-172800)),
+            imageUrl: nil
         ),
     ]
 

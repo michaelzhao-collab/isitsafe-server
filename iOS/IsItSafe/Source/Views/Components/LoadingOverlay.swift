@@ -6,7 +6,8 @@
 import SwiftUI
 
 public struct LoadingOverlay: View {
-    public var message: String = "加载中..."
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    public var message: String
 
     public init(message: String = "加载中...") {
         self.message = message
@@ -20,7 +21,7 @@ public struct LoadingOverlay: View {
                 ProgressView()
                     .scaleEffect(1.2)
                     .tint(.white)
-                Text(message)
+                Text(languageCode == "en" ? (message == "加载中..." ? "Loading..." : message) : message)
                     .font(.subheadline)
                     .foregroundColor(.white)
             }

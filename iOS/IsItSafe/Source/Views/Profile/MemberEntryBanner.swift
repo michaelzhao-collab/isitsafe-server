@@ -9,41 +9,72 @@ import SwiftUI
 
 public struct MemberEntryBanner: View {
     public let isMember: Bool
+    public let vipExpireDate: String?
 
-    public init(isMember: Bool = true) {
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+
+    public init(isMember: Bool = true, vipExpireDate: String? = nil) {
         self.isMember = isMember
+        self.vipExpireDate = vipExpireDate
     }
 
     public var body: some View {
         HStack(spacing: 14) {
             Image(systemName: "crown.fill")
                 .font(.system(size: 28))
-                .foregroundColor(.yellow)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(isMember ? "会员已开通" : "开通会员")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                Text(isMember ? "尊享更多权益" : "开通会员可以享更多权益")
+                .foregroundColor(isMember ? Color.yellow : AppTheme.primary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(titleText)
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(isMember ? Color.white : .primary)
+                Text(subtitleText)
                     .font(.caption)
-                    .foregroundColor(AppTheme.secondaryText)
+                    .foregroundColor(isMember ? Color.white.opacity(0.9) : AppTheme.secondaryText)
             }
             Spacer(minLength: 0)
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundColor(AppTheme.secondaryText)
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 10)
+        .padding(.vertical, 14)
         .background(
-            LinearGradient(
-                colors: [
-                    AppTheme.primary.opacity(0.15),
-                    AppTheme.primary.opacity(0.06)
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
+            Group {
+                if isMember {
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.22, green: 0.08, blue: 0.45),
+                            Color(red: 0.42, green: 0.16, blue: 0.70)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                } else {
+                    LinearGradient(
+                        colors: [
+                            AppTheme.primary.opacity(0.15),
+                            AppTheme.primary.opacity(0.06)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                }
+            }
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var titleText: String {
+        if isMember {
+            return languageCode == "en" ? "StarLens VIP" : "星识 VIP"
+        }
+        return languageCode == "en" ? "Upgrade to Full Protection" : "开通会员"
+    }
+
+    private var subtitleText: String {
+        if isMember {
+            if let date = vipExpireDate, !date.isEmpty {
+                return languageCode == "en" ? "Valid until: \(date)" : "有效期：\(date)"
+            }
+            return languageCode == "en" ? "Enjoy all VIP benefits" : "尊享更多权益"
+        }
+        return languageCode == "en" ? "Enjoy more protection with VIP" : "开通会员可以享更多权益"
     }
 }

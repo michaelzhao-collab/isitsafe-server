@@ -12,11 +12,13 @@ public struct ConfirmPhotoSheet: View {
     public let image: UIImage
     public var onConfirm: () -> Void
     public var onEdit: (() -> Void)?
+    public var onCancel: (() -> Void)?
 
-    public init(image: UIImage, onConfirm: @escaping () -> Void, onEdit: (() -> Void)? = nil) {
+    public init(image: UIImage, onConfirm: @escaping () -> Void, onEdit: (() -> Void)? = nil, onCancel: (() -> Void)? = nil) {
         self.image = image
         self.onConfirm = onConfirm
         self.onEdit = onEdit
+        self.onCancel = onCancel
     }
 
     public var body: some View {
@@ -50,6 +52,7 @@ public struct ConfirmPhotoSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
+                        onCancel?()
                         dismiss()
                     } label: {
                         Image(systemName: "xmark.circle.fill")

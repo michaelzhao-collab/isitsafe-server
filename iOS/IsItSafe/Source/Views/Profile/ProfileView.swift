@@ -6,14 +6,26 @@
 //
 
 import SwiftUI
+import Foundation
+
+private enum ProfileRoute: Hashable {
+    case premium
+    case memberCenter
+    case messages
+    case feedback
+    case settings
+}
 
 public struct ProfileView: View {
     @StateObject private var vm = ProfileViewModel()
-    @State private var showSettings = false
     @State private var showProfileEdit = false
-    @State private var showMessageCenter = false
+    @State private var selectedRoute: ProfileRoute?
     @EnvironmentObject private var appState: AppStateViewModel
     @EnvironmentObject private var router: AppRouter
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    @State private var showLanguageSheet = false
+    @State private var tempLanguage: String = "zh"
+    @State private var pendingMemberRoute = false
 
     public init() {}
 
@@ -21,164 +33,347 @@ public struct ProfileView: View {
         NavigationStack {
             List {
                 if appState.isLoggedIn {
-                    // 仅头像 + 昵称（点击进入个人资料修改）
+                    // 顶部个人卡片：恢复纯白/系统背景
                     Section {
                         Button {
                             showProfileEdit = true
                         } label: {
-                            HStack(spacing: 16) {
+                            VStack(spacing: 10) {
                                 profileAvatar
+                                    .frame(width: 72, height: 72)
                                 Text(displayName)
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                Spacer()
-                                Image(systemName: "chevron.right")
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(profileNameColor)
+                                Text(languageCode == "en" ? "Tap to edit profile" : "点击编辑个人资料")
                                     .font(.caption)
-                                    .foregroundColor(AppTheme.secondaryText)
+                                    .foregroundColor(profileSubtitleColor)
                             }
-                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 18)
                         }
                         .buttonStyle(.plain)
                     }
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(profileCardBackground)
+                    .listRowSeparator(.hidden)
+                    .listSectionSeparator(.hidden)
 
-                    // 会员入口：banner 样式，与下方菜单左右对齐，上下边距减半
+                    // 会员入口：随会员状态切换，避免同时展示两种入口
                     Section {
-                        MemberEntryBanner(isMember: vm.isPremium)
-                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                            .listRowBackground(Color.clear)
-                    }
-
-                    // 两个入口：非会员页 / 会员页，便于分别查看
-                    Section {
-                        NavigationLink {
-                            PremiumSubscriptionView()
+                        let isMember = vm.isPremium
+                        Button {
+                            selectedRoute = isMember ? .memberCenter : .premium
                         } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "crown")
-                                    .foregroundColor(AppTheme.primary)
-                                    .frame(width: 24, alignment: .center)
-                                Text("开通会员")
-                                    .foregroundColor(.primary)
-                            }
+                            MemberEntryBanner(
+                                isMember: isMember,
+                                vipExpireDate: isMember ? vm.vipExpireDateText : nil
+                            )
                         }
-                        NavigationLink {
-                            MemberCenterView()
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "crown.fill")
-                                    .foregroundColor(.yellow)
-                                    .frame(width: 24, alignment: .center)
-                                Text("会员中心")
-                                    .foregroundColor(.primary)
-                            }
-                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
+                    .listSectionSeparator(.hidden)
 
                     Section {
-                        messageCenterRow(showRedDot: vm.hasUnreadMessages) {
-                            showMessageCenter = true
+                        // 顺序：消息中心、意见反馈、语言设置、系统设置
+                        Button {
+                            // 立即清除红点，进入页面就消失，不等到离开时
+                            appState.setHasUnreadMessages(false)
+                            selectedRoute = .messages
+                        } label: {
+                            menuRow(
+                                icon: "bell",
+                                title: languageCode == "en" ? "Messages" : "消息中心",
+                                showRedDot: vm.hasUnreadMessages
+                            )
                         }
-                        row(icon: "person.2", title: "任务中心") { }
-                        row(icon: "gearshape", title: "系统设置") { showSettings = true }
+                        .buttonStyle(.plain)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 0, trailing: 16))
+                        .listRowBackground(profileCardBackground)
+                        .overlay(bottomDivider, alignment: .bottom)
+
+                        Button {
+                            selectedRoute = .feedback
+                        } label: {
+                            menuRow(
+                                icon: "bubble.left",
+                                title: languageCode == "en" ? "Feedback" : "意见反馈",
+                                showRedDot: false
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                        .listRowBackground(profileCardBackground)
+                        .overlay(bottomDivider, alignment: .bottom)
+
+                        Button {
+                            tempLanguage = effectiveLanguageTag
+                            showLanguageSheet = true
+                        } label: {
+                            menuRow(
+                                icon: "globe",
+                                title: effectiveLanguageTag == "en" ? "Language" : "语言",
+                                trailingText: effectiveLanguageTag == "en" ? "English" : "中文",
+                                showRedDot: false
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                        .listRowBackground(profileCardBackground)
+                        .overlay(bottomDivider, alignment: .bottom)
+
+                        Button {
+                            selectedRoute = .settings
+                        } label: {
+                            menuRow(
+                                icon: "gearshape",
+                                title: languageCode == "en" ? "System Settings" : "系统设置",
+                                showRedDot: false
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 6, trailing: 16))
+                        .listRowBackground(profileCardBackground)
                     }
+                    .listSectionSeparator(.hidden)
                 }
 
                 Section {
                     if !appState.isLoggedIn {
-                        Button("登录") {
+                        Button(languageCode == "en" ? "Log in" : "登录") {
                             router.showLogin()
                         }
+                        .listRowSeparator(.hidden)
                     }
                 }
+                .listSectionSeparator(.hidden)
             }
-            .listStyle(.insetGrouped)
-            .background(AppTheme.background)
-            .navigationTitle("我的")
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(profilePageBackground)
+            .listRowSeparator(.hidden)
+            .listSectionSeparator(.hidden)
+            .navigationTitle(languageCode == "en" ? "Profile" : "我的")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(profilePageBackground, for: .navigationBar)
             .onAppear { vm.refresh() }
-            .sheet(isPresented: $showSettings) {
-                SettingsView()
-                    .environmentObject(appState)
+            .onChange(of: pendingMemberRoute) { _, pending in
+                guard pending else { return }
+                selectedRoute = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    selectedRoute = .memberCenter
+                    pendingMemberRoute = false
+                }
             }
-            .sheet(isPresented: $showProfileEdit) {
+            .sheet(isPresented: $showProfileEdit, onDismiss: {
+                vm.refresh()
+            }) {
                 ProfileEditView()
                     .environmentObject(appState)
+                    .mainTabBarHidden()
             }
-            .sheet(isPresented: $showMessageCenter) {
-                MessageCenterView()
-                    .environmentObject(appState)
-                    .onDisappear { vm.refreshUnreadCount() }
-            }
-        }
-    }
-
-    private func messageCenterRow(showRedDot: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: "bell")
-                        .foregroundColor(AppTheme.primary)
-                        .frame(width: 24, alignment: .center)
-                    if showRedDot {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 8, height: 8)
-                            .offset(x: 6, y: -4)
-                    }
+            .navigationDestination(item: $selectedRoute) { route in
+                switch route {
+                case .premium:
+                    PremiumSubscriptionView(onSubscribed: {
+                        vm.refresh()
+                        pendingMemberRoute = true
+                    })
+                        .environmentObject(appState)
+                        .mainTabBarHidden()
+                case .memberCenter:
+                    MemberCenterView()
+                        .mainTabBarHidden()
+                case .messages:
+                    MessageCenterView()
+                        .environmentObject(appState)
+                        .onDisappear { vm.refreshUnreadCount() }
+                        .mainTabBarHidden()
+                case .feedback:
+                    FeedbackView()
+                        .mainTabBarHidden()
+                case .settings:
+                    SettingsView()
+                        .environmentObject(appState)
+                        .mainTabBarHidden()
                 }
-                Text("消息中心")
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(AppTheme.secondaryText)
+            }
+            .sheet(isPresented: $showLanguageSheet) {
+                languageSheet
+                    .mainTabBarHidden()
+            }
+            .onChange(of: showLanguageSheet) { _, showing in
+                if showing { tempLanguage = effectiveLanguageTag }
             }
         }
     }
 
-    private var displayName: String {
-        if let n = vm.user?.nickname, !n.isEmpty { return n }
-        if let user = vm.user {
-            return user.phone ?? user.email ?? user.id
+    private var bottomDivider: some View {
+        Rectangle()
+            .fill(profileDividerColor)
+            .frame(height: 0.5)
+            .padding(.leading, 36)
+            // 通过 offset 将分割线下移到“上一行”和“下一行”之间
+            .offset(y: 8)
+    }
+
+    private var profilePageBackground: Color {
+        AppTheme.background
+    }
+
+    private var profileCardBackground: Color {
+        AppTheme.background
+    }
+
+    private var profileNameColor: Color {
+        vm.isPremium ? Color(hex: "5A2CA0") : .primary
+    }
+
+    private var profileSubtitleColor: Color {
+        vm.isPremium ? Color(hex: "7A4CC0") : .secondary
+    }
+
+    private var profileDividerColor: Color {
+        vm.isPremium ? Color(hex: "7A4CC0").opacity(0.35) : AppTheme.border.opacity(0.5)
+    }
+
+    private var effectiveLanguageTag: String {
+        // AppStorage 里可能是 "en" / "zh" / "system"（当为 system 时按系统语言折算）
+        switch languageCode {
+        case "en": return "en"
+        case "zh": return "zh"
+        default:
+            let lang = Locale.preferredLanguages.first ?? "en"
+            return lang.hasPrefix("zh") ? "zh" : "en"
         }
-        return "未设置昵称"
+    }
+
+    /// 默认昵称：微信昵称优先，否则昵称；再否则手机号/邮箱「星识用户+后四位」
+    private var displayName: String {
+        guard let user = vm.user else { return languageCode == "en" ? "No nickname" : "未设置昵称" }
+        if let n = user.wechatNickname, !n.isEmpty { return n }
+        if let n = user.nickname, !n.isEmpty { return n }
+        if let phone = user.phone, !phone.isEmpty {
+            let last4 = phone.count >= 4 ? String(phone.suffix(4)) : phone
+            return languageCode == "en" ? "User \(last4)" : "星识用户\(last4)"
+        }
+        if let email = user.email, !email.isEmpty {
+            let last4 = email.count >= 4 ? String(email.suffix(4)) : email
+            return languageCode == "en" ? "User \(last4)" : "星识用户\(last4)"
+        }
+        return languageCode == "en" ? "No nickname" : "未设置昵称"
     }
 
     private var profileAvatar: some View {
-        Group {
-            if let urlString = vm.user?.avatar, let url = URL(string: urlString) {
+        ZStack(alignment: .bottomTrailing) {
+            if let avatarURL = vm.user?.avatar, !avatarURL.isEmpty, let url = URL(string: avatarURL) {
                 AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    case .failure, .empty:
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 56))
-                            .foregroundStyle(AppTheme.primary.opacity(0.6))
-                    @unknown default:
-                        EmptyView()
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        avatarFallbackIcon
                     }
                 }
-                .frame(width: 56, height: 56)
+                .frame(width: 72, height: 72)
                 .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(vm.isPremium ? Color(hex: "FFE8A3") : AppTheme.primary.opacity(0.35), lineWidth: 2)
+                )
             } else {
-                Image(systemName: "person.circle.fill")
-                    .font(.system(size: 56))
-                    .foregroundStyle(AppTheme.primary.opacity(0.6))
+                Circle()
+                    .fill(vm.isPremium ? AnyShapeStyle(
+                        LinearGradient(
+                            colors: [Color(hex: "F7D774"), Color(hex: "C6932E")],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    ) : AnyShapeStyle(AppTheme.primary.opacity(0.18)))
+                    .overlay(
+                        Circle()
+                            .stroke(vm.isPremium ? Color(hex: "FFE8A3") : AppTheme.primary.opacity(0.35), lineWidth: 2)
+                    )
+                    .overlay(avatarFallbackIcon)
+            }
+            if vm.isPremium {
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(Color(hex: "FFE8A3"))
+                    .padding(4)
+                    .background(Color(hex: "8D5E12"))
+                    .clipShape(Circle())
+                    .offset(x: 4, y: 2)
             }
         }
     }
 
-    private func row(icon: String, title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .foregroundColor(AppTheme.primary)
-                    .frame(width: 24, alignment: .center)
-                Text(title)
+    private var avatarFallbackIcon: some View {
+        Image(systemName: "person.fill")
+            .font(.system(size: vm.isPremium ? 26 : 28, weight: .semibold))
+            .foregroundColor(vm.isPremium ? Color(hex: "4A3500") : AppTheme.primary.opacity(0.75))
+    }
+
+    private func menuRow(icon: String, title: String, trailingText: String? = nil, showRedDot: Bool) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundColor(vm.isPremium ? Color(hex: "5A2CA0") : AppTheme.primary)
+                .frame(width: 24, alignment: .center)
+            Text(title)
+                .foregroundColor(vm.isPremium ? Color(hex: "5A2CA0") : AppTheme.textPrimary)
+            Spacer()
+            if let trailingText, !trailingText.isEmpty {
+                Text(trailingText)
+                    .font(.subheadline)
+                    .foregroundColor(vm.isPremium ? Color(hex: "7A4CC0") : AppTheme.secondaryText)
+            }
+            if showRedDot {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 8, height: 8)
+            }
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundColor(vm.isPremium ? Color(hex: "7A4CC0") : AppTheme.secondaryText)
+        }
+    }
+
+    private var languageSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(effectiveLanguageTag == "en" ? "Language" : "语言")
+                    .font(.headline)
+                    .padding(.top, 8)
+                Picker("", selection: $tempLanguage) {
+                    Text("中文").tag("zh")
+                    Text("English").tag("en")
+                }
+                .pickerStyle(.segmented)
+                .tint(AppTheme.primary)
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(AppTheme.secondaryText)
+            }
+            .onAppear { tempLanguage = effectiveLanguageTag }
+            .padding(20)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(effectiveLanguageTag == "en" ? "Confirm" : "确定") {
+                        languageCode = tempLanguage
+                        showLanguageSheet = false
+                    }
+                }
             }
         }
+        .presentationDetents([.height(220)])
+        .presentationDragIndicator(.visible)
     }
 }

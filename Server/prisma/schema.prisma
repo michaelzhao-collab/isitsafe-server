@@ -119,7 +119,13 @@ model KnowledgeCase {
   id        String   @id @default(cuid())
   title     String
   category  String
+  // content 为纯文本（用于 RAG 关键词搜索 + 旧客户端兼容）；若 contentBlocks 存在则由其自动派生纯文本写入此字段
   content   String   @db.Text
+  // 文章结构化内容：TipTap JSON（type/content/attrs），iOS 端按 block 类型原生渲染
+  // null 表示旧的纯文本案例；客户端遇 null 时降级展示 content 字段
+  contentBlocks Json? @map("content_blocks")
+  // 封面图（可选）：列表页缩略图与详情页顶图，R2 URL
+  coverImage String? @map("cover_image")
   tags      Json     @default("[]") // JSON 数组
   language  String   @default("zh")
   source    String?
@@ -203,6 +209,9 @@ model Subscription {
   @@index([status, expireTime])
   @@index([originalTransactionId])
   @@index([latestTransactionId])
+  // 防并发竞态：同一 Apple transactionId 不能产生重复记录
+  // 历史脏数据需先用 dedupe 迁移清理（见 add_subscription_unique_indexes 迁移）
+  @@unique([transactionId], map: "subscriptions_transaction_id_uq")
   @@map("subscriptions")
 }
 
@@ -265,8 +274,10 @@ model AdminAuditLog {
 // --------------------------------------------
 model Settings {
   id              String   @id @default(cuid())
-  defaultProvider String   @map("default_provider") // doubao | openai | other
+  defaultProvider String   @map("default_provider") // doubao | deepseek | openai | other
+  fallbackProvider String? @map("fallback_provider") // 主 provider 失败时切换的备用 provider；null 表示不切换
   doubaoKey       String?  @map("doubao_key")
+  deepseekKey     String?  @map("deepseek_key")
   openaiKey       String?  @map("openai_key")
   aiBaseUrl       String?  @map("ai_base_url")
   updatedAt       DateTime @updatedAt @map("updated_at")

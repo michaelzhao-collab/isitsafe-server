@@ -5,11 +5,11 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>星识 - 官方AI防骗助手</string>
-	<key>CFBundleIdentifier</key>
-	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<string>StarLens AI</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
@@ -17,7 +17,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>3</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -33,29 +33,29 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>This app uses the camera to capture images for analysis and recognition.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>This app uses the local network to connect to the server during development and testing.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app uses the microphone to capture voice input for speech recognition.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app allows you to choose photos from your library for analysis.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>This app uses speech recognition to convert your voice into text for analysis.</string>
 	<key>UILaunchScreen</key>
 	<dict>
-		<key>UIImageName</key>
-		<string>LaunchImage</string>
 		<key>UIColorName</key>
 		<string>LaunchBackground</string>
 	</dict>
-	<key>NSCameraUsageDescription</key>
-	<string>用于拍摄图片并识别分析</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>用于语音输入识别</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>用于将您说的内容转为文字并分析</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>用于从相册选择图片并分析</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
-		<string>network</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>

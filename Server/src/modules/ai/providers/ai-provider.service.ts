@@ -1,8 +1,12 @@
 /**
- * AI Provider：doubao / openai / other(预留)
- * Key 优先从 .env，预留从 settings 表读取
+ * AI Provider：doubao / deepseek / openai / other(预留)
+ * Key 优先从 .env，其次从 settings 表读取
+ *
+ * 主备策略：analyze() 默认按 settings.defaultProvider 调用主 provider；
+ * 主 provider 抛错时（网络/超时/限流/5xx）自动切到 settings.fallbackProvider，
+ * 备用也失败则向上抛原始错误。如需强制使用特定 provider，传入 provider 参数。
  */
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { SettingsService, AiProviderName } from '../../settings/settings.service';
@@ -17,6 +21,8 @@ export interface AiCallResult {
 
 @Injectable()
 export class AiProviderService {
+  private readonly logger = new Logger(AiProviderService.name);
+
   constructor(
     private config: ConfigService,
     private settings: SettingsService,
@@ -28,7 +34,14 @@ export class AiProviderService {
 
   private async getDoubaoConfig() {
     const key = await this.settings.getDoubaoKey() ?? this.config.get('DOUBAO_API_KEY');
-    const baseUrl = await this.settings.getAiBaseUrl() ?? this.config.get('DOUBAO_API_URL', 'https://ark.cn-beijing.volces.com/api/v3');
+    // 豆包 baseUrl 单独配置，不复用 AI_BASE_URL（避免被 OpenAI/DeepSeek 覆盖）
+    const baseUrl = this.config.get('DOUBAO_API_URL', 'https://ark.cn-beijing.volces.com/api/v3');
+    return { apiKey: key, baseUrl };
+  }
+
+  private async getDeepseekConfig() {
+    const key = await this.settings.getDeepseekKey() ?? this.config.get('DEEPSEEK_API_KEY');
+    const baseUrl = this.config.get('DEEPSEEK_API_URL', 'https://api.deepseek.com/v1');
     return { apiKey: key, baseUrl };
   }
 
@@ -115,6 +128,54 @@ export class AiProviderService {
     return null;
   }
 
+  /**
+   * DeepSeek：OpenAI 兼容 Chat Completions 协议
+   * 默认模型 deepseek-chat（V3.x），可在 .env 中改为 deepseek-reasoner 走 R1 模式。
+   * 由于 R1 模式延迟较高（10s+），用作"备用 + 主失败兜底"很合适。
+   */
+  async analyzeWithDeepseek(prompt: string, systemPrompt: string): Promise<AiCallResult> {
+    const { apiKey, baseUrl } = await this.getDeepseekConfig();
+    if (!apiKey) throw new Error('DEEPSEEK_API_KEY not configured');
+    const model = this.config.get('DEEPSEEK_MODEL', 'deepseek-chat');
+    const requestUrl = `${baseUrl}/chat/completions`;
+    console.log('[DEEPSEEK] REQUEST URL=' + requestUrl + ' model=' + model + ' systemPromptLen=' + systemPrompt.length + ' userPromptLen=' + prompt.length);
+    // 与豆包对齐 300s 超时上限，留出 reasoner 模式的余量
+    const TIMEOUT_MS = 300 * 1000;
+    const start = Date.now();
+    const res = await axios.post(
+      requestUrl,
+      {
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.3,
+        // 强制 JSON 响应（DeepSeek 支持 response_format）；解析失败仍会被 parseAndValidateAiOutput 兜底
+        response_format: { type: 'json_object' },
+      },
+      {
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        timeout: TIMEOUT_MS,
+      },
+    );
+    const latencyMs = Date.now() - start;
+    const content = res.data?.choices?.[0]?.message?.content;
+    const usage = res.data?.usage;
+    console.log('[DEEPSEEK] RESPONSE latencyMs=' + latencyMs + ' tokens=' + (usage?.total_tokens ?? 'null'));
+    console.log('[DEEPSEEK] ========== DeepSeek 返回的完整原始内容（未解析） ==========');
+    console.log('[DEEPSEEK] RAW_FULL:\n' + (content ?? '(empty)'));
+    console.log('[DEEPSEEK] ========== 以上为 DeepSeek 返回结束 ==========');
+    if (!content) throw new Error('Invalid DeepSeek response: no content');
+    return {
+      raw: content,
+      provider: 'deepseek',
+      model: res.data?.model ?? model,
+      tokens: usage?.total_tokens ?? null,
+      latencyMs,
+    };
+  }
+
   async analyzeWithOpenAI(prompt: string, systemPrompt: string): Promise<AiCallResult> {
     const { apiKey, baseUrl } = await this.getOpenAIConfig();
     if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
@@ -154,14 +215,56 @@ export class AiProviderService {
     throw new Error('AI provider "other" not implemented yet');
   }
 
+  private callProvider(
+    provider: AiProviderName,
+    prompt: string,
+    systemPrompt: string,
+  ): Promise<AiCallResult> {
+    if (provider === 'deepseek') return this.analyzeWithDeepseek(prompt, systemPrompt);
+    if (provider === 'openai') return this.analyzeWithOpenAI(prompt, systemPrompt);
+    if (provider === 'other') return this.analyzeWithOther(prompt, systemPrompt);
+    return this.analyzeWithDoubao(prompt, systemPrompt);
+  }
+
+  /**
+   * 调用主 provider，失败自动切换备用 provider 重试一次。
+   * - 显式传入 provider 参数时，禁用故障转移（兜底逻辑由调用方控制，比如 admin 测试某个 provider）
+   * - 主/备相同时不重试，直接抛错
+   * - 备用未配置 key 也不算 fallback 成功，错误继续抛出
+   */
   async analyze(
     prompt: string,
     systemPrompt: string,
     provider?: AiProviderName,
   ): Promise<AiCallResult> {
-    const p = provider ?? (await this.getDefaultProvider());
-    if (p === 'openai') return this.analyzeWithOpenAI(prompt, systemPrompt);
-    if (p === 'other') return this.analyzeWithOther(prompt, systemPrompt);
-    return this.analyzeWithDoubao(prompt, systemPrompt);
+    if (provider) {
+      // 调用方明确指定了 provider，不做 fallback
+      return this.callProvider(provider, prompt, systemPrompt);
+    }
+
+    const primary = await this.getDefaultProvider();
+    try {
+      return await this.callProvider(primary, prompt, systemPrompt);
+    } catch (primaryErr: any) {
+      const fallback = await this.settings.getFallbackProvider();
+      if (!fallback || fallback === primary) {
+        throw primaryErr;
+      }
+      this.logger.warn(
+        `[AI_FAILOVER] primary=${primary} failed (${primaryErr?.message ?? primaryErr}); trying fallback=${fallback}`,
+      );
+      try {
+        const result = await this.callProvider(fallback, prompt, systemPrompt);
+        this.logger.warn(`[AI_FAILOVER_OK] primary=${primary} → fallback=${fallback} succeeded`);
+        return result;
+      } catch (fallbackErr: any) {
+        this.logger.error(
+          `[AI_FAILOVER_FAILED] primary=${primary} fallback=${fallback} both failed`,
+          { primary: primaryErr?.message, fallback: fallbackErr?.message },
+        );
+        // 抛主 provider 的错误，调用方语义更稳定
+        throw primaryErr;
+      }
+    }
   }
 }

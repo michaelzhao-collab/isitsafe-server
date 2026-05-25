@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 public struct AnalyzeInputBar: View {
     @Binding public var text: String
@@ -19,7 +20,18 @@ public struct AnalyzeInputBar: View {
     public var onPlus: () -> Void
     public var onVoiceHoldStart: (() -> Void)?
     public var onVoiceHoldEnd: (() -> Void)?
+    /// 语音状态文案：按住说话 / 请说话...... / 说话中......
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    public var voiceHintText: String = "按住说话"
     @FocusState.Binding public var isFocused: Bool
+
+    private var localizedVoiceHintText: String {
+        if languageCode == "en" {
+            if voiceHintText == "按住说话" { return "Hold to speak" }
+            return voiceHintText
+        }
+        return voiceHintText
+    }
 
     public init(
         text: Binding<String>,
@@ -33,6 +45,7 @@ public struct AnalyzeInputBar: View {
         onPlus: @escaping () -> Void,
         onVoiceHoldStart: (() -> Void)? = nil,
         onVoiceHoldEnd: (() -> Void)? = nil,
+        voiceHintText: String = "按住说话",
         isFocused: FocusState<Bool>.Binding
     ) {
         self._text = text
@@ -46,6 +59,7 @@ public struct AnalyzeInputBar: View {
         self.onPlus = onPlus
         self.onVoiceHoldStart = onVoiceHoldStart
         self.onVoiceHoldEnd = onVoiceHoldEnd
+        self.voiceHintText = voiceHintText
         self._isFocused = isFocused
     }
 
@@ -108,11 +122,12 @@ public struct AnalyzeInputBar: View {
                     .offset(x: 6, y: -6)
                 }
             }
-            TextField("输入可疑信息进行检测", text: $text, axis: .vertical)
+            TextField(languageCode == "en" ? "Ask about anything suspicious…" : "输入可疑信息进行检测", text: $text, axis: .vertical)
                 .textFieldStyle(.plain)
+                .foregroundColor(AppTheme.textPrimary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color(white: 0.96))
+                .background(Color(UIColor.tertiarySystemFill))
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .lineLimit(1...4)
                 .focused($isFocused)
@@ -153,13 +168,15 @@ public struct AnalyzeInputBar: View {
                     .offset(x: 6, y: -6)
                 }
             }
-            Text("按住说话")
+            Text(localizedVoiceHintText)
                 .font(.subheadline)
                 .foregroundColor(AppTheme.secondaryText)
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
+                .background(Color(UIColor.tertiarySystemFill))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .contentShape(Rectangle())
-                .onLongPressGesture(minimumDuration: 10, maximumDistance: .infinity, pressing: { pressing in
+                .onLongPressGesture(minimumDuration: 0.25, maximumDistance: .infinity, pressing: { pressing in
                     if pressing {
                         onVoiceHoldStart?()
                     } else {
