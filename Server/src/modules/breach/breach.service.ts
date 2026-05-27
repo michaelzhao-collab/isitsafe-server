@@ -7,9 +7,52 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Cron } from '@nestjs/schedule';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, createCipheriv, createDecipheriv } from 'crypto';
+import axios from 'axios';
 
 const HIBP_SALT_NAMESPACE = 'starlens-breach-v3';
+const HIBP_API_BASE = 'https://haveibeenpwned.com/api/v3';
+
+/** AES-GCM 加密/解密邮箱（HIBP 调用时还原明文） */
+function getAesKey(): Buffer | null {
+  const raw = process.env.BREACH_AES_KEY;
+  if (!raw) return null;
+  // 接受 hex (64 字符 = 32 字节) 或 base64
+  try {
+    if (/^[0-9a-fA-F]{64}$/.test(raw)) return Buffer.from(raw, 'hex');
+    return Buffer.from(raw, 'base64');
+  } catch {
+    return null;
+  }
+}
+
+function encryptEmail(email: string): string | null {
+  const key = getAesKey();
+  if (!key) return null;
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const enc = Buffer.concat([cipher.update(email, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  // 存储格式：base64(iv | tag | ciphertext)
+  return Buffer.concat([iv, tag, enc]).toString('base64');
+}
+
+function decryptEmail(encoded: string): string | null {
+  const key = getAesKey();
+  if (!key) return null;
+  try {
+    const buf = Buffer.from(encoded, 'base64');
+    const iv = buf.subarray(0, 12);
+    const tag = buf.subarray(12, 28);
+    const ciphertext = buf.subarray(28);
+    const decipher = createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    const dec = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    return dec.toString('utf8');
+  } catch {
+    return null;
+  }
+}
 
 /**
  * V3-F 暗网监控服务（仅海外用户）
@@ -76,6 +119,8 @@ export class BreachService {
         targetType: 'email',
         targetValueHash: this.maskEmail(normalized), // 一期：展示用脱敏字符串
         targetValueLookup: lookup,
+        // 加密真实邮箱（BREACH_AES_KEY 未配置时为 null，HIBP 调用降级到 stub）
+        targetValueEncrypted: encryptEmail(normalized),
         // 一期 stub：跳过邮件验证直接 verified=true（二期改回 false + 发邮件）
         verified: true,
         verificationToken,
@@ -175,29 +220,32 @@ export class BreachService {
   // 扫描（一期 stub，二期接 HIBP）
   // ====================================================================
 
-  /** 扫描单个目标 */
+  /** 扫描单个目标 — 真实 HIBP 集成（HIBP_API_KEY 未配置时 fallback 到 stub） */
   async scanTarget(targetId: string): Promise<{ newAlerts: number }> {
     const target = await this.prisma.breachTarget.findUnique({ where: { id: targetId } });
     if (!target || !target.verified) return { newAlerts: 0 };
 
-    // 一期 stub：根据 hash 决定性返回 0~2 个告警，便于演示
-    const seed = target.targetValueLookup.charCodeAt(0) % 10;
-    const stubBreaches: Array<{ name: string; severity: 'low' | 'medium' | 'high'; exposed: string[]; date: string }> = [];
-    if (seed < 5) {
-      stubBreaches.push({
-        name: 'Adobe 2013',
-        severity: 'medium',
-        exposed: ['email', 'hashed_password', 'username'],
-        date: '2013-10-04',
-      });
-    }
-    if (seed < 3) {
-      stubBreaches.push({
-        name: 'LinkedIn 2021',
-        severity: 'high',
-        exposed: ['email', 'name', 'phone', 'workplace'],
-        date: '2021-06-22',
-      });
+    const hibpKey = process.env.HIBP_API_KEY;
+    let stubBreaches: Array<{ name: string; severity: 'low' | 'medium' | 'high'; exposed: string[]; date: string }> = [];
+
+    // 真实 HIBP 集成路径：BREACH_AES_KEY + HIBP_API_KEY + target_value_encrypted 三者齐全才走
+    if (hibpKey && target.targetValueEncrypted) {
+      const email = decryptEmail(target.targetValueEncrypted);
+      if (email) {
+        try {
+          const hibpResults = await this.queryHibp(email, hibpKey);
+          stubBreaches = hibpResults;
+        } catch (err: any) {
+          this.logger.error(`[BreachScan] HIBP failed for hash=${target.targetValueLookup.slice(0, 8)}: ${err?.message}`);
+          stubBreaches = [];
+        }
+      } else {
+        this.logger.warn('[BreachScan] decrypt failed, using stub');
+        stubBreaches = this.stubBreachesFor(target.targetValueLookup);
+      }
+    } else {
+      // 配置未齐 → stub 演示
+      stubBreaches = this.stubBreachesFor(target.targetValueLookup);
     }
 
     let newAlerts = 0;
@@ -228,7 +276,63 @@ export class BreachService {
     return { newAlerts };
   }
 
-  /** 每天 03:00 UTC 扫描全部已验证目标（一期 stub） */
+  /** 调用 HIBP /breachedaccount/{email} 真实接口 */
+  private async queryHibp(email: string, apiKey: string): Promise<Array<{ name: string; severity: 'low' | 'medium' | 'high'; exposed: string[]; date: string }>> {
+    const url = `${HIBP_API_BASE}/breachedaccount/${encodeURIComponent(email)}?truncateResponse=false&includeUnverified=false`;
+    const resp = await axios.get(url, {
+      headers: {
+        'hibp-api-key': apiKey,
+        'User-Agent': 'StarLensAI-V3-BreachMonitor',
+      },
+      timeout: 15000,
+      // 404 表示没有泄露记录，不当错误
+      validateStatus: (s) => (s >= 200 && s < 300) || s === 404,
+    });
+    if (resp.status === 404 || !Array.isArray(resp.data)) return [];
+
+    return (resp.data as any[]).map((b) => {
+      const dataClasses: string[] = b.DataClasses ?? [];
+      // 严重度判定：含 password/credit/SSN 视为 high，含个人身份信息视为 medium
+      const lower = dataClasses.map((d) => d.toLowerCase());
+      const sev: 'low' | 'medium' | 'high' =
+        lower.some((d) => d.includes('password') || d.includes('credit') || d.includes('ssn') || d.includes('financial'))
+          ? 'high'
+          : lower.some((d) => d.includes('name') || d.includes('phone') || d.includes('address'))
+          ? 'medium'
+          : 'low';
+      return {
+        name: b.Name || b.Title || 'Unknown breach',
+        severity: sev,
+        exposed: dataClasses.map((d) => d.toLowerCase()),
+        date: b.BreachDate || b.AddedDate || new Date().toISOString().slice(0, 10),
+      };
+    });
+  }
+
+  /** Stub 告警生成器（HIBP 未配置或失败时使用） */
+  private stubBreachesFor(lookupHash: string): Array<{ name: string; severity: 'low' | 'medium' | 'high'; exposed: string[]; date: string }> {
+    const seed = lookupHash.charCodeAt(0) % 10;
+    const breaches: Array<{ name: string; severity: 'low' | 'medium' | 'high'; exposed: string[]; date: string }> = [];
+    if (seed < 5) {
+      breaches.push({
+        name: 'Adobe 2013',
+        severity: 'medium',
+        exposed: ['email', 'hashed_password', 'username'],
+        date: '2013-10-04',
+      });
+    }
+    if (seed < 3) {
+      breaches.push({
+        name: 'LinkedIn 2021',
+        severity: 'high',
+        exposed: ['email', 'name', 'phone', 'workplace'],
+        date: '2021-06-22',
+      });
+    }
+    return breaches;
+  }
+
+  /** 每天 03:00 UTC 扫描全部已验证目标 */
   @Cron('0 3 * * *', { name: 'breach-daily-scan' })
   async runDailyScan() {
     const start = Date.now();

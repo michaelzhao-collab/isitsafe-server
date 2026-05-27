@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import axios from 'axios';
 
 /**
  * V3-A1 语音深伪检测服务
@@ -47,22 +48,103 @@ export class DeepfakeService {
       },
     });
 
-    // Stub AI：实际生产替换为 provider API 调用（异步队列）
-    const stub = this.stubAnalyze(params.fileUrl, params.fileDurationSec ?? 30);
+    // Provider 失败 fallback 链：Reality Defender → 火山引擎 → stub
+    const { result, providerName, raw } = await this.analyzeWithFallback(params.fileUrl, params.fileDurationSec ?? 30);
 
     const updated = await this.prisma.deepfakeCheck.update({
       where: { id: check.id },
       data: {
         status: 'done',
-        resultScore: stub.score,
-        resultLabel: stub.label,
-        resultFeatures: stub.features as any,
-        aiProvider: 'stub_v1',
-        aiRawResponse: { stub: true } as any,
+        resultScore: result.score,
+        resultLabel: result.label,
+        resultFeatures: result.features as any,
+        aiProvider: providerName,
+        aiRawResponse: raw as any,
         completedAt: new Date(),
       },
     });
     return updated;
+  }
+
+  // ====================================================================
+  // AI Provider 抽象 + Failover
+  // ====================================================================
+  private async analyzeWithFallback(
+    fileUrl: string,
+    durationSec: number,
+  ): Promise<{
+    result: { score: number; label: 'low' | 'medium' | 'high'; features: Array<{ name: string; severity: 'low' | 'medium' | 'high'; description: string }> };
+    providerName: string;
+    raw: any;
+  }> {
+    // 优先 1: Reality Defender（海外）
+    if (process.env.REALITY_DEFENDER_API_KEY) {
+      try {
+        const r = await this.callRealityDefender(fileUrl);
+        return { result: r.result, providerName: 'reality_defender', raw: r.raw };
+      } catch (err: any) {
+        this.logger.warn(`[Deepfake] Reality Defender failed: ${err?.message}`);
+      }
+    }
+    // 优先 2: 火山引擎（国内）
+    if (process.env.VOLCENGINE_AK && process.env.VOLCENGINE_SK) {
+      try {
+        const r = await this.callVolcEngine(fileUrl);
+        return { result: r.result, providerName: 'volcengine', raw: r.raw };
+      } catch (err: any) {
+        this.logger.warn(`[Deepfake] Volcengine failed: ${err?.message}`);
+      }
+    }
+    // Fallback: stub
+    const stub = this.stubAnalyze(fileUrl, durationSec);
+    return { result: stub, providerName: 'stub_v1', raw: { stub: true } };
+  }
+
+  /**
+   * Reality Defender 调用占位
+   * 真实 API 见 https://api.realitydefender.com（v2 endpoint：POST /api/v2/audio/analyze）
+   * 需要预先把 file_url（R2）转成可访问 URL；账号开通后填详细 URL 路径
+   */
+  private async callRealityDefender(fileUrl: string): Promise<{
+    result: { score: number; label: 'low' | 'medium' | 'high'; features: any[] };
+    raw: any;
+  }> {
+    const endpoint = process.env.REALITY_DEFENDER_API_URL || 'https://api.realitydefender.com/api/v2/audio/analyze';
+    const resp = await axios.post(
+      endpoint,
+      { fileUrl },
+      {
+        headers: {
+          'X-API-Key': process.env.REALITY_DEFENDER_API_KEY!,
+          'Content-Type': 'application/json',
+        },
+        timeout: 30000,
+      },
+    );
+    // 响应字段按真实 API 文档调整；此处假设 { score: 0~1, label: 'real'|'fake', features?: [] }
+    const score = Number(resp.data?.score ?? resp.data?.aiProbability ?? 0);
+    const label: 'low' | 'medium' | 'high' = score < 0.30 ? 'low' : score < 0.70 ? 'medium' : 'high';
+    return {
+      result: {
+        score,
+        label,
+        features: resp.data?.features || [],
+      },
+      raw: resp.data,
+    };
+  }
+
+  /**
+   * 火山引擎语音 AI 调用占位
+   * 真实 API 见 https://www.volcengine.com/docs/6561（声纹/合成检测）
+   * 需要 AK/SK 签名（HMAC-SHA256），生产建议用 @volcengine/openapi 或自实现签名
+   */
+  private async callVolcEngine(fileUrl: string): Promise<{
+    result: { score: number; label: 'low' | 'medium' | 'high'; features: any[] };
+    raw: any;
+  }> {
+    // 火山签名复杂；一期留 throw 让 fallback 到 stub
+    throw new Error('Volcengine signing not yet implemented (configure SDK and uncomment)');
   }
 
   async getResult(userId: string, taskId: string) {

@@ -274,10 +274,13 @@ model BreachTarget {
   user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// 'email'（一期仅 email；二期 phone / cc）
   targetType              String   @default("email") @map("target_type") @db.VarChar(20)
-  /// bcrypt(email)，用户能确认是自己的目标
+  /// bcrypt(email)，用户能确认是自己的目标（展示用，脱敏字符串）
   targetValueHash         String   @map("target_value_hash")
-  /// SHA256(lower(email)) + user salt — HIBP 查询用
+  /// SHA256(lower(email)) + user salt — HIBP 查询用（不可逆）
   targetValueLookup       String   @map("target_value_lookup")
+  /// AES-GCM 加密的真实邮箱（HIBP 调用时解密）；密钥 BREACH_AES_KEY 配置在 env
+  /// 未配置密钥时为 null，HIBP 降级到 stub
+  targetValueEncrypted    String?  @map("target_value_encrypted")
   verified                Boolean  @default(false)
   verificationToken       String?  @map("verification_token")
   verificationExpiresAt   DateTime? @map("verification_expires_at")
