@@ -1,0 +1,3768 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StarLens AI · V3 第一期 UI 设计稿</title>
+<style>
+  /* ===== Design Tokens (来自 docs/COLOR-PALETTE.md + AppTheme.swift) ===== */
+  :root {
+    --primary: #2F6BFF;
+    --primary-dark: #1A237E;
+    --bg: #F6F8FC;
+    --card: #FFFFFF;
+    --border: #E6EAF0;
+    --text-primary: #1F2D3D;
+    --text-secondary: #5F6B7A;
+    --risk-low: #2ECC71;
+    --risk-medium: #F5A623;
+    --risk-high: #FF4D4F;
+    --risk-unknown: #8A94A6;
+    --premium-bg: #E0EEF8;
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 20px;
+    --s-xs: 4px;
+    --s-sm: 8px;
+    --s-md: 12px;
+    --s-lg: 16px;
+    --s-xl: 24px;
+  }
+
+  /* ===== Gallery shell ===== */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", Arial, sans-serif;
+    background: #0f1115;
+    color: #fff;
+    padding: 24px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  #top-nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(15,17,21,0.92);
+    backdrop-filter: blur(20px);
+    margin: -24px -24px 32px;
+    padding: 16px 24px;
+    border-bottom: 1px solid #222;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  }
+  #top-nav h1 { font-size: 16px; margin: 0; flex: 1; min-width: 220px; }
+  #top-nav .sub { color: #888; font-weight: 400; margin-left: 8px; font-size: 13px; }
+  #top-nav a {
+    color: #fff; padding: 6px 12px; background: #2a2d35; border-radius: 6px;
+    text-decoration: none; font-size: 13px;
+  }
+  #top-nav a:hover { background: var(--primary); }
+
+  section.module { margin-bottom: 64px; }
+  section.module > h2 {
+    font-size: 22px; margin: 0 0 4px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  section.module .badge {
+    background: var(--primary); color: #fff;
+    padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;
+  }
+  section.module .desc { color: #aaa; margin: 0 0 24px; font-size: 14px; }
+
+  .phones-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 32px;
+  }
+
+  /* ===== iPhone frame ===== */
+  .phone {
+    background: #2c2c2e;
+    border-radius: 36px;
+    padding: 8px;
+    width: 390px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    margin: 0 auto;
+  }
+  .phone-screen {
+    background: var(--bg);
+    border-radius: 28px;
+    height: 760px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    color: var(--text-primary);
+    position: relative;
+  }
+  /* status bar */
+  .sb { display:flex; justify-content:space-between; align-items:center;
+        padding: 14px 24px 6px; font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .sb .right { display: flex; gap: 4px; font-size: 11px; }
+  /* dynamic island placeholder */
+  .island {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    width: 100px; height: 28px; background: #000; border-radius: 14px;
+  }
+  /* nav bar */
+  .navbar {
+    padding: 8px 16px 12px; display: flex; align-items: center; gap: 12px;
+    background: var(--bg);
+  }
+  .navbar .back { font-size: 22px; color: var(--primary); cursor: pointer; }
+  .navbar .title { font-weight: 600; font-size: 17px; flex: 1; }
+  .navbar .right-action { color: var(--primary); font-size: 15px; }
+  /* tab bar — 沿用 V2 MainTabView 样式（32×32 圆角矩形 + 选中蓝填充） */
+  .tabbar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    display: flex; justify-content: space-around;
+    padding: 6px 0 12px;
+  }
+  .tabbar .tab {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    position: relative;
+  }
+  .tabbar .tab .icon {
+    width: 32px; height: 32px;
+    border-radius: 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    transition: all 0.15s;
+  }
+  .tabbar .tab.active { color: var(--primary); font-weight: 600; }
+  .tabbar .tab.active .icon {
+    background: var(--primary); color: #fff;
+  }
+  .tabbar .tab .dot {
+    position: absolute; top: 4px; right: 28%;
+    width: 8px; height: 8px;
+    background: var(--risk-high); border-radius: 50%;
+  }
+
+  /* content */
+  .content {
+    flex: 1; overflow-y: auto; padding: 12px 16px 100px;
+    scrollbar-width: thin;
+  }
+  .content::-webkit-scrollbar { display: none; }
+
+  /* common building blocks */
+  .card {
+    background: var(--card); border-radius: var(--r-md);
+    padding: 16px; margin-bottom: var(--s-md);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .between { justify-content: space-between; }
+  .col { display: flex; flex-direction: column; gap: 8px; }
+  .muted { color: var(--text-secondary); font-size: 13px; }
+  .h1 { font-size: 24px; font-weight: 700; margin: 0; color: var(--text-primary); }
+  .h2 { font-size: 18px; font-weight: 600; margin: 0; color: var(--text-primary); }
+  .h3 { font-size: 15px; font-weight: 600; margin: 0; color: var(--text-primary); }
+  .body { font-size: 14px; color: var(--text-primary); }
+  .small { font-size: 12px; }
+
+  .btn {
+    background: var(--primary); color: #fff; border-radius: var(--r-md);
+    padding: 12px 16px; font-weight: 600; text-align: center;
+    cursor: pointer; font-size: 15px; user-select: none;
+    border: none;
+  }
+  .btn.secondary { background: #EEF2FB; color: var(--primary); }
+  .btn.danger { background: var(--risk-high); }
+  .btn.outline { background: transparent; border: 1px solid var(--border); color: var(--text-primary); }
+  .btn.large { padding: 16px; font-size: 17px; border-radius: var(--r-md); }
+
+  .tag {
+    display: inline-flex; padding: 3px 8px; border-radius: var(--r-sm);
+    font-size: 11px; font-weight: 600; line-height: 1.4;
+  }
+  .tag.blue   { background: rgba(47,107,255,0.12); color: var(--primary); }
+  .tag.green  { background: rgba(46,204,113,0.14); color: var(--risk-low); }
+  .tag.amber  { background: rgba(245,166,35,0.14); color: var(--risk-medium); }
+  .tag.red    { background: rgba(255,77,79,0.14); color: var(--risk-high); }
+  .tag.gray   { background: #EEF1F5; color: var(--text-secondary); }
+
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 600; font-size: 14px; flex-shrink: 0;
+  }
+  .avatar.lg { width: 56px; height: 56px; font-size: 18px; }
+  .avatar.xl { width: 72px; height: 72px; font-size: 22px; }
+  .avatar.a { background: linear-gradient(135deg, #6E8AFA, #2F6BFF); }
+  .avatar.b { background: linear-gradient(135deg, #F5A623, #FF8A00); }
+  .avatar.c { background: linear-gradient(135deg, #2ECC71, #00B894); }
+  .avatar.d { background: linear-gradient(135deg, #FF4D4F, #C70039); }
+  .avatar.e { background: linear-gradient(135deg, #9B59B6, #6C5CE7); }
+
+  .divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+  /* caption under each phone */
+  .phone-wrap { text-align: center; }
+  .phone-caption {
+    margin-top: 14px; color: #ccc; font-size: 13px;
+    line-height: 1.45;
+  }
+  .phone-caption .code {
+    display: inline-block; padding: 2px 8px;
+    background: rgba(47,107,255,0.18); color: #88a8ff;
+    border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px; margin-right: 8px;
+  }
+
+  /* Token preview */
+  #tokens .swatch-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;
+  }
+  .swatch {
+    background: #1a1d22; border-radius: 12px; padding: 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .swatch .chip {
+    height: 64px; border-radius: 8px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+  }
+  .swatch .name { font-size: 13px; color: #ddd; }
+  .swatch .val { font-size: 11px; color: #888; font-family: ui-monospace, monospace; }
+
+  /* Elder mode (J) style override */
+  .elder .h1 { font-size: 32px !important; }
+  .elder .btn.elder-big {
+    font-size: 24px; padding: 28px 16px; border-radius: 20px; font-weight: 700;
+  }
+  .elder { font-size: 18px; }
+
+  /* Admin desktop frame */
+  .desktop {
+    background: #2c2c2e; border-radius: 18px; padding: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    margin: 0 auto;
+    max-width: 1100px;
+  }
+  .desktop-bar {
+    height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 10px;
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; }
+  .dot.y { background: #febc2e; }
+  .dot.g { background: #28c840; }
+  .desktop-screen {
+    background: var(--bg); border-radius: 12px;
+    overflow: hidden; display: flex; min-height: 580px;
+    color: var(--text-primary);
+  }
+  .ds-sidebar {
+    width: 200px; background: #1F2D3D; color: #d6dde6;
+    padding: 16px 8px; font-size: 14px;
+  }
+  .ds-sidebar .brand { font-weight: 700; padding: 8px 12px; margin-bottom: 12px; color:#fff; font-size: 15px; }
+  .ds-sidebar .menu-item {
+    padding: 10px 12px; border-radius: 8px; margin-bottom: 2px; cursor: pointer;
+  }
+  .ds-sidebar .menu-item.active { background: var(--primary); color: #fff; }
+  .ds-main { flex: 1; padding: 20px; overflow: auto; }
+  table.tbl { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; font-size: 13px; }
+  table.tbl thead th { text-align: left; padding: 10px 12px; background: #F2F6FB; color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+  table.tbl tbody td { padding: 10px 12px; border-top: 1px solid var(--border); }
+  table.tbl tbody tr:hover { background: #F8FAFD; }
+
+  /* Phone screen specific helpers */
+  .checklist-item {
+    background: var(--card); border-radius: var(--r-md);
+    padding: 12px 14px; display: flex; align-items: center; gap: 12px;
+    margin-bottom: 10px;
+  }
+  .checkbox {
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid var(--border); flex-shrink: 0;
+  }
+  .checkbox.done { background: var(--risk-low); border-color: var(--risk-low); position: relative; }
+  .checkbox.done::after { content: "✓"; color:#fff; position: absolute; left: 5px; top: -3px; font-size: 13px; font-weight: 700; }
+
+  /* Circular gauge (used by A1 result) */
+  .gauge {
+    width: 180px; height: 180px; border-radius: 50%;
+    background: conic-gradient(var(--risk-high) 0% 87%, #F5F7FA 87% 100%);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto;
+  }
+  .gauge-inner {
+    width: 138px; height: 138px; border-radius: 50%;
+    background: var(--card); display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 4px;
+  }
+  .gauge .pct { font-size: 36px; font-weight: 800; color: var(--risk-high); line-height: 1; }
+  .gauge .label { font-size: 12px; color: var(--text-secondary); }
+
+  /* SOS big button */
+  .sos-big {
+    background: linear-gradient(135deg, #FF6B6B, #FF4D4F);
+    border-radius: 20px; padding: 18px; color:#fff; text-align: center;
+    box-shadow: 0 8px 24px rgba(255,77,79,0.36);
+    margin-bottom: 14px;
+  }
+  .sos-big .title { font-size: 18px; font-weight: 700; }
+  .sos-big .sub { font-size: 13px; opacity: 0.92; margin-top: 4px; }
+
+  /* Waveform */
+  .wave {
+    display: flex; align-items: center; gap: 3px; justify-content: center;
+    height: 80px; margin: 16px 0;
+  }
+  .wave .bar { width: 3px; background: var(--primary); border-radius: 2px; }
+
+  /* Footer */
+  footer {
+    margin-top: 64px; padding-top: 24px; border-top: 1px solid #222;
+    color: #888; font-size: 13px; text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<nav id="top-nav">
+  <h1>StarLens AI<span class="sub">· V3 第一期 UI 设计稿 v3</span></h1>
+  <a href="#tokens">设计 Token</a>
+  <a href="#module-home">首页</a>
+  <a href="#module-e">E 家庭</a>
+  <a href="#module-j">J 长辈</a>
+  <a href="#module-b">B 情报案例</a>
+  <a href="#module-a1">A1 深伪</a>
+  <a href="#module-f">F 暗网</a>
+  <a href="#module-profile">我的</a>
+  <a href="#module-premium">会员中心</a>
+  <a href="#module-admin">Admin</a>
+</nav>
+
+<!-- v3 修订说明横幅 -->
+<div style="background: linear-gradient(135deg, #1A237E, #2F6BFF); color: #fff;
+            border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;
+            display: flex; gap: 16px; align-items: flex-start;">
+  <div style="font-size: 22px;">⚠️</div>
+  <div style="flex: 1; font-size: 13px; line-height: 1.7;">
+    <strong style="font-size: 15px;">v3 修订说明</strong> · 已与 V3 一期 PRD v3 对齐<br/>
+    <span style="opacity: 0.92;">
+      • <strong>首页</strong>：基于实际代码现状（ChatGPT 式聊天 + 左侧抽屉历史 + 底部输入框），<strong>只新增 1 个通知条</strong>。原"4 大按钮+SOS"是我凭空捏造的，已删除<br/>
+      • <strong>E 家庭守护</strong>：完全重写，<strong>创建免费 + 关怀机制 + 官方匿名广播</strong>（不显示触发者）。删除"家庭付费墙"和"私人事件流"<br/>
+      • <strong>B 情报推送</strong>：合并到「情报案例」Tab（含 segment 切换），首页加通知条<br/>
+      • <strong>F 暗网监控</strong>：仅海外，国内密码自查已整体删除<br/>
+      • <strong>整体删除</strong>：C 受害者一键、F 国内密码自查、A2/A3 视频/声纹（推二期）
+    </span>
+  </div>
+</div>
+
+<!-- ============================================================ TOKENS -->
+<section class="module" id="tokens">
+  <h2>设计 Token <span class="badge">DESIGN SYSTEM</span></h2>
+  <p class="desc">来自 <code>docs/COLOR-PALETTE.md</code> + <code>AppTheme.swift</code>。V3 全部沿用 V2 Token，不引入新主色。</p>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="chip" style="background:#2F6BFF"></div><div class="name">Primary</div><div class="val">#2F6BFF</div></div>
+    <div class="swatch"><div class="chip" style="background:#1A237E"></div><div class="name">Primary Dark</div><div class="val">#1A237E</div></div>
+    <div class="swatch"><div class="chip" style="background:#F6F8FC"></div><div class="name">Background</div><div class="val">#F6F8FC</div></div>
+    <div class="swatch"><div class="chip" style="background:#FFFFFF"></div><div class="name">Card</div><div class="val">#FFFFFF</div></div>
+    <div class="swatch"><div class="chip" style="background:#E6EAF0"></div><div class="name">Border</div><div class="val">#E6EAF0</div></div>
+    <div class="swatch"><div class="chip" style="background:#1F2D3D"></div><div class="name">Text Primary</div><div class="val">#1F2D3D</div></div>
+    <div class="swatch"><div class="chip" style="background:#5F6B7A"></div><div class="name">Text Secondary</div><div class="val">#5F6B7A</div></div>
+    <div class="swatch"><div class="chip" style="background:#2ECC71"></div><div class="name">Risk Low</div><div class="val">#2ECC71</div></div>
+    <div class="swatch"><div class="chip" style="background:#F5A623"></div><div class="name">Risk Medium</div><div class="val">#F5A623</div></div>
+    <div class="swatch"><div class="chip" style="background:#FF4D4F"></div><div class="name">Risk High</div><div class="val">#FF4D4F</div></div>
+    <div class="swatch"><div class="chip" style="background:#8A94A6"></div><div class="name">Risk Unknown</div><div class="val">#8A94A6</div></div>
+    <div class="swatch"><div class="chip" style="background:#E0EEF8"></div><div class="name">Premium Card</div><div class="val">#E0EEF8</div></div>
+  </div>
+  <p class="desc" style="margin-top:16px">圆角：small <code>8</code> · medium <code>12</code> · large <code>20</code> &nbsp;|&nbsp; 间距：xs <code>4</code> · sm <code>8</code> · md <code>12</code> · lg <code>16</code> · xl <code>24</code></p>
+</section>
+
+<!-- ============================================================ MODULE HOME -->
+<section class="module" id="module-home">
+  <h2>首页改动 <span class="badge">仅加通知条</span><span class="badge" style="background:#2ECC71">基于实际代码</span></h2>
+  <p class="desc">
+    <strong style="color:#fff">⚠️ v3 修订</strong>：基于已上线代码（<code>HomeContainerView.swift</code>），首页 ChatGPT 式聊天界面 + 左侧抽屉历史 + 底部输入框 <strong>全部保留不动</strong>。<br/>
+    <strong style="color:#fff">唯一改动</strong>：在 <code>HomeEmptyStateContent</code> 上方加 1 个通知条，仅有未读官方消息时显示，点击跳到「情报案例」Tab。
+  </p>
+
+  <div class="phones-grid">
+
+    <!-- 首页 (含通知条) -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar">
+        <div style="color:var(--primary);font-size:20px">☰</div>
+        <div class="title">星识安全助手</div>
+        <div class="right-action">✏️</div>
+      </div>
+      <div class="content">
+        <!-- 【新增】通知条：仅有未读时显示 -->
+        <div class="card" style="background: linear-gradient(135deg, #FF8A00, #FF4D4F); color: #fff; padding: 12px 14px; margin-bottom: 16px;">
+          <div class="row" style="gap: 10px; align-items: center;">
+            <div style="font-size: 18px;">📢</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 600;">官方提醒：本月新型骗局</div>
+              <div style="font-size: 11px; opacity: 0.9;">海淀区"假医保退费"24h 新增 7 起</div>
+            </div>
+            <div style="font-size: 16px;">›</div>
+          </div>
+        </div>
+
+        <!-- HomeEmptyStateContent 完全照旧 -->
+        <div style="text-align: center; padding: 16px 0;">
+          <div style="font-size: 22px; font-weight: 700; line-height: 1.4;">
+            不确定是真是假？<br/>
+            用星识安全助手查一查
+          </div>
+          <div class="muted" style="margin-top: 8px;">
+            输入消息、电话、网址或上传截图<br/>
+            AI 帮你分析风险
+          </div>
+        </div>
+
+        <!-- 能力表格 2×4（照旧）-->
+        <div style="border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 12px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; font-size: 11px; color: var(--text-secondary);">
+            <div style="padding: 10px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: center;">
+              诈骗电话识别<br/><span style="opacity:0.8">检测陌生号码</span>
+            </div>
+            <div style="padding: 10px; border-bottom: 1px solid var(--border); text-align: center;">
+              网址安全检测<br/><span style="opacity:0.8">检查链接风险</span>
+            </div>
+            <div style="padding: 10px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: center;">
+              平台风险查询<br/><span style="opacity:0.8">公司靠谱吗</span>
+            </div>
+            <div style="padding: 10px; border-bottom: 1px solid var(--border); text-align: center;">
+              转账诈骗识别<br/><span style="opacity:0.8">安全账户骗局</span>
+            </div>
+            <div style="padding: 10px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: center;">
+              截图风险识别<br/><span style="opacity:0.8">上传截图分析</span>
+            </div>
+            <div style="padding: 10px; border-bottom: 1px solid var(--border); text-align: center;">
+              投资诈骗识别<br/><span style="opacity:0.8">高收益骗局</span>
+            </div>
+            <div style="padding: 10px; border-right: 1px solid var(--border); text-align: center;">
+              客服电话核验<br/><span style="opacity:0.8">是否官方客服</span>
+            </div>
+            <div style="padding: 10px; text-align: center;">
+              短信诈骗检测<br/><span style="opacity:0.8">中奖贷款短信</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部输入框（照旧）-->
+      <div style="position: absolute; bottom: 78px; left: 0; right: 0; padding: 8px 12px; background: var(--bg);">
+        <div class="muted small" style="text-align:center;margin-bottom:6px">受 10,000+ 用户信任</div>
+        <div style="background: var(--card); border-radius: 24px; padding: 8px 8px 8px 16px; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+          <div style="font-size: 20px; color: var(--text-secondary);">📷</div>
+          <div style="flex: 1; color: var(--text-secondary); font-size: 14px;">输入要分析的内容...</div>
+          <div style="font-size: 18px; color: var(--text-secondary);">🎤</div>
+          <div style="font-size: 18px; color: var(--text-secondary);">➕</div>
+          <div style="width: 32px; height: 32px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff;">↑</div>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active"><div class="icon">💬</div>问助手</div>
+        <div class="tab"><div class="icon">📰</div>情报案例</div>
+        <div class="tab"><div class="icon">👨‍👩‍👧</div>家庭</div>
+        <div class="tab"><div class="icon">👤</div>我的</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">HOME</span>首页 · ChatGPT 风格保留 + 顶部通知条（仅有未读时显示）</div>
+    </div>
+
+    <!-- 左侧抽屉 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+
+      <!-- sidebar 模拟 -->
+      <div style="width: 80%; height: 100%; background: var(--bg); padding: 20px; display: flex; flex-direction: column;">
+        <div style="font-size: 17px; font-weight: 600; margin-bottom: 12px;">星识安全助手</div>
+
+        <button class="btn" style="width: 100%; margin-bottom: 12px;">
+          <span style="margin-right: 6px;">⊕</span>新建对话
+        </button>
+
+        <div style="background: #F2F2F7; border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+          <div style="color: var(--text-secondary);">🔍</div>
+          <div style="color: var(--text-secondary); font-size: 14px;">搜索咨询历史</div>
+        </div>
+
+        <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 4px 0 8px;">今天</div>
+        <div style="padding: 10px 4px; font-size: 14px;">有人让我转钱，这是诈骗吗？</div>
+        <div style="padding: 10px 4px; font-size: 14px;">这个电话是真的吗 138****0091</div>
+
+        <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 12px 0 8px;">更早</div>
+        <div style="padding: 10px 4px; font-size: 14px;">兼职刷单是不是骗局</div>
+        <div style="padding: 10px 4px; font-size: 14px;">扫码登录的链接靠谱不</div>
+        <div style="padding: 10px 4px; font-size: 14px;">京东客服让退款</div>
+      </div>
+
+      <!-- 右侧遮罩 -->
+      <div style="position: absolute; right: 0; top: 0; width: 20%; height: 100%; background: rgba(0,0,0,0.3);"></div>
+    </div></div>
+    <div class="phone-caption">左侧抽屉 · 历史 + 搜索（V2 已有，不动）</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ MODULE E -->
+<section class="module" id="module-e">
+  <h2>E. 家庭守护账号 <span class="badge">基建模块</span><span class="badge" style="background:#1A237E">免费 + 三大机制</span></h2>
+  <p class="desc">
+    11 个页面 — 家庭组首页/创建/邀请/接受/成员/分享/官方详情/隐私/关怀 push/关怀短信/创建后空状态。<br/>
+    <strong style="color:#fff">⚠️ v3 完全重写</strong>：<strong>创建免费</strong> + <strong>关怀机制</strong> + <strong>官方匿名广播</strong>（不显示触发者）。
+    付费仍按 V2 现有"5 次/天"逻辑控制，加入家庭组本身不带任何 Pro 权益。
+  </p>
+
+  <!-- 三大机制概览 -->
+  <div style="background: #1a1d22; border-radius: 12px; padding: 20px; margin-bottom: 24px;
+              display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+    <div style="background: #2a2d35; border-radius: 10px; padding: 16px; border-left: 3px solid #2ECC71;">
+      <div style="font-size: 18px; margin-bottom: 6px;">①</div>
+      <div style="color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 6px;">免费家庭组</div>
+      <div style="color: #aaa; font-size: 12px; line-height: 1.5;">任何用户都可创建/加入 · 最多 5 人 · 微信/短信邀请 · 不带 Pro 权益</div>
+    </div>
+    <div style="background: #2a2d35; border-radius: 10px; padding: 16px; border-left: 3px solid #2F6BFF;">
+      <div style="font-size: 18px; margin-bottom: 6px;">②</div>
+      <div style="color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 6px;">关怀机制（100% 免费）</div>
+      <div style="color: #aaa; font-size: 12px; line-height: 1.5;">家人连续 2 天未活跃 → push；3 天 → push + 短信（每家庭 1 条/天免费）</div>
+    </div>
+    <div style="background: #2a2d35; border-radius: 10px; padding: 16px; border-left: 3px solid #FF4D4F;">
+      <div style="font-size: 18px; margin-bottom: 6px;">③</div>
+      <div style="color: #fff; font-weight: 600; font-size: 13px; margin-bottom: 6px;">官方匿名广播</div>
+      <div style="color: #aaa; font-size: 12px; line-height: 1.5;">AI 识别后以「StarLens 官方」名义发，不显示触发者，1 条/家庭/天免费</div>
+    </div>
+  </div>
+  <div class="phones-grid">
+
+    <!-- E-P1 家庭组首页（已建组态） -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="title">家庭守护</div><div class="right-action">···</div></div>
+      <div class="content">
+
+        <!-- group header -->
+        <div class="card" style="background:linear-gradient(135deg,#2F6BFF,#1A237E); color:#fff;">
+          <div class="row between" style="margin-bottom: 12px">
+            <div>
+              <div style="font-size:13px;opacity:0.85;">我的家庭组</div>
+              <div style="font-size:22px;font-weight:700;margin-top:2px;">张家小院</div>
+            </div>
+            <div class="tag" style="background:rgba(255,255,255,0.2);color:#fff;">免费</div>
+          </div>
+          <div class="row between" style="opacity:0.9;font-size:13px;">
+            <div>4 / 5 名成员</div>
+            <div>今日官方提醒 0/1 次</div>
+          </div>
+        </div>
+
+        <!-- member list -->
+        <div class="h3" style="margin: 16px 0 8px;">家庭成员</div>
+        <div class="card" style="padding:0">
+          <div class="row" style="padding:14px;border-bottom:1px solid var(--border);">
+            <div class="avatar a">张</div>
+            <div style="flex:1">
+              <div class="h3">我（张明）</div>
+              <div class="muted small">Owner · 监护人</div>
+            </div>
+            <div class="tag blue">YOU</div>
+          </div>
+          <div class="row" style="padding:14px;border-bottom:1px solid var(--border);">
+            <div class="avatar b">爸</div>
+            <div style="flex:1">
+              <div class="h3">爸爸</div>
+              <div class="muted small">被监护人 · 长辈模式</div>
+            </div>
+            <span style="color:#FF4D4F;font-size:11px;">● 高风险 2</span>
+          </div>
+          <div class="row" style="padding:14px;border-bottom:1px solid var(--border);">
+            <div class="avatar c">妈</div>
+            <div style="flex:1">
+              <div class="h3">妈妈</div>
+              <div class="muted small">被监护人 · 长辈模式</div>
+            </div>
+          </div>
+          <div class="row" style="padding:14px;">
+            <div class="avatar e">弟</div>
+            <div style="flex:1">
+              <div class="h3">弟弟</div>
+              <div class="muted small">监护人</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- recent events -->
+        <div class="h3" style="margin: 16px 0 8px;">最近事件</div>
+        <div class="card">
+          <div class="row" style="margin-bottom:8px">
+            <div class="tag red">高风险</div>
+            <span class="muted small" style="margin-left:auto">10 分钟前</span>
+          </div>
+          <div class="body">爸爸刚扫描了一个高风险链接（疑似钓鱼）</div>
+          <div class="row" style="margin-top:10px;gap:8px">
+            <div class="btn secondary" style="flex:1;padding:8px;font-size:13px">查看</div>
+            <div class="btn" style="flex:1;padding:8px;font-size:13px">提醒爸爸</div>
+          </div>
+        </div>
+
+        <button class="btn" style="width:100%;margin-top:8px">＋ 邀请家人</button>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><div class="icon">🏠</div>首页</div>
+        <div class="tab"><div class="icon">📰</div>情报</div>
+        <div class="tab active"><div class="icon">👨‍👩‍👧</div>家庭</div>
+        <div class="tab"><div class="icon">👤</div>我的</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">E-P1</span>家庭组首页 · 已建组态</div>
+    </div>
+
+    <!-- E-P2 创建家庭组 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">创建家庭组</div></div>
+      <div class="content">
+        <div style="text-align:center;padding: 8px 0 24px;">
+          <div style="font-size:64px">👨‍👩‍👧‍👦</div>
+          <div class="h1" style="margin: 12px 0 4px">守护全家安全</div>
+          <div class="muted">免费创建家庭组，全家互相关怀</div>
+        </div>
+
+        <div class="card" style="background: var(--premium-bg); border: 1px solid #B8DDFF; margin-bottom: 16px;">
+          <div class="row" style="gap: 10px;">
+            <div style="font-size: 24px;">🎁</div>
+            <div style="flex: 1;">
+              <div class="h3" style="color: var(--primary-dark);">完全免费</div>
+              <div class="small" style="line-height: 1.6; color: var(--text-secondary); margin-top: 4px;">
+                创建/加入家庭组永久免费 · 关怀机制 push+短信免费<br/>
+                官方提醒每天 1 条免费（升级会员后不限）
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="h3" style="margin-bottom:8px">家庭组名称</div>
+        <div class="card" style="padding:14px 16px">
+          <input style="border:none;outline:none;width:100%;font-size:16px;background:transparent;color:var(--text-primary)" value="张家小院" />
+        </div>
+
+        <div class="h3" style="margin: 18px 0 8px;">三大功能</div>
+        <div class="card" style="padding:0">
+          <div style="padding:14px;border-bottom:1px solid var(--border);" class="row">
+            <div style="font-size:22px">👥</div>
+            <div style="flex:1;margin-left:10px">
+              <div class="body">关系网络</div>
+              <div class="muted small">最多 5 人，微信/短信邀请</div>
+            </div>
+          </div>
+          <div style="padding:14px;border-bottom:1px solid var(--border);" class="row">
+            <div style="font-size:22px">💚</div>
+            <div style="flex:1;margin-left:10px">
+              <div class="body">关怀机制</div>
+              <div class="muted small">家人连续 2 天未活跃自动提醒你</div>
+            </div>
+          </div>
+          <div style="padding:14px" class="row">
+            <div style="font-size:22px">📢</div>
+            <div style="flex:1;margin-left:10px">
+              <div class="body">官方匿名广播</div>
+              <div class="muted small">家人查到诈骗，自动以官方名义通知</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn large" style="width:100%;margin-top:20px">免费创建家庭组</button>
+        <div class="muted small" style="text-align:center;margin-top:10px">无需付费 · 无需信用卡</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">E-P2</span>创建家庭组 · v3 改为完全免费</div>
+    </div>
+
+    <!-- E-P3 邀请家人 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">邀请家人</div></div>
+      <div class="content">
+        <div class="card" style="text-align:center;padding:24px 16px">
+          <div class="muted small">分享邀请码给家人</div>
+          <div style="font-family:ui-monospace,monospace;font-size:38px;letter-spacing:6px;font-weight:700;color:var(--primary);margin:12px 0;">K7F2X9</div>
+          <div class="muted small">7 天有效 · 限 4 次使用</div>
+
+          <!-- QR placeholder -->
+          <div style="width: 200px; height: 200px; margin: 20px auto 8px;
+                      background:
+                        repeating-conic-gradient(#000 0% 25%, #fff 0% 50%) 50% / 16px 16px,
+                        #fff;
+                      border-radius: 12px;
+                      box-shadow: 0 0 0 6px #fff inset;
+                      position: relative;">
+            <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+                        width:48px;height:48px;background:var(--primary);border-radius:10px;
+                        display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;">🛡</div>
+          </div>
+          <div class="muted small">微信扫一扫加入</div>
+        </div>
+
+        <div class="row" style="gap:8px;margin-top:8px">
+          <button class="btn outline" style="flex:1;padding:10px;font-size:13px">复制邀请码</button>
+          <button class="btn outline" style="flex:1;padding:10px;font-size:13px">复制链接</button>
+        </div>
+        <button class="btn" style="width:100%;margin-top:8px">通过微信分享</button>
+        <button class="btn secondary" style="width:100%;margin-top:8px">通过短信分享</button>
+
+        <div class="card" style="margin-top: 16px;background:#FFF8E1">
+          <div class="small" style="color:#8B6900">⚠️ 邀请码请只发给可信家人。任何在公开网络分享邀请码都可能导致陌生人加入你的家庭组。</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">E-P3</span>邀请家人 · 含邀请码 + QR</div>
+    </div>
+
+    <!-- E-P4 接受邀请落地页 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="title">接受邀请</div></div>
+      <div class="content" style="display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding-bottom:200px">
+        <div class="avatar xl a">张</div>
+        <div class="h2" style="margin-top: 16px">张明</div>
+        <div class="muted" style="margin-top: 4px">邀请你加入家庭组</div>
+
+        <div class="card" style="margin-top: 24px;width:100%;text-align:left">
+          <div class="h3">家庭组名</div>
+          <div class="body" style="margin-top:4px">张家小院</div>
+          <div class="divider"></div>
+          <div class="h3">当前成员</div>
+          <div class="row" style="margin-top: 8px;gap:6px">
+            <div class="avatar a" style="width:32px;height:32px;font-size:12px">张</div>
+            <div class="avatar b" style="width:32px;height:32px;font-size:12px">爸</div>
+            <div class="avatar c" style="width:32px;height:32px;font-size:12px">妈</div>
+            <div class="muted small" style="margin-left:8px">+2 已加入</div>
+          </div>
+          <div class="divider"></div>
+          <div class="h3">你将获得</div>
+          <ul style="padding-left:18px;margin: 8px 0;font-size:13px;line-height:1.8">
+            <li>无限次 AI 风险查询</li>
+            <li>家庭情报实时同步</li>
+            <li>长辈模式简化界面</li>
+          </ul>
+        </div>
+
+        <button class="btn large" style="width:100%;margin-top:20px">同意加入</button>
+        <button class="btn outline" style="width:100%;margin-top:8px">拒绝</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">E-P4</span>接受邀请落地（Universal Link 唤起）</div>
+    </div>
+
+    <!-- E-P5 成员详情（v3 改造：关怀状态 + 不显示具体触发内容）-->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">成员详情</div></div>
+      <div class="content">
+        <div style="text-align:center;padding: 16px 0">
+          <div class="avatar xl b" style="margin: 0 auto">爸</div>
+          <div class="h2" style="margin-top: 12px">爸爸</div>
+          <div class="muted small">手机号 138****1234 · 加入于 2026-04-15</div>
+        </div>
+
+        <!-- 活跃状态（关怀机制核心展示）-->
+        <div class="card" style="background: #E8F5E9; border: 1px solid #C8E6C9;">
+          <div class="row between" style="margin-bottom: 6px;">
+            <div class="h3" style="color: var(--risk-low);">🟢 今日已活跃</div>
+            <span class="muted small">最后活跃 30 分钟前</span>
+          </div>
+          <div class="muted small" style="line-height: 1.6;">爸爸今天打开过 App，关怀机制正常运作中</div>
+        </div>
+
+        <!-- 长辈模式开关 -->
+        <div class="card">
+          <div class="row between">
+            <div class="h3">长辈模式</div>
+            <div style="width:48px;height:28px;background:var(--risk-low);border-radius:14px;position:relative">
+              <div style="position:absolute;right:2px;top:2px;width:24px;height:24px;background:#fff;border-radius:50%"></div>
+            </div>
+          </div>
+          <div class="muted small" style="margin-top:6px">已开启：超大按钮、TTS 朗读、SOS 直拨</div>
+        </div>
+
+        <!-- 关怀机制开关 -->
+        <div class="card">
+          <div class="row between">
+            <div class="h3">关怀提醒</div>
+            <div style="width:48px;height:28px;background:var(--risk-low);border-radius:14px;position:relative">
+              <div style="position:absolute;right:2px;top:2px;width:24px;height:24px;background:#fff;border-radius:50%"></div>
+            </div>
+          </div>
+          <div class="muted small" style="margin-top:6px">爸爸连续未活跃时通过 push + 短信提醒你</div>
+        </div>
+
+        <!-- 本月贡献（仅显示数字，不显示具体触发内容）-->
+        <div class="h3" style="margin: 16px 0 8px;">爸爸的家庭贡献</div>
+        <div class="card" style="padding: 0;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 14px;">
+            <div style="text-align: center;">
+              <div style="font-size: 24px; font-weight: 700; color: var(--risk-low);">12</div>
+              <div class="muted small" style="margin-top: 2px;">本月查询</div>
+            </div>
+            <div style="text-align: center; border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
+              <div style="font-size: 24px; font-weight: 700; color: var(--primary);">3</div>
+              <div class="muted small" style="margin-top: 2px;">触发广播</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-size: 24px; font-weight: 700; color: var(--risk-medium);">2</div>
+              <div class="muted small" style="margin-top: 2px;">帮家人避坑</div>
+            </div>
+          </div>
+        </div>
+        <div class="muted small" style="margin: 6px 4px 0; line-height: 1.5;">⚠️ 仅显示统计数字，<strong>不显示具体查询内容</strong>（v3 隐私保护：官方匿名广播不暴露触发者）</div>
+
+        <button class="btn" style="width:100%;margin-top:14px">📞 拨打爸爸电话</button>
+        <button class="btn outline" style="width:100%;margin-top:8px">💬 发关怀消息</button>
+        <button class="btn outline" style="width:100%;margin-top:8px;color:var(--risk-high)">移除该成员</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">E-P5</span>成员详情 · 关怀状态 + 贡献统计（v3：不显示具体查询内容）</div>
+    </div>
+
+    <!-- E-P6 分享一条信息到家庭（v3 重新设计：主动广播流程）-->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">分享信息到家庭</div></div>
+      <div class="content">
+
+        <div class="card" style="background: var(--premium-bg); padding: 14px;">
+          <div class="row" style="gap: 8px; align-items: flex-start;">
+            <div style="font-size: 20px;">📢</div>
+            <div style="flex: 1; font-size: 13px; line-height: 1.6;">
+              <strong>StarLens 官方匿名广播</strong><br/>
+              <span class="muted small">AI 先检测，按结果以「StarLens 官方」名义发给家庭所有人。<strong>不会显示是谁分享的</strong>。</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 16px 0 8px">输入要分享的信息</div>
+        <div class="card" style="padding: 14px;">
+          <div style="font-size:14px;color:var(--text-secondary);margin-bottom:6px">支持：号码 / 链接 / 短信文本 / 微信消息</div>
+          <div style="background:#F2F6FB;border-radius:8px;padding:12px;min-height:80px;font-family:ui-monospace,monospace;font-size:13px;color:var(--text-primary)">
+            您的医保账户有 1280 元退费未领取，请加客服微信 13800001234 办理...
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 16px 0 8px">今日配额</div>
+        <div class="card">
+          <div class="row between">
+            <div>
+              <div class="body">官方提醒</div>
+              <div class="muted small">已发 0/1 · 免费</div>
+            </div>
+            <div class="tag green">剩余 1 次</div>
+          </div>
+        </div>
+
+        <div class="card" style="background:#FFF8E1;margin-top: 12px;">
+          <div class="small" style="color:#8B6900;line-height:1.6">
+            ⚠️ 配额用完后 AI 仍会检测，但不再以官方名义广播。<br/>
+            升级<strong>家庭 Pro</strong>可不限。
+          </div>
+        </div>
+
+        <button class="btn large" style="width:100%;margin-top: 16px">🔍 AI 检测并广播</button>
+        <div class="muted small" style="text-align:center;margin-top:10px">检测 ≤ 5 秒，按结果弹框确认</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">E-P6</span>分享信息到家庭 · 主动触发官方广播</div>
+    </div>
+
+    <!-- E-P6b 官方消息详情（家庭成员收到的样式）-->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">官方提醒</div><div class="right-action">↗</div></div>
+      <div class="content">
+
+        <div class="card" style="background:linear-gradient(135deg,#FF4D4F,#C70039); color:#fff; padding: 20px;">
+          <div class="row" style="gap: 10px; margin-bottom: 8px">
+            <div style="font-size: 22px;">📢</div>
+            <div style="flex:1">
+              <div style="font-size: 12px; opacity: 0.92;">StarLens 官方匿名广播</div>
+              <div style="font-size: 18px; font-weight: 700;">已识别诈骗</div>
+            </div>
+            <div class="tag" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3)">高风险</div>
+          </div>
+          <div style="font-size: 13px; opacity: 0.95; line-height: 1.6;">
+            以下内容已被 AI 识别为诈骗，请家人警惕：
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 16px 0 8px">原信息内容</div>
+        <div class="card" style="background:#F2F6FB;padding:14px">
+          <div style="font-family:ui-monospace,monospace;font-size:13px;line-height:1.7;color:var(--text-primary)">
+            您的医保账户有 1280 元退费未领取，请加客服微信 13800001234 办理...
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 16px 0 8px">⚠️ 风险特征</div>
+        <div class="card" style="padding:0">
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border)" class="row">
+            <span style="color:var(--risk-high)">●</span>
+            <span class="body" style="margin-left:8px;flex:1">冒充医保局话术</span>
+          </div>
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border)" class="row">
+            <span style="color:var(--risk-high)">●</span>
+            <span class="body" style="margin-left:8px;flex:1">索要加微信</span>
+          </div>
+          <div style="padding:12px 14px" class="row">
+            <span style="color:var(--risk-high)">●</span>
+            <span class="body" style="margin-left:8px;flex:1">真医保不会电话主动退费</span>
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 16px 0 8px">📋 建议</div>
+        <div class="card" style="background:#E8F5E9">
+          <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8;">
+            <li>不要加该微信，不要回复</li>
+            <li>真医保有疑问拨 12333 核实</li>
+            <li>提醒其他家人警惕</li>
+          </ul>
+        </div>
+
+        <div class="card" style="margin-top: 14px;background:#F2F6FB">
+          <div class="small" style="color:var(--text-secondary)">
+            ⓘ 由家庭成员触发，已脱敏不显示具体姓名。同一信息当天家庭内仅广播 1 次。
+          </div>
+        </div>
+
+        <button class="btn outline" style="width:100%;margin-top: 14px;">📤 转发给其他人</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">E-P6b</span>官方提醒详情（红色 · 已识别诈骗）· 家庭成员视角</div>
+    </div>
+
+    <!-- E-P7 隐私设置 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">隐私设置</div></div>
+      <div class="content">
+        <div class="muted small" style="margin-bottom:12px;padding:0 4px">你可以控制哪些信息会同步给监护人。</div>
+        <div class="card" style="padding:0">
+          <div style="padding:14px;border-bottom:1px solid var(--border)">
+            <div class="row between">
+              <div>
+                <div class="h3">仅同步高风险事件</div>
+                <div class="muted small" style="margin-top:2px">监护人只会看到风险等级为「高」的事件</div>
+              </div>
+              <div style="width:48px;height:28px;background:var(--risk-low);border-radius:14px;position:relative;flex-shrink:0">
+                <div style="position:absolute;right:2px;top:2px;width:24px;height:24px;background:#fff;border-radius:50%"></div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:14px;border-bottom:1px solid var(--border)">
+            <div class="row between">
+              <div>
+                <div class="h3">中风险事件</div>
+                <div class="muted small" style="margin-top:2px">默认不同步</div>
+              </div>
+              <div style="width:48px;height:28px;background:#ccc;border-radius:14px;position:relative;flex-shrink:0">
+                <div style="position:absolute;left:2px;top:2px;width:24px;height:24px;background:#fff;border-radius:50%"></div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:14px">
+            <div class="row between">
+              <div>
+                <div class="h3">普通查询历史</div>
+                <div class="muted small" style="margin-top:2px">监护人永远不能看到</div>
+              </div>
+              <div style="width:48px;height:28px;background:#ccc;border-radius:14px;position:relative;flex-shrink:0">
+                <div style="position:absolute;left:2px;top:2px;width:24px;height:24px;background:#fff;border-radius:50%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <div class="h3" style="margin-bottom:8px">已加入家庭组</div>
+          <div class="row">
+            <div class="avatar a">张</div>
+            <div style="flex:1">
+              <div class="body">张家小院</div>
+              <div class="muted small">主账号：张明</div>
+            </div>
+          </div>
+          <button class="btn outline" style="width:100%;margin-top:10px;color:var(--risk-high)">退出家庭组</button>
+        </div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">E-P7</span>被监护人隐私设置</div>
+    </div>
+
+    <!-- E-P8 关怀 push 锁屏通知样式 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen" style="background: linear-gradient(180deg, #1a1d2e, #2a2d4e); color: #fff;">
+      <div class="island"></div>
+      <div class="sb" style="color: #fff;"><span>14:38</span><span class="right">●●●●●</span></div>
+
+      <!-- 锁屏时间和日期 -->
+      <div style="text-align: center; padding: 32px 0 24px;">
+        <div style="font-size: 14px; opacity: 0.7;">星期一 · 5 月 27 日</div>
+        <div style="font-size: 88px; font-weight: 200; line-height: 1;">14:38</div>
+      </div>
+
+      <div class="content" style="padding: 0 12px;">
+        <!-- push 通知 -->
+        <div style="background: rgba(255,255,255,0.95); color: var(--text-primary); border-radius: 18px; padding: 14px; margin-bottom: 10px;">
+          <div class="row" style="gap: 10px; align-items: flex-start;">
+            <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #2F6BFF, #1A237E); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🛡</div>
+            <div style="flex: 1;">
+              <div class="row between">
+                <div style="font-size: 12px; font-weight: 600;">星识安全助手 · 家庭关怀</div>
+                <div style="font-size: 11px; color: var(--text-secondary);">现在</div>
+              </div>
+              <div style="font-size: 14px; font-weight: 600; margin-top: 4px;">爸爸已 2 天未打开 App</div>
+              <div style="font-size: 13px; color: var(--text-secondary); margin-top: 2px; line-height: 1.5;">建议联系确认他的状态，避免遇到诈骗无人协助</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 另一条 push -->
+        <div style="background: rgba(255,255,255,0.85); color: var(--text-primary); border-radius: 18px; padding: 12px;">
+          <div class="row" style="gap: 10px; align-items: flex-start;">
+            <div style="width: 28px; height: 28px; background: linear-gradient(135deg, #FF8A00, #FF4D4F); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px;">📢</div>
+            <div style="flex: 1;">
+              <div class="row between">
+                <div style="font-size: 11px; font-weight: 600;">家庭官方</div>
+                <div style="font-size: 11px; color: var(--text-secondary);">10 分钟前</div>
+              </div>
+              <div style="font-size: 13px; font-weight: 600; margin-top: 2px;">📢 StarLens 官方：已识别诈骗</div>
+              <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">+86 138****0091 · 由家庭成员触发</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部上滑解锁 -->
+      <div style="position: absolute; bottom: 30px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,0.6); font-size: 13px;">
+        上滑解锁
+        <div style="width: 134px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 3px; margin: 12px auto 0;"></div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">E-P8</span>关怀机制锁屏 push 样式 · 普通关怀 + 官方匿名广播</div>
+    </div>
+
+    <!-- E-P9 关怀短信样式（iOS Messages app）-->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>14:42</span><span class="right">●●●●●</span></div>
+      <div class="navbar" style="background: #F2F2F7;">
+        <div class="back">←</div>
+        <div class="title" style="font-size: 15px;">信息</div>
+        <div class="right-action">···</div>
+      </div>
+
+      <div class="content" style="background: #F2F2F7;">
+
+        <!-- 信息发件人 -->
+        <div style="text-align: center; padding: 16px 0;">
+          <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #2F6BFF, #1A237E); border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 26px;">🛡</div>
+          <div style="font-size: 16px; font-weight: 600; margin-top: 8px;">StarLens 安全助手</div>
+          <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">10690****</div>
+        </div>
+
+        <!-- 短信内容 -->
+        <div style="text-align: center; padding: 8px 16px; color: var(--text-secondary); font-size: 11px;">今天 14:38</div>
+
+        <div style="display: flex; padding: 4px 16px;">
+          <div style="background: #fff; border-radius: 16px; padding: 12px 14px; max-width: 80%; font-size: 14px; line-height: 1.6; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">
+            【StarLens】您的家人 张爸爸 已连续 3 天未打开 App，请联系确认安全。点此查看：starlens.ai/care/abc123
+          </div>
+        </div>
+
+        <!-- 标注 -->
+        <div class="card" style="margin: 24px 16px; padding: 14px; background: #FFFBEB; border: 1px solid #FFE082;">
+          <div class="small" style="color: #8B6900; line-height: 1.7;">
+            <strong>v3 关怀机制短信</strong><br/>
+            • 短信内容 ≤ 65 字（避免长短信收费翻倍）<br/>
+            • 发件号码：10690**** 工信部备案<br/>
+            • 短链跳转：Universal Link 直接拉起 App<br/>
+            • 频率：每家庭最多 1 条/天，免费
+          </div>
+        </div>
+      </div>
+
+    </div></div>
+    <div class="phone-caption"><span class="code">E-P9</span>关怀短信样式 · 连续 3 天未活跃兜底</div>
+    </div>
+
+    <!-- E-P10 创建后空状态（等待邀请加入）-->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="title">家庭守护</div><div class="right-action">···</div></div>
+      <div class="content">
+
+        <!-- 组卡片（仅自己）-->
+        <div class="card" style="background:linear-gradient(135deg,#2F6BFF,#1A237E); color:#fff;">
+          <div class="row between" style="margin-bottom: 12px">
+            <div>
+              <div style="font-size:13px;opacity:0.85;">我的家庭组</div>
+              <div style="font-size:22px;font-weight:700;margin-top:2px;">张家小院</div>
+            </div>
+            <div class="tag" style="background:rgba(255,255,255,0.2);color:#fff;">免费</div>
+          </div>
+          <div class="row between" style="opacity:0.9;font-size:13px;">
+            <div>1 / 5 名成员</div>
+            <div>今日官方提醒 0/1 次</div>
+          </div>
+        </div>
+
+        <!-- 空状态引导 -->
+        <div class="card" style="text-align: center; padding: 32px 16px; margin-top: 16px;">
+          <div style="font-size: 56px; margin-bottom: 8px;">👨‍👩‍👧</div>
+          <div class="h2" style="margin-bottom: 6px;">家庭组刚创建好</div>
+          <div class="muted" style="margin-bottom: 18px;">邀请家人加入开始互相守护</div>
+
+          <button class="btn" style="width: 100%; margin-bottom: 10px;">📤 邀请家人</button>
+
+          <div class="row" style="gap: 8px;">
+            <button class="btn outline" style="flex: 1; padding: 10px; font-size: 13px;">微信分享</button>
+            <button class="btn outline" style="flex: 1; padding: 10px; font-size: 13px;">短信邀请</button>
+          </div>
+        </div>
+
+        <!-- 引导卡 -->
+        <div class="card" style="background: var(--premium-bg); padding: 14px; margin-top: 14px;">
+          <div class="h3" style="color: var(--primary-dark); margin-bottom: 6px;">💡 怎么用最有效？</div>
+          <ul style="padding-left: 18px; margin: 0; font-size: 13px; line-height: 1.8;">
+            <li>邀请父母加入 → 远程开启长辈模式</li>
+            <li>家人都装好 App 后 → 关怀机制自动生效</li>
+            <li>查到诈骗 → 自动以官方名义通知全家</li>
+          </ul>
+        </div>
+
+      </div>
+      <div class="tabbar">
+        <div class="tab"><div class="icon">💬</div>问助手</div>
+        <div class="tab"><div class="icon">📰</div>情报案例</div>
+        <div class="tab active"><div class="icon">👨‍👩‍👧</div>家庭</div>
+        <div class="tab"><div class="icon">👤</div>我的</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">E-P10</span>家庭组创建后空状态 · 引导邀请家人</div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ============================================================ MODULE J -->
+<section class="module" id="module-j">
+  <h2>J. 老年专属模式 <span class="badge">国内核心</span></h2>
+  <p class="desc">5 个页面 — 字号 ×1.5、3 大按钮、TTS 自动播报、SOS 直拨。整页超出常规字号是故意的。</p>
+  <div class="phones-grid">
+
+    <!-- J-P1 长辈首页 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen elder">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="content" style="padding: 16px 18px 100px">
+        <div style="text-align:center;padding: 20px 0 24px">
+          <div class="avatar xl b" style="margin: 0 auto;width: 80px;height:80px;font-size:28px">爸</div>
+          <div style="font-size:22px;font-weight:600;margin-top: 12px">您好，张爸爸</div>
+          <div style="font-size:15px;color:var(--text-secondary);margin-top:4px">今天 周一 · 5 月 26 日</div>
+        </div>
+
+        <button class="btn elder-big" style="width:100%;margin-bottom:14px;background:var(--primary)">
+          🔍 这是不是骗子？
+        </button>
+        <button class="btn elder-big" style="width:100%;margin-bottom:14px;background:#FF4D4F">
+          🆘 我被骗了
+        </button>
+        <button class="btn elder-big" style="width:100%;background:var(--risk-low)">
+          📞 给孩子打电话
+        </button>
+
+        <div class="card" style="margin-top: 20px;background: var(--premium-bg)">
+          <div style="font-size:16px;color:var(--primary-dark);font-weight:600;margin-bottom: 6px;">📬 今日提醒</div>
+          <div style="font-size:15px;color:var(--text-primary);line-height: 1.6">
+            最近"假医保退费"骗局多发。如果接到自称医保局的电话让加微信，请直接挂掉。
+          </div>
+        </div>
+      </div>
+
+      <div style="position: absolute;bottom: 0;left: 0;right: 0;background: var(--risk-high);
+                  padding: 16px;display:flex;align-items:center;gap:10px;color:#fff;">
+        <div style="font-size:24px">🆘</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600">紧急情况</div>
+          <div style="font-size:12px;opacity:0.92">长按拨打儿子电话</div>
+        </div>
+        <div style="font-size:20px">›</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">J-P1</span>长辈首页 · 3 大按钮 + SOS bar</div>
+    </div>
+
+    <!-- J-P2 检测入口 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen elder">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back" style="font-size:28px">←</div><div class="title" style="font-size:20px">检测一下</div></div>
+      <div class="content" style="padding: 16px 18px">
+        <div style="font-size: 17px;line-height:1.6;margin-bottom: 24px;color:var(--text-secondary)">
+          选一个方法，让我帮您看看
+        </div>
+
+        <div class="card" style="padding:24px;text-align:center;margin-bottom:14px;border: 2px solid var(--primary)">
+          <div style="font-size: 56px;margin-bottom: 8px">📷</div>
+          <div style="font-size: 22px;font-weight: 700;color:var(--primary)">拍照检测</div>
+          <div class="muted" style="font-size:15px;margin-top:4px">拍一下可疑的短信、链接、广告</div>
+        </div>
+
+        <div class="card" style="padding:24px;text-align:center;margin-bottom:14px">
+          <div style="font-size: 56px;margin-bottom: 8px">🎤</div>
+          <div style="font-size: 22px;font-weight: 700">说一下</div>
+          <div class="muted" style="font-size:15px;margin-top:4px">把对方电话里说的话告诉我</div>
+        </div>
+
+        <div class="card" style="padding:24px;text-align:center">
+          <div style="font-size: 56px;margin-bottom: 8px">🎧</div>
+          <div style="font-size: 22px;font-weight: 700">录音上传</div>
+          <div class="muted" style="font-size:15px;margin-top:4px">上传对方发来的语音消息</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">J-P2</span>检测入口 · 拍照/语音替代输入</div>
+    </div>
+
+    <!-- J-P3 检测结果（详细补充版）-->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen elder">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back" style="font-size:28px">←</div><div class="title" style="font-size:20px">检测结果</div></div>
+      <div class="content" style="padding: 16px 18px;text-align:center">
+
+        <!-- TTS 朗读状态条 -->
+        <div style="background: var(--premium-bg); border-radius: 16px; padding: 12px 16px; margin-bottom: 16px;
+                    display: flex; align-items: center; gap: 12px;">
+          <div style="font-size: 28px; animation: pulse 1.5s infinite;">🔊</div>
+          <div style="flex: 1; text-align: left;">
+            <div style="font-size: 14px; color: var(--primary-dark); font-weight: 600;">正在为您朗读结果</div>
+            <div style="height: 6px; background: rgba(47,107,255,0.2); border-radius: 3px; margin-top: 6px; overflow: hidden;">
+              <div style="width: 35%; height: 100%; background: var(--primary); border-radius: 3px;"></div>
+            </div>
+          </div>
+          <div style="background: #fff; border-radius: 16px; padding: 6px 10px; font-size: 13px; color: var(--primary); font-weight: 600;">⏸ 暂停</div>
+        </div>
+
+        <!-- big gauge -->
+        <div class="gauge" style="width:220px;height:220px;margin: 16px auto 16px;
+                                  background: conic-gradient(var(--risk-high) 0% 90%, #F5F7FA 90% 100%);">
+          <div class="gauge-inner" style="width:170px;height:170px">
+            <div style="font-size: 48px;font-weight: 800;color: var(--risk-high)">高危</div>
+            <div style="font-size: 14px;color:var(--text-secondary)">非常可能是骗子</div>
+          </div>
+        </div>
+
+        <!-- 你扫描的内容 -->
+        <div class="card" style="text-align: left; background: #F8FAFD; padding: 16px;">
+          <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 6px;">📞 您输入的号码</div>
+          <div style="font-size: 22px; font-weight: 700; font-family: ui-monospace, monospace; color: var(--text-primary);">+86 138-0000-1234</div>
+        </div>
+
+        <div class="card" style="text-align: left;background:#FFF1F1;border:1px solid #FFD0D0;padding:18px;margin-top: 12px;">
+          <div style="font-size:18px;font-weight: 700;color:var(--risk-high);margin-bottom: 8px">
+            ⚠️ 千万不要按对方说的做
+          </div>
+          <div style="font-size:16px;line-height:1.7;color:var(--text-primary)">
+            这是常见的"<b>冒充公检法</b>"骗局。<br/>
+            真的警察不会让你转钱到"安全账户"。
+          </div>
+        </div>
+
+        <!-- 检测出的特征（人话版）-->
+        <div class="card" style="text-align: left; padding: 16px; margin-top: 12px;">
+          <div style="font-size: 17px; font-weight: 600; margin-bottom: 8px;">我们发现这些问题</div>
+          <div style="font-size: 15px; line-height: 1.9;">
+            <div>• 这个号码<b>已被多人举报</b></div>
+            <div>• 号码归属地与自称单位<b>不一致</b></div>
+            <div>• 同类骗局<b>本月在您所在地区发生 7 起</b></div>
+          </div>
+        </div>
+
+        <!-- AI 辅助判断免责 -->
+        <div class="card" style="text-align: left; padding: 14px; margin-top: 12px; background: #FFF8E1; border: 1px solid #FFE082;">
+          <div style="font-size: 14px; color: #8B6900; line-height: 1.6;">
+            💡 <strong>AI 辅助判断仅供参考</strong>。如果对方让您做以下事情，<strong>一定要打孩子电话确认</strong>：转账、提供银行卡号、提供验证码。
+          </div>
+        </div>
+
+        <!-- 操作按钮（大）-->
+        <button class="btn elder-big" style="width:100%;margin-top: 20px; margin-bottom: 14px; background: var(--risk-low);">
+          📞 立刻给儿子打电话
+        </button>
+        <button class="btn elder-big" style="width:100%;margin-bottom: 14px; background: var(--primary);">
+          🆘 拨打 110 报警
+        </button>
+        <button class="btn elder-big" style="width:100%;background:var(--risk-medium)">
+          📤 分享给家人
+        </button>
+
+        <div class="card" style="margin-top: 20px; background: #F8FAFD;">
+          <div style="font-size: 14px; color: var(--text-secondary); line-height: 1.6;">
+            ⚙️ <strong>读完了？</strong> 您可以点上方"暂停"或返回首页继续使用。<br/>
+            如果听不清，请上滑此页查看文字。
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">J-P3</span>检测结果（详细）· TTS 朗读条 + 号码回显 + 特征人话版 + 3 大操作</div>
+    </div>
+
+    <!-- J-P4 SOS 拨号 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen elder">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back" style="font-size:28px">←</div><div class="title" style="font-size:20px">打电话给家人</div></div>
+      <div class="content" style="padding: 16px 18px">
+
+        <div class="card" style="padding:24px;text-align:center;margin-bottom:14px">
+          <div class="avatar xl a" style="margin: 0 auto 12px;width: 80px;height:80px;font-size:24px">儿</div>
+          <div style="font-size: 24px;font-weight: 700">儿子张明</div>
+          <div class="muted" style="font-size:15px;margin-top:4px">主要联系人</div>
+          <button class="btn elder-big" style="width:100%;margin-top: 16px;background:var(--risk-low)">
+            📞 拨打儿子
+          </button>
+        </div>
+
+        <div class="card" style="padding:18px;text-align:center;margin-bottom:14px">
+          <div class="avatar lg e" style="margin: 0 auto 8px">弟</div>
+          <div style="font-size: 18px;font-weight: 600">弟弟张华</div>
+          <button class="btn elder-big" style="width:100%;margin-top: 12px;background:var(--primary);font-size:20px;padding:18px">
+            📞 拨打弟弟
+          </button>
+        </div>
+
+        <div class="card" style="padding:18px;text-align:center;border:2px solid var(--risk-high)">
+          <div style="font-size: 18px;font-weight: 700;color:var(--risk-high)">报警 110</div>
+          <div class="muted" style="font-size:14px;margin-top:4px">紧急情况</div>
+          <button class="btn elder-big" style="width:100%;margin-top:12px;background:var(--risk-high);font-size:20px;padding:18px">
+            🆘 拨打 110
+          </button>
+        </div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">J-P4</span>SOS 拨号 · 大头像 + 大按钮</div>
+    </div>
+
+    <!-- J-P5 "我被骗了"长辈版 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen elder">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back" style="font-size:28px">←</div><div class="title" style="font-size:20px">不要慌</div></div>
+      <div class="content" style="padding: 16px 18px">
+        <div style="text-align:center;padding: 8px 0 16px">
+          <div style="font-size:54px">🤝</div>
+          <div style="font-size:20px;font-weight:600;margin-top: 8px">我们一步一步来</div>
+          <div class="muted" style="font-size:14px;margin-top:4px">第一步最重要：先告诉孩子</div>
+        </div>
+
+        <button class="btn elder-big" style="width:100%;margin-bottom: 14px;background:var(--risk-low)">
+          1️⃣ 立刻打给儿子
+        </button>
+        <button class="btn elder-big" style="width:100%;margin-bottom: 14px;background:var(--risk-high)">
+          2️⃣ 拨打 110 报警
+        </button>
+        <button class="btn elder-big" style="width:100%;margin-bottom: 14px;background:var(--primary)">
+          3️⃣ 拨打 96110 反诈热线
+        </button>
+
+        <div class="card" style="background: #FFF8E1;border: 1px solid #FFE082;padding: 18px;margin-top:14px">
+          <div style="font-size: 16px;color:#8B6900;font-weight: 600;margin-bottom: 6px;">⚠️ 重要提醒</div>
+          <div style="font-size: 15px;line-height:1.7">不要删除任何聊天记录、短信、转账截图，警察需要看。</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">J-P5</span>被骗了长辈版 · 3 步引导</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ MODULE B -->
+<section class="module" id="module-b">
+  <h2>B. 情报推送 + 情报案例 Tab 合并 <span class="badge">国内主推</span><span class="badge" style="background:#1A237E">含 segment 切换</span></h2>
+  <p class="desc">
+    6 个页面（含 segment 切换示意）— V2 「防诈案例」Tab <strong>改名「情报案例」</strong>，顶部 segment 切换 [今日情报] / [案例库]。<br/>
+    <strong style="color:#fff">⚠️ v3 调整</strong>：「案例库」segment = V2 现有 KnowledgeView 完全不动；「今日情报」segment 含<strong>系统全网官方 + 家庭官方</strong>混合消息流。
+  </p>
+
+  <!-- Tab segment 示意 -->
+  <div class="phones-grid" style="margin-bottom: 32px;">
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="title">情报案例</div><div class="right-action">⚙️</div></div>
+
+      <!-- segment 切换 -->
+      <div style="padding: 12px 16px;">
+        <div style="background: #EEF1F5; border-radius: 10px; padding: 4px; display: flex;">
+          <div style="flex: 1; background: var(--card); border-radius: 8px; padding: 8px; text-align: center; font-weight: 600; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">今日情报</div>
+          <div style="flex: 1; padding: 8px; text-align: center; color: var(--text-secondary); font-size: 14px;">案例库</div>
+        </div>
+      </div>
+
+      <div class="content" style="padding-top:0">
+        <div class="muted small" style="margin-bottom: 8px;">官方消息（系统全网 + 我家庭）按时间倒序</div>
+
+        <!-- 系统全网官方消息 -->
+        <div class="card" style="background:#FFEDED;border:1px solid #FFCBCB">
+          <div class="row" style="margin-bottom:4px">
+            <div class="tag red">紧急 · 系统</div>
+            <span class="muted small" style="margin-left:auto">2 小时前</span>
+          </div>
+          <div class="h3" style="color:var(--risk-high)">海淀区"假医保退费" 24h 新增 7 起</div>
+          <div class="body small" style="margin-top:4px">📢 StarLens 官方 · 全网推送</div>
+        </div>
+
+        <!-- 家庭官方消息（红色诈骗）-->
+        <div class="card" style="background:#FFF5F5;border:1px solid #FFD0D0">
+          <div class="row" style="margin-bottom:4px">
+            <div class="tag red">高风险</div>
+            <div class="tag gray small" style="margin-left:6px">家庭官方</div>
+            <span class="muted small" style="margin-left:auto">1 小时前</span>
+          </div>
+          <div class="h3">已识别诈骗：+86 138****0091</div>
+          <div class="body small" style="margin-top:4px;color:var(--text-secondary)">由家庭成员触发，已脱敏</div>
+        </div>
+
+        <!-- 家庭官方消息（绿色安全）-->
+        <div class="card" style="background:#F0F9F4;border:1px solid #C8E6C9">
+          <div class="row" style="margin-bottom:4px">
+            <div class="tag green">已核实</div>
+            <div class="tag gray small" style="margin-left:6px">家庭官方</div>
+            <span class="muted small" style="margin-left:auto">昨天</span>
+          </div>
+          <div class="h3">经核实：暂未发现风险</div>
+          <div class="body small" style="margin-top:4px;color:var(--text-secondary)">由家庭成员触发，已脱敏</div>
+        </div>
+
+        <!-- 家庭官方消息（黄色未知）-->
+        <div class="card" style="background:#FFF8E1;border:1px solid #FFE082">
+          <div class="row" style="margin-bottom:4px">
+            <div class="tag amber">无法确认</div>
+            <div class="tag gray small" style="margin-left:6px">家庭官方</div>
+            <span class="muted small" style="margin-left:auto">3 天前</span>
+          </div>
+          <div class="h3">暂无法确认，请谨慎对待</div>
+          <div class="body small" style="margin-top:4px;color:var(--text-secondary)">由家庭成员触发，已脱敏</div>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab"><div class="icon">💬</div>问助手</div>
+        <div class="tab active"><div class="icon">📰</div>情报案例</div>
+        <div class="tab"><div class="icon">👨‍👩‍👧</div>家庭</div>
+        <div class="tab"><div class="icon">👤</div>我的</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">B-P0</span>情报案例 Tab · segment[今日情报] · 系统+家庭官方混合流</div>
+    </div>
+
+    <!-- 案例库 segment -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="title">情报案例</div><div class="right-action">⚙️</div></div>
+
+      <div style="padding: 12px 16px;">
+        <div style="background: #EEF1F5; border-radius: 10px; padding: 4px; display: flex;">
+          <div style="flex: 1; padding: 8px; text-align: center; color: var(--text-secondary); font-size: 14px;">今日情报</div>
+          <div style="flex: 1; background: var(--card); border-radius: 8px; padding: 8px; text-align: center; font-weight: 600; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">案例库</div>
+        </div>
+      </div>
+
+      <div class="content" style="padding-top:0">
+        <div class="muted small" style="margin-bottom: 8px;">V2 现有 KnowledgeView，完全不动</div>
+
+        <!-- 案例分类 chips -->
+        <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:12px">
+          <div class="tag blue">全部</div>
+          <div class="tag gray">冒充客服</div>
+          <div class="tag gray">兼职刷单</div>
+          <div class="tag gray">投资理财</div>
+        </div>
+
+        <!-- 案例卡片 -->
+        <div class="card">
+          <div class="row" style="gap:12px">
+            <div style="width:60px;height:60px;background:linear-gradient(135deg,#FF8A00,#FF4D4F);border-radius:8px;flex-shrink:0"></div>
+            <div style="flex:1">
+              <div class="h3">冒充快递客服骗局</div>
+              <div class="muted small">2026-05-20 · 已收藏 1.2k</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="row" style="gap:12px">
+            <div style="width:60px;height:60px;background:linear-gradient(135deg,#2F6BFF,#1A237E);border-radius:8px;flex-shrink:0"></div>
+            <div style="flex:1">
+              <div class="h3">"杀猪盘"完整套路解析</div>
+              <div class="muted small">2026-05-18 · 已收藏 3.5k</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="row" style="gap:12px">
+            <div style="width:60px;height:60px;background:linear-gradient(135deg,#2ECC71,#00B894);border-radius:8px;flex-shrink:0"></div>
+            <div style="flex:1">
+              <div class="h3">如何辨别真假公检法</div>
+              <div class="muted small">2026-05-15 · 已收藏 2.1k</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab"><div class="icon">💬</div>问助手</div>
+        <div class="tab active"><div class="icon">📰</div>情报案例</div>
+        <div class="tab"><div class="icon">👨‍👩‍👧</div>家庭</div>
+        <div class="tab"><div class="icon">👤</div>我的</div>
+      </div>
+    </div></div>
+    <div class="phone-caption">情报案例 Tab · segment[案例库] · V2 KnowledgeView 不动</div>
+    </div>
+  </div>
+
+  <div class="phones-grid">
+
+    <!-- B-P2 情报详情 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">情报详情</div><div class="right-action">↗</div></div>
+      <div class="content">
+        <div class="row" style="gap:6px;margin-bottom:8px">
+          <div class="tag red">紧急</div>
+          <div class="tag gray small">冒充医保局</div>
+        </div>
+        <div class="h1" style="font-size: 22px;line-height:1.35">海淀区"假医保退费"骗局 24h 新增 7 起</div>
+        <div class="muted small" style="margin-top:6px">📍 北京海淀区 · 2 小时前 · 信息来源：海淀公安微博</div>
+
+        <!-- pattern steps -->
+        <div class="h3" style="margin: 18px 0 10px">套路三步</div>
+        <div class="card" style="padding: 14px;position:relative">
+          <div style="position:absolute;left:-8px;top:14px;width:30px;height:30px;background:var(--primary);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700">1</div>
+          <div class="body" style="margin-left:30px">骗子打电话自称"医保局"，说你<b>有一笔退费</b>未领</div>
+        </div>
+        <div class="card" style="padding: 14px;position:relative">
+          <div style="position:absolute;left:-8px;top:14px;width:30px;height:30px;background:var(--risk-medium);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700">2</div>
+          <div class="body" style="margin-left:30px">要求加微信发"工作证"和"红头文件"，让你信任</div>
+        </div>
+        <div class="card" style="padding: 14px;position:relative">
+          <div style="position:absolute;left:-8px;top:14px;width:30px;height:30px;background:var(--risk-high);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700">3</div>
+          <div class="body" style="margin-left:30px">让你下载某 App 输入银行卡 + 密码 + 短信验证码"领取退费"，实际是转走</div>
+        </div>
+
+        <!-- screenshot -->
+        <div class="h3" style="margin: 18px 0 8px">真实截图（脱敏）</div>
+        <div style="background:#1F2D3D;color:#fff;border-radius:12px;padding: 14px;font-size:13px;line-height:1.6">
+          📱 微信聊天<br/>
+          <span style="color:#FF8888">[假客服]</span>：你好，我是海淀医保局王经理，您有 1280 元退费未领取<br/>
+          <span style="color:#FF8888">[假客服]</span>：[图片] [图片] 这是我的工作证<br/>
+          <span style="color:#88FF88">[受害者]</span>：怎么领？<br/>
+          <span style="color:#FF8888">[假客服]</span>：请下载"医保 e 通"，输入银行卡领取
+        </div>
+
+        <!-- action -->
+        <div class="h3" style="margin: 18px 0 8px">如果你遇到了</div>
+        <div class="card" style="background:#E8F5E9">
+          <ul style="margin: 0;padding-left:20px;font-size:14px;line-height:1.9;color:var(--text-primary)">
+            <li>真医保局<b>从不电话主动退费</b></li>
+            <li>不要加陌生人微信，不要下载来源不明 App</li>
+            <li>有疑问拨打 12333 国家医保局热线核实</li>
+          </ul>
+        </div>
+
+        <!-- social proof -->
+        <div class="card" style="margin-top:12px;background:#F2F6FB">
+          <div class="body">📊 同区 12 人也遇到过 · 8 人成功识别 · 3 人受骗 ¥48,000</div>
+        </div>
+
+        <!-- bottom CTA -->
+        <button class="btn" style="width:100%;margin-top:14px">😱 我也遇到过这种骗局</button>
+        <button class="btn outline" style="width:100%;margin-top:8px">📤 分享给家人</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">B-P2</span>情报详情 · 套路三步 + 截图 + 应对</div>
+    </div>
+
+    <!-- B-P3 我也遇到过上报 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">我也遇到过</div></div>
+      <div class="content">
+        <div class="muted small" style="margin-bottom:12px">告诉我们你遇到的情况，帮助其他人提前防范。</div>
+
+        <div class="h3" style="margin-bottom:8px">遇到的骗局类型</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:18px">
+          <div class="tag blue">冒充医保</div>
+          <div class="tag gray">冒充公检法</div>
+          <div class="tag gray">快递诈骗</div>
+          <div class="tag gray">兼职刷单</div>
+          <div class="tag gray">＋ 其他</div>
+        </div>
+
+        <div class="h3" style="margin-bottom:8px">详细描述（选填）</div>
+        <div class="card" style="padding:14px;min-height:120px">
+          <div style="color:#bbb;font-size:14px">例如：对方说自己是医保局王经理，要求加微信...</div>
+        </div>
+
+        <div class="h3" style="margin: 16px 0 8px">上传截图（最多 3 张）</div>
+        <div class="row" style="gap:8px">
+          <div style="width:80px;height:80px;background:#fff;border:2px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:24px">＋</div>
+          <div style="width:80px;height:80px;background:#fff;border:2px dashed var(--border);border-radius:8px;"></div>
+          <div style="width:80px;height:80px;background:#fff;border:2px dashed var(--border);border-radius:8px;"></div>
+        </div>
+
+        <div class="card" style="margin-top: 18px;background: #FFF8E1">
+          <div class="small" style="color:#8B6900">⚠️ 我们会脱敏后再公开（去掉你的姓名/手机号等敏感信息）。</div>
+        </div>
+
+        <button class="btn large" style="width:100%;margin-top:16px">提交</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">B-P3</span>用户上报情报</div>
+    </div>
+
+    <!-- B-P4 偏好设置 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">情报偏好</div></div>
+      <div class="content">
+
+        <div class="h3" style="margin-bottom:8px">你关心的骗局类型（多选）</div>
+        <div class="card" style="padding:0">
+          <div style="padding:14px;border-bottom:1px solid var(--border)" class="row between">
+            <span class="body">老年人骗局</span><div class="tag blue">✓</div>
+          </div>
+          <div style="padding:14px;border-bottom:1px solid var(--border)" class="row between">
+            <span class="body">学生兼职刷单</span><div class="tag gray">＋</div>
+          </div>
+          <div style="padding:14px;border-bottom:1px solid var(--border)" class="row between">
+            <span class="body">财务/HR 风险</span><div class="tag gray">＋</div>
+          </div>
+          <div style="padding:14px;border-bottom:1px solid var(--border)" class="row between">
+            <span class="body">虚拟币 / 投资</span><div class="tag blue">✓</div>
+          </div>
+          <div style="padding:14px" class="row between">
+            <span class="body">网络购物</span><div class="tag gray">＋</div>
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 20px 0 8px">推送频次</div>
+        <div class="card" style="padding:0">
+          <div style="padding:14px;border-bottom:1px solid var(--border)" class="row between">
+            <div>
+              <div class="body">每天最多 1 条</div>
+              <div class="muted small">仅推送本地最重要的</div>
+            </div>
+            <div class="tag gray">○</div>
+          </div>
+          <div style="padding:14px;border-bottom:1px solid var(--border);background:#F2F6FB" class="row between">
+            <div>
+              <div class="body" style="color:var(--primary)">每天最多 3 条（推荐）</div>
+              <div class="muted small">紧急情报除外</div>
+            </div>
+            <div class="tag blue">✓</div>
+          </div>
+          <div style="padding:14px" class="row between">
+            <div>
+              <div class="body">关闭推送</div>
+              <div class="muted small">仅在 App 内查看</div>
+            </div>
+            <div class="tag gray">○</div>
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 20px 0 8px">推送时间</div>
+        <div class="card">
+          <div class="row between">
+            <span class="body">每天上午</span>
+            <span style="font-weight:600;color:var(--primary)">9:00</span>
+          </div>
+        </div>
+
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">B-P4</span>偏好设置 · 类型 + 频次 + 时间</div>
+    </div>
+
+    <!-- B-P5 新用户引导 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="content" style="padding: 24px 18px">
+        <div style="text-align:center;margin-bottom:24px">
+          <div style="font-size: 56px">🛡</div>
+          <div class="h1" style="margin-top: 12px">为你定制反诈情报</div>
+          <div class="muted" style="margin-top:4px">选择你最关心的，每天我们帮你盯</div>
+        </div>
+
+        <div class="h3" style="margin-bottom:8px">你属于哪类用户？</div>
+        <div class="card" style="margin-bottom:10px;border:2px solid var(--primary)">
+          <div class="row">
+            <div style="font-size:28px">👴</div>
+            <div style="flex:1;margin-left:8px">
+              <div class="h3">家有老人</div>
+              <div class="muted small">关注医保 / 公检法 / 假慈善</div>
+            </div>
+            <div class="tag blue">✓</div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:10px">
+          <div class="row">
+            <div style="font-size:28px">🎓</div>
+            <div style="flex:1;margin-left:8px">
+              <div class="h3">学生 / 应届</div>
+              <div class="muted small">关注兼职 / 培训 / 助学贷款</div>
+            </div>
+            <div class="tag gray">＋</div>
+          </div>
+        </div>
+        <div class="card" style="margin-bottom:10px">
+          <div class="row">
+            <div style="font-size:28px">💼</div>
+            <div style="flex:1;margin-left:8px">
+              <div class="h3">财务 / HR</div>
+              <div class="muted small">关注冒充领导 / 假发票</div>
+            </div>
+            <div class="tag gray">＋</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="row">
+            <div style="font-size:28px">🛒</div>
+            <div style="flex:1;margin-left:8px">
+              <div class="h3">网购达人</div>
+              <div class="muted small">关注假客服 / 快递诈骗</div>
+            </div>
+            <div class="tag gray">＋</div>
+          </div>
+        </div>
+
+        <button class="btn large" style="width:100%;margin-top:20px">下一步 · 授权位置</button>
+        <button class="btn outline" style="width:100%;margin-top:8px">跳过</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">B-P5</span>新用户引导 · 选关注类型</div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================ MODULE A1 -->
+<section class="module" id="module-a1">
+  <h2>A1. 语音深伪检测 <span class="badge">海外主推</span><span class="badge" style="background:#1A237E">AI 辅助判断</span></h2>
+  <p class="desc">
+    8 个页面 — <strong>入口路径示意</strong> + 检测入口 + 录制 + 分析中 + 结果（红黄绿）+ 历史 + 详情 + Share Extension。<br/>
+    <strong style="color:#fff">⚠️ 文案修订</strong>：所有营销定位为「AI 辅助判断」，<strong>不承诺 100% 准确</strong>。
+    高风险时强调"请通过视频通话或当面核实对方身份"。
+    A2 视频 Deepfake 与 A3 声纹比对推迟到二期。
+  </p>
+
+  <!-- A1 入口路径概览 -->
+  <div style="background: #1a1d22; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+    <div style="color: #fff; font-weight: 600; font-size: 14px; margin-bottom: 12px;">🎯 A1 语音深伪入口路径（4 个）</div>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; color: #aaa; font-size: 12px;">
+      <div style="background: #2a2d35; border-radius: 8px; padding: 12px; border-left: 3px solid #2F6BFF;">
+        <div style="color: #fff; font-weight: 600; margin-bottom: 4px;">① 首页 ➕ 菜单</div>
+        <div style="line-height: 1.5;">底部输入栏 ➕ → 菜单中选"语音深伪检测"</div>
+      </div>
+      <div style="background: #2a2d35; border-radius: 8px; padding: 8px; border-left: 3px solid #FF4D4F;">
+        <div style="color: #fff; font-weight: 600; margin-bottom: 4px;">② Share Extension</div>
+        <div style="line-height: 1.5;">微信/WhatsApp 长按对方语音 → 分享到 StarLens</div>
+      </div>
+      <div style="background: #2a2d35; border-radius: 8px; padding: 8px; border-left: 3px solid #F5A623;">
+        <div style="color: #fff; font-weight: 600; margin-bottom: 4px;">③ 长辈模式按钮</div>
+        <div style="line-height: 1.5;">长辈模式首页"录音上传"按钮直达 A1</div>
+      </div>
+      <div style="background: #2a2d35; border-radius: 8px; padding: 8px; border-left: 3px solid #2ECC71;">
+        <div style="color: #fff; font-weight: 600; margin-bottom: 4px;">④ A1 主页（独立 Tab）</div>
+        <div style="line-height: 1.5;">"我的 → 工具 → 语音深伪"独立入口</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="phones-grid">
+
+    <!-- A1-PATH 加号菜单显示 A1 入口 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar">
+        <div style="color:var(--primary);font-size:20px">☰</div>
+        <div class="title">星识安全助手</div>
+        <div class="right-action">✏️</div>
+      </div>
+      <div class="content">
+        <!-- 主对话内容（简化） -->
+        <div style="text-align: center; padding: 40px 0;">
+          <div class="muted small">空对话状态...</div>
+        </div>
+      </div>
+
+      <!-- 半透明遮罩 -->
+      <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 220px; background: rgba(0,0,0,0.3);"></div>
+
+      <!-- 加号菜单弹出 -->
+      <div style="position: absolute; bottom: 78px; left: 0; right: 0; background: var(--card); border-radius: 20px 20px 0 0; padding: 16px; box-shadow: 0 -4px 24px rgba(0,0,0,0.1);">
+        <div style="width: 36px; height: 4px; background: #ddd; border-radius: 2px; margin: 0 auto 14px;"></div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="card" style="padding: 16px 10px; text-align: center; margin: 0;">
+            <div style="font-size: 28px; color: var(--primary);">📷</div>
+            <div class="body" style="margin-top: 6px;">相机</div>
+          </div>
+          <div class="card" style="padding: 16px 10px; text-align: center; margin: 0;">
+            <div style="font-size: 28px; color: var(--primary);">🖼</div>
+            <div class="body" style="margin-top: 6px;">相册</div>
+          </div>
+          <div class="card" style="padding: 16px 10px; text-align: center; margin: 0; border: 2px solid var(--primary); background: var(--premium-bg);">
+            <div style="font-size: 28px;">🎙</div>
+            <div class="body" style="margin-top: 6px; color: var(--primary-dark);">语音深伪检测</div>
+            <div class="tag amber small" style="margin-top: 4px;">NEW</div>
+          </div>
+          <div class="card" style="padding: 16px 10px; text-align: center; margin: 0;">
+            <div style="font-size: 28px;">📤</div>
+            <div class="body" style="margin-top: 6px;">分享到家庭</div>
+          </div>
+        </div>
+
+        <div class="muted small" style="text-align: center; margin-top: 12px;">最近照片</div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active"><div class="icon">💬</div>问助手</div>
+        <div class="tab"><div class="icon">📰</div>情报案例</div>
+        <div class="tab"><div class="icon">👨‍👩‍👧</div>家庭</div>
+        <div class="tab"><div class="icon">👤</div>我的</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">A1-PATH</span>从首页 ➕ 菜单进入 A1 · 与"分享到家庭"并列</div>
+    </div>
+
+    <!-- A1-P1 入口页 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">语音深伪检测</div><div class="right-action">···</div></div>
+      <div class="content">
+        <div class="card" style="background:linear-gradient(135deg,#2F6BFF,#1A237E);color:#fff;padding: 20px">
+          <div style="font-size:13px;opacity:0.9">2026 最大诈骗类型</div>
+          <div style="font-size:20px;font-weight:700;margin-top:4px">AI 语音克隆诈骗 ↑ 1,600%</div>
+          <div style="font-size:13px;opacity:0.92;margin-top: 6px;line-height:1.6">仅需 3 秒音频即可生成 85% 相似度声音克隆。AI 辅助你判断可疑录音。</div>
+          <div style="margin-top: 10px; padding: 8px 10px; background: rgba(255,255,255,0.15); border-radius: 8px; font-size: 12px; line-height: 1.5;">
+            💡 <strong>AI 仅辅助判断</strong>，重要事务请通过视频通话或当面再次核实。
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 18px 0 8px">三种检测方式</div>
+        <div class="card" style="padding: 18px;border: 2px solid var(--primary)">
+          <div class="row">
+            <div style="font-size:32px">🎙</div>
+            <div style="flex:1;margin-left:8px">
+              <div class="h3">现场录音</div>
+              <div class="muted small">通话中 → 打开录音 → 录 10-60 秒</div>
+            </div>
+            <div style="color:var(--primary)">›</div>
+          </div>
+        </div>
+        <div class="card" style="padding: 18px;margin-top: 10px">
+          <div class="row">
+            <div style="font-size:32px">📂</div>
+            <div style="flex:1;margin-left:8px">
+              <div class="h3">上传音频文件</div>
+              <div class="muted small">支持 mp3 / wav / m4a / aac，最长 60s</div>
+            </div>
+            <div style="color:var(--primary)">›</div>
+          </div>
+        </div>
+        <div class="card" style="padding: 18px;margin-top: 10px">
+          <div class="row">
+            <div style="font-size:32px">📨</div>
+            <div style="flex:1;margin-left:8px">
+              <div class="h3">从微信 / WhatsApp 分享</div>
+              <div class="muted small">长按对方语音 → 分享 → StarLens</div>
+            </div>
+            <div style="color:var(--primary)">›</div>
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 20px 0 8px">最近检测（3）</div>
+        <div class="card" style="padding:0">
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border)" class="row between">
+            <div>
+              <div class="body">来自"妈妈"的语音 · 18s</div>
+              <div class="muted small">10 分钟前</div>
+            </div>
+            <div class="tag red">87% AI</div>
+          </div>
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border)" class="row between">
+            <div>
+              <div class="body">现场录音 · 32s</div>
+              <div class="muted small">昨天</div>
+            </div>
+            <div class="tag amber">42% 可疑</div>
+          </div>
+          <div style="padding:12px 14px" class="row between">
+            <div>
+              <div class="body">通话录音 · 45s</div>
+              <div class="muted small">2 天前</div>
+            </div>
+            <div class="tag green">8% 真人</div>
+          </div>
+        </div>
+
+        <div class="muted small" style="text-align:center;margin-top:14px">本月免费额度 1 / 3</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">A1-P1</span>检测入口 · 3 种方式 + 历史</div>
+    </div>
+
+    <!-- A1-P2 录音中 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">现场录音</div></div>
+      <div class="content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding-bottom:120px">
+
+        <div style="margin: 32px 0 16px;text-align:center">
+          <div style="font-size: 56px;font-weight:800;font-family:ui-monospace,monospace;color:var(--primary)">0:18</div>
+          <div class="muted small" style="margin-top:4px">建议录制 ≥ 10 秒</div>
+        </div>
+
+        <!-- waveform -->
+        <div class="wave" style="width:80%">
+          <div class="bar" style="height: 12px"></div>
+          <div class="bar" style="height: 30px"></div>
+          <div class="bar" style="height: 22px"></div>
+          <div class="bar" style="height: 48px"></div>
+          <div class="bar" style="height: 38px"></div>
+          <div class="bar" style="height: 60px"></div>
+          <div class="bar" style="height: 28px"></div>
+          <div class="bar" style="height: 70px"></div>
+          <div class="bar" style="height: 52px"></div>
+          <div class="bar" style="height: 36px"></div>
+          <div class="bar" style="height: 64px"></div>
+          <div class="bar" style="height: 24px"></div>
+          <div class="bar" style="height: 48px"></div>
+          <div class="bar" style="height: 18px"></div>
+          <div class="bar" style="height: 40px"></div>
+          <div class="bar" style="height: 56px"></div>
+          <div class="bar" style="height: 24px"></div>
+          <div class="bar" style="height: 32px"></div>
+          <div class="bar" style="height: 12px"></div>
+          <div class="bar" style="height: 26px"></div>
+        </div>
+
+        <div class="muted small" style="margin: 16px 0">最长 60s 自动停止</div>
+
+        <div class="row" style="gap: 24px;margin-top: 24px">
+          <div style="width:64px;height:64px;border-radius:50%;background:var(--card);box-shadow: 0 4px 16px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center;font-size:24px">⏸</div>
+          <div style="width:88px;height:88px;border-radius:50%;background:var(--risk-high);color:#fff;display:flex;align-items:center;justify-content:center;font-size:32px;box-shadow:0 8px 32px rgba(255,77,79,0.4)">⏹</div>
+          <div style="width:64px;height:64px;border-radius:50%;background:var(--card);box-shadow: 0 4px 16px rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center;font-size:24px">↺</div>
+        </div>
+
+        <div class="muted small" style="margin-top: 24px;text-align:center">⚠️ 请尽量录制对方独立说话的片段，避免太多杂音。</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">A1-P2</span>现场录音 · 实时波形 + 倒计时</div>
+    </div>
+
+    <!-- A1-P3 分析中 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="title">分析中</div></div>
+      <div class="content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding-bottom:200px">
+        <div style="position: relative;width:150px;height:150px;margin: 32px 0">
+          <div style="position:absolute;inset:0;border:6px solid #E8EEF8;border-radius:50%;"></div>
+          <div style="position:absolute;inset:0;border:6px solid transparent;border-top-color:var(--primary);border-radius:50%;animation:spin 1.2s linear infinite"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:36px">🎙</div>
+        </div>
+
+        <div class="h2">AI 正在分析声音特征</div>
+        <div class="muted" style="margin-top: 8px;text-align:center;padding: 0 24px">
+          检查呼吸节奏、音色细节、背景噪音模式、频谱断层等指标
+        </div>
+
+        <div style="margin-top: 24px;width:80%">
+          <div class="row between" style="margin-bottom: 8px;font-size:13px">
+            <span>音频预处理</span><span style="color:var(--risk-low)">✓ 已完成</span>
+          </div>
+          <div class="row between" style="margin-bottom: 8px;font-size:13px">
+            <span>频谱分析</span><span style="color:var(--risk-low)">✓ 已完成</span>
+          </div>
+          <div class="row between" style="margin-bottom: 8px;font-size:13px">
+            <span>AI 合成检测</span><span style="color:var(--primary)">● 进行中</span>
+          </div>
+          <div class="row between" style="margin-bottom: 8px;font-size:13px;color:var(--text-secondary)">
+            <span>结果汇总</span><span>○ 等待</span>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">A1-P3</span>分析中 · 4 阶段渐进文案</div>
+    </div>
+
+    <!-- A1-P4 检测结果 高风险 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">检测结果</div><div class="right-action">↗</div></div>
+      <div class="content">
+
+        <!-- gauge -->
+        <div style="text-align:center;padding: 16px 0">
+          <div class="gauge">
+            <div class="gauge-inner">
+              <div class="pct">87%</div>
+              <div class="label">AI 合成概率</div>
+            </div>
+          </div>
+          <div class="h1" style="color:var(--risk-high);margin-top: 16px">高度怀疑 AI 合成</div>
+          <div class="muted" style="margin-top:4px">请通过其他渠道核实对方身份</div>
+        </div>
+
+        <!-- features -->
+        <div class="h3" style="margin: 18px 0 8px">检测到的可疑特征</div>
+        <div class="card" style="padding:0">
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+            <div class="row" style="margin-bottom:2px">
+              <span style="color:var(--risk-high)">●</span>
+              <span class="body" style="margin-left:8px;flex:1">呼吸节奏不自然</span>
+              <span class="muted small">显著</span>
+            </div>
+            <div class="muted small">真人说话时换气有规律，AI 合成往往缺乏这种自然停顿</div>
+          </div>
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+            <div class="row" style="margin-bottom:2px">
+              <span style="color:var(--risk-high)">●</span>
+              <span class="body" style="margin-left:8px;flex:1">音色细节缺失</span>
+              <span class="muted small">显著</span>
+            </div>
+            <div class="muted small">高频段缺少应有的细节，类似压缩痕迹</div>
+          </div>
+          <div style="padding:12px 14px">
+            <div class="row" style="margin-bottom:2px">
+              <span style="color:var(--risk-medium)">●</span>
+              <span class="body" style="margin-left:8px;flex:1">情感波动不连续</span>
+              <span class="muted small">中等</span>
+            </div>
+            <div class="muted small">在表达情绪转折时音调跨度异常生硬</div>
+          </div>
+        </div>
+
+        <!-- recommendation -->
+        <div class="card" style="margin-top: 14px;background:#FFF1F1;border:1px solid #FFD0D0">
+          <div class="h3" style="color:var(--risk-high)">⚠️ 强烈建议</div>
+          <ul style="padding-left:20px;margin: 8px 0 0;font-size:14px;line-height:1.8">
+            <li>通过<b>视频通话或当面</b>确认对方身份</li>
+            <li><b>不要</b>按对方指引转账</li>
+            <li><b>不要</b>泄露任何验证码、密码、身份证号</li>
+            <li>如已转账 → 立刻拨打 96110</li>
+          </ul>
+        </div>
+
+        <div class="row" style="gap:8px;margin-top:14px">
+          <button class="btn outline" style="flex:1">回放</button>
+          <button class="btn outline" style="flex:1">📤 分享家人</button>
+        </div>
+        <button class="btn" style="width:100%;margin-top:8px">👨‍👩‍👧 立刻通知家庭</button>
+
+        <div class="muted small" style="text-align:center;margin-top:14px">这个判断准吗？👍 / 👎</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">A1-P4</span>检测结果 · 高风险（红色圆环 + 特征 + 建议）</div>
+    </div>
+
+    <!-- A1-P5 检测历史 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">检测历史</div><div class="right-action">筛选</div></div>
+      <div class="content">
+
+        <div class="row" style="gap:6px;margin-bottom:12px">
+          <div class="tag blue">全部</div>
+          <div class="tag gray">高风险</div>
+          <div class="tag gray">可疑</div>
+          <div class="tag gray">真人</div>
+        </div>
+
+        <div class="h3" style="margin-bottom:8px">今天</div>
+        <div class="card" style="padding:0">
+          <div style="padding:14px" class="row">
+            <div style="width:40px;height:40px;background:#FFE8E8;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px">🚨</div>
+            <div style="flex:1;margin-left:10px">
+              <div class="h3">"妈妈" 哭着求救</div>
+              <div class="muted small">现场录音 · 18s · 10 分钟前</div>
+            </div>
+            <div class="tag red">87%</div>
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 16px 0 8px">昨天</div>
+        <div class="card" style="padding:0">
+          <div style="padding:14px;border-bottom:1px solid var(--border)" class="row">
+            <div style="width:40px;height:40px;background:#FFF7E0;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px">⚠️</div>
+            <div style="flex:1;margin-left:10px">
+              <div class="h3">陌生人语音消息</div>
+              <div class="muted small">微信分享 · 22s</div>
+            </div>
+            <div class="tag amber">42%</div>
+          </div>
+          <div style="padding:14px" class="row">
+            <div style="width:40px;height:40px;background:#E8F8EE;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px">✅</div>
+            <div style="flex:1;margin-left:10px">
+              <div class="h3">王同事电话录音</div>
+              <div class="muted small">现场录音 · 45s</div>
+            </div>
+            <div class="tag green">8%</div>
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 16px 0 8px">上周</div>
+        <div class="card" style="padding:0">
+          <div style="padding:14px" class="row">
+            <div style="width:40px;height:40px;background:#E8F8EE;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px">✅</div>
+            <div style="flex:1;margin-left:10px">
+              <div class="h3">客户语音留言</div>
+              <div class="muted small">文件上传 · 30s</div>
+            </div>
+            <div class="tag green">12%</div>
+          </div>
+        </div>
+
+        <div class="muted small" style="text-align:center;margin-top:16px">Pro 保留 30 天 · 免费 7 天</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">A1-P5</span>检测历史 · 按时间分组</div>
+    </div>
+
+    <!-- A1-P6 检测详情（同 P4 内嵌音频回放） -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">检测详情</div><div class="right-action">删除</div></div>
+      <div class="content">
+
+        <!-- audio player -->
+        <div class="card" style="background:#1F2D3D;color:#fff;padding: 18px">
+          <div class="row between" style="margin-bottom:10px">
+            <div>
+              <div style="font-size:14px;font-weight:600">"妈妈" 哭着求救</div>
+              <div style="font-size:11px;opacity:0.7;margin-top:2px">现场录音 · 2026-05-26 14:08</div>
+            </div>
+            <div style="width:48px;height:48px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px">▶</div>
+          </div>
+          <div style="height:4px;background:rgba(255,255,255,0.2);border-radius:2px;overflow:hidden">
+            <div style="width:40%;height:100%;background:var(--primary)"></div>
+          </div>
+          <div class="row between" style="font-size:11px;opacity:0.7;margin-top:6px">
+            <span>0:07</span><span>0:18</span>
+          </div>
+        </div>
+
+        <!-- result (same as P4 shortened) -->
+        <div style="text-align:center;padding: 16px 0">
+          <div class="gauge" style="width: 130px;height:130px;background: conic-gradient(var(--risk-high) 0% 87%, #F5F7FA 87% 100%)">
+            <div class="gauge-inner" style="width:100px;height:100px">
+              <div class="pct" style="font-size:24px">87%</div>
+              <div class="label" style="font-size:10px">AI 合成</div>
+            </div>
+          </div>
+          <div class="h2" style="color:var(--risk-high);margin-top: 8px">高度怀疑</div>
+        </div>
+
+        <div class="h3" style="margin: 14px 0 8px">检测维度</div>
+        <div class="card" style="padding:0">
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border);" class="row between">
+            <span class="body">呼吸节奏</span><div class="tag red">异常</div>
+          </div>
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border);" class="row between">
+            <span class="body">音色细节</span><div class="tag red">异常</div>
+          </div>
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border);" class="row between">
+            <span class="body">情感波动</span><div class="tag amber">可疑</div>
+          </div>
+          <div style="padding:12px 14px;" class="row between">
+            <span class="body">背景噪音</span><div class="tag green">正常</div>
+          </div>
+        </div>
+
+        <button class="btn outline" style="width:100%;margin-top:14px">📤 分享检测结果</button>
+        <button class="btn outline" style="width:100%;margin-top:8px;color:var(--text-secondary)">这个判断不准（反馈）</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">A1-P6</span>检测详情 · 含音频回放</div>
+    </div>
+
+    <!-- A1-P7 Share Extension -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <!-- mimic share sheet -->
+      <div style="flex:1;background:#000;opacity:0.4;"></div>
+      <div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:20px 20px 0 0;padding: 16px;color: var(--text-primary)">
+        <div style="width:36px;height:4px;background:#ddd;border-radius:2px;margin:0 auto 14px"></div>
+        <div class="row" style="margin-bottom: 14px">
+          <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#2F6BFF,#1A237E);display:flex;align-items:center;justify-content:center;font-size:24px;color:#fff">🛡</div>
+          <div style="margin-left:10px;flex:1">
+            <div class="h3">StarLens AI · 语音深伪检测</div>
+            <div class="muted small">已收到 voice_message.m4a (18s)</div>
+          </div>
+        </div>
+
+        <div class="card" style="background:#F2F6FB">
+          <div class="body" style="margin-bottom:8px">🎙 即将分析这段语音</div>
+          <div class="muted small">文件将在分析完成后 24h 自动从服务器删除</div>
+        </div>
+
+        <button class="btn large" style="width:100%;margin-top:14px">开始检测</button>
+        <button class="btn outline" style="width:100%;margin-top:8px">取消</button>
+        <div class="muted small" style="text-align:center;margin-top:10px;padding-bottom:10px">分析完成后会在主 App 通知你</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">A1-P7</span>Share Extension · 微信/WhatsApp 长按分享调起</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ MODULE F -->
+<section class="module" id="module-f">
+  <h2>F. 暗网/泄露监控 <span class="badge">海外主推</span><span class="badge" style="background:#1A237E">仅海外</span></h2>
+  <p class="desc">
+    5 个页面 — 监控首页 / 添加目标 / 目标详情 / 告警详情 / 引导付费。<br/>
+    <strong style="color:#fff">⚠️ v3 修订</strong>：仅海外可用（HIBP API 覆盖范围）；国内用户在「我的」Tab 看不到此入口；信用卡/SSN 监控推到二期。
+  </p>
+
+  <!-- F 入口路径概览 -->
+  <div style="background: #1a1d22; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+    <div style="color: #fff; font-weight: 600; font-size: 14px; margin-bottom: 12px;">🎯 F 暗网监控入口（仅海外用户可见）</div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; color: #aaa; font-size: 12px;">
+      <div style="background: #2a2d35; border-radius: 8px; padding: 12px; border-left: 3px solid #2F6BFF;">
+        <div style="color: #fff; font-weight: 600; margin-bottom: 4px;">① 我的 Tab</div>
+        <div style="line-height: 1.5;">「我的 → Dark Web Monitor」菜单项进入</div>
+      </div>
+      <div style="background: #2a2d35; border-radius: 8px; padding: 12px; border-left: 3px solid #FF4D4F;">
+        <div style="color: #fff; font-weight: 600; margin-bottom: 4px;">② 告警推送</div>
+        <div style="line-height: 1.5;">命中泄露立即 push → 点击直达告警详情</div>
+      </div>
+      <div style="background: #2a2d35; border-radius: 8px; padding: 12px; border-left: 3px solid #2ECC71;">
+        <div style="color: #fff; font-weight: 600; margin-bottom: 4px;">③ Premium 引导</div>
+        <div style="line-height: 1.5;">订阅页"暗网监控"权益点击展开</div>
+      </div>
+    </div>
+    <div style="margin-top: 12px; padding: 10px; background: rgba(245,166,35,0.1); border-left: 3px solid #F5A623; border-radius: 6px; color: #ffd99a; font-size: 12px;">
+      ⚠️ 国内用户的"我的"Tab <strong>看不到此入口</strong>（按用户 region 字段隐藏）
+    </div>
+  </div>
+
+  <div class="phones-grid">
+
+    <!-- F-P1 暗网监控首页 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="title">Dark Web Monitor</div><div class="right-action">＋</div></div>
+      <div class="content">
+
+        <!-- status banner -->
+        <div class="card" style="background:linear-gradient(135deg,#FF8A00,#FF4D4F);color:#fff;padding: 20px">
+          <div class="row between" style="margin-bottom: 6px">
+            <div>
+              <div style="font-size:13px;opacity:0.9">2 NEW ALERTS</div>
+              <div style="font-size:22px;font-weight:700;margin-top:2px">Your data is at risk</div>
+            </div>
+            <div style="font-size: 36px">⚠️</div>
+          </div>
+          <div style="font-size:13px;opacity:0.92;margin-top: 4px">Last scan: just now · Next scan in 23h</div>
+        </div>
+
+        <div class="h3" style="margin: 18px 0 8px">Recent Alerts (2)</div>
+
+        <div class="card" style="border-left:4px solid var(--risk-high)">
+          <div class="row" style="margin-bottom:6px">
+            <div class="tag red">HIGH</div>
+            <span class="muted small" style="margin-left:auto">2h ago</span>
+          </div>
+          <div class="h3">Twitter 2022 Breach</div>
+          <div class="muted small" style="margin-top:4px">Your email <code>s***@gmail.com</code> + hashed password found</div>
+          <div class="row" style="gap:8px;margin-top:10px">
+            <button class="btn" style="flex:1;padding:8px;font-size:13px">Fix Now</button>
+            <button class="btn outline" style="flex:1;padding:8px;font-size:13px">Details</button>
+          </div>
+        </div>
+
+        <div class="card" style="border-left:4px solid var(--risk-medium)">
+          <div class="row" style="margin-bottom:6px">
+            <div class="tag amber">MED</div>
+            <span class="muted small" style="margin-left:auto">3 days ago</span>
+          </div>
+          <div class="h3">LinkedIn 2021 Data Scrape</div>
+          <div class="muted small" style="margin-top:4px">Your email + name + phone number exposed</div>
+        </div>
+
+        <div class="h3" style="margin: 18px 0 8px">Monitoring (2 / 5)</div>
+        <div class="card" style="padding:0">
+          <div style="padding:14px;border-bottom:1px solid var(--border)" class="row between">
+            <div>
+              <div class="body">sarah@gmail.com</div>
+              <div class="muted small">Email · Verified · 3 breaches found</div>
+            </div>
+            <div class="tag red">●</div>
+          </div>
+          <div style="padding:14px" class="row between">
+            <div>
+              <div class="body">sarah.smith@work.com</div>
+              <div class="muted small">Email · Verified · No breaches</div>
+            </div>
+            <div class="tag green">●</div>
+          </div>
+        </div>
+
+        <button class="btn outline" style="width:100%;margin-top:12px">＋ Add another target (3 left)</button>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><div class="icon">🏠</div>Home</div>
+        <div class="tab"><div class="icon">📰</div>Intel</div>
+        <div class="tab active"><div class="icon">🕵️</div>Monitor</div>
+        <div class="tab"><div class="icon">👤</div>Me</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">F-P1</span>Dark Web Monitor 首页</div>
+    </div>
+
+    <!-- F-P2 添加监控目标 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">Add Monitoring Target</div></div>
+      <div class="content">
+
+        <div class="muted small" style="margin-bottom:12px">We'll scan known breach databases daily and notify you if your data appears.</div>
+
+        <div class="h3" style="margin-bottom:8px">Type</div>
+        <div class="card" style="padding:0">
+          <div style="padding:14px;border-bottom:1px solid var(--border);background:#F2F6FB" class="row">
+            <div style="font-size:22px">📧</div>
+            <div style="flex:1;margin-left:10px">
+              <div class="body">Email Address</div>
+              <div class="muted small">Most common target</div>
+            </div>
+            <div class="tag blue">✓</div>
+          </div>
+          <div style="padding:14px;border-bottom:1px solid var(--border);opacity:0.5" class="row">
+            <div style="font-size:22px">📱</div>
+            <div style="flex:1;margin-left:10px">
+              <div class="body">Phone Number <span class="tag gray" style="margin-left:6px">Phase 2</span></div>
+              <div class="muted small">Coming in V3 phase 2</div>
+            </div>
+          </div>
+          <div style="padding:14px;opacity:0.5" class="row">
+            <div style="font-size:22px">💳</div>
+            <div style="flex:1;margin-left:10px">
+              <div class="body">Credit Card <span class="tag gray" style="margin-left:6px">Phase 2</span></div>
+              <div class="muted small">Coming in V3 phase 2</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 18px 0 8px">Email Address</div>
+        <div class="card" style="padding:14px 16px">
+          <input style="border:none;outline:none;width:100%;font-size:16px;background:transparent;color:var(--text-primary)" placeholder="you@example.com" value="sarah@gmail.com" />
+        </div>
+        <div class="muted small" style="margin-top:8px">📨 We'll send a verification email to confirm ownership.</div>
+
+        <button class="btn large" style="width:100%;margin-top:20px">Send verification email</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">F-P2</span>添加监控目标 · 含 PRO/ELITE 升级提示</div>
+    </div>
+
+    <!-- F-P3 目标详情 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">Target Detail</div><div class="right-action">···</div></div>
+      <div class="content">
+
+        <div class="card">
+          <div class="row">
+            <div style="width:48px;height:48px;background:#FFE8E8;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px">📧</div>
+            <div style="flex:1;margin-left:12px">
+              <div class="h2">sarah@gmail.com</div>
+              <div class="muted small">Email · Added 2026-01-15 · Verified ✓</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div class="row between">
+            <div class="muted small">Last scan</div>
+            <div class="small">2026-05-26 03:00 UTC</div>
+          </div>
+          <div class="row between" style="margin-top:6px">
+            <div class="muted small">Total breaches found</div>
+            <div class="small" style="color:var(--risk-high);font-weight:600">3</div>
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 18px 0 8px">Breach History (3)</div>
+
+        <div class="card" style="border-left: 4px solid var(--risk-high)">
+          <div class="row between" style="margin-bottom:4px">
+            <div class="h3">Twitter</div>
+            <div class="tag red">HIGH</div>
+          </div>
+          <div class="muted small">2022 · email + hashed password</div>
+          <div class="small" style="color:var(--primary);margin-top:6px">View details ›</div>
+        </div>
+
+        <div class="card" style="border-left: 4px solid var(--risk-medium)">
+          <div class="row between" style="margin-bottom:4px">
+            <div class="h3">LinkedIn</div>
+            <div class="tag amber">MED</div>
+          </div>
+          <div class="muted small">2021 · email + name + phone</div>
+        </div>
+
+        <div class="card" style="border-left: 4px solid var(--risk-medium)">
+          <div class="row between" style="margin-bottom:4px">
+            <div class="h3">Adobe</div>
+            <div class="tag amber">MED</div>
+          </div>
+          <div class="muted small">2019 · email + encrypted password</div>
+        </div>
+
+        <button class="btn outline" style="width:100%;margin-top:14px;color:var(--risk-high)">Remove this target</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">F-P3</span>监控目标详情 · 历史泄露列表</div>
+    </div>
+
+    <!-- F-P4 告警详情 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">Alert Detail</div></div>
+      <div class="content">
+
+        <div class="card" style="background:#FFF1F1;border:1px solid #FFD0D0">
+          <div class="row" style="margin-bottom:6px">
+            <div class="tag red">HIGH SEVERITY</div>
+            <span class="muted small" style="margin-left:auto">2026-05-26</span>
+          </div>
+          <div class="h1" style="font-size:22px;color:var(--risk-high)">Twitter 2022 Breach</div>
+          <div class="muted small" style="margin-top:6px">~5.4 million accounts exposed by API vulnerability</div>
+        </div>
+
+        <div class="h3" style="margin: 18px 0 8px">Your exposed data</div>
+        <div class="card" style="padding:0">
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border)" class="row">
+            <span style="color:var(--risk-high)">●</span>
+            <span class="body" style="margin-left:8px;flex:1">Email address</span>
+            <span class="muted small">sarah@gmail.com</span>
+          </div>
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border)" class="row">
+            <span style="color:var(--risk-high)">●</span>
+            <span class="body" style="margin-left:8px;flex:1">Hashed password (bcrypt)</span>
+            <span class="muted small">crackable</span>
+          </div>
+          <div style="padding:12px 14px" class="row">
+            <span style="color:var(--risk-medium)">●</span>
+            <span class="body" style="margin-left:8px;flex:1">Username</span>
+            <span class="muted small">@sarah_xyz</span>
+          </div>
+        </div>
+
+        <div class="h3" style="margin: 18px 0 8px">Recommended actions</div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div style="flex:1">
+            <div class="body">Change Twitter password immediately</div>
+            <div class="muted small">Tap to open Twitter</div>
+          </div>
+          <div style="color:var(--primary);font-size:18px">›</div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div style="flex:1">
+            <div class="body">Enable 2FA on Twitter</div>
+            <div class="muted small">Use authenticator app, not SMS</div>
+          </div>
+        </div>
+        <div class="checklist-item">
+          <div class="checkbox"></div>
+          <div style="flex:1">
+            <div class="body">Check if this password was reused elsewhere</div>
+            <div class="muted small">Change it on all those accounts too</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;background: #F2F6FB">
+          <div class="small">💡 If you use the same password on other accounts (banking, email), change those NOW.</div>
+        </div>
+
+        <div class="row" style="gap:8px;margin-top:14px">
+          <button class="btn" style="flex:1">Fix Now</button>
+          <button class="btn outline" style="flex:1">Mark as Done</button>
+        </div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">F-P4</span>告警详情 · 暴露字段 + 修复 checklist</div>
+    </div>
+
+    <!-- F-P5 引导付费 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">Upgrade Protection</div></div>
+      <div class="content">
+
+        <div style="text-align:center;padding: 16px 0">
+          <div style="font-size:54px">🛡</div>
+          <div class="h1" style="margin-top: 12px">Protect More</div>
+          <div class="muted" style="margin-top:4px">You've used 1/1 free email slot</div>
+        </div>
+
+        <!-- pro -->
+        <div class="card" style="padding: 18px;margin-bottom:12px">
+          <div class="row between" style="margin-bottom:8px">
+            <div class="h2">Pro</div>
+            <div style="font-size: 20px;font-weight: 700">$7.99<span style="font-size:13px;color:var(--text-secondary);font-weight:400">/mo</span></div>
+          </div>
+          <ul style="padding-left:18px;margin: 6px 0;font-size:13px;line-height:1.9">
+            <li>5 monitored email targets</li>
+            <li>Daily dark web scan</li>
+            <li>Voice deepfake detection unlimited</li>
+          </ul>
+          <button class="btn" style="width:100%;margin-top:10px">Choose Pro</button>
+        </div>
+
+        <!-- family -->
+        <div class="card" style="padding: 18px;border: 2px solid var(--primary);background: var(--premium-bg)">
+          <div class="row between" style="margin-bottom:8px">
+            <div>
+              <div class="h2" style="color:var(--primary-dark)">Family</div>
+              <div class="tag blue" style="margin-top:2px">RECOMMENDED</div>
+            </div>
+            <div style="font-size: 20px;font-weight: 700">$14.99<span style="font-size:13px;color:var(--text-secondary);font-weight:400">/mo</span></div>
+          </div>
+          <ul style="padding-left:18px;margin: 6px 0;font-size:13px;line-height:1.9">
+            <li>Everything in Pro</li>
+            <li><b>5 family members</b> sharing Pro</li>
+            <li><b>Family event sync</b> (high risk only)</li>
+            <li><b>Elder mode</b> for parents</li>
+          </ul>
+          <button class="btn" style="width:100%;margin-top:10px;background:var(--primary-dark)">Choose Family</button>
+        </div>
+
+        <div class="muted small" style="text-align:center;margin-top:14px">
+          7-day free trial · Cancel anytime<br/>
+          <span style="opacity:0.7">Phone / Credit card monitoring coming in V3 phase 2</span>
+        </div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">F-P5</span>免费用户超额引导付费</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ MODULE PROFILE -->
+<section class="module" id="module-profile">
+  <h2>我的 Tab（个人中心）<span class="badge">基础</span><span class="badge" style="background:#2ECC71">含长辈模式入口</span></h2>
+  <p class="desc">
+    4 个页面 — 非会员我的页 / 已开通会员我的页 / 长辈模式切换设置 / 暗网监控入口（仅海外）。<br/>
+    <strong style="color:#fff">v3 新增</strong>：「长辈模式」开关 + 「暗网监控」入口（仅海外）。其余菜单复用 V2 ProfileView。
+  </p>
+  <div class="phones-grid">
+
+    <!-- PROFILE-P1 我的（非会员）-->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="title">我的</div></div>
+      <div class="content">
+
+        <!-- 个人卡片 -->
+        <div class="card" style="text-align:center;padding: 24px 16px;">
+          <div class="avatar xl a" style="margin: 0 auto;">张</div>
+          <div class="h2" style="margin-top: 12px;">张明</div>
+          <div class="muted small" style="margin-top: 4px;">点击编辑个人资料</div>
+        </div>
+
+        <!-- 会员入口（非会员）-->
+        <div class="card" style="background: linear-gradient(135deg, #1A237E, #2F6BFF); color: #fff; padding: 16px; margin-top: 16px;">
+          <div class="row">
+            <div style="font-size: 28px;">👑</div>
+            <div style="flex: 1; margin-left: 12px;">
+              <div class="h3" style="color: #fff;">开通会员</div>
+              <div style="font-size: 13px; opacity: 0.9; margin-top: 2px;">查询不限/天 + 全家共享 + 官方提醒不限</div>
+            </div>
+            <div style="background: #fff; color: var(--primary); padding: 6px 12px; border-radius: 16px; font-size: 13px; font-weight: 600;">立即开通</div>
+          </div>
+        </div>
+
+        <!-- 菜单组 -->
+        <div class="card" style="margin-top: 16px; padding: 0;">
+          <!-- 长辈模式（新增）-->
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border);" class="row">
+            <div style="font-size: 20px; color: var(--primary);">👴</div>
+            <div style="flex: 1; margin-left: 12px;">
+              <div class="body">长辈模式</div>
+              <div class="muted small">字号放大、超大按钮、TTS 朗读</div>
+            </div>
+            <div style="width: 48px; height: 28px; background: #ccc; border-radius: 14px; position: relative;">
+              <div style="position: absolute; left: 2px; top: 2px; width: 24px; height: 24px; background: #fff; border-radius: 50%;"></div>
+            </div>
+          </div>
+
+          <!-- 家庭守护（新增）-->
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border);" class="row">
+            <div style="font-size: 20px; color: var(--primary);">👨‍👩‍👧</div>
+            <div style="flex: 1; margin-left: 12px;">
+              <div class="body">家庭守护</div>
+              <div class="muted small">已加入"张家小院" · 4 人</div>
+            </div>
+            <div style="color: var(--text-secondary); font-size: 16px;">›</div>
+          </div>
+
+          <!-- 消息中心 -->
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border); position: relative;" class="row">
+            <div style="font-size: 20px; color: var(--primary);">🔔</div>
+            <div style="flex: 1; margin-left: 12px;">
+              <div class="body">消息中心</div>
+            </div>
+            <div style="width: 8px; height: 8px; background: var(--risk-high); border-radius: 50%; margin-right: 8px;"></div>
+            <div style="color: var(--text-secondary); font-size: 16px;">›</div>
+          </div>
+
+          <!-- 意见反馈 -->
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border);" class="row">
+            <div style="font-size: 20px; color: var(--primary);">💬</div>
+            <div style="flex: 1; margin-left: 12px;">
+              <div class="body">意见反馈</div>
+            </div>
+            <div style="color: var(--text-secondary); font-size: 16px;">›</div>
+          </div>
+
+          <!-- 语言 -->
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border);" class="row">
+            <div style="font-size: 20px; color: var(--primary);">🌐</div>
+            <div style="flex: 1; margin-left: 12px;">
+              <div class="body">语言</div>
+            </div>
+            <span class="muted small" style="margin-right: 8px;">中文</span>
+            <div style="color: var(--text-secondary); font-size: 16px;">›</div>
+          </div>
+
+          <!-- 系统设置 -->
+          <div style="padding: 14px 16px;" class="row">
+            <div style="font-size: 20px; color: var(--primary);">⚙️</div>
+            <div style="flex: 1; margin-left: 12px;">
+              <div class="body">系统设置</div>
+            </div>
+            <div style="color: var(--text-secondary); font-size: 16px;">›</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="tabbar">
+        <div class="tab"><div class="icon">💬</div>问助手</div>
+        <div class="tab"><div class="icon">📰</div>情报案例</div>
+        <div class="tab"><div class="icon">👨‍👩‍👧</div>家庭</div>
+        <div class="tab active"><div class="icon">👤</div>我的</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">PROFILE-P1</span>我的（非会员）· 简洁个人卡 + 蓝色 upsell banner</div>
+    </div>
+
+    <!-- PROFILE-P2 我的（已开通会员，VIP 紫金大卡）-->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="title">我的</div></div>
+      <div class="content">
+
+        <!-- 会员个人卡（淡紫底，与免费版区分但不重）-->
+        <div class="card" style="text-align: center; padding: 24px 16px;
+                                 background: linear-gradient(135deg, #F8F2FC 0%, #FDFAFF 100%);
+                                 border: 1px solid #E5D7F2;">
+          <!-- 头像（紫色 + 淡金环）-->
+          <div style="position: relative; display: inline-block;">
+            <!-- 淡金环 -->
+            <div style="position: absolute; inset: -3px; border-radius: 50%;
+                        background: linear-gradient(135deg, #F0C75E, #E5B547);"></div>
+            <!-- 头像本体 -->
+            <div style="position: relative; width: 72px; height: 72px; border-radius: 50%;
+                        background: linear-gradient(135deg, #B084DD, #7E5BA8);
+                        display: flex; align-items: center; justify-content: center;
+                        font-size: 26px; font-weight: 700; color: #fff;
+                        border: 3px solid #fff;">张</div>
+          </div>
+
+          <!-- 姓名 + Pro 标 -->
+          <div class="row" style="justify-content: center; gap: 6px; margin-top: 12px;">
+            <div class="h2" style="color: #5A2CA0;">张明</div>
+            <div class="tag" style="background: linear-gradient(135deg, #B084DD, #7E5BA8);
+                                    color: #fff; font-weight: 700;">👑 家庭 Pro</div>
+          </div>
+          <div class="muted small" style="margin-top: 4px;">2027-05-27 到期</div>
+
+          <!-- 简洁数据条 -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 16px;
+                      padding-top: 14px; border-top: 1px solid #E5D7F2;">
+            <div>
+              <div style="font-size: 18px; font-weight: 700; color: #5A2CA0;">12</div>
+              <div class="muted small" style="margin-top: 2px;">本月避坑</div>
+            </div>
+            <div>
+              <div style="font-size: 18px; font-weight: 700; color: var(--text-primary);">4/5</div>
+              <div class="muted small" style="margin-top: 2px;">家庭成员</div>
+            </div>
+            <div>
+              <div style="font-size: 18px; font-weight: 700; color: var(--text-primary);">238</div>
+              <div class="muted small" style="margin-top: 2px;">本月查询</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 会员中心入口 -->
+        <div class="card" style="background: var(--premium-bg); padding: 14px; margin-top: 16px;">
+          <div class="row">
+            <div style="font-size: 24px;">⭐</div>
+            <div style="flex: 1; margin-left: 12px;">
+              <div class="h3" style="color: var(--primary-dark);">会员中心</div>
+              <div class="muted small">查看权益 / 续费 / 切换套餐</div>
+            </div>
+            <div style="color: var(--primary); font-size: 16px;">›</div>
+          </div>
+        </div>
+
+        <!-- 菜单组 -->
+        <div class="card" style="margin-top: 16px; padding: 0;">
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border);" class="row">
+            <div style="font-size: 20px; color: var(--primary);">👴</div>
+            <div style="flex: 1; margin-left: 12px;">
+              <div class="body">长辈模式</div>
+              <div class="muted small">字号放大、TTS 朗读</div>
+            </div>
+            <div style="width: 48px; height: 28px; background: var(--risk-low); border-radius: 14px; position: relative;">
+              <div style="position: absolute; right: 2px; top: 2px; width: 24px; height: 24px; background: #fff; border-radius: 50%;"></div>
+            </div>
+          </div>
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border);" class="row">
+            <div style="font-size: 20px; color: var(--primary);">👨‍👩‍👧</div>
+            <div style="flex: 1; margin-left: 12px;">
+              <div class="body">家庭守护</div>
+              <div class="muted small">"张家小院" · 4 人</div>
+            </div>
+            <div style="color: var(--text-secondary); font-size: 16px;">›</div>
+          </div>
+
+          <!-- 暗网监控（仅海外用户可见）-->
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border); background: #FFFBEB;" class="row">
+            <div style="font-size: 20px; color: var(--primary);">🕵️</div>
+            <div style="flex: 1; margin-left: 12px;">
+              <div class="body">Dark Web Monitor <span class="tag amber small" style="margin-left: 4px;">海外</span></div>
+              <div class="muted small">2 active alerts · 3 emails monitored</div>
+            </div>
+            <div style="width: 8px; height: 8px; background: var(--risk-high); border-radius: 50%; margin-right: 8px;"></div>
+            <div style="color: var(--text-secondary); font-size: 16px;">›</div>
+          </div>
+
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border);" class="row">
+            <div style="font-size: 20px; color: var(--primary);">🔔</div>
+            <div style="flex: 1; margin-left: 12px;"><div class="body">消息中心</div></div>
+            <div style="color: var(--text-secondary); font-size: 16px;">›</div>
+          </div>
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border);" class="row">
+            <div style="font-size: 20px; color: var(--primary);">💬</div>
+            <div style="flex: 1; margin-left: 12px;"><div class="body">意见反馈</div></div>
+            <div style="color: var(--text-secondary); font-size: 16px;">›</div>
+          </div>
+          <div style="padding: 14px 16px; border-bottom: 1px solid var(--border);" class="row">
+            <div style="font-size: 20px; color: var(--primary);">🌐</div>
+            <div style="flex: 1; margin-left: 12px;"><div class="body">语言</div></div>
+            <span class="muted small" style="margin-right: 8px;">中文</span>
+            <div style="color: var(--text-secondary); font-size: 16px;">›</div>
+          </div>
+          <div style="padding: 14px 16px;" class="row">
+            <div style="font-size: 20px; color: var(--primary);">⚙️</div>
+            <div style="flex: 1; margin-left: 12px;"><div class="body">系统设置</div></div>
+            <div style="color: var(--text-secondary); font-size: 16px;">›</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="tabbar">
+        <div class="tab"><div class="icon">💬</div>问助手</div>
+        <div class="tab"><div class="icon">📰</div>情报案例</div>
+        <div class="tab"><div class="icon">👨‍👩‍👧</div>家庭</div>
+        <div class="tab active"><div class="icon">👤</div>我的</div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">PROFILE-P2</span>我的（已开通家庭 Pro）· 淡紫卡 + 紫色头像金环 + 3 数据统计</div>
+    </div>
+
+    <!-- PROFILE-P3 长辈模式切换确认 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">长辈模式</div></div>
+      <div class="content">
+
+        <div style="text-align: center; padding: 16px 0;">
+          <div style="font-size: 72px;">👴</div>
+          <div class="h1" style="margin-top: 12px;">开启长辈模式</div>
+          <div class="muted" style="margin-top: 4px;">为年长用户优化的简化界面</div>
+        </div>
+
+        <div class="h3" style="margin: 18px 0 8px;">开启后将...</div>
+        <div class="card" style="padding: 0;">
+          <div style="padding: 14px;border-bottom:1px solid var(--border);" class="row">
+            <div style="font-size: 20px;">🔠</div>
+            <div style="flex:1;margin-left:10px"><div class="body">字号放大 1.5 倍</div></div>
+          </div>
+          <div style="padding: 14px;border-bottom:1px solid var(--border);" class="row">
+            <div style="font-size: 20px;">🎯</div>
+            <div style="flex:1;margin-left:10px"><div class="body">主页变 3 个超大按钮</div></div>
+          </div>
+          <div style="padding: 14px;border-bottom:1px solid var(--border);" class="row">
+            <div style="font-size: 20px;">🔊</div>
+            <div style="flex:1;margin-left:10px"><div class="body">检测结果自动语音朗读</div></div>
+          </div>
+          <div style="padding: 14px;border-bottom:1px solid var(--border);" class="row">
+            <div style="font-size: 20px;">📞</div>
+            <div style="flex:1;margin-left:10px"><div class="body">底部"给孩子打电话"红色 SOS 条</div></div>
+          </div>
+          <div style="padding: 14px;" class="row">
+            <div style="font-size: 20px;">🚫</div>
+            <div style="flex:1;margin-left:10px"><div class="body">隐藏复杂功能（知识库、详细历史）</div></div>
+          </div>
+        </div>
+
+        <div class="card" style="background:#FFF8E1; margin-top: 14px;">
+          <div class="small" style="color:#8B6900;line-height:1.7">
+            ⚠️ 开启后入口位置会变化。可随时回到此页面关闭。<br/>
+            如果是给父母用，建议同时<strong>开通家庭守护</strong>，子女可远程协助管理。
+          </div>
+        </div>
+
+        <button class="btn large" style="width:100%;margin-top: 16px;">确认开启长辈模式</button>
+        <button class="btn outline" style="width:100%;margin-top: 8px;">取消</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">PROFILE-P3</span>长辈模式开启确认 · 列出所有影响</div>
+    </div>
+
+    <!-- PROFILE-P4 关闭长辈模式 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen elder">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back" style="font-size:24px">←</div><div class="title" style="font-size:18px">我的</div></div>
+      <div class="content" style="padding: 16px 18px">
+        <!-- 长辈模式下的"我的"-->
+        <div style="text-align: center; padding: 20px 0;">
+          <div class="avatar xl b" style="margin: 0 auto; width: 80px; height: 80px; font-size: 28px;">爸</div>
+          <div style="font-size: 22px; font-weight: 600; margin-top: 12px;">您好，张爸爸</div>
+        </div>
+
+        <button class="btn elder-big" style="width: 100%; margin-bottom: 14px; background: var(--primary);">
+          📞 给孩子打电话
+        </button>
+        <button class="btn elder-big" style="width: 100%; margin-bottom: 14px; background: var(--risk-low);">
+          👨‍👩‍👧 家庭守护
+        </button>
+        <button class="btn elder-big" style="width: 100%; margin-bottom: 14px; background: var(--risk-medium);">
+          📋 查看消息
+        </button>
+
+        <div class="card" style="margin-top: 20px; padding: 18px;">
+          <div style="font-size: 17px; font-weight: 600; margin-bottom: 6px;">关闭长辈模式</div>
+          <div style="font-size: 14px; color: var(--text-secondary); line-height: 1.6;">如果您需要使用更多功能，可以关闭长辈模式回到普通界面。</div>
+          <button class="btn outline" style="width: 100%; margin-top: 12px; font-size: 17px; padding: 14px;">关闭长辈模式</button>
+        </div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">PROFILE-P4</span>长辈模式下的"我的"页 · 极简 + 关闭入口</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ MODULE PREMIUM -->
+<section class="module" id="module-premium">
+  <h2>会员中心 <span class="badge">订阅模型</span><span class="badge" style="background:#2ECC71">三档套餐</span></h2>
+  <p class="desc">
+    4 个页面 — 订阅页（非会员）/ 会员中心（已开通）/ 个人 vs 家庭对比 / 续费引导。<br/>
+    <strong style="color:#fff">订阅模型</strong>：免费（5 次/天）· 个人 Pro ¥18/月 · 家庭 Pro ¥28/月（全家不限）
+  </p>
+  <div class="phones-grid">
+
+    <!-- PREMIUM-P1 订阅页（非会员）-->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <!-- 沿用 V2 Premium 头部深蓝 -->
+      <div class="navbar" style="background: #1A237E; color: #fff;">
+        <div class="back" style="color: #fff;">←</div>
+        <div class="title" style="color: #fff;">Premium</div>
+      </div>
+      <div class="content" style="padding: 0;">
+        <!-- 头部渐变 -->
+        <div style="background: linear-gradient(135deg, #1A237E, #2F6BFF); color: #fff; padding: 24px 16px 32px; text-align: center;">
+          <div style="font-size: 48px; margin-bottom: 8px;">👑</div>
+          <div style="font-size: 26px; font-weight: 700;">解锁全部功能</div>
+          <div style="font-size: 14px; opacity: 0.9; margin-top: 6px;">守护全家防诈安全</div>
+        </div>
+
+        <!-- 套餐卡片 -->
+        <div style="padding: 0 16px; margin-top: -20px;">
+
+          <!-- 家庭 Pro 模块 -->
+          <div class="h3" style="color: var(--primary-dark); margin: 16px 0 8px;">👨‍👩‍👧 家庭 Pro · 全家共享</div>
+
+          <!-- 家庭年卡（推荐）-->
+          <div class="card" style="padding: 16px; border: 2px solid var(--primary); background: var(--premium-bg); margin-bottom: 10px;">
+            <div class="row between" style="margin-bottom: 6px;">
+              <div>
+                <div class="h2" style="color: var(--primary-dark);">家庭年卡</div>
+                <div class="row" style="gap: 4px; margin-top: 4px;">
+                  <div class="tag blue">推荐</div>
+                  <div class="tag green">省 50%</div>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 22px; font-weight: 700; color: var(--primary);">¥168</div>
+                <div class="muted small">/年</div>
+              </div>
+            </div>
+            <div class="muted small">折合 ¥14/月 · ¥2.8/人/月（5 人共享）</div>
+          </div>
+
+          <!-- 家庭月卡 -->
+          <div class="card" style="padding: 14px; margin-bottom: 16px;">
+            <div class="row between">
+              <div>
+                <div class="h3">家庭月卡</div>
+                <div class="muted small" style="margin-top: 2px;">最多 5 人共享，按月续费</div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 18px; font-weight: 700;">¥28</div>
+                <div class="muted small">/月</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 个人 Pro 模块 -->
+          <div class="h3" style="margin: 16px 0 8px;">👤 个人 Pro · 仅你自己</div>
+
+          <!-- 个人年卡 -->
+          <div class="card" style="padding: 14px; margin-bottom: 10px;">
+            <div class="row between">
+              <div>
+                <div class="h3">个人年卡</div>
+                <div class="row" style="gap: 4px; margin-top: 4px;">
+                  <div class="tag green">省 36%</div>
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 18px; font-weight: 700;">¥138</div>
+                <div class="muted small">/年（折合 ¥11.5/月）</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 个人月卡 -->
+          <div class="card" style="padding: 14px;">
+            <div class="row between">
+              <div>
+                <div class="h3">个人月卡</div>
+                <div class="muted small" style="margin-top: 2px;">按月续费</div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 18px; font-weight: 700;">¥18</div>
+                <div class="muted small">/月</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 家庭 Pro 权益列表 -->
+          <div class="card" style="margin-top: 16px; padding: 14px; background: #F2F6FB;">
+            <div class="h3" style="margin-bottom: 8px; color: var(--primary-dark);">✨ 家庭 Pro 权益</div>
+            <ul style="padding-left: 18px; margin: 0; font-size: 13px; line-height: 1.9;">
+              <li>家庭<strong>所有人</strong> AI 查询不限/天</li>
+              <li>家庭<strong>所有人</strong> 显示 👑 会员标识</li>
+              <li>家庭<strong>所有人</strong> 官方提醒不限</li>
+              <li>语音深伪检测无限次</li>
+              <li>暗网监控（仅海外）</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 默认选中家庭年卡 -->
+        <button class="btn large" style="width: calc(100% - 32px); margin: 16px;">立即开通 · 家庭年卡 ¥168/年</button>
+
+        <div style="padding: 0 16px; text-align: center;">
+          <div class="muted small" style="line-height: 1.7;">💡 后续可在「我的 → 会员中心」切换套餐</div>
+        </div>
+
+        <!-- 核心权益 -->
+        <div style="padding: 0 16px;">
+          <div class="h3" style="margin-bottom: 10px;">⭐ 核心权益</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="card" style="padding: 14px; text-align: center;">
+              <div style="font-size: 32px;">♾️</div>
+              <div class="body" style="margin-top: 4px;">不限次查询</div>
+            </div>
+            <div class="card" style="padding: 14px; text-align: center;">
+              <div style="font-size: 32px;">🎙</div>
+              <div class="body" style="margin-top: 4px;">语音深伪</div>
+            </div>
+            <div class="card" style="padding: 14px; text-align: center;">
+              <div style="font-size: 32px;">👨‍👩‍👧</div>
+              <div class="body" style="margin-top: 4px;">家庭共享</div>
+            </div>
+            <div class="card" style="padding: 14px; text-align: center;">
+              <div style="font-size: 32px;">📢</div>
+              <div class="body" style="margin-top: 4px;">官方提醒</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 协议链接 -->
+        <div style="padding: 24px 16px; text-align: center;">
+          <div class="muted small" style="line-height: 1.7;">
+            订阅自动续费，可随时取消<br/>
+            <a style="color: var(--primary);">用户协议</a> · <a style="color: var(--primary);">隐私政策</a> · <a style="color: var(--primary);">恢复购买</a>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">PREMIUM-P1</span>订阅页（非会员）· 沿用 V2 深蓝头部 + 紫色 Premium 卡</div>
+    </div>
+
+    <!-- PREMIUM-P2 会员中心（已开通）-->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">会员中心</div></div>
+      <div class="content">
+
+        <!-- VIP 状态卡 -->
+        <div class="card" style="background: linear-gradient(135deg, #5A2CA0, #B084DD); color: #fff; padding: 20px;">
+          <div class="row between" style="margin-bottom: 12px;">
+            <div>
+              <div style="font-size: 13px; opacity: 0.9;">当前套餐</div>
+              <div style="font-size: 22px; font-weight: 700; margin-top: 2px;">👑 家庭 Pro</div>
+            </div>
+            <div class="tag" style="background: rgba(255,255,255,0.2); color: #fff;">活跃</div>
+          </div>
+          <div class="row between" style="font-size: 13px; opacity: 0.92;">
+            <div>到期日</div>
+            <div>2027-05-27</div>
+          </div>
+          <div class="row between" style="font-size: 13px; opacity: 0.92; margin-top: 4px;">
+            <div>家庭组</div>
+            <div>张家小院 · 4/5 人</div>
+          </div>
+        </div>
+
+        <!-- 本月使用 -->
+        <div class="h3" style="margin: 18px 0 8px;">本月使用</div>
+        <div class="card" style="padding: 0;">
+          <div style="padding: 14px;border-bottom:1px solid var(--border);" class="row between">
+            <div>
+              <div class="body">AI 风险查询</div>
+              <div class="muted small">家庭共享配额</div>
+            </div>
+            <div style="font-weight: 600; color: var(--primary);">238 次</div>
+          </div>
+          <div style="padding: 14px;border-bottom:1px solid var(--border);" class="row between">
+            <div>
+              <div class="body">语音深伪检测</div>
+            </div>
+            <div style="font-weight: 600; color: var(--primary);">12 次</div>
+          </div>
+          <div style="padding: 14px;border-bottom:1px solid var(--border);" class="row between">
+            <div>
+              <div class="body">家庭官方提醒</div>
+            </div>
+            <div style="font-weight: 600; color: var(--primary);">8 次</div>
+          </div>
+          <div style="padding: 14px;" class="row between">
+            <div>
+              <div class="body">本月家庭已避坑</div>
+            </div>
+            <div style="font-weight: 700; color: var(--risk-low); font-size: 18px;">12 次</div>
+          </div>
+        </div>
+
+        <!-- 操作 -->
+        <div class="h3" style="margin: 18px 0 8px;">订阅管理</div>
+        <div class="card" style="padding: 0;">
+          <div style="padding: 14px;border-bottom:1px solid var(--border);" class="row">
+            <div style="font-size: 18px;">🔄</div>
+            <div style="flex:1;margin-left:10px"><div class="body">续费 / 升级套餐</div></div>
+            <div style="color: var(--text-secondary);">›</div>
+          </div>
+          <div style="padding: 14px;border-bottom:1px solid var(--border);" class="row">
+            <div style="font-size: 18px;">📜</div>
+            <div style="flex:1;margin-left:10px"><div class="body">订阅历史</div></div>
+            <div style="color: var(--text-secondary);">›</div>
+          </div>
+          <div style="padding: 14px;" class="row">
+            <div style="font-size: 18px;">⚙️</div>
+            <div style="flex:1;margin-left:10px"><div class="body">App Store 订阅管理</div></div>
+            <div style="color: var(--text-secondary);">›</div>
+          </div>
+        </div>
+
+        <button class="btn outline" style="width:100%; margin-top: 14px; color: var(--risk-high);">取消订阅</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">PREMIUM-P2</span>会员中心（已开通家庭 Pro）· VIP 紫色卡 + 使用统计</div>
+    </div>
+
+    <!-- PREMIUM-P3 套餐对比 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">套餐对比</div></div>
+      <div class="content">
+        <div class="muted small" style="margin-bottom: 12px;">三档套餐对比 · 选择最适合你的</div>
+
+        <!-- 对比表头 -->
+        <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1.1fr; background: var(--card); border-radius: 12px; overflow: hidden; font-size: 12px;">
+          <!-- 表头 -->
+          <div style="padding: 10px 6px; font-weight: 600; background: #F2F6FB;">权益</div>
+          <div style="padding: 10px 6px; text-align: center; background: #F2F6FB; color: var(--text-secondary);">免费</div>
+          <div style="padding: 10px 6px; text-align: center; background: #F2F6FB;">个人</div>
+          <div style="padding: 10px 6px; text-align: center; background: var(--primary); color: #fff; font-weight: 700;">家庭 ⭐</div>
+
+          <!-- 价格 -->
+          <div style="padding: 10px 6px; border-top: 1px solid var(--border);">价格</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">¥0</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">¥18/月</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border); color: var(--primary); font-weight: 700;">¥28/月</div>
+
+          <!-- 查询 -->
+          <div style="padding: 10px 6px; border-top: 1px solid var(--border);">AI 查询</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">5/天</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">不限</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border); color: var(--risk-low); font-weight: 600;">全家不限</div>
+
+          <!-- 家庭组 -->
+          <div style="padding: 10px 6px; border-top: 1px solid var(--border);">家庭组</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">✓ 免费</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">✓</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border); color: var(--risk-low);">✓</div>
+
+          <!-- 会员标识 -->
+          <div style="padding: 10px 6px; border-top: 1px solid var(--border);">👑 会员标</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">—</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">仅自己</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border); color: var(--risk-low); font-weight: 600;">全家</div>
+
+          <!-- 官方提醒 -->
+          <div style="padding: 10px 6px; border-top: 1px solid var(--border);">官方提醒</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">1/天</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">仅自己</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border); color: var(--risk-low); font-weight: 600;">全家不限</div>
+
+          <!-- 语音深伪 -->
+          <div style="padding: 10px 6px; border-top: 1px solid var(--border);">语音深伪</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">3/月</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">不限</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border); color: var(--risk-low);">不限</div>
+
+          <!-- 关怀 -->
+          <div style="padding: 10px 6px; border-top: 1px solid var(--border);">关怀提醒</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">✓ 免费</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border);">✓</div>
+          <div style="padding: 10px 6px; text-align: center; border-top: 1px solid var(--border); color: var(--risk-low);">✓</div>
+        </div>
+
+        <div class="card" style="background: var(--premium-bg); padding: 14px; margin-top: 16px;">
+          <div class="row" style="gap: 10px;">
+            <div style="font-size: 24px;">💡</div>
+            <div style="flex: 1; font-size: 13px; line-height: 1.6;">
+              <strong>家庭 Pro 性价比最高</strong><br/>
+              <span class="muted small">折合每人 ¥2.8/月，是个人套餐的 1/6 价格</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn large" style="width: 100%; margin-top: 16px; background: var(--primary-dark);">选择家庭 Pro</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">PREMIUM-P3</span>套餐对比 · 7 项权益矩阵</div>
+    </div>
+
+    <!-- PREMIUM-P4 续费引导 -->
+    <div class="phone-wrap">
+    <div class="phone"><div class="phone-screen">
+      <div class="island"></div>
+      <div class="sb"><span>9:41</span><span class="right">●●●●●</span></div>
+      <div class="navbar"><div class="back">←</div><div class="title">续费提醒</div></div>
+      <div class="content">
+
+        <div style="text-align: center; padding: 24px 0;">
+          <div style="font-size: 64px;">⏰</div>
+          <div class="h1" style="margin-top: 12px; color: var(--risk-medium);">7 天后到期</div>
+          <div class="muted" style="margin-top: 4px;">家庭 Pro 即将到期，续费保持守护不中断</div>
+        </div>
+
+        <!-- 即将失去 -->
+        <div class="card" style="background: #FFF8E1; border: 1px solid #FFE082;">
+          <div class="h3" style="color: #8B6900; margin-bottom: 8px;">不续费将失去</div>
+          <ul style="padding-left: 18px; margin: 0; font-size: 13px; line-height: 1.8; color: var(--text-primary);">
+            <li>家庭所有人将降回 5 次/天</li>
+            <li>家庭官方提醒受限 1 条/天</li>
+            <li>语音深伪检测降至 3 次/月</li>
+            <li>全家 👑 标识消失</li>
+          </ul>
+        </div>
+
+        <!-- 续费优惠 -->
+        <div class="card" style="background: linear-gradient(135deg, var(--premium-bg), #fff); border: 2px solid var(--primary); margin-top: 14px;">
+          <div class="row between" style="margin-bottom: 8px;">
+            <div>
+              <div class="h2" style="color: var(--primary-dark);">续费 1 年</div>
+              <div class="tag blue" style="margin-top: 4px;">老用户专享 9 折</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="text-decoration: line-through; color: var(--text-secondary); font-size: 12px;">¥168</div>
+              <div style="font-size: 24px; font-weight: 700; color: var(--primary);">¥151</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn large" style="width: 100%; margin-top: 16px;">立即续费 · 优惠价 ¥151</button>
+        <button class="btn outline" style="width: 100%; margin-top: 8px;">查看其他套餐</button>
+      </div>
+    </div></div>
+    <div class="phone-caption"><span class="code">PREMIUM-P4</span>到期前续费引导 · 老用户优惠 9 折</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================ ADMIN -->
+<section class="module" id="module-admin">
+  <h2>Admin 后台 <span class="badge">运营工具</span></h2>
+  <p class="desc">5 个 admin 页面 — 情报列表 / 情报编辑 / 用户上报审批 / 暗网调试 / 家庭组运维 / 深伪样本审计。<br/>
+  <strong style="color:#fff">v3 删除</strong>：原 C 应急资源库（C 模块整体推到二期）</p>
+
+  <!-- Admin: 情报列表 -->
+  <div class="phone-wrap" style="max-width:none">
+  <div class="desktop">
+    <div class="desktop-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div style="color:#888;font-size:12px;margin-left:auto;margin-right:auto">admin.starlens.ai</div></div>
+    <div class="desktop-screen">
+      <div class="ds-sidebar">
+        <div class="brand">🛡 StarLens Admin</div>
+        <div class="menu-item">📊 Dashboard</div>
+        <div class="menu-item">👤 Users</div>
+        <div class="menu-item">📚 Knowledge</div>
+        <div class="menu-item active">📰 Intel Center</div>
+        <div class="menu-item">🆘 SOS Resources</div>
+        <div class="menu-item">🕵️ Breach Monitor</div>
+        <div class="menu-item">🎙 Deepfake Audit</div>
+        <div class="menu-item">👨‍👩‍👧 Family Groups</div>
+        <div class="menu-item">💳 Subscriptions</div>
+        <div class="menu-item">⚙️ Settings</div>
+      </div>
+      <div class="ds-main">
+        <div class="row between" style="margin-bottom: 16px">
+          <h2 style="margin:0;font-size:18px">情报中心 / 已发布</h2>
+          <div class="row" style="gap:8px">
+            <button class="btn outline" style="padding: 6px 12px;font-size:13px">📥 待审批 (12)</button>
+            <button class="btn" style="padding: 6px 12px;font-size:13px">＋ 新建情报</button>
+          </div>
+        </div>
+
+        <div class="row" style="gap:8px;margin-bottom:12px;font-size:13px">
+          <select style="padding: 6px 10px;border:1px solid var(--border);border-radius:6px;background:#fff">
+            <option>全部分类</option><option>冒充客服</option><option>冒充公检法</option>
+          </select>
+          <select style="padding: 6px 10px;border:1px solid var(--border);border-radius:6px;background:#fff">
+            <option>全部地区</option><option>北京</option><option>上海</option>
+          </select>
+          <select style="padding: 6px 10px;border:1px solid var(--border);border-radius:6px;background:#fff">
+            <option>全部严重度</option><option>紧急</option><option>中</option><option>普通</option>
+          </select>
+          <input placeholder="关键词搜索" style="padding: 6px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:13px" />
+        </div>
+
+        <table class="tbl">
+          <thead><tr>
+            <th>标题</th><th>分类</th><th>地区</th><th>严重度</th><th>发布于</th><th>送达 / CTR</th><th>操作</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>海淀区"假医保退费"骗局 24h 新增 7 起</strong></td>
+              <td>冒充医保</td><td>CN-11 海淀</td>
+              <td><span class="tag red">紧急</span></td>
+              <td>2 小时前</td>
+              <td>3,421 / 38%</td>
+              <td><a style="color:var(--primary)">编辑</a> · <a style="color:#999">归档</a></td>
+            </tr>
+            <tr>
+              <td>包裹丢失退款新变种</td>
+              <td>快递诈骗</td><td>全国</td>
+              <td><span class="tag amber">中</span></td>
+              <td>9:00</td>
+              <td>12,820 / 28%</td>
+              <td><a style="color:var(--primary)">编辑</a></td>
+            </tr>
+            <tr>
+              <td>高校开学季：兼职刷单升级版</td>
+              <td>兼职刷单</td><td>全国</td>
+              <td><span class="tag amber">中</span></td>
+              <td>9:00</td>
+              <td>8,560 / 22%</td>
+              <td><a style="color:var(--primary)">编辑</a></td>
+            </tr>
+            <tr>
+              <td>如何识别 AI 语音克隆诈骗</td>
+              <td>科普</td><td>全球</td>
+              <td><span class="tag gray">普通</span></td>
+              <td>昨天</td>
+              <td>15,200 / 33%</td>
+              <td><a style="color:var(--primary)">编辑</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="phone-caption"><span class="code">B-A1</span>Admin · 情报列表</div>
+  </div>
+
+  <!-- Admin: 情报编辑 -->
+  <div class="phone-wrap" style="max-width:none;margin-top:48px">
+  <div class="desktop">
+    <div class="desktop-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div style="color:#888;font-size:12px;margin-left:auto;margin-right:auto">admin.starlens.ai / intel / new</div></div>
+    <div class="desktop-screen">
+      <div class="ds-sidebar">
+        <div class="brand">🛡 StarLens Admin</div>
+        <div class="menu-item active">📰 Intel Center</div>
+        <div class="menu-item">🆘 SOS Resources</div>
+        <div class="menu-item">🕵️ Breach Monitor</div>
+      </div>
+      <div class="ds-main">
+        <div class="row between" style="margin-bottom: 16px">
+          <h2 style="margin:0;font-size:18px">新建 / 编辑情报</h2>
+          <div class="row" style="gap:8px">
+            <button class="btn outline" style="padding:6px 12px;font-size:13px">🤖 AI 改写</button>
+            <button class="btn outline" style="padding:6px 12px;font-size:13px">保存草稿</button>
+            <button class="btn" style="padding:6px 12px;font-size:13px">发布</button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+          <div>
+            <label style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;display:block">标题</label>
+            <input style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;background:#fff" value="海淀区&quot;假医保退费&quot;骗局 24h 新增 7 起" />
+
+            <label style="font-size:13px;color:var(--text-secondary);margin: 12px 0 4px;display:block">套路 3 步</label>
+            <div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding: 12px">
+              <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px">① 第 1 步</div>
+              <textarea rows="2" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:13px;background:#fff;font-family:inherit">骗子打电话自称"医保局"，说你有一笔退费未领</textarea>
+              <div style="font-size:13px;color:var(--text-secondary);margin: 10px 0 6px">② 第 2 步</div>
+              <textarea rows="2" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:13px;background:#fff;font-family:inherit">要求加微信发"工作证"和"红头文件"</textarea>
+              <div style="font-size:13px;color:var(--text-secondary);margin: 10px 0 6px">③ 第 3 步</div>
+              <textarea rows="2" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:13px;background:#fff;font-family:inherit">让你下载某 App 输入银行卡 + 密码 + 短信验证码"领取退费"</textarea>
+            </div>
+
+            <label style="font-size:13px;color:var(--text-secondary);margin: 12px 0 4px;display:block">应对建议</label>
+            <textarea rows="4" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;background:#fff">真医保局从不电话主动退费；不加陌生人微信；不下载来源不明 App；有疑问拨打 12333 核实。</textarea>
+
+            <label style="font-size:13px;color:var(--text-secondary);margin: 12px 0 4px;display:block">截图（可选）</label>
+            <div style="background:#fff;border:2px dashed var(--border);border-radius:6px;padding:24px;text-align:center;color:var(--text-secondary)">+ 拖入或点击上传脱敏截图</div>
+          </div>
+
+          <div>
+            <div class="card" style="background:#fff;padding:14px">
+              <div class="h3" style="margin-bottom:8px">发布设置</div>
+              <label style="font-size:12px;color:var(--text-secondary)">语言</label>
+              <select style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;margin: 2px 0 10px;background:#fff;font-size:13px">
+                <option>中文 (zh)</option><option>English (en)</option>
+              </select>
+              <label style="font-size:12px;color:var(--text-secondary)">分类</label>
+              <select style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;margin: 2px 0 10px;background:#fff;font-size:13px">
+                <option>冒充医保</option>
+              </select>
+              <label style="font-size:12px;color:var(--text-secondary)">严重度</label>
+              <select style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;margin: 2px 0 10px;background:#fff;font-size:13px">
+                <option>紧急（urgent）</option><option>中（high）</option><option>普通（normal）</option>
+              </select>
+              <label style="font-size:12px;color:var(--text-secondary)">目标地区</label>
+              <div style="margin: 6px 0 10px;font-size:13px">
+                <div><input type="checkbox" checked /> CN-11 北京</div>
+                <div><input type="checkbox" /> CN-31 上海</div>
+                <div><input type="checkbox" /> 全国 (*)</div>
+              </div>
+              <label style="font-size:12px;color:var(--text-secondary)">目标人群</label>
+              <div style="margin: 6px 0;font-size:13px">
+                <div><input type="checkbox" checked /> 老年人</div>
+                <div><input type="checkbox" /> 学生</div>
+                <div><input type="checkbox" /> 财务/HR</div>
+                <div><input type="checkbox" /> 全部 (*)</div>
+              </div>
+            </div>
+
+            <div class="card" style="background:#fff;padding:14px;margin-top:12px">
+              <div class="h3" style="margin-bottom:6px">预计触达</div>
+              <div style="font-size:24px;font-weight:700;color:var(--primary)">~3,200 人</div>
+              <div class="muted small">CN-11 老年人偏好 · 在线用户</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="phone-caption"><span class="code">B-A2</span>Admin · 情报编辑（含 AI 改写助手）</div>
+  </div>
+
+  <!-- Admin: 用户上报审批 -->
+  <div class="phone-wrap" style="max-width:none;margin-top:48px">
+  <div class="desktop">
+    <div class="desktop-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div style="color:#888;font-size:12px;margin-left:auto;margin-right:auto">admin.starlens.ai / intel / submissions</div></div>
+    <div class="desktop-screen">
+      <div class="ds-sidebar">
+        <div class="brand">🛡 StarLens Admin</div>
+        <div class="menu-item active">📰 Intel Center</div>
+      </div>
+      <div class="ds-main">
+        <div class="row between" style="margin-bottom: 16px">
+          <h2 style="margin:0;font-size:18px">用户上报审批 <span class="tag amber" style="margin-left:8px">12 待审</span></h2>
+        </div>
+
+        <table class="tbl">
+          <thead><tr>
+            <th>用户</th><th>内容预览</th><th>AI 自动归类</th><th>提交时间</th><th>操作</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td>U#8923</td>
+              <td>对方说是医保局的，让我加微信发资料…</td>
+              <td><span class="tag blue">冒充医保 · 92%</span></td>
+              <td>5 分钟前</td>
+              <td>
+                <a style="color:var(--risk-low);font-weight:600">通过</a> ·
+                <a style="color:var(--primary)">合并</a> ·
+                <a style="color:#999">驳回</a>
+              </td>
+            </tr>
+            <tr>
+              <td>U#8721</td>
+              <td>京东客服说我误开了金条会员要退款，让我下载…</td>
+              <td><span class="tag blue">冒充客服 · 88%</span></td>
+              <td>22 分钟前</td>
+              <td>
+                <a style="color:var(--risk-low);font-weight:600">通过</a> ·
+                <a style="color:var(--primary)">合并</a> ·
+                <a style="color:#999">驳回</a>
+              </td>
+            </tr>
+            <tr>
+              <td>U#8451</td>
+              <td>抖音上看到的兼职刷单，先返了 50 让我加大投入…</td>
+              <td><span class="tag blue">兼职刷单 · 95%</span></td>
+              <td>1 小时前</td>
+              <td>
+                <a style="color:var(--risk-low);font-weight:600">通过</a> ·
+                <a style="color:var(--primary)">合并</a> ·
+                <a style="color:#999">驳回</a>
+              </td>
+            </tr>
+            <tr>
+              <td>U#8211</td>
+              <td>(模糊描述，无法分类，仅 12 字)</td>
+              <td><span class="tag gray">需人工 · 38%</span></td>
+              <td>2 小时前</td>
+              <td>
+                <a style="color:var(--primary)">查看</a> ·
+                <a style="color:#999">驳回</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="margin-top: 16px;padding: 12px;background:#FFF8E1;border-radius:8px;font-size:13px;color:#8B6900">
+          ⚙️ AI 自动归类置信度 ≥ 80% 时显示蓝色，运营可一键"通过"或"合并"到已有情报。
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="phone-caption"><span class="code">B-A3</span>Admin · 用户上报审批队列（AI 辅助）</div>
+  </div>
+
+  <!-- Admin: 暗网监控调试 -->
+  <div class="phone-wrap" style="max-width:none;margin-top:48px">
+  <div class="desktop">
+    <div class="desktop-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div style="color:#888;font-size:12px;margin-left:auto;margin-right:auto">admin.starlens.ai / breach</div></div>
+    <div class="desktop-screen">
+      <div class="ds-sidebar">
+        <div class="brand">🛡 StarLens Admin</div>
+        <div class="menu-item active">🕵️ Breach Monitor</div>
+      </div>
+      <div class="ds-main">
+        <div class="row between" style="margin-bottom: 16px">
+          <h2 style="margin:0;font-size:18px">暗网监控 · 系统状态</h2>
+          <button class="btn outline" style="padding:6px 12px;font-size:13px">🔄 立即触发扫描</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;margin-bottom: 16px">
+          <div class="card" style="background:#fff;padding:12px">
+            <div class="muted small">监控目标总数</div>
+            <div style="font-size:24px;font-weight:700;color:var(--primary);margin-top:4px">8,432</div>
+          </div>
+          <div class="card" style="background:#fff;padding:12px">
+            <div class="muted small">本周告警</div>
+            <div style="font-size:24px;font-weight:700;color:var(--risk-high);margin-top:4px">142</div>
+          </div>
+          <div class="card" style="background:#fff;padding:12px">
+            <div class="muted small">HIBP 调用 (本月)</div>
+            <div style="font-size:24px;font-weight:700;margin-top:4px">258,221</div>
+          </div>
+          <div class="card" style="background:#fff;padding:12px">
+            <div class="muted small">配额剩余</div>
+            <div style="font-size:24px;font-weight:700;color:var(--risk-low);margin-top:4px">68%</div>
+          </div>
+        </div>
+
+        <h3 style="margin: 0 0 8px;font-size:15px">最近扫描日志</h3>
+        <table class="tbl">
+          <thead><tr>
+            <th>时间</th><th>批次大小</th><th>新告警</th><th>耗时</th><th>HIBP 状态</th><th>错误</th>
+          </tr></thead>
+          <tbody>
+            <tr><td>2026-05-26 03:00</td><td>8,432</td><td>14</td><td>14m 22s</td><td><span class="tag green">200</span></td><td>0</td></tr>
+            <tr><td>2026-05-25 03:00</td><td>8,398</td><td>18</td><td>14m 8s</td><td><span class="tag green">200</span></td><td>2</td></tr>
+            <tr><td>2026-05-24 03:00</td><td>8,371</td><td>9</td><td>13m 55s</td><td><span class="tag green">200</span></td><td>0</td></tr>
+            <tr><td>2026-05-23 03:00</td><td>8,344</td><td>22</td><td>15m 12s</td><td><span class="tag amber">429 rate limited (重试成功)</span></td><td>0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="phone-caption"><span class="code">F-A1</span>Admin · 暗网监控系统状态（运营调试用）</div>
+  </div>
+
+  <!-- Admin: 家庭组管理 -->
+  <div class="phone-wrap" style="max-width:none;margin-top:48px">
+  <div class="desktop">
+    <div class="desktop-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div style="color:#888;font-size:12px;margin-left:auto;margin-right:auto">admin.starlens.ai / family</div></div>
+    <div class="desktop-screen">
+      <div class="ds-sidebar">
+        <div class="brand">🛡 StarLens Admin</div>
+        <div class="menu-item active">👨‍👩‍👧 Family Groups</div>
+      </div>
+      <div class="ds-main">
+        <div class="row between" style="margin-bottom: 16px">
+          <h2 style="margin:0;font-size:18px">家庭组管理（运维）</h2>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;margin-bottom: 16px">
+          <div class="card" style="background:#fff;padding:12px">
+            <div class="muted small">活跃家庭组</div>
+            <div style="font-size:24px;font-weight:700;color:var(--primary);margin-top:4px">3,221</div>
+            <div style="font-size:11px;color:var(--risk-low);margin-top:4px">↑ 12% 本周</div>
+          </div>
+          <div class="card" style="background:#fff;padding:12px">
+            <div class="muted small">家庭组平均成员数</div>
+            <div style="font-size:24px;font-weight:700;margin-top:4px">3.4</div>
+          </div>
+          <div class="card" style="background:#fff;padding:12px">
+            <div class="muted small">长辈模式开启率</div>
+            <div style="font-size:24px;font-weight:700;margin-top:4px">61%</div>
+          </div>
+        </div>
+
+        <table class="tbl">
+          <thead><tr>
+            <th>组 ID</th><th>名称</th><th>Owner</th><th>成员数</th><th>套餐</th><th>到期</th><th>状态</th><th>操作</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td>g_38a2…</td><td>张家小院</td><td>张明 (13800001234)</td>
+              <td>4 / 5</td><td>家庭年卡</td><td>2027-05-26</td>
+              <td><span class="tag green">正常</span></td>
+              <td><a style="color:var(--primary)">详情</a></td>
+            </tr>
+            <tr>
+              <td>g_77b1…</td><td>Smith Family</td><td>Sarah (sarah@gmail.com)</td>
+              <td>3 / 5</td><td>Elite Annual</td><td>2027-03-12</td>
+              <td><span class="tag green">正常</span></td>
+              <td><a style="color:var(--primary)">详情</a></td>
+            </tr>
+            <tr>
+              <td>g_91c4…</td><td>李家</td><td>李华 (13900005678)</td>
+              <td>2 / 5</td><td>家庭月卡</td><td>2026-06-10</td>
+              <td><span class="tag amber">7 天后到期</span></td>
+              <td><a style="color:var(--primary)">详情</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="phone-caption"><span class="code">E-A1</span>Admin · 家庭组运维视图</div>
+  </div>
+
+  <!-- Admin: 深伪样本审计 -->
+  <div class="phone-wrap" style="max-width:none;margin-top:48px">
+  <div class="desktop">
+    <div class="desktop-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><div style="color:#888;font-size:12px;margin-left:auto;margin-right:auto">admin.starlens.ai / deepfake</div></div>
+    <div class="desktop-screen">
+      <div class="ds-sidebar">
+        <div class="brand">🛡 StarLens Admin</div>
+        <div class="menu-item active">🎙 Deepfake Audit</div>
+      </div>
+      <div class="ds-main">
+        <div class="row between" style="margin-bottom: 16px">
+          <h2 style="margin:0;font-size:18px">语音深伪检测 · 样本审计</h2>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:12px;margin-bottom: 16px">
+          <div class="card" style="background:#fff;padding:12px">
+            <div class="muted small">本月检测次数</div>
+            <div style="font-size:24px;font-weight:700;color:var(--primary);margin-top:4px">12,488</div>
+          </div>
+          <div class="card" style="background:#fff;padding:12px">
+            <div class="muted small">用户反馈"不准"</div>
+            <div style="font-size:24px;font-weight:700;color:var(--risk-medium);margin-top:4px">312 (2.5%)</div>
+          </div>
+          <div class="card" style="background:#fff;padding:12px">
+            <div class="muted small">高风险占比</div>
+            <div style="font-size:24px;font-weight:700;color:var(--risk-high);margin-top:4px">18%</div>
+          </div>
+          <div class="card" style="background:#fff;padding:12px">
+            <div class="muted small">月度模型成本</div>
+            <div style="font-size:24px;font-weight:700;margin-top:4px">$2,148</div>
+          </div>
+        </div>
+
+        <h3 style="margin: 0 0 8px;font-size:15px">用户反馈"不准"的样本（待打标）</h3>
+        <table class="tbl">
+          <thead><tr>
+            <th>样本</th><th>检测结果</th><th>用户反馈</th><th>时长</th><th>Provider</th><th>操作</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td>vc_891af…</td>
+              <td><span class="tag red">87% AI</span></td>
+              <td>用户说"这是我妈本人"</td>
+              <td>18s</td><td>RealityDefender</td>
+              <td><a style="color:var(--primary)">回放</a> · <a style="color:var(--risk-low)">真人</a> · <a style="color:var(--risk-high)">AI</a></td>
+            </tr>
+            <tr>
+              <td>vc_4b22c…</td>
+              <td><span class="tag green">12% 真人</span></td>
+              <td>用户说"这就是 AI 合成的"</td>
+              <td>32s</td><td>Pindrop</td>
+              <td><a style="color:var(--primary)">回放</a> · <a style="color:var(--risk-low)">真人</a> · <a style="color:var(--risk-high)">AI</a></td>
+            </tr>
+            <tr>
+              <td>vc_722e8…</td>
+              <td><span class="tag amber">52% 可疑</span></td>
+              <td>用户说"绝对是真人"</td>
+              <td>45s</td><td>RealityDefender</td>
+              <td><a style="color:var(--primary)">回放</a> · <a style="color:var(--risk-low)">真人</a> · <a style="color:var(--risk-high)">AI</a></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="margin-top: 16px;padding: 12px;background:#F2F6FB;border-radius:8px;font-size:13px">
+          💡 已打标样本会进入"用户校验集"，每周生成准确率报告。准确率连续 2 周下降 5%+ 触发 provider 切换建议。
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="phone-caption"><span class="code">A1-A1</span>Admin · 深伪样本审计（用于持续提升模型）</div>
+  </div>
+
+</section>
+
+<footer>
+  共约 44 个 iOS 页面 + 5 个 Admin 页面 · 设计 Token 完全沿用 V2 · 主色 <code>#2F6BFF</code><br/>
+  v3 终版（2026-05-27）：首页+抽屉 2 · <strong>E 家庭 11 页</strong>（含关怀 push/短信/创建空状态）· J 长辈 5 · B 情报案例 6 · A1 深伪 8（含入口路径）· F 暗网海外 5 · 我的 4 · <strong>会员中心 4（四档套餐齐全）</strong> · Admin 5<br/>
+  底导沿用 V2 MainTabView 样式（32×32 圆角矩形 + 选中蓝填充） · v3 修正：B-P0/B-P1 冲突已删 / 会员套餐 4 档齐全 / E-P5 改关怀状态<br/>
+  下一步：基于本文件 → 进入 Figma 高保真 → 与开发交接
+</footer>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(0.95); } }
+</style>
+</body>
+</html>
