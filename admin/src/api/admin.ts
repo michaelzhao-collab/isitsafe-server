@@ -3,10 +3,11 @@
  */
 import request from './request';
 
-export async function login(username: string, password: string) {
+export async function login(username: string, password: string, turnstileToken?: string) {
   const res = await request.post<{ accessToken: string; refreshToken?: string; expiresIn?: number }>('/admin/auth/login', {
     username: username.trim(),
     password,
+    turnstileToken,
   });
   return res as unknown as { accessToken: string; refreshToken?: string; expiresIn?: number };
 }

@@ -8,7 +8,7 @@ export type AdminRole = 'SUPERADMIN' | 'ADMIN' | 'USER';
 type AuthContextType = {
   token: string | null;
   role: AdminRole | null;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, turnstileToken?: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -37,8 +37,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const role = useMemo(() => decodeRoleFromJwt(token), [token]);
 
-  const login = useCallback(async (username: string, password: string) => {
-    const { accessToken } = await apiLogin(username, password);
+  const login = useCallback(async (username: string, password: string, turnstileToken?: string) => {
+    const { accessToken } = await apiLogin(username, password, turnstileToken);
     localStorage.setItem(TOKEN_KEY, accessToken);
     setToken(accessToken);
   }, []);

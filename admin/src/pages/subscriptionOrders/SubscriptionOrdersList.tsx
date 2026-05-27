@@ -92,13 +92,22 @@ export default function SubscriptionOrdersList() {
     { title: '周期', dataIndex: 'planType', key: 'planType', width: 80 },
     {
       title: '状态',
-      dataIndex: 'status',
       key: 'status',
-      width: 90,
-      render: (v: string) => {
+      width: 130,
+      render: (_: unknown, row: SubscriptionOrderItem) => {
+        const v = row.effectiveStatus ?? row.status;
         const color = v === 'active' ? 'green' : v === 'expired' ? 'orange' : v === 'cancelled' ? 'default' : v === 'refunded' ? 'red' : 'default';
         const label = v === 'active' ? '有效' : v === 'expired' ? '已过期' : v === 'cancelled' ? '已取消' : v === 'refunded' ? '已退款' : v;
-        return <Tag color={color}>{label}</Tag>;
+        return (
+          <Space size={4}>
+            <Tag color={color}>{label}</Tag>
+            {row.isStale && (
+              <Tooltip title="DB 仍标 active 但已过期，说明 Apple 续订/过期通知没到（每小时 cron 兜底修正）">
+                <Tag color="red" style={{ fontSize: 11 }}>异常</Tag>
+              </Tooltip>
+            )}
+          </Space>
+        );
       },
     },
     {
@@ -112,9 +121,20 @@ export default function SubscriptionOrdersList() {
       title: '交易号',
       dataIndex: 'transactionId',
       key: 'transactionId',
-      width: 160,
+      width: 180,
       ellipsis: true,
-      render: (v: string | null) => v ? <Tooltip title={v}><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{v}</span></Tooltip> : '—',
+      render: (v: string | null) => {
+        if (!v) return '—';
+        const isDirty = v === '0' || v === 'null' || v === 'undefined';
+        if (isDirty) {
+          return (
+            <Tooltip title="脏数据：iOS 早期版本兜底写入或沙箱测试残留，新版本已规范化为 null">
+              <Tag color="red" style={{ fontFamily: 'monospace', fontSize: 11 }}>{v} ⚠</Tag>
+            </Tooltip>
+          );
+        }
+        return <Tooltip title={v}><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{v}</span></Tooltip>;
+      },
     },
     { title: '支付方式', dataIndex: 'paymentMethod', key: 'paymentMethod', width: 90 },
     {

@@ -157,6 +157,10 @@ export interface SubscriptionOrderItem {
   productId: string;
   planType: string;
   status: string;
+  /** Server 实时计算：active+过期时为 'expired'；其他场景同 status */
+  effectiveStatus?: string;
+  /** 已过期但 DB 仍标 active 的脏数据（说明续订/过期通知没到） */
+  isStale?: boolean;
   expireTime: string;
   transactionId: string | null;
   paymentMethod: string;

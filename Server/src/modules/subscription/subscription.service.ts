@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma, Subscription } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createPublicKey } from 'crypto';
@@ -540,7 +541,14 @@ export class SubscriptionService {
     transactionId?: string,
   ) {
     let finalProductId = productId;
-    let finalTransactionId = transactionId || null;
+    // 规范化 transactionId：拒绝脏值（'0' / 'null' / 'undefined' / ''）
+    const normalizeTxId = (v?: string | null): string | null => {
+      if (!v) return null;
+      const t = String(v).trim();
+      if (!t || t === '0' || t === 'null' || t === 'undefined') return null;
+      return t;
+    };
+    let finalTransactionId = normalizeTxId(transactionId);
     let originalTransactionId: string | null = null;
     let expireTime: Date | null = null;
     let environment: string | null = null;
@@ -576,8 +584,8 @@ export class SubscriptionService {
         environment: txnPayload.environment,
       };
       finalProductId = txn.productId || productId;
-      finalTransactionId = finalTransactionId || txn.transactionId || null;
-      originalTransactionId = txn.originalTransactionId || null;
+      finalTransactionId = finalTransactionId || normalizeTxId(txn.transactionId) || null;
+      originalTransactionId = normalizeTxId(txn.originalTransactionId);
       expireTime = parseDate(txn.expiresDate);
       purchaseDate = parseDate(txn.purchaseDate);
       environment = txn.environment || null;
@@ -661,7 +669,7 @@ export class SubscriptionService {
         ],
       };
     }
-    const [items, total] = await Promise.all([
+    const [rawItems, total] = await Promise.all([
       this.prisma.subscription.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -685,6 +693,48 @@ export class SubscriptionService {
       }),
       this.prisma.subscription.count({ where }),
     ]);
+    // 实时计算 effectiveStatus：状态='active' 但 expireTime 已过 → 标 expired
+    // 避免续订通知未到达时显示"有效"误导（不改 DB，让 cron / webhook 修正）
+    const now = new Date();
+    const items = rawItems.map((s) => ({
+      ...s,
+      effectiveStatus: s.status === 'active' && s.expireTime <= now ? 'expired' : s.status,
+      isStale: s.status === 'active' && s.expireTime <= now,
+    }));
     return { items, total, page, pageSize };
+  }
+
+  /**
+   * Cron 兜底：每小时把 active 但 expireTime 已过的订阅标为 expired
+   * 应对场景：Apple 续订/过期通知未到达（webhook 没配 / 网络丢包 / 处理失败）
+   * 同时把 user.subscriptionStatus 同步为 'free'
+   */
+  @Cron(CronExpression.EVERY_HOUR, { name: 'subscription-mark-expired' })
+  async markExpiredSubscriptions(): Promise<void> {
+    const now = new Date();
+    try {
+      const stale = await this.prisma.subscription.findMany({
+        where: { status: 'active', expireTime: { lte: now } },
+        select: { id: true, userId: true },
+      });
+      if (stale.length === 0) return;
+      const ids = stale.map((s) => s.id);
+      const userIds = Array.from(new Set(stale.map((s) => s.userId)));
+      await this.prisma.subscription.updateMany({
+        where: { id: { in: ids } },
+        data: { status: 'expired', lastEventType: 'cron_expired' },
+      });
+      // 同步用户订阅状态：仅当该用户没有其他 active 订阅时降级为 free
+      for (const uid of userIds) {
+        try {
+          await this.recomputeUserSubscription(uid);
+        } catch {
+          // 单用户失败不影响其他
+        }
+      }
+      console.log(`[SUBSCRIPTION_CRON_MARK_EXPIRED] marked ${stale.length} subscriptions as expired`);
+    } catch (err: any) {
+      console.error('[SUBSCRIPTION_CRON_MARK_EXPIRED_FAILED]', { message: err?.message });
+    }
   }
 }

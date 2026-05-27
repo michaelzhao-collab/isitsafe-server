@@ -22,6 +22,7 @@ import { AdminFeedbackController } from './admin-feedback.controller';
 import { AdminMembershipController } from './admin-membership.controller';
 import { AdminRiskDataController } from './admin-risk-data.controller';
 import { AdminV3Controller } from './admin-v3.controller';
+import { TurnstileService } from './turnstile.service';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 
 @Module({
@@ -44,6 +45,6 @@ import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
     AdminRiskDataController,
     AdminV3Controller,
   ],
-  providers: [AdminRoleGuard, AdminAuthService],
+  providers: [AdminRoleGuard, AdminAuthService, TurnstileService],
 })
 export class AdminModule {}
