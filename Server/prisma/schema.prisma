@@ -59,6 +59,9 @@ model User {
   intelSubmissions    IntelSubmission[]
   intelDeliveries     IntelDelivery[]
   intelPreferences    UserIntelPreferences?
+  deepfakeChecks      DeepfakeCheck[]
+  breachTargets       BreachTarget[]
+  breachAlerts        BreachAlert[]
 
   @@index([familyGroupId])
   @@index([lastActiveAt(sort: Desc)])
@@ -224,6 +227,86 @@ model UserIntelPreferences {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("user_intel_preferences")
+}
+
+// --------------------------------------------
+// V3-A1 语音深伪检测
+// triggered_by_user_id 用 cuid；R2 文件 24h 后自动删除（cron 维护）
+// --------------------------------------------
+model DeepfakeCheck {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 一期仅 'voice'；二期 'video' / 'voiceprint'
+  checkType       String   @default("voice") @map("check_type") @db.VarChar(20)
+  /// 'upload' | 'record' | 'share'
+  sourceType      String   @map("source_type") @db.VarChar(20)
+  /// R2 URL，24h 后清空（保留记录）
+  fileUrl         String?  @map("file_url") @db.VarChar(500)
+  fileDurationSec Int?     @map("file_duration_sec")
+  /// 0.0000 ~ 1.0000 AI 合成概率
+  resultScore     Float?   @map("result_score")
+  /// 'low' | 'medium' | 'high'
+  resultLabel     String?  @map("result_label") @db.VarChar(20)
+  resultFeatures  Json?    @map("result_features")
+  aiProvider      String?  @map("ai_provider") @db.VarChar(50)
+  aiRawResponse   Json?    @map("ai_raw_response")
+  /// 'queued' | 'processing' | 'done' | 'failed'
+  status          String   @default("queued") @db.VarChar(20)
+  /// 用户反馈：'accurate' | 'inaccurate' | null
+  userFeedback    String?  @map("user_feedback") @db.VarChar(20)
+  createdAt       DateTime @default(now()) @map("created_at")
+  completedAt     DateTime? @map("completed_at")
+  /// created_at + 24h，cron 清理 R2 文件
+  expiresAt       DateTime @map("expires_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([expiresAt])
+  @@map("deepfake_checks")
+}
+
+// --------------------------------------------
+// V3-F 暗网监控（仅海外）
+// --------------------------------------------
+model BreachTarget {
+  id                      String   @id @default(cuid())
+  userId                  String   @map("user_id")
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'email'（一期仅 email；二期 phone / cc）
+  targetType              String   @default("email") @map("target_type") @db.VarChar(20)
+  /// bcrypt(email)，用户能确认是自己的目标
+  targetValueHash         String   @map("target_value_hash")
+  /// SHA256(lower(email)) + user salt — HIBP 查询用
+  targetValueLookup       String   @map("target_value_lookup")
+  verified                Boolean  @default(false)
+  verificationToken       String?  @map("verification_token")
+  verificationExpiresAt   DateTime? @map("verification_expires_at")
+  lastScannedAt           DateTime? @map("last_scanned_at")
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  alerts BreachAlert[]
+
+  @@index([userId])
+  @@index([verified, lastScannedAt])
+  @@map("breach_targets")
+}
+
+model BreachAlert {
+  id            String       @id @default(cuid())
+  targetId      String       @map("target_id")
+  target        BreachTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  userId        String       @map("user_id")
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  breachSource  String       @map("breach_source") @db.VarChar(50)  // 'HIBP' | 'DeHashed'
+  breachName    String       @map("breach_name") @db.VarChar(200)
+  breachDate    DateTime?    @map("breach_date") @db.Date
+  exposedData   Json         @map("exposed_data")  // ['email','password','phone']
+  severity      String       @db.VarChar(20)        // 'low' | 'medium' | 'high'
+  dismissed     Boolean      @default(false)
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("breach_alerts")
 }
 
 // --------------------------------------------

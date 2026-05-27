@@ -21,6 +21,8 @@ import { HealthModule } from './modules/health/health.module';
 import { FamilyModule } from './modules/family/family.module';
 import { WellKnownModule } from './modules/wellknown/wellknown.module';
 import { IntelModule } from './modules/intel/intel.module';
+import { DeepfakeModule } from './modules/deepfake/deepfake.module';
+import { BreachModule } from './modules/breach/breach.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 
@@ -61,6 +63,8 @@ class PublicConfigController {
     FamilyModule,
     WellKnownModule,
     IntelModule,
+    DeepfakeModule,
+    BreachModule,
   ],
   controllers: [PublicConfigController],
 })

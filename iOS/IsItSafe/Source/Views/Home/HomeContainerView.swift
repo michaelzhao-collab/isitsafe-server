@@ -19,6 +19,7 @@ public struct HomeContainerView: View {
     @State private var showImagePicker = false
     @State private var showPhotoLibrary = false
     @State private var showCameraCapture = false
+    @State private var showDeepfake = false
     @State private var confirmPhotoItem: ConfirmPhotoItem?
     @State private var showClipboardAlert = false
     @State private var previousScenePhase: ScenePhase?
@@ -123,13 +124,22 @@ public struct HomeContainerView: View {
                     showImagePicker = false
                     showPhotoLibrary = true
                 },
+                onDeepfake: {
+                    showImagePicker = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showDeepfake = true
+                    }
+                },
                 onSelectRecent: { img in
                     homeVm.pendingImage = img
                     showImagePicker = false
                 }
             )
-            .presentationDetents([.height(380), .medium])
+            .presentationDetents([.height(420), .medium])
             .presentationDragIndicator(.visible)
+        }
+        .fullScreenCover(isPresented: $showDeepfake) {
+            DeepfakeView()
         }
         .fullScreenCover(isPresented: $showPhotoLibrary) {
             PhotoLibraryPicker { data in
@@ -646,20 +656,21 @@ private struct ConfirmPhotoItem: Identifiable {
 private struct MediaPickerSheet: View {
     var onCamera: () -> Void
     var onPhotoLibrary: () -> Void
+    var onDeepfake: () -> Void = {}
     var onSelectRecent: (UIImage) -> Void
 
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     var body: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 Button { onCamera() } label: {
                     VStack(spacing: 6) {
                         Image(systemName: "camera.fill")
-                            .font(.system(size: 28))
+                            .font(.system(size: 24))
                             .foregroundColor(AppTheme.primary)
                         Text(languageCode == "en" ? "Camera" : "相机")
-                            .font(.subheadline)
+                            .font(.caption)
                             .foregroundColor(.primary)
                     }
                     .frame(maxWidth: .infinity)
@@ -672,15 +683,35 @@ private struct MediaPickerSheet: View {
                 Button { onPhotoLibrary() } label: {
                     VStack(spacing: 6) {
                         Image(systemName: "photo.on.rectangle.angled")
-                            .font(.system(size: 28))
+                            .font(.system(size: 24))
                             .foregroundColor(AppTheme.primary)
                         Text(languageCode == "en" ? "Photos" : "相册")
-                            .font(.subheadline)
+                            .font(.caption)
                             .foregroundColor(.primary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(Color(.systemGray6))
+                    .cornerRadius(12)
+                }
+                .buttonStyle(.plain)
+
+                // V3-A1 入口
+                Button { onDeepfake() } label: {
+                    VStack(spacing: 6) {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.white)
+                        Text(languageCode == "en" ? "Voice AI" : "语音深伪")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.white)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        LinearGradient(colors: [AppTheme.primary, AppTheme.premiumHeader],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
                     .cornerRadius(12)
                 }
                 .buttonStyle(.plain)

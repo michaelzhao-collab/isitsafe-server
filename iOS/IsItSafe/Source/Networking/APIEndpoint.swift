@@ -88,6 +88,20 @@ public enum APIEndpoint {
     /// 更新偏好
     case v3IntelPutPreferences
 
+    // V3-A1 语音深伪
+    case v3DeepfakeCreate
+    case v3DeepfakeResult(taskId: String)
+    case v3DeepfakeHistory(limit: Int)
+    case v3DeepfakeDelete(taskId: String)
+    case v3DeepfakeFeedback(taskId: String)
+
+    // V3-F 暗网监控
+    case v3BreachAddTarget
+    case v3BreachListTargets
+    case v3BreachDeleteTarget(id: String)
+    case v3BreachListAlerts
+    case v3BreachDismissAlert(id: String)
+
     public var path: String {
         switch self {
         case .health: return "/api/health"
@@ -148,6 +162,18 @@ public enum APIEndpoint {
         case .v3IntelMySubmissions: return "/api/v3/intel/me/submissions"
         case .v3IntelGetPreferences: return "/api/v3/intel/preferences"
         case .v3IntelPutPreferences: return "/api/v3/intel/preferences"
+        // V3-A1
+        case .v3DeepfakeCreate: return "/api/v3/deepfake/voice"
+        case .v3DeepfakeResult(let id): return "/api/v3/deepfake/voice/\(id)"
+        case .v3DeepfakeHistory: return "/api/v3/deepfake/voice/history/me"
+        case .v3DeepfakeDelete(let id): return "/api/v3/deepfake/voice/\(id)"
+        case .v3DeepfakeFeedback(let id): return "/api/v3/deepfake/voice/\(id)/feedback"
+        // V3-F
+        case .v3BreachAddTarget: return "/api/v3/breach/targets"
+        case .v3BreachListTargets: return "/api/v3/breach/targets"
+        case .v3BreachDeleteTarget(let id): return "/api/v3/breach/targets/\(id)"
+        case .v3BreachListAlerts: return "/api/v3/breach/alerts"
+        case .v3BreachDismissAlert(let id): return "/api/v3/breach/alerts/\(id)/dismiss"
         }
     }
 
@@ -156,21 +182,27 @@ public enum APIEndpoint {
         case .health, .authUserInfo, .authRegionHint, .queryHistory, .queryTags, .knowledgeList, .knowledgeCategories, .knowledgeDetail, .subscriptionStatus, .membershipPlans, .messagesList, .messageUnreadCount, .publicConfig,
              .v3FamilyGetMyGroup, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
              .v3IntelFeed, .v3IntelDetail, .v3IntelCategories, .v3IntelUnreadCount,
-             .v3IntelMySubmissions, .v3IntelGetPreferences:
+             .v3IntelMySubmissions, .v3IntelGetPreferences,
+             .v3DeepfakeResult, .v3DeepfakeHistory,
+             .v3BreachListTargets, .v3BreachListAlerts:
             return .GET
         case .authLogin, .authAppleLogin, .authSendCode, .authLogout, .authDeleteAccount, .authRefreshToken, .aiAnalyze, .aiAnalyzeScreenshot,
              .queryPhone, .queryURL, .queryCompany, .reportSubmit, .subscriptionVerify, .messageMarkRead, .feedbackSubmit,
              .v3UserHeartbeat, .v3FamilyCreateGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyCreateBroadcast,
-             .v3IntelSubmit:
+             .v3IntelSubmit,
+             .v3DeepfakeCreate, .v3DeepfakeFeedback,
+             .v3BreachAddTarget:
             return .POST
         case .deleteQuery, .deleteQueryConversation,
-             .v3FamilyDissolveGroup, .v3FamilyRemoveMember:
+             .v3FamilyDissolveGroup, .v3FamilyRemoveMember,
+             .v3DeepfakeDelete, .v3BreachDeleteTarget:
             return .DELETE
         case .uploadAvatar, .uploadFile:
             return .POST
         case .updateProfile, .v3UserElderMode, .v3FamilyUpdatePreferences,
-             .v3IntelPutPreferences:
+             .v3IntelPutPreferences,
+             .v3BreachDismissAlert:
             return .PUT
         }
     }
@@ -184,7 +216,10 @@ public enum APIEndpoint {
              .v3FamilyLeaveGroup, .v3FamilyDissolveGroup, .v3FamilyRemoveMember, .v3FamilyUpdatePreferences,
              .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
              .v3IntelFeed, .v3IntelDetail, .v3IntelUnreadCount, .v3IntelSubmit,
-             .v3IntelMySubmissions, .v3IntelGetPreferences, .v3IntelPutPreferences:
+             .v3IntelMySubmissions, .v3IntelGetPreferences, .v3IntelPutPreferences,
+             .v3DeepfakeCreate, .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeDelete, .v3DeepfakeFeedback,
+             .v3BreachAddTarget, .v3BreachListTargets, .v3BreachDeleteTarget,
+             .v3BreachListAlerts, .v3BreachDismissAlert:
             return true
         default:
             return false
@@ -226,6 +261,8 @@ public enum APIEndpoint {
         case .v3IntelCategories(let lang):
             if let l = lang, !l.isEmpty { return [URLQueryItem(name: "language", value: l)] }
             return nil
+        case .v3DeepfakeHistory(let limit):
+            return [URLQueryItem(name: "limit", value: "\(limit)")]
         default:
             return nil
         }

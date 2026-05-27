@@ -14,6 +14,7 @@ private enum ProfileRoute: Hashable {
     case messages
     case feedback
     case settings
+    case breachMonitor
 }
 
 public struct ProfileView: View {
@@ -102,6 +103,24 @@ public struct ProfileView: View {
                         .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                         .listRowBackground(profileCardBackground)
                         .overlay(bottomDivider, alignment: .bottom)
+
+                        // V3-F 暗网监控入口（仅海外用户可见，region_code 不以 CN 开头）
+                        if isOverseasUser {
+                            Button {
+                                selectedRoute = .breachMonitor
+                            } label: {
+                                menuRow(
+                                    icon: "shield.lefthalf.filled",
+                                    title: "Dark Web Monitor",
+                                    showRedDot: false
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                            .listRowBackground(profileCardBackground)
+                            .overlay(bottomDivider, alignment: .bottom)
+                        }
 
                         Button {
                             selectedRoute = .feedback
@@ -210,6 +229,9 @@ public struct ProfileView: View {
                     SettingsView()
                         .environmentObject(appState)
                         .mainTabBarHidden()
+                case .breachMonitor:
+                    BreachMonitorView()
+                        .mainTabBarHidden()
                 }
             }
             .sheet(isPresented: $showLanguageSheet) {
@@ -220,6 +242,15 @@ public struct ProfileView: View {
                 if showing { tempLanguage = effectiveLanguageTag }
             }
         }
+    }
+
+    // V3-F 暗网监控仅海外可见：region_code 为空或以 CN 开头视为国内用户
+    private var isOverseasUser: Bool {
+        guard let region = appState.user?.regionCode, !region.isEmpty else {
+            // 兜底：根据系统语言推断（zh 用户视为国内）
+            return !languageCode.lowercased().hasPrefix("zh")
+        }
+        return !region.uppercased().hasPrefix("CN")
     }
 
     // V3-J 长辈模式开关 row（开启会切换主界面到 ElderHomeView）
