@@ -42,7 +42,11 @@ public struct DeepfakeView: View {
                     }
                 }
             }
-            .task { await loadHistory() }
+            .task {
+                await loadHistory()
+                // V3-A1 Share Extension：处理用户从微信/iMessage 分享过来的音频
+                await processSharedAudioIfNeeded()
+            }
             .sheet(isPresented: $showRecord, onDismiss: { Task { await loadHistory() } }) {
                 DeepfakeRecordSheet { check in
                     showRecord = false
@@ -52,6 +56,30 @@ public struct DeepfakeView: View {
             .sheet(item: $showResult, onDismiss: { Task { await loadHistory() } }) { c in
                 DeepfakeResultView(check: c)
             }
+        }
+    }
+
+    /// 检查 Share Extension 投递的音频，若有则自动上传 + 创建检测任务
+    private func processSharedAudioIfNeeded() async {
+        guard let sharedUrl = ShareInboxService.shared.checkPendingAudio() else { return }
+        do {
+            let audioData = try Data(contentsOf: sharedUrl)
+            let fileUrl = try await NetworkManager.shared.uploadAudio(
+                type: "deepfake",
+                audioData: audioData,
+                mimeType: "audio/mp4",
+                filename: sharedUrl.lastPathComponent
+            )
+            let check = try await DeepfakeRepository.shared.create(
+                sourceType: "share",
+                fileUrl: fileUrl,
+                fileDurationSec: nil
+            )
+            ShareInboxService.shared.consume(url: sharedUrl)
+            showResult = check
+        } catch {
+            // 失败：仍消费 pending 防止反复触发，让用户手动重试
+            ShareInboxService.shared.consume(url: sharedUrl)
         }
     }
 

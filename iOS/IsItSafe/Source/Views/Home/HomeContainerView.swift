@@ -211,6 +211,13 @@ public struct HomeContainerView: View {
                 }
                 // V3-E 冷启即时上报心跳一次（关怀机制；服务端按今日 active_count 计数）
                 Task { await HeartbeatService.shared.reportActive() }
+
+                // V3-A1 Share Extension：用户从微信/iMessage 长按语音分享过来时，主 App 启动后自动跳深伪检测
+                if ShareInboxService.shared.checkPendingAudio() != nil {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        showDeepfake = true
+                    }
+                }
             }
         }
         .navigationDestination(item: $selectedHistoryItem) { item in

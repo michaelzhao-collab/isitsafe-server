@@ -196,6 +196,118 @@ export class IntelService {
   // 分类列表（client 用于偏好设置选项）
   // ====================================================================
 
+  // ====================================================================
+  // Admin 后台
+  // ====================================================================
+
+  async adminListAlerts(params: { status?: string; language?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(10, params.pageSize ?? 20));
+    const where: any = {};
+    if (params.status) where.status = params.status;
+    if (params.language) where.language = params.language;
+    const [items, total] = await Promise.all([
+      this.prisma.intelAlert.findMany({
+        where,
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.intelAlert.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
+  }
+
+  async adminCreateAlert(data: {
+    title: string;
+    summary: string;
+    contentBlocks?: any;
+    category: string;
+    severity: 'normal' | 'high' | 'urgent';
+    targetRegions: string[];
+    targetAudiences: string[];
+    language?: string;
+    sourceUrl?: string;
+    status?: 'draft' | 'pending' | 'published' | 'archived';
+  }) {
+    const status = data.status ?? 'draft';
+    const publishedAt = status === 'published' ? new Date() : null;
+    return this.prisma.intelAlert.create({
+      data: {
+        title: data.title,
+        summary: data.summary,
+        contentBlocks: data.contentBlocks ?? null,
+        category: data.category,
+        severity: data.severity,
+        targetRegions: data.targetRegions as any,
+        targetAudiences: data.targetAudiences as any,
+        language: data.language ?? 'zh',
+        sourceUrl: data.sourceUrl ?? null,
+        status,
+        publishedAt,
+      },
+    });
+  }
+
+  async adminUpdateAlert(id: string, data: Partial<{
+    title: string;
+    summary: string;
+    contentBlocks: any;
+    category: string;
+    severity: 'normal' | 'high' | 'urgent';
+    targetRegions: string[];
+    targetAudiences: string[];
+    language: string;
+    sourceUrl: string | null;
+    status: 'draft' | 'pending' | 'published' | 'archived';
+  }>) {
+    const current = await this.prisma.intelAlert.findUnique({ where: { id } });
+    if (!current) throw new NotFoundException('Alert not found');
+    const data2: any = { ...data };
+    // 状态变 published 时设置 publishedAt
+    if (data.status === 'published' && current.status !== 'published') {
+      data2.publishedAt = new Date();
+    } else if (data.status && data.status !== 'published') {
+      data2.publishedAt = null;
+    }
+    return this.prisma.intelAlert.update({ where: { id }, data: data2 });
+  }
+
+  async adminDeleteAlert(id: string) {
+    await this.prisma.intelAlert.delete({ where: { id } });
+    return { success: true };
+  }
+
+  async adminListSubmissions(params: { status?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(10, params.pageSize ?? 20));
+    const where: any = {};
+    if (params.status) where.status = params.status;
+    const [items, total] = await Promise.all([
+      this.prisma.intelSubmission.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.intelSubmission.count({ where }),
+    ]);
+    return { items, total, page, pageSize };
+  }
+
+  async adminReviewSubmission(id: string, action: 'approve' | 'reject' | 'merge', mergedToIntelId?: string) {
+    const sub = await this.prisma.intelSubmission.findUnique({ where: { id } });
+    if (!sub) throw new NotFoundException();
+    const status = action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'merged';
+    return this.prisma.intelSubmission.update({
+      where: { id },
+      data: {
+        status,
+        mergedToIntelId: action === 'merge' ? mergedToIntelId ?? null : null,
+      },
+    });
+  }
+
   getCategories(language: string = 'zh') {
     if (language === 'en') {
       return [

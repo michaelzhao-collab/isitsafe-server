@@ -30,6 +30,8 @@ const menuItems = [
   { key: '/risk-database', icon: <DatabaseOutlined />, label: 'Risk Database' },
   { key: '/knowledge', icon: <BookOutlined />, label: 'Knowledge Base' },
   { key: '/knowledge-categories', icon: <BookOutlined />, label: '分类管理' },
+  { key: '/intel', icon: <BookOutlined />, label: '情报中心 (V3)' },
+  { key: '/intel/submissions', icon: <CommentOutlined />, label: '用户上报审批' },
   { key: '/ai-settings', icon: <ApiOutlined />, label: 'AI Settings' },
   { key: '/system-settings', icon: <SettingOutlined />, label: 'System Settings' },
   { key: '/messages', icon: <MessageOutlined />, label: '消息管理' },

@@ -21,6 +21,9 @@ import MessagesList from '../pages/messages/MessagesList';
 import FeedbackList from '../pages/feedback/FeedbackList';
 import MembershipPlansList from '../pages/membership/MembershipPlansList';
 import SubscriptionOrdersList from '../pages/subscriptionOrders/SubscriptionOrdersList';
+import IntelList from '../pages/intel/IntelList';
+import IntelEdit from '../pages/intel/IntelEdit';
+import IntelSubmissions from '../pages/intel/IntelSubmissions';
 import Login from '../pages/Login';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -62,6 +65,10 @@ const router = createBrowserRouter([
       { path: 'feedback', element: <FeedbackList /> },
       { path: 'membership', element: <MembershipPlansList /> },
       { path: 'subscription-orders', element: <SubscriptionOrdersList /> },
+      { path: 'intel', element: <IntelList /> },
+      { path: 'intel/new/edit', element: <IntelEdit /> },
+      { path: 'intel/:id/edit', element: <IntelEdit /> },
+      { path: 'intel/submissions', element: <IntelSubmissions /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

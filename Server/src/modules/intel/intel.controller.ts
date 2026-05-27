@@ -5,10 +5,12 @@ import {
   Param,
   Post,
   Put,
+  Delete,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { IntelService } from './intel.service';
 import { IntelSubmitDto, IntelPreferencesDto } from './dto/intel.dto';
@@ -97,5 +99,66 @@ export class IntelController {
   @UseGuards(JwtAuthGuard)
   async putPreferences(@CurrentUser('sub') userId: string, @Body() dto: IntelPreferencesDto) {
     return this.intel.updatePreferences(userId, dto);
+  }
+}
+
+/**
+ * V3-B Admin 情报管理接口
+ * 仅管理员可访问；路由前缀 /api/admin/intel
+ */
+@Controller('admin/intel')
+@UseGuards(JwtAuthGuard, AdminRoleGuard)
+export class IntelAdminController {
+  constructor(private intel: IntelService) {}
+
+  @Get('alerts')
+  async listAlerts(
+    @Query('status') status?: string,
+    @Query('language') language?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.intel.adminListAlerts({
+      status,
+      language,
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+    });
+  }
+
+  @Post('alerts')
+  async createAlert(@Body() body: any) {
+    return this.intel.adminCreateAlert(body);
+  }
+
+  @Put('alerts/:id')
+  async updateAlert(@Param('id') id: string, @Body() body: any) {
+    return this.intel.adminUpdateAlert(id, body);
+  }
+
+  @Delete('alerts/:id')
+  async deleteAlert(@Param('id') id: string) {
+    return this.intel.adminDeleteAlert(id);
+  }
+
+  @Get('submissions')
+  async listSubmissions(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.intel.adminListSubmissions({
+      status,
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+    });
+  }
+
+  @Post('submissions/:id/review')
+  async reviewSubmission(
+    @Param('id') id: string,
+    @Body() body: { action: 'approve' | 'reject' | 'merge'; mergedToIntelId?: string },
+  ) {
+    return this.intel.adminReviewSubmission(id, body.action, body.mergedToIntelId);
   }
 }
