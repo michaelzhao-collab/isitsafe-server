@@ -43,6 +43,15 @@ struct IsItSafeApp: App {
                     // 启动时触发网络预热
                     Task { await AuthService.shared.refreshTokenIfNeeded() }
                 }
+                // V3-E Universal Link：starlens.ai/i/{code} 拉起 App 直接进兑换流程
+                .onOpenURL { url in
+                    router.handleUniversalLink(url)
+                }
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    if let url = activity.webpageURL {
+                        router.handleUniversalLink(url)
+                    }
+                }
 
                 if isSplashVisible {
                     SplashView()

@@ -16,6 +16,7 @@ import {
   CreateFamilyGroupDto,
   RedeemInviteDto,
   UpdatePreferencesDto,
+  BroadcastDto,
 } from './dto/create-group.dto';
 
 /**
@@ -102,10 +103,26 @@ export class FamilyController {
     return this.family.getMyBroadcasts(userId, Math.min(n, 100));
   }
 
-  // 以下接口待 W4-W6 实现
+  /**
+   * V3-E 主动分享：用户在 App 输入一条信息 → AI 检测 → 按结果以"官方"名义广播给家庭
+   * 不在家庭组、当日已发同内容、配额耗尽 都会返回特定 skipReason
+   */
   @Post('broadcast')
-  async createBroadcast() {
-    return { code: 'NOT_IMPLEMENTED', message: 'Broadcast feature is in development (W5)' };
+  async createBroadcast(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: BroadcastDto,
+  ) {
+    const validTypes = ['phone', 'url', 'sms', 'voice'] as const;
+    const t = (dto.contentType ?? '').toLowerCase();
+    if (!validTypes.includes(t as any)) {
+      return { delivered: false, error: 'invalid contentType' };
+    }
+    return this.family.createBroadcast({
+      triggeredByUserId: userId,
+      contentType: t as 'phone' | 'url' | 'sms' | 'voice',
+      content: dto.content,
+      source: 'manual_share',
+    });
   }
 
   @Get('members/status')

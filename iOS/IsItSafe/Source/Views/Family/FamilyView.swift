@@ -30,12 +30,25 @@ public struct FamilyView: View {
                 .background(AppTheme.background)
                 .toolbarBackground(AppTheme.background, for: .navigationBar)
         }
-        .onAppear { vm.refresh() }
+        .onAppear {
+            vm.refresh()
+            // 启动时已经携带 pending 邀请码 → 立即打开兑换 sheet
+            if router.pendingInviteCode != nil {
+                showRedeemSheet = true
+            }
+        }
+        // Universal Link 拉起家庭 Tab + 携带邀请码 → 自动弹兑换 sheet
+        .onChange(of: router.pendingInviteCode) { _, code in
+            if code != nil { showRedeemSheet = true }
+        }
         .sheet(isPresented: $showCreateSheet) {
             CreateFamilyGroupSheet(vm: vm)
         }
-        .sheet(isPresented: $showRedeemSheet) {
-            RedeemInviteSheet(vm: vm)
+        .sheet(isPresented: $showRedeemSheet, onDismiss: {
+            // 兑换页关闭后清除 router pending code
+            router.pendingInviteCode = nil
+        }) {
+            RedeemInviteSheet(vm: vm, prefilledCode: router.pendingInviteCode)
         }
     }
 

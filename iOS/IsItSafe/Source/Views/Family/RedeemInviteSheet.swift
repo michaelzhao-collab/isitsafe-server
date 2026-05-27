@@ -15,8 +15,14 @@ public struct RedeemInviteSheet: View {
     @State private var submitting = false
     @State private var errorMessage: String?
 
-    public init(vm: FamilyViewModel) {
+    private let prefilledCode: String?
+
+    public init(vm: FamilyViewModel, prefilledCode: String? = nil) {
         self.vm = vm
+        self.prefilledCode = prefilledCode
+        if let code = prefilledCode {
+            _code = State(initialValue: String(code.uppercased().prefix(6)))
+        }
     }
 
     public var body: some View {

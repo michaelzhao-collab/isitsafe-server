@@ -16,6 +16,7 @@ public struct FamilyGroupView: View {
     @State private var showInviteSheet = false
     @State private var showLeaveConfirm = false
     @State private var showDissolveConfirm = false
+    @State private var showShareSheet = false
 
     public init(group: FamilyGroup, vm: FamilyViewModel) {
         self.group = group
@@ -36,6 +37,9 @@ public struct FamilyGroupView: View {
         .background(AppTheme.background)
         .sheet(isPresented: $showInviteSheet) {
             InviteFamilySheet(group: group, vm: vm)
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ShareToFamilySheet(vm: vm)
         }
         .confirmationDialog(
             languageCode == "en" ? "Leave family group?" : "退出家庭组？",
@@ -162,6 +166,20 @@ public struct FamilyGroupView: View {
 
     private var actionsSection: some View {
         VStack(spacing: 10) {
+            // V3-E 主动分享触发官方广播（所有成员都可点）
+            Button { showShareSheet = true } label: {
+                HStack {
+                    Image(systemName: "megaphone.fill")
+                    Text(languageCode == "en" ? "Share to Family" : "分享信息到家庭")
+                }
+                .font(.body.weight(.semibold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(AppTheme.primary)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
+            }
+
             if group.isOwner && !group.isFull {
                 Button { showInviteSheet = true } label: {
                     HStack {
@@ -169,10 +187,10 @@ public struct FamilyGroupView: View {
                         Text(languageCode == "en" ? "Invite Family" : "邀请家人")
                     }
                     .font(.body.weight(.semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(AppTheme.primary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(AppTheme.primary)
+                    .background(AppTheme.primary.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
                 }
             }

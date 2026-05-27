@@ -144,6 +144,23 @@ public final class FamilyViewModel: ObservableObject {
             return nil
         }
     }
+
+    // MARK: - 主动分享触发官方广播
+
+    /// 主动分享一条信息（AI 检测后按结果以官方名义广播）
+    public func createBroadcast(contentType: String, content: String) async -> BroadcastResponse? {
+        let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        inflightAction = "broadcast"
+        defer { inflightAction = nil }
+        do {
+            let resp = try await repo.createBroadcast(contentType: contentType, content: text)
+            return resp
+        } catch {
+            state = .error(error.localizedDescription)
+            return nil
+        }
+    }
 }
 
 // MARK: - 内部工具

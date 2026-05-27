@@ -82,6 +82,14 @@ public final class FamilyRepository {
     public func getBroadcasts(limit: Int = 50) async throws -> [FamilyBroadcast] {
         try await network.request(endpoint: .v3FamilyGetBroadcasts(limit: limit))
     }
+
+    /// 主动分享一条信息触发官方广播
+    public func createBroadcast(contentType: String, content: String) async throws -> BroadcastResponse {
+        try await network.request(
+            endpoint: .v3FamilyCreateBroadcast,
+            body: BroadcastRequest(contentType: contentType, content: content)
+        )
+    }
 }
 
 /// 包装 nullable FamilyGroup（服务端 GET /groups/me 在未加入时返回 null）

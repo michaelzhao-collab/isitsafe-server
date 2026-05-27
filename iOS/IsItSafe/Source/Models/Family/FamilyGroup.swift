@@ -129,6 +129,36 @@ public struct FamilyBroadcast: Codable, Identifiable {
     }
 }
 
+/// 主动分享请求
+public struct BroadcastRequest: Codable {
+    public let contentType: String   // phone | url | sms | voice
+    public let content: String
+    public init(contentType: String, content: String) {
+        self.contentType = contentType
+        self.content = content
+    }
+}
+
+/// 主动分享响应
+public struct BroadcastResponse: Codable {
+    public let delivered: Bool
+    public let broadcastId: String?
+    public let resultLabel: FamilyBroadcast.ResultLabel
+    public let quotaRemaining: Int
+    public let skipReason: String?
+
+    public var skipReasonEnum: SkipReason? {
+        guard let r = skipReason else { return nil }
+        return SkipReason(rawValue: r)
+    }
+
+    public enum SkipReason: String, Codable {
+        case duplicate
+        case quotaExceeded = "quota_exceeded"
+        case noGroup = "no_group"
+    }
+}
+
 /// 心跳响应
 public struct HeartbeatResponse: Codable {
     public let active: Bool

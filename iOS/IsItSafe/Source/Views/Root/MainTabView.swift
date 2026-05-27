@@ -54,6 +54,13 @@ public struct MainTabView: View {
                     .zIndex(1)
             }
         }
+        // V3-E Universal Link 跳转：router 设置 pendingTabIndex 时自动切 Tab
+        .onChange(of: router.pendingTabIndex) { _, newIdx in
+            if let idx = newIdx, idx >= 0 && idx <= 3 {
+                selectedTab = idx
+                router.pendingTabIndex = nil
+            }
+        }
     }
 
     private var tabBar: some View {

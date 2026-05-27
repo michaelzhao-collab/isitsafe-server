@@ -24,6 +24,11 @@ public final class AppRouter: ObservableObject {
     @Published public var presentedSheet: AppRoute?
     @Published public var isShowingLogin = false
 
+    // V3-E Universal Link 跳转：从 starlens.ai/i/{code} 拉起 App 后，主界面观察此值自动弹兑换 sheet
+    @Published public var pendingInviteCode: String?
+    // 拉起家庭 Tab 的指令（来自 push 通知或 deep link）
+    @Published public var pendingTabIndex: Int?
+
     private init() {}
 
     public func push(_ route: AppRoute) {
@@ -48,5 +53,22 @@ public final class AppRouter: ObservableObject {
 
     public func dismissLogin() {
         isShowingLogin = false
+    }
+
+    // MARK: - Universal Link 解析
+
+    /// 解析进入的 URL：
+    /// - https://starlens.ai/i/{code} → 设置 pendingInviteCode + 跳家庭 Tab
+    /// - 其他 → 忽略
+    public func handleUniversalLink(_ url: URL) {
+        guard let host = url.host?.lowercased() else { return }
+        guard host == "starlens.ai" || host.hasSuffix(".starlens.ai") else { return }
+
+        let parts = url.pathComponents.filter { $0 != "/" }
+        if parts.count == 2, parts[0] == "i" {
+            let code = parts[1].uppercased()
+            pendingInviteCode = code
+            pendingTabIndex = 2 // 家庭 Tab
+        }
     }
 }

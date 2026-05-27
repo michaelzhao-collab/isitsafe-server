@@ -11,7 +11,15 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
-  app.setGlobalPrefix('api');
+  // 全局前缀 /api，排除以下根路径：
+  //  - /.well-known/apple-app-site-association (iOS Universal Link 验证)
+  //  - /.well-known/assetlinks.json (Android App Links 占位，二期接入)
+  app.setGlobalPrefix('api', {
+    exclude: [
+      '.well-known/apple-app-site-association',
+      '.well-known/assetlinks.json',
+    ],
+  });
   // CORS_ORIGINS 逗号分隔，如 https://admin.example.com,https://web.example.com
   // 不设置则只允许同域请求（Railway 生产环境务必配置此变量）
   const rawOrigins = process.env.CORS_ORIGINS || '';
