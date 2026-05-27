@@ -28,7 +28,7 @@ export class NotificationService {
     category?: string;
     customData?: Record<string, unknown>;
     deviceToken?: string; // 二期：从 user_devices 表查
-  }): Promise<{ delivered: boolean; messageId?: string }> {
+  }): Promise<{ delivered: boolean; messageId?: string; reason?: string }> {
     const apnsConfigured = !!(
       process.env.APNS_TEAM_ID &&
       process.env.APNS_KEY_ID &&
@@ -37,15 +37,19 @@ export class NotificationService {
     );
     if (!apnsConfigured || !params.deviceToken) {
       this.logger.log(
-        `[Push:stub] user=${params.userId} title="${params.title}" body="${params.body}" cat=${params.category ?? 'default'}`,
+        `[Push:stub] user=${params.userId} title="${params.title}" body="${params.body}" cat=${params.category ?? 'default'} reason=${!apnsConfigured ? 'apns_not_configured' : 'no_device_token'}`,
       );
-      return { delivered: true, messageId: `stub_push_${Date.now()}` };
+      // ⚠️ 重要：stub 不能返 delivered:true，否则上层（如 family_care_notices）会写"已送达"误导审计
+      return {
+        delivered: false,
+        reason: !apnsConfigured ? 'apns_not_configured' : 'no_device_token',
+      };
     }
 
     // 真实 APNs 实现需要 HTTP/2 + JWT 签名。Node.js 内建 http2 + jsonwebtoken 可实现。
     // 这里返回 stub，待二期完整实现（带连接池 + 失败重试 + token 失效清理）。
     this.logger.warn('[Push] APNs configured but production path not yet implemented');
-    return { delivered: false, messageId: undefined };
+    return { delivered: false, reason: 'apns_impl_pending' };
   }
 
   async sendPushBatch(items: Array<{
@@ -56,11 +60,12 @@ export class NotificationService {
     customData?: Record<string, unknown>;
     deviceToken?: string;
   }>): Promise<{ delivered: number; failed: number }> {
+    // 并发发送，避免百人家庭组串行卡几十秒
+    const results = await Promise.allSettled(items.map((item) => this.sendPush(item)));
     let delivered = 0;
     let failed = 0;
-    for (const item of items) {
-      const r = await this.sendPush(item);
-      if (r.delivered) delivered++;
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value.delivered) delivered++;
       else failed++;
     }
     return { delivered, failed };
@@ -98,7 +103,7 @@ export class NotificationService {
       this.logger.log(
         `[SMS:CN-stub] user=${params.userId} phone=${this.maskPhone(params.phone)} vars=${JSON.stringify(params.variables)}`,
       );
-      return { delivered: true, messageId: `stub_sms_cn_${Date.now()}`, cost: 0.045, provider: 'stub' };
+      return { delivered: false, provider: 'stub' };
     }
     // 阿里云 SMS HTTP API 签名复杂（POP-API v3），生产建议使用 SDK @alicloud/dysmsapi20170525
     // 此处留接口示意；TODO 二期接 SDK
@@ -119,7 +124,7 @@ export class NotificationService {
       this.logger.log(
         `[SMS:INTL-stub] user=${params.userId} phone=${this.maskPhone(params.phone)} vars=${JSON.stringify(params.variables)}`,
       );
-      return { delivered: true, messageId: `stub_sms_intl_${Date.now()}`, provider: 'stub' };
+      return { delivered: false, provider: 'stub' };
     }
 
     const body = this.renderTemplate(params.template, params.variables, 'INTL');

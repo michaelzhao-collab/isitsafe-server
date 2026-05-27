@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -33,6 +34,9 @@ export class DeepfakeService {
     fileUrl: string;
     fileDurationSec?: number;
   }) {
+    // SSRF 防御：fileUrl 必须是本项目 CDN 域名，防止用户传任意 URL 触发外发请求
+    this.assertOwnCdnUrl(params.fileUrl);
+
     const now = new Date();
     const expires = new Date(now.getTime() + 24 * 3600 * 1000);
 
@@ -49,21 +53,64 @@ export class DeepfakeService {
     });
 
     // Provider 失败 fallback 链：Reality Defender → 火山引擎 → stub
-    const { result, providerName, raw } = await this.analyzeWithFallback(params.fileUrl, params.fileDurationSec ?? 30);
+    // stub provider 仅几毫秒；真实 provider 30s timeout
+    // 一期同步等待结果（客户端体验：录音上传后等几秒看结果）；二期切异步轮询
+    try {
+      const { result, providerName, raw } = await this.analyzeWithFallback(params.fileUrl, params.fileDurationSec ?? 30);
+      const updated = await this.prisma.deepfakeCheck.update({
+        where: { id: check.id },
+        data: {
+          status: 'done',
+          resultScore: result.score,
+          resultLabel: result.label,
+          resultFeatures: result.features as any,
+          aiProvider: providerName,
+          aiRawResponse: raw as any,
+          completedAt: new Date(),
+        },
+      });
+      return updated;
+    } catch (err: any) {
+      // 整体失败也不阻塞客户端：标记 failed 让用户重试
+      this.logger.error(`[Deepfake] all providers failed: ${err?.message}`);
+      return this.prisma.deepfakeCheck.update({
+        where: { id: check.id },
+        data: { status: 'failed', completedAt: new Date() },
+      });
+    }
+  }
 
-    const updated = await this.prisma.deepfakeCheck.update({
-      where: { id: check.id },
-      data: {
-        status: 'done',
-        resultScore: result.score,
-        resultLabel: result.label,
-        resultFeatures: result.features as any,
-        aiProvider: providerName,
-        aiRawResponse: raw as any,
-        completedAt: new Date(),
-      },
-    });
-    return updated;
+  /**
+   * 校验 fileUrl 是本项目 CDN 域名（CDN_DOMAIN env）
+   * 防止用户传任意 URL → 服务端把 URL 转发到 Reality Defender / Volcengine
+   * 攻击场景：用户传 https://attacker.com/file.m4a → 第三方 AI 拿数据 → 用户的私有信息外泄
+   */
+  private assertOwnCdnUrl(fileUrl: string): void {
+    const cdn = (process.env.CDN_DOMAIN || '').replace(/\/$/, '');
+    if (!cdn) {
+      // 未配 CDN_DOMAIN（dev 环境）放行，但记日志
+      this.logger.warn('[Deepfake] CDN_DOMAIN not set, fileUrl validation skipped');
+      return;
+    }
+    let url: URL;
+    try {
+      url = new URL(fileUrl);
+    } catch {
+      throw new BadRequestException('Invalid fileUrl');
+    }
+    let cdnUrl: URL;
+    try {
+      cdnUrl = new URL(cdn);
+    } catch {
+      this.logger.warn(`[Deepfake] CDN_DOMAIN invalid: ${cdn}`);
+      return;
+    }
+    if (url.protocol !== 'https:') {
+      throw new BadRequestException('fileUrl must be https');
+    }
+    if (url.host !== cdnUrl.host) {
+      throw new BadRequestException('fileUrl host not allowed');
+    }
   }
 
   // ====================================================================

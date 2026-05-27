@@ -291,6 +291,7 @@ model BreachTarget {
 
   @@index([userId])
   @@index([verified, lastScannedAt])
+  @@unique([userId, targetValueLookup])
   @@map("breach_targets")
 }
 

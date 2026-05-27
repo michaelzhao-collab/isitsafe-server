@@ -91,9 +91,13 @@ function detectAudioMimeFromMagic(buf: Buffer): string | null {
   if (buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) {
     return 'audio/mp4';
   }
-  // MP3: ID3 tag 'ID3' or frame sync 0xFFFB/0xFFFA/0xFFE0
+  // MP3: ID3 tag 'ID3' or MPEG-1/2 Layer III frame sync (FFFA/FFFB/FFF2/FFF3)
   if (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) return 'audio/mpeg';
-  if (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0) return 'audio/mpeg';
+  // 严格 MPEG audio sync: 0xFF + (top 11 bits == 0xFFE) + (layer bits == Layer III: 0x02)
+  // 即 byte[1] 必须是 0xFA/0xFB/0xF2/0xF3 之一（之前的 0xE0 mask 过宽，会误判任意 0xFFE_ 字节）
+  if (buf[0] === 0xff && (buf[1] === 0xfa || buf[1] === 0xfb || buf[1] === 0xf2 || buf[1] === 0xf3)) {
+    return 'audio/mpeg';
+  }
   // WAV: 'RIFF' xxxx 'WAVE'
   if (
     buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
@@ -104,10 +108,18 @@ function detectAudioMimeFromMagic(buf: Buffer): string | null {
   return null;
 }
 
-function ensureRealAudio(buffer: Buffer): void {
+function ensureRealAudio(buffer: Buffer, allowedTypes: string[]): void {
   const detected = detectAudioMimeFromMagic(buffer);
   if (!detected) {
     throw new BadRequestException('File content is not a recognizable audio');
+  }
+  // 与图片路径对齐：detected 必须在白名单中
+  const normalized = detected === 'audio/mp4' ? ['audio/mp4', 'audio/m4a', 'audio/x-m4a'] :
+    detected === 'audio/mpeg' ? ['audio/mpeg', 'audio/mp3'] :
+    detected === 'audio/wav' ? ['audio/wav', 'audio/x-wav'] :
+    detected === 'audio/aac' ? ['audio/aac'] : [];
+  if (!normalized.some((m) => allowedTypes.includes(m))) {
+    throw new BadRequestException(`Detected ${detected} but allowed: ${allowedTypes.join(', ')}`);
   }
 }
 
@@ -190,8 +202,8 @@ export class UploadController {
   ) {
     if (!file?.buffer) throw new BadRequestException('Missing file');
     const t = (type?.trim() || 'deepfake');
-    // magic byte 二次校验
-    ensureRealAudio(file.buffer);
+    // magic byte 二次校验 + 白名单
+    ensureRealAudio(file.buffer, ALLOWED_AUDIO_MIMES);
     const url = await this.upload.uploadFile(
       file.buffer,
       t,

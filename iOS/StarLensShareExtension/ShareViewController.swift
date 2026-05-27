@@ -2,24 +2,20 @@
 //  ShareViewController.swift
 //  StarLensShareExtension
 //
-//  V3-A1 Share Extension：接收微信/iMessage/Telegram 分享的音频文件
+//  V3-A1 Share Extension：接收微信/iMessage 分享的音频文件
+//  仅接收 audio 类型；视频/图片不接受（避免主 App 当音频上传失败）
 //  流程：
 //   1. 用户长按对方语音 → 系统分享面板 → StarLens
-//   2. 本 Extension 接收附件 → 拷贝到 App Group 共享目录
+//   2. 本 Extension 接收音频附件 → 拷贝到 App Group 共享目录
 //   3. 在 App Group 写一个 pending 标记
-//   4. 关闭 Extension（用户回到主 App 后会自动跳深伪检测）
+//   4. 立即关闭 Extension（用户回到主 App 后会自动跳深伪检测）
 //
-//  Xcode 接入步骤（必须做）：
-//   1) 在 Xcode 主 project 中 File → New → Target → Share Extension
-//      产品名：StarLensShareExtension，与本文件夹一致
-//   2) 把本 swift 文件加入到 target source
-//   3) 配置 Info.plist NSExtensionActivationRule：
-//      NSExtensionActivationSupportsFileWithMaxCount = 1
-//      NSExtensionActivationSupportsAttachmentsWithMaxCount = 1
-//      NSExtensionActivationUsesStrictMatching = NO
-//   4) 在两个 target（主 App + Extension）都开启 App Groups capability
-//      groupId 用：group.com.starlens.IsItSafe.share
-//   5) 主 App 在 onAppear 检测 pending → 自动跳深伪检测页（详见主 App AppLifecycle）
+//  Xcode 接入步骤：
+//   1) File → New → Target → Share Extension，命名 StarLensShareExtension
+//   2) 删除自动生成的 Storyboard 和默认 ShareViewController，把本文件加入 target
+//   3) 主 App + Extension 都开启 App Groups capability，group ID:
+//      group.com.starlens.IsItSafe.share
+//   4) 主 App 在 onAppear 检测 pending → 自动跳深伪检测页
 //
 
 import UIKit
@@ -57,15 +53,9 @@ final class ShareViewController: UIViewController {
         for item in items {
             guard let attachments = item.attachments else { continue }
             for attachment in attachments {
+                // 一期仅接受音频；视频/图片不处理（避免主 App 当音频上传时 magic byte 校验失败）
                 if attachment.hasItemConformingToTypeIdentifier(UTType.audio.identifier) {
                     attachment.loadDataRepresentation(forTypeIdentifier: UTType.audio.identifier) { [weak self] data, _ in
-                        self?.handleAudioData(data)
-                    }
-                    return
-                }
-                if attachment.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
-                    // 视频也允许（用户可能从微信发的视频分享）— 二期支持视频深伪
-                    attachment.loadDataRepresentation(forTypeIdentifier: UTType.movie.identifier) { [weak self] data, _ in
                         self?.handleAudioData(data)
                     }
                     return
@@ -86,6 +76,9 @@ final class ShareViewController: UIViewController {
 
         let dir = containerURL.appendingPathComponent("DeepfakeInbox", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        // 顺手清理 24h 以上的孤立文件，避免目录无限增长
+        cleanupStaleFiles(in: dir)
+
         let fileURL = dir.appendingPathComponent("shared_\(UUID().uuidString).m4a")
         do {
             try data.write(to: fileURL, options: .atomic)
@@ -101,23 +94,30 @@ final class ShareViewController: UIViewController {
         }
     }
 
+    /// 删除目录中超过 24h 的孤立文件
+    private func cleanupStaleFiles(in dir: URL) {
+        let fm = FileManager.default
+        guard let items = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.creationDateKey]) else { return }
+        let cutoff = Date().addingTimeInterval(-24 * 3600)
+        for url in items {
+            if let attrs = try? fm.attributesOfItem(atPath: url.path),
+               let createdAt = attrs[.creationDate] as? Date,
+               createdAt < cutoff {
+                try? fm.removeItem(at: url)
+            }
+        }
+    }
+
     private func completeAndDismiss(success: Bool) {
         if success {
-            // 提示用户：返回 StarLens 主 App 即可继续
-            let alert = UIAlertController(
-                title: "已收到",
-                message: "请打开 StarLens 主 App 继续语音深伪检测",
-                preferredStyle: .alert
-            )
-            alert.addAction(UIAlertAction(title: "好", style: .default) { _ in
-                self.extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
-            })
-            present(alert, animated: true)
+            // 立即关闭 Extension，符合 Share Extension UX 规范
+            // 主 App 启动时会检测 pending 标记并自动跳深伪检测
+            extensionContext?.completeRequest(returningItems: nil, completionHandler: nil)
         } else {
             extensionContext?.cancelRequest(withError: NSError(
                 domain: "StarLensShareExtension",
                 code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "无法读取音频"]
+                userInfo: [NSLocalizedDescriptionKey: "无法读取音频（仅支持音频文件）"]
             ))
         }
     }

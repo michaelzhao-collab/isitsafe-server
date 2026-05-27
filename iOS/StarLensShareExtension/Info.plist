@@ -34,12 +34,11 @@
                 <false/>
             </dict>
         </dict>
-        <key>NSExtensionMainStoryboard</key>
-        <string>MainInterface</string>
+        <!-- 纯代码 UI，无 storyboard；NSExtensionMainStoryboard 必须删除否则 Extension 启动 crash -->
         <key>NSExtensionPointIdentifier</key>
         <string>com.apple.share-services</string>
         <key>NSExtensionPrincipalClass</key>
-        <string>ShareViewController</string>
+        <string>$(PRODUCT_MODULE_NAME).ShareViewController</string>
     </dict>
 </dict>
 </plist>

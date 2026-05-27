@@ -61,14 +61,22 @@ public final class AudioRecorderService: NSObject, ObservableObject {
             let r = try AVAudioRecorder(url: url, settings: settings)
             r.delegate = self
             r.isMeteringEnabled = true
-            guard r.prepareToRecord() else { return false }
-            guard r.record() else { return false }
+            guard r.prepareToRecord() else {
+                cleanupOnStartFailure()
+                return false
+            }
+            // 硬上限 60s：即使 Timer 失效或 app 切后台，录音也不会无限延长
+            guard r.record(forDuration: 60.0) else {
+                cleanupOnStartFailure()
+                return false
+            }
             recorder = r
             isRecording = true
             elapsedSeconds = 0
             startTimers()
             return true
         } catch {
+            cleanupOnStartFailure()
             return false
         }
     }
@@ -80,11 +88,7 @@ public final class AudioRecorderService: NSObject, ObservableObject {
         let url = fileURL
         recorder = nil
         isRecording = false
-
-        #if os(iOS)
-        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
-        #endif
-
+        deactivateSession()
         return url
     }
 
@@ -97,6 +101,22 @@ public final class AudioRecorderService: NSObject, ObservableObject {
         recorder = nil
         fileURL = nil
         isRecording = false
+        // 与 stop() 对齐：cancel 也需释放 session，否则会持续占麦克风并 duck 其他音频
+        deactivateSession()
+    }
+
+    private func deactivateSession() {
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        #endif
+    }
+
+    private func cleanupOnStartFailure() {
+        if let url = fileURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        fileURL = nil
+        deactivateSession()
     }
 
     private func startTimers() {
@@ -105,7 +125,8 @@ public final class AudioRecorderService: NSObject, ObservableObject {
                 self?.elapsedSeconds += 1
             }
         }
-        meterTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+        // 0.25s 节流 meter 更新：肉眼几乎察觉不到差异，CPU 占用明显降低
+        meterTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.recorder?.updateMeters()

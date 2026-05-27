@@ -91,7 +91,8 @@ public struct ElderDetectionView: View {
                     title: languageCode == "en" ? "Take a photo" : "拍照检测",
                     desc: languageCode == "en" ? "Snap suspicious SMS / link / ad" : "拍一下可疑的短信、链接、广告",
                     primary: true,
-                    action: { showPhotoLibrary = true }
+                    // 一期与其他入口一致走 stub；二期接 PhotosPicker + Vision OCR + 已有 AI 分析
+                    action: { stubResult() }
                 )
 
                 inputCard(

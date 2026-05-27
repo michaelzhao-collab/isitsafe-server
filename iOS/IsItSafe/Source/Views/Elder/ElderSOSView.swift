@@ -134,7 +134,15 @@ public struct ElderSOSView: View {
                 .font(.system(size: 14))
                 .foregroundColor(AppTheme.textSecondary)
 
+            // 显示脱敏号码，避免家人手机号在 UI 文本中明文暴露
+            if let display = member.phoneDisplay, !display.isEmpty {
+                Text(display)
+                    .font(.system(size: 14, design: .monospaced))
+                    .foregroundColor(AppTheme.textSecondary)
+            }
+
             Button {
+                // 真号仅在拨号瞬间用于 tel:// URL，不展示在 UI 文本
                 if let phone = phoneFor(member) {
                     callPhone(phone)
                 }

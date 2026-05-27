@@ -14,6 +14,7 @@ public struct DeepfakeView: View {
     @State private var loading = true
     @State private var showRecord = false
     @State private var showResult: DeepfakeCheck?
+    @State private var shareErrorMessage: String?
 
     public init() {}
 
@@ -56,12 +57,29 @@ public struct DeepfakeView: View {
             .sheet(item: $showResult, onDismiss: { Task { await loadHistory() } }) { c in
                 DeepfakeResultView(check: c)
             }
+            .alert(
+                languageCode == "en" ? "Share import failed" : "分享导入失败",
+                isPresented: Binding(
+                    get: { shareErrorMessage != nil },
+                    set: { if !$0 { shareErrorMessage = nil } }
+                ),
+                actions: { Button("OK") { shareErrorMessage = nil } },
+                message: { Text(shareErrorMessage ?? "") }
+            )
         }
     }
 
     /// 检查 Share Extension 投递的音频，若有则自动上传 + 创建检测任务
     private func processSharedAudioIfNeeded() async {
         guard let sharedUrl = ShareInboxService.shared.checkPendingAudio() else { return }
+        // 登录态校验：未登录时保留文件 + 提示，避免静默失败
+        guard AuthInterceptor.token() != nil else {
+            shareErrorMessage = languageCode == "en"
+                ? "Please sign in to use voice deepfake check."
+                : "请先登录后再使用语音深伪检测"
+            // 保留文件，登录后再次进入此页会自动重试
+            return
+        }
         do {
             let audioData = try Data(contentsOf: sharedUrl)
             let fileUrl = try await NetworkManager.shared.uploadAudio(
@@ -78,8 +96,11 @@ public struct DeepfakeView: View {
             ShareInboxService.shared.consume(url: sharedUrl)
             showResult = check
         } catch {
-            // 失败：仍消费 pending 防止反复触发，让用户手动重试
+            // 失败：消费 pending 防反复触发，给用户错误反馈
             ShareInboxService.shared.consume(url: sharedUrl)
+            shareErrorMessage = languageCode == "en"
+                ? "Failed to process shared audio. Please try recording instead."
+                : "处理分享语音失败，请尝试现场录音"
         }
     }
 

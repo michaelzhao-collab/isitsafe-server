@@ -315,39 +315,73 @@ export class FamilyService {
       .update(`${params.contentType}:${params.content.trim().toLowerCase()}`)
       .digest('hex');
 
-    // 4) 查重：同家庭 + 同 hash + 今日已有
+    // 4) 查重 + 配额 + 入库放进 transaction：避免并发同一秒触发两次时双写
     const today0 = new Date();
     today0.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today0.getTime() + 24 * 3600 * 1000);
+    const userIsPro = await this.isUserPro(params.triggeredByUserId);
+    const FREE_DAILY_LIMIT = 1;
 
-    const dup = await this.prisma.familyBroadcast.findFirst({
-      where: {
-        groupId: member.groupId,
-        contentHash,
-        createdAt: { gte: today0, lt: tomorrow },
-      },
+    type TxResult =
+      | { kind: 'duplicate'; dupId: string; dupLabel: string; quotaRemaining: number }
+      | { kind: 'quota_exceeded' }
+      | { kind: 'created'; broadcastId: string };
+
+    const txResult: TxResult = await this.prisma.$transaction(async (tx) => {
+      // 4a) 查重：同家庭 + 同 hash + 今日已有
+      const dup = await tx.familyBroadcast.findFirst({
+        where: {
+          groupId: member.groupId,
+          contentHash,
+          createdAt: { gte: today0, lt: tomorrow },
+        },
+      });
+      if (dup) {
+        const used = await tx.familyBroadcast.count({
+          where: {
+            groupId: member.groupId,
+            createdAt: { gte: today0, lt: tomorrow },
+          },
+        });
+        const remaining = Math.max(0, FREE_DAILY_LIMIT - used);
+        return { kind: 'duplicate', dupId: dup.id, dupLabel: dup.resultLabel, quotaRemaining: remaining };
+      }
+      // 4b) 配额：家庭每天 1 条免费
+      const todayCount = await tx.familyBroadcast.count({
+        where: {
+          groupId: member.groupId,
+          createdAt: { gte: today0, lt: tomorrow },
+        },
+      });
+      if (!userIsPro && todayCount >= FREE_DAILY_LIMIT) {
+        return { kind: 'quota_exceeded' };
+      }
+      // 4c) 入库
+      const broadcast = await tx.familyBroadcast.create({
+        data: {
+          groupId: member.groupId,
+          triggeredByUserId: params.triggeredByUserId,
+          contentType: params.contentType,
+          contentHash,
+          contentDisplay: classification.contentDisplay,
+          resultLabel: classification.label,
+          resultDetail: classification.resultDetail as any,
+          source: params.source,
+        },
+      });
+      return { kind: 'created', broadcastId: broadcast.id };
     });
-    if (dup) {
+
+    if (txResult.kind === 'duplicate') {
       return {
         delivered: false,
-        broadcastId: dup.id,
-        resultLabel: dup.resultLabel as 'scam' | 'safe' | 'unknown',
-        quotaRemaining: await this.getRemainingQuota(member.groupId),
+        broadcastId: txResult.dupId,
+        resultLabel: txResult.dupLabel as 'scam' | 'safe' | 'unknown',
+        quotaRemaining: txResult.quotaRemaining,
         skipReason: 'duplicate',
       };
     }
-
-    // 5) 配额：家庭每天 1 条免费（service 层校验，Pro 用户由外层判断）
-    const todayCount = await this.prisma.familyBroadcast.count({
-      where: {
-        groupId: member.groupId,
-        createdAt: { gte: today0, lt: tomorrow },
-      },
-    });
-    const userIsPro = await this.isUserPro(params.triggeredByUserId);
-    const FREE_DAILY_LIMIT = 1;
-    if (!userIsPro && todayCount >= FREE_DAILY_LIMIT) {
-      // 配额耗尽：AI 已分类但不入库不分发
+    if (txResult.kind === 'quota_exceeded') {
       return {
         delivered: false,
         resultLabel: classification.label,
@@ -355,20 +389,8 @@ export class FamilyService {
         skipReason: 'quota_exceeded',
       };
     }
-
-    // 6) 入库
-    const broadcast = await this.prisma.familyBroadcast.create({
-      data: {
-        groupId: member.groupId,
-        triggeredByUserId: params.triggeredByUserId,
-        contentType: params.contentType,
-        contentHash,
-        contentDisplay: classification.contentDisplay,
-        resultLabel: classification.label,
-        resultDetail: classification.resultDetail as any,
-        source: params.source,
-      },
-    });
+    // created：补一个本地变量给后面 push 用
+    const broadcast = { id: txResult.broadcastId };
 
     // 7) 推送给其他成员（不含触发者）
     const otherMembers = member.group.members.filter(
@@ -395,11 +417,18 @@ export class FamilyService {
       );
     }
 
+    // 重新计算剩余配额（避免共享 tx 内的 todayCount）
+    const usedAfter = await this.prisma.familyBroadcast.count({
+      where: {
+        groupId: member.groupId,
+        createdAt: { gte: today0, lt: tomorrow },
+      },
+    });
     return {
       delivered: true,
       broadcastId: broadcast.id,
       resultLabel: classification.label,
-      quotaRemaining: Math.max(0, FREE_DAILY_LIMIT - (todayCount + 1)),
+      quotaRemaining: Math.max(0, FREE_DAILY_LIMIT - usedAfter),
     };
   }
 

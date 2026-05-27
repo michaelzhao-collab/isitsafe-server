@@ -31,6 +31,8 @@ import { IntelSubmitDto, IntelPreferencesDto } from './dto/intel.dto';
 export class IntelController {
   constructor(private intel: IntelService) {}
 
+  // ⚠️ 路由顺序：所有静态路径（feed / categories / unread-count / submit / me/* / preferences）
+  // 必须在 `:id` 之前声明，否则会被 `:id` 捕获，把 "preferences" 当 intelId 解析后返回 NotFound。
   @Get('feed')
   @UseGuards(JwtAuthGuard)
   async feed(
@@ -38,14 +40,8 @@ export class IntelController {
     @Query('limit') limitQ?: string,
     @Query('language') language?: string,
   ) {
-    const user = await this.intel['prisma'].user.findUnique({
-      where: { id: userId },
-      select: { regionCode: true, language: true },
-    });
-    return this.intel.getFeed({
-      userId,
-      region: user?.regionCode ?? undefined,
-      language: language || user?.language || 'zh',
+    return this.intel.getFeedForUser(userId, {
+      language,
       limit: limitQ ? parseInt(limitQ, 10) : 30,
     });
   }
@@ -58,22 +54,8 @@ export class IntelController {
   @Get('unread-count')
   @UseGuards(JwtAuthGuard)
   async unreadCount(@CurrentUser('sub') userId: string) {
-    const user = await this.intel['prisma'].user.findUnique({
-      where: { id: userId },
-      select: { regionCode: true, language: true },
-    });
-    const count = await this.intel.getUnreadCount(
-      userId,
-      user?.regionCode ?? undefined,
-      user?.language || 'zh',
-    );
+    const count = await this.intel.getUnreadCountForUser(userId);
     return { count };
-  }
-
-  @Get(':id')
-  @UseGuards(JwtAuthGuard)
-  async detail(@CurrentUser('sub') userId: string, @Param('id') id: string) {
-    return this.intel.getDetail(userId, id);
   }
 
   @Post('submit')
@@ -99,6 +81,13 @@ export class IntelController {
   @UseGuards(JwtAuthGuard)
   async putPreferences(@CurrentUser('sub') userId: string, @Body() dto: IntelPreferencesDto) {
     return this.intel.updatePreferences(userId, dto);
+  }
+
+  // 必须放最后：动态路径
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  async detail(@CurrentUser('sub') userId: string, @Param('id') id: string) {
+    return this.intel.getDetail(userId, id);
   }
 }
 
@@ -128,12 +117,29 @@ export class IntelAdminController {
 
   @Post('alerts')
   async createAlert(@Body() body: any) {
-    return this.intel.adminCreateAlert(body);
+    return this.intel.adminCreateAlert(this.pickAdminAlertFields(body));
   }
 
   @Put('alerts/:id')
   async updateAlert(@Param('id') id: string, @Body() body: any) {
-    return this.intel.adminUpdateAlert(id, body);
+    return this.intel.adminUpdateAlert(id, this.pickAdminAlertFields(body, true));
+  }
+
+  /** admin alert 字段白名单，防止 publishedAt / createdAt / id 等被任意覆盖 */
+  private pickAdminAlertFields(b: any, partial = false): any {
+    const out: any = {};
+    const keys = [
+      'title', 'summary', 'contentBlocks', 'category', 'severity',
+      'targetRegions', 'targetAudiences', 'language', 'sourceUrl', 'status',
+    ];
+    for (const k of keys) {
+      if (partial) {
+        if (b[k] !== undefined) out[k] = b[k];
+      } else {
+        out[k] = b[k];
+      }
+    }
+    return out;
   }
 
   @Delete('alerts/:id')

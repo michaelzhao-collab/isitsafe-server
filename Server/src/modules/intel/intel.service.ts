@@ -55,14 +55,17 @@ export class IntelService {
     });
     const userAudiences: string[] = (pref?.categories as any) ?? [];
 
-    // 按 region/audience 过滤
+    // 按 region/audience 过滤（JSON 字段可能为 null / 非数组，需做防御）
     const filtered = candidates.filter((a) => {
-      const regions = (a.targetRegions as any) as string[];
-      const audiences = (a.targetAudiences as any) as string[];
-      const regionMatch = regions.includes('*')
+      const regions: string[] = Array.isArray(a.targetRegions) ? (a.targetRegions as any) : [];
+      const audiences: string[] = Array.isArray(a.targetAudiences) ? (a.targetAudiences as any) : [];
+      // 空数组视为 "*"（向后兼容）
+      const regionMatch = regions.length === 0
+        || regions.includes('*')
         || (region && regions.some((r) => region.startsWith(r)));
       const audMatch =
-        audiences.includes('*')
+        audiences.length === 0
+        || audiences.includes('*')
         || userAudiences.length === 0
         || audiences.some((aud) => userAudiences.includes(aud));
       return regionMatch && audMatch;
@@ -134,6 +137,28 @@ export class IntelService {
     // 简化：拿用户 feed 然后过滤未读，前端已能感知
     const feed = await this.getFeed({ userId, region, language, limit: 100 });
     return feed.filter((i) => !i.isRead).length;
+  }
+
+  /** Controller 入口：自动从 user 表读 regionCode / language，避免在 controller 直接访问 prisma */
+  async getFeedForUser(userId: string, opts: { language?: string; limit?: number }) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { regionCode: true, language: true },
+    });
+    return this.getFeed({
+      userId,
+      region: user?.regionCode ?? undefined,
+      language: opts.language || user?.language || 'zh',
+      limit: opts.limit ?? 30,
+    });
+  }
+
+  async getUnreadCountForUser(userId: string): Promise<number> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { regionCode: true, language: true },
+    });
+    return this.getUnreadCount(userId, user?.regionCode ?? undefined, user?.language || 'zh');
   }
 
   // ====================================================================

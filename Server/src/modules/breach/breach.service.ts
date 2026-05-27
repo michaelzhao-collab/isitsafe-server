@@ -89,18 +89,10 @@ export class BreachService {
     }
     const lookup = this.computeLookup(userId, normalized);
 
-    // 防重复添加
-    const existing = await this.prisma.breachTarget.findFirst({
-      where: { userId, targetValueLookup: lookup },
-    });
-    if (existing) {
-      throw new ConflictException('Target already exists');
-    }
-
-    // 检查配额（免费 1 个，Pro 5 个）
+    // 检查配额（免费 1 个，Pro 5 个） + 拿用户邮箱用于"是否自己邮箱"判定
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { subscriptionStatus: true, subscriptionExpire: true },
+      select: { email: true, subscriptionStatus: true, subscriptionExpire: true },
     });
     const isPro = user?.subscriptionStatus === 'premium' &&
       (!user.subscriptionExpire || user.subscriptionExpire > new Date());
@@ -110,35 +102,49 @@ export class BreachService {
       throw new ConflictException(`Plan limit reached (${maxTargets}). Upgrade for more.`);
     }
 
+    // 一期安全策略（防止用他人邮箱滥用 HIBP 查询）：
+    //  - 添加的邮箱与用户注册邮箱一致 → 直接 verified=true，可立即走 HIBP
+    //  - 否则 verified=false，scanTarget 跳过；二期补邮件验证流程后再开放
+    const userEmail = (user?.email ?? '').toLowerCase().trim();
+    const isOwnEmail = !!userEmail && userEmail === normalized;
+
     const verificationToken = randomBytes(16).toString('hex');
     const verifyExpires = new Date(Date.now() + 24 * 3600 * 1000);
 
-    const target = await this.prisma.breachTarget.create({
-      data: {
-        userId,
-        targetType: 'email',
-        targetValueHash: this.maskEmail(normalized), // 一期：展示用脱敏字符串
-        targetValueLookup: lookup,
-        // 加密真实邮箱（BREACH_AES_KEY 未配置时为 null，HIBP 调用降级到 stub）
-        targetValueEncrypted: encryptEmail(normalized),
-        // 一期 stub：跳过邮件验证直接 verified=true（二期改回 false + 发邮件）
-        verified: true,
-        verificationToken,
-        verificationExpiresAt: verifyExpires,
-      },
-    });
+    // 并发保护：利用 (userId, targetValueLookup) 唯一约束 catch P2002
+    try {
+      const target = await this.prisma.breachTarget.create({
+        data: {
+          userId,
+          targetType: 'email',
+          targetValueHash: this.maskEmail(normalized), // 展示用脱敏字符串
+          targetValueLookup: lookup,
+          // 加密真实邮箱（BREACH_AES_KEY 未配置时为 null，HIBP 调用降级到 stub）
+          targetValueEncrypted: encryptEmail(normalized),
+          verified: isOwnEmail,
+          verificationToken,
+          verificationExpiresAt: verifyExpires,
+        },
+      });
 
-    // TODO 二期：发验证邮件 + 上线后改 verified: false
-    // await this.email.send({ to: email, subject: 'Verify your monitoring target', ... })
+      if (isOwnEmail) {
+        // 自己邮箱：立即跑一次扫描
+        await this.scanTarget(target.id);
+      }
+      // 非自己邮箱：等二期补邮件验证流程
 
-    // 立即跑一次扫描（一期 stub 返回 0 个告警）
-    await this.scanTarget(target.id);
-
-    return {
-      id: target.id,
-      displayValue: target.targetValueHash,
-      verified: target.verified,
-    };
+      return {
+        id: target.id,
+        displayValue: target.targetValueHash,
+        verified: target.verified,
+        needsEmailVerification: !isOwnEmail,
+      };
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        throw new ConflictException('Target already exists');
+      }
+      throw err;
+    }
   }
 
   /** 邮件验证回调（二期使用） */
@@ -248,6 +254,9 @@ export class BreachService {
       stubBreaches = this.stubBreachesFor(target.targetValueLookup);
     }
 
+    const isRealHibp = !!(hibpKey && target.targetValueEncrypted);
+    const sourceTag = isRealHibp ? 'HIBP' : 'HIBP_stub';
+
     let newAlerts = 0;
     for (const b of stubBreaches) {
       // 去重：同 target + 同 breach_name 不重复发
@@ -259,7 +268,7 @@ export class BreachService {
         data: {
           targetId,
           userId: target.userId,
-          breachSource: 'HIBP_stub',
+          breachSource: sourceTag,
           breachName: b.name,
           breachDate: new Date(b.date),
           exposedData: b.exposed as any,

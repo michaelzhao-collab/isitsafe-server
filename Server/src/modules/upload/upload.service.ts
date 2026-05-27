@@ -78,7 +78,7 @@ export class UploadService {
       throw new BadRequestException(`type must be one of: ${UPLOAD_TYPES.join(', ')}`);
     }
     if (!ALLOWED_MIMES.includes(mimeType)) {
-      throw new BadRequestException('Allowed types: image/jpeg, image/png, image/webp, image/gif');
+      throw new BadRequestException(`Unsupported MIME: ${mimeType}. Allowed: ${ALLOWED_MIMES.join(', ')}`);
     }
     if (fileSize != null && fileSize > MAX_FILE_SIZE) {
       throw new BadRequestException(`File size must be <= ${MAX_FILE_SIZE / 1024 / 1024}MB`);
@@ -116,6 +116,7 @@ export class UploadService {
 
   private extFromMime(mime: string): string {
     switch (mime) {
+      // images
       case 'image/webp':
         return 'webp';
       case 'image/gif':
@@ -124,8 +125,22 @@ export class UploadService {
         return 'png';
       case 'image/jpeg':
       case 'image/jpg':
-      default:
         return 'jpg';
+      // V3-A1 audio
+      case 'audio/mp4':
+      case 'audio/m4a':
+      case 'audio/x-m4a':
+        return 'm4a';
+      case 'audio/mpeg':
+      case 'audio/mp3':
+        return 'mp3';
+      case 'audio/wav':
+      case 'audio/x-wav':
+        return 'wav';
+      case 'audio/aac':
+        return 'aac';
+      default:
+        return 'bin';
     }
   }
 
