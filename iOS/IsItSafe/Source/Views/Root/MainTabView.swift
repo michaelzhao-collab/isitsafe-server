@@ -26,6 +26,8 @@ public struct MainTabView: View {
                 case 1:
                     KnowledgeView()
                 case 2:
+                    FamilyView()
+                case 3:
                     ProfileView()
                 default:
                     HomeContainerView(homeVm: homeVm, historyVm: historyVm)
@@ -58,7 +60,8 @@ public struct MainTabView: View {
         HStack(spacing: 0) {
             tabItem(index: 0, icon: "bubble.left.and.text.bubble.right", title: languageCode == "en" ? "Assistant" : "问助手")
             tabItem(index: 1, icon: "book.closed", title: languageCode == "en" ? "Cases" : "防诈案例")
-            tabItem(index: 2, icon: "person", title: languageCode == "en" ? "Profile" : "我的")
+            tabItem(index: 2, icon: "person.2.fill", title: languageCode == "en" ? "Family" : "家庭")
+            tabItem(index: 3, icon: "person", title: languageCode == "en" ? "Profile" : "我的")
         }
         .padding(.top, 6)
         .padding(.bottom, 12)
@@ -88,7 +91,7 @@ public struct MainTabView: View {
                                 }
                             }
                         )
-                    if index == 2, appState.hasUnreadMessages {
+                    if index == 3, appState.hasUnreadMessages {
                         Circle()
                             .fill(Color.red)
                             .frame(width: 8, height: 8)
