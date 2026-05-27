@@ -26,6 +26,10 @@ model User {
   gender             String     @default("unknown")
   birthday           DateTime?
   role               UserRole   @default(USER)
+  /// 管理员禁用账号开关：true 后所有 JWT 请求被 401 拒绝；老用户 default false 不受影响
+  isDisabled         Boolean    @default(false) @map("is_disabled")
+  disabledAt         DateTime?  @map("disabled_at")
+  disabledReason     String?    @map("disabled_reason")
   lastLogin          DateTime?  @map("last_login")
   subscriptionStatus String     @default("free") @map("subscription_status") // free | premium
   subscriptionExpire DateTime?  @map("subscription_expire")

@@ -645,10 +645,22 @@ export class SubscriptionService {
     });
   }
 
-  /** 管理后台：会员订单列表，分页，可选按状态筛选 */
-  async listOrders(page = 1, pageSize = 20, status?: string) {
+  /** 管理后台：会员订单列表，分页，可选按状态 + 用户关键字（phone/email/nickname）模糊 */
+  async listOrders(page = 1, pageSize = 20, status?: string, userKeyword?: string) {
     const skip = (page - 1) * pageSize;
-    const where = status && status !== 'all' ? { status } : {};
+    const where: Prisma.SubscriptionWhereInput = {};
+    if (status && status !== 'all') where.status = status;
+    const kw = userKeyword?.trim();
+    if (kw) {
+      where.user = {
+        OR: [
+          { phone: { contains: kw } },
+          { email: { contains: kw, mode: 'insensitive' } },
+          { nickname: { contains: kw, mode: 'insensitive' } },
+          { id: kw },
+        ],
+      };
+    }
     const [items, total] = await Promise.all([
       this.prisma.subscription.findMany({
         where,

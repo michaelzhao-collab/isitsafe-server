@@ -79,9 +79,39 @@ export class AdminUsersController {
     };
   }
 
+  /**
+   * 管理员禁用/解封用户
+   * body: { status: 'disabled' | 'active', reason?: string }
+   * - status='disabled' → isDisabled=true，所有 JWT 请求被 jwt-auth.guard 401 拦截
+   * - status='active'   → isDisabled=false 恢复
+   * 安全：不能禁用 super_admin（防止误删根权限）
+   */
   @Put(':id/status')
-  async updateStatus(@Param('id') id: string, @Body('status') status: string) {
-    return { id, status, success: true };
+  async updateStatus(
+    @Param('id') id: string,
+    @Body('status') status: string,
+    @Body('reason') reason?: string,
+  ) {
+    const target = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
+    if (!target) {
+      return { success: false, error: 'user_not_found' };
+    }
+    if (target.role === 'SUPERADMIN') {
+      return { success: false, error: 'cannot_disable_super_admin' };
+    }
+    const disable = status === 'disabled' || status === 'banned';
+    await this.prisma.user.update({
+      where: { id },
+      data: {
+        isDisabled: disable,
+        disabledAt: disable ? new Date() : null,
+        disabledReason: disable ? (reason ?? null) : null,
+      },
+    });
+    return { id, status: disable ? 'disabled' : 'active', success: true };
   }
 
   /** 编辑用户资料：avatar, nickname, gender, birthday */

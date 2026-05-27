@@ -21,6 +21,7 @@ import { AdminMessagesController } from './admin-messages.controller';
 import { AdminFeedbackController } from './admin-feedback.controller';
 import { AdminMembershipController } from './admin-membership.controller';
 import { AdminRiskDataController } from './admin-risk-data.controller';
+import { AdminV3Controller } from './admin-v3.controller';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 
 @Module({
@@ -41,6 +42,7 @@ import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
     AdminFeedbackController,
     AdminMembershipController,
     AdminRiskDataController,
+    AdminV3Controller,
   ],
   providers: [AdminRoleGuard, AdminAuthService],
 })

@@ -1,34 +1,36 @@
 // 默认走线上正式接口（也可用 .env 覆盖）
 export const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://api.starlensai.com/api';
-const BASE = API_BASE;
 
-function getToken(): string | null {
-  return localStorage.getItem('adminToken');
-}
+// 统一走 axios（与 api/request.ts 共享 401 自动跳登录 + token 自动注入）
+import http from './request';
 
+/**
+ * 兼容旧 fetch 风格的薄封装：内部已切到 axios
+ *  - options.method / body / params 全部转发
+ *  - 401 自动跳登录页（继承自 request.ts interceptor）
+ *  - 返回已 unwrap 的 data（与旧 fetch 行为一致）
+ */
 export async function request<T>(
   path: string,
-  options: RequestInit & { params?: Record<string, string> } = {}
+  options: { method?: string; body?: string; params?: Record<string, string | number | boolean | undefined>; headers?: Record<string, string> } = {}
 ): Promise<T> {
-  const { params, ...rest } = options;
-  let url = `${BASE}${path.startsWith('/') ? path : `/${path}`}`;
-  if (params && Object.keys(params).length) {
-    url += '?' + new URLSearchParams(params).toString();
+  const method = (options.method || 'GET').toUpperCase();
+  // 移除值为 undefined 的 param，避免 axios 序列化为 "undefined" 字符串
+  const params = options.params
+    ? Object.fromEntries(Object.entries(options.params).filter(([, v]) => v !== undefined))
+    : undefined;
+  let data: unknown = undefined;
+  if (options.body) {
+    try { data = JSON.parse(options.body); } catch { data = options.body; }
   }
-  const res = await fetch(url, {
-    ...rest,
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-      ...rest.headers,
-    },
+  const res = await http.request<T>({
+    url: path,
+    method: method as any,
+    params,
+    data,
+    headers: options.headers,
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { message?: string }).message || res.statusText || `HTTP ${res.status}`);
-  }
-  return res.json();
+  return res as unknown as T;
 }
 
 export const api = {

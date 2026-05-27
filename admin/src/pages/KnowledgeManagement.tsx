@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Card, Button, Space, Input, Modal, Form, Tag, Switch, message } from 'antd';
+import { Table, Card, Button, Space, Input, InputNumber, Modal, Form, Tag, Switch, Select, message } from 'antd';
 import { api } from '../api/client';
 
 interface CategoryItem {
@@ -192,10 +192,13 @@ export default function KnowledgeManagement() {
             <Input />
           </Form.Item>
           <Form.Item name="sortOrder" label="排序（越小越靠前）">
-            <Input type="number" />
+            <InputNumber min={0} max={9999} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="status" label="状态">
-            <Input placeholder="active / offline，不填则默认为 active" />
+          <Form.Item name="status" label="状态" initialValue="active">
+            <Select options={[
+              { label: '上架（active）', value: 'active' },
+              { label: '下架（offline）', value: 'offline' },
+            ]} />
           </Form.Item>
         </Form>
       </Modal>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Card, Descriptions, Button, Spin, message, Avatar, Modal, Form, Input, Select } from 'antd';
+import { Card, Descriptions, Button, Spin, message, Avatar, Modal, Form, Input, Select, DatePicker } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import request from '../../api/request';
 import { updateUser, type UserItem } from '../../api/users';
 
@@ -32,10 +33,15 @@ export default function UserDetail() {
     load();
   }, [id]);
 
-  const onEditFinish = (values: { nickname?: string; gender?: string; birthday?: string }) => {
+  const onEditFinish = (values: { nickname?: string; gender?: string; birthday?: any }) => {
     if (!id) return;
     setSaving(true);
-    updateUser(id, values)
+    // birthday 由 DatePicker 提交，转成 YYYY-MM-DD 字符串
+    const payload = {
+      ...values,
+      birthday: values.birthday ? dayjs(values.birthday).format('YYYY-MM-DD') : undefined,
+    };
+    updateUser(id, payload)
       .then(() => {
         message.success('保存成功');
         setEditOpen(false);
@@ -50,7 +56,7 @@ export default function UserDetail() {
       form.setFieldsValue({
         nickname: user.nickname ?? '',
         gender: user.gender ?? 'unknown',
-        birthday: user.birthday ?? '',
+        birthday: user.birthday ? dayjs(user.birthday) : null,
       });
       setEditOpen(true);
     }
@@ -119,7 +125,7 @@ export default function UserDetail() {
             <Select options={genderOptions} placeholder="性别" />
           </Form.Item>
           <Form.Item name="birthday" label="生日">
-            <Input placeholder="YYYY-MM-DD" />
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="选择生日" />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={saving}>

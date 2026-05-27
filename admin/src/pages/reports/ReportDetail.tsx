@@ -21,8 +21,8 @@ export default function ReportDetail() {
     request
       .get(`/admin/reports/${id}`)
       .then((res: any) => setReport(res))
-      .catch(() => {
-        message.error('接口未实现时请从列表查看');
+      .catch((e: any) => {
+        message.error(e?.message ?? '加载失败，请稍后重试');
         setReport(null);
       })
       .finally(() => setLoading(false));
@@ -49,7 +49,7 @@ export default function ReportDetail() {
   if (!report) {
     return (
       <Card>
-        <p>未找到该举报或接口未实现</p>
+        <p>未找到该举报</p>
         <Button type="primary" onClick={() => navigate('/reports')}>
           返回列表
         </Button>

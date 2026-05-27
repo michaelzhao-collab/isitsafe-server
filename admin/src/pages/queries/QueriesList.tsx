@@ -1,83 +1,180 @@
-import { useEffect, useState } from 'react';
-import { Table, Card, Input, Select, Space, Button, DatePicker, message, Tag } from 'antd';
+import { useState, useEffect, useCallback } from 'react';
+import { Table, Card, Button, Space, message, Input, Select, DatePicker, Tag, Tooltip } from 'antd';
+import { ReloadOutlined, ClearOutlined, CopyOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import dayjs, { Dayjs } from 'dayjs';
 import { getQueries, type QueryItem, type QueriesRes } from '../../api/queries';
 
-const riskColor: Record<string, string> = {
-  high: '#FF4D4F',
-  medium: '#F5A623',
-  low: '#2ECC71',
-  unknown: '#8A94A6',
+const { RangePicker } = DatePicker;
+
+const RISK_LEVEL_OPTIONS = [
+  { label: '全部风险', value: '' },
+  { label: '高风险', value: 'high' },
+  { label: '中风险', value: 'medium' },
+  { label: '低风险', value: 'low' },
+  { label: '未知', value: 'unknown' },
+];
+
+const RISK_TAG_COLOR: Record<string, string> = {
+  high: 'red',
+  medium: 'orange',
+  low: 'green',
+  unknown: 'default',
 };
 
 export default function QueriesList() {
   const navigate = useNavigate();
+  const [data, setData] = useState<QueriesRes>({ items: [], total: 0, page: 1, pageSize: 20 });
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<{ items: QueryItem[]; total: number }>({ items: [], total: 0 });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [riskLevel, setRiskLevel] = useState<string | undefined>();
-  const [dateRange, setDateRange] = useState<[string, string] | null>(null);
-  const [search, setSearch] = useState('');
 
-  const load = () => {
+  // 筛选项
+  const [userId, setUserId] = useState('');
+  const [userKeyword, setUserKeyword] = useState('');
+  const [riskLevel, setRiskLevel] = useState<string>('');
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+
+  const load = useCallback(async (overridePage?: number) => {
     setLoading(true);
-    const [startDate, endDate] = dateRange ?? [];
-    getQueries({ page, pageSize, riskLevel, startDate, endDate })
-      .then((res) => setData({ items: (res as unknown as QueriesRes).items, total: (res as unknown as QueriesRes).total }))
-      .catch((e) => message.error(e?.message ?? '加载失败'))
-      .finally(() => setLoading(false));
-  };
+    try {
+      const res = (await getQueries({
+        page: overridePage ?? page,
+        pageSize,
+        userId: userId.trim() || undefined,
+        userKeyword: userKeyword.trim() || undefined,
+        riskLevel: riskLevel || undefined,
+        startDate: dateRange?.[0]?.startOf('day').toISOString(),
+        endDate: dateRange?.[1]?.endOf('day').toISOString(),
+      })) as unknown as QueriesRes;
+      setData(res);
+    } catch (e: any) {
+      message.error(e?.message || '加载失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, userId, userKeyword, riskLevel, dateRange]);
 
   useEffect(() => {
     load();
-  }, [page, pageSize, riskLevel, dateRange?.[0], dateRange?.[1]]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize]);
+
+  const onSearch = () => {
+    setPage(1);
+    load(1);
+  };
+
+  const onReset = () => {
+    setUserId('');
+    setUserKeyword('');
+    setRiskLevel('');
+    setDateRange(null);
+    setPage(1);
+    setTimeout(() => load(1), 0);
+  };
+
+  const copy = (text: string) => {
+    navigator.clipboard?.writeText(text).then(
+      () => message.success('已复制'),
+      () => message.error('复制失败'),
+    );
+  };
 
   const columns = [
-    { title: 'query_id', dataIndex: 'id', key: 'id', ellipsis: true, width: 200 },
-    { title: 'user_id', dataIndex: 'userId', key: 'userId', width: 180 },
-    { title: 'input_type', dataIndex: 'inputType', key: 'inputType', width: 100 },
+    {
+      title: '用户',
+      key: 'user',
+      width: 200,
+      render: (_: unknown, row: QueryItem) => {
+        if (!row.userId) return <span style={{ color: '#bfbfbf' }}>游客</span>;
+        const name = row.user?.nickname || row.user?.phone || row.user?.email || row.userId.slice(0, 8) + '…';
+        return (
+          <Space size={4} direction="vertical">
+            <span>{name}</span>
+            <Space size={4}>
+              <Tooltip title={row.userId}>
+                <Tag
+                  style={{ cursor: 'pointer', fontFamily: 'monospace', fontSize: 11 }}
+                  onClick={() => copy(row.userId!)}
+                  icon={<CopyOutlined />}
+                >
+                  {row.userId.slice(0, 8)}…
+                </Tag>
+              </Tooltip>
+              <a style={{ fontSize: 12 }} onClick={() => { setUserId(row.userId!); setPage(1); setTimeout(() => load(1), 0); }}>
+                只看 ta
+              </a>
+            </Space>
+          </Space>
+        );
+      },
+    },
+    {
+      title: '类型',
+      dataIndex: 'inputType',
+      key: 'inputType',
+      width: 80,
+      render: (v: string) => <Tag>{v}</Tag>,
+    },
     {
       title: '截图',
       dataIndex: 'imageUrl',
       key: 'imageUrl',
-      width: 72,
+      width: 64,
       render: (url: string | null | undefined) =>
         url ? (
-          <a href={url} target="_blank" rel="noopener noreferrer" title="查看原图">
-            <img src={url} alt="用户上传" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 4 }} />
+          <a href={url} target="_blank" rel="noopener noreferrer">
+            <img src={url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} />
           </a>
         ) : (
-          '-'
+          <span style={{ color: '#bfbfbf' }}>—</span>
         ),
     },
     {
-      title: 'content',
+      title: '内容',
       dataIndex: 'content',
       key: 'content',
-      ellipsis: true,
-      render: (v: string) => (v && v.length > 50 ? v.slice(0, 50) + '...' : v),
+      ellipsis: { showTitle: false },
+      render: (t: string) => (
+        <Tooltip title={t} placement="topLeft">
+          <span>{t}</span>
+        </Tooltip>
+      ),
     },
     {
-      title: 'risk_level',
+      title: '风险',
       dataIndex: 'riskLevel',
       key: 'riskLevel',
-      width: 100,
-      render: (v: string) => <Tag color={riskColor[v?.toLowerCase()] ?? '#8A94A6'}>{v}</Tag>,
+      width: 90,
+      render: (lv: string) => <Tag color={RISK_TAG_COLOR[lv] || 'default'}>{lv}</Tag>,
     },
-    { title: 'confidence', dataIndex: 'confidence', key: 'confidence', width: 90 },
-    { title: 'ai_provider', dataIndex: 'aiProvider', key: 'aiProvider', width: 100 },
     {
-      title: 'created_at',
+      title: '置信',
+      dataIndex: 'confidence',
+      key: 'confidence',
+      width: 70,
+      render: (v?: number) => (v != null ? `${v}%` : '-'),
+    },
+    {
+      title: 'AI',
+      dataIndex: 'aiProvider',
+      key: 'aiProvider',
+      width: 90,
+      render: (v?: string) => v || <span style={{ color: '#bfbfbf' }}>cache</span>,
+    },
+    {
+      title: '时间',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      width: 180,
-      render: (v: string) => v?.slice(0, 19),
+      width: 160,
+      render: (t: string) => (t ? dayjs(t).format('YYYY-MM-DD HH:mm') : '-'),
     },
     {
       title: '操作',
       key: 'action',
-      width: 80,
+      width: 70,
+      fixed: 'right' as const,
       render: (_: unknown, row: QueryItem) => (
         <Button type="link" size="small" onClick={() => navigate(`/queries/${row.id}`)}>
           详情
@@ -86,46 +183,47 @@ export default function QueriesList() {
     },
   ];
 
-  const filteredItems = search
-    ? data.items.filter((q) => q.content?.toLowerCase().includes(search.toLowerCase()) || q.id?.includes(search))
-    : data.items;
-
   return (
     <div>
       <h2 style={{ marginBottom: 24, color: '#1F2D3D' }}>AI 查询记录</h2>
-      <Card>
-        <Space style={{ marginBottom: 16 }} wrap>
-          <Input.Search placeholder="关键词搜索" allowClear onSearch={setSearch} style={{ width: 200 }} />
-          <Select
-            placeholder="风险等级"
+      <Card extra={<Button icon={<ReloadOutlined />} onClick={() => load()} loading={loading}>刷新</Button>}>
+        <Space wrap style={{ marginBottom: 16 }} size={8}>
+          <Input
+            placeholder="用户 ID（精确）"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            onPressEnter={onSearch}
             allowClear
-            style={{ width: 120 }}
+            style={{ width: 220 }}
+          />
+          <Input
+            placeholder="手机号 / 邮箱 / 昵称（模糊）"
+            value={userKeyword}
+            onChange={(e) => setUserKeyword(e.target.value)}
+            onPressEnter={onSearch}
+            allowClear
+            style={{ width: 240 }}
+          />
+          <Select
+            value={riskLevel}
             onChange={setRiskLevel}
-            options={[
-              { label: '高', value: 'high' },
-              { label: '中', value: 'medium' },
-              { label: '低', value: 'low' },
-              { label: '未知', value: 'unknown' },
-            ]}
+            options={RISK_LEVEL_OPTIONS}
+            style={{ width: 130 }}
           />
-          <DatePicker.RangePicker
-            onChange={(dates) =>
-              setDateRange(
-                dates?.[0] && dates?.[1]
-                  ? [dates[0].format('YYYY-MM-DD'), dates[1].format('YYYY-MM-DD')]
-                  : null
-              )
-            }
+          <RangePicker
+            value={dateRange}
+            onChange={(v) => setDateRange(v as any)}
+            placeholder={['开始日期', '结束日期']}
           />
-          <Button type="primary" onClick={load}>
-            查询
-          </Button>
+          <Button type="primary" onClick={onSearch}>搜索</Button>
+          <Button icon={<ClearOutlined />} onClick={onReset}>重置</Button>
         </Space>
         <Table
           rowKey="id"
           loading={loading}
           columns={columns}
-          dataSource={filteredItems}
+          dataSource={data.items}
+          scroll={{ x: 1100 }}
           pagination={{
             current: page,
             pageSize,
@@ -134,10 +232,9 @@ export default function QueriesList() {
             showTotal: (t) => `共 ${t} 条`,
             onChange: (p, ps) => {
               setPage(p);
-              if (ps) setPageSize(ps);
+              if (typeof ps === 'number') setPageSize(ps);
             },
           }}
-          scroll={{ x: 1100 }}
         />
       </Card>
     </div>

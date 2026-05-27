@@ -15,7 +15,7 @@ export default function AIProviders() {
         setSettings(s as any);
         setProviders((p as any).items ?? []);
       })
-      .catch(() => {})
+      .catch((e: any) => message.error(e?.message ?? 'AI 配置加载失败'))
       .finally(() => setLoading(false));
   };
 

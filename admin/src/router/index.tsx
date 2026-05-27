@@ -24,6 +24,10 @@ import SubscriptionOrdersList from '../pages/subscriptionOrders/SubscriptionOrde
 import IntelList from '../pages/intel/IntelList';
 import IntelEdit from '../pages/intel/IntelEdit';
 import IntelSubmissions from '../pages/intel/IntelSubmissions';
+import FamilyGroupsList from '../pages/v3/FamilyGroupsList';
+import ElderUsersList from '../pages/v3/ElderUsersList';
+import DeepfakeChecksList from '../pages/v3/DeepfakeChecksList';
+import BreachMonitorList from '../pages/v3/BreachMonitorList';
 import Login from '../pages/Login';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -69,6 +73,11 @@ const router = createBrowserRouter([
       { path: 'intel/new/edit', element: <IntelEdit /> },
       { path: 'intel/:id/edit', element: <IntelEdit /> },
       { path: 'intel/submissions', element: <IntelSubmissions /> },
+      // V3 一期反诈模块
+      { path: 'v3/family', element: <FamilyGroupsList /> },
+      { path: 'v3/elder', element: <ElderUsersList /> },
+      { path: 'v3/deepfake', element: <DeepfakeChecksList /> },
+      { path: 'v3/breach', element: <BreachMonitorList /> },
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },

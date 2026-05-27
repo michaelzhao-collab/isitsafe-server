@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, type Key } from 'react';
 import { Table, Card, Select, Input, Space, Button, message, Image, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
-import * as XLSX from 'xlsx';
+// xlsx 包 ~500KB，改为动态 import（仅批量导入时才加载）
 import { getKnowledge, deleteKnowledge, bulkImportKnowledge, bulkDeleteKnowledge, type KnowledgeItem, type KnowledgeListRes } from '../../api/knowledge';
 import { api } from '../../api/client';
 
@@ -77,9 +77,11 @@ export default function KnowledgeList() {
       .finally(() => setDeletingBatch(false));
   };
 
-  const handleBulkImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBulkImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // 动态导入 xlsx，避免影响首屏
+    const XLSX = await import('xlsx');
     const reader = new FileReader();
     reader.onload = () => {
       try {
