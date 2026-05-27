@@ -90,7 +90,8 @@ public struct ElderSOSView: View {
     }
 
     private func membersList(group: FamilyGroup) -> some View {
-        let callable = group.members.filter { $0.role != .ward && hasPhoneNumber($0) }
+        // 可拨号成员：非 ward 且有 phone 字段
+        let callable = group.members.filter { $0.role != .ward && ($0.phone?.isEmpty == false) }
         return ScrollView {
             VStack(spacing: 16) {
                 if callable.isEmpty {
@@ -202,16 +203,12 @@ public struct ElderSOSView: View {
     }
 
     private func hasPhoneNumber(_ member: FamilyMember) -> Bool {
-        // 一期：MemberDto 暂未返回 phone 字段（隐私）；二期可加 phone_last_4 显示
-        // 这里允许所有非 ward 成员显示，实际拨号走 system contacts（暂未实现号码下发）
-        // 临时回退：使用 system contacts 查询（用户已加联系人）
-        return true
+        return (member.phone?.isEmpty == false)
     }
 
     private func phoneFor(_ member: FamilyMember) -> String? {
-        // 一期 stub：暂无 phone 字段下发，回退到联系人选择
-        // 二期：服务端按"已脱敏号码"返回 + 用户首次确认后本地保存映射
-        return nil
+        guard let phone = member.phone, !phone.isEmpty else { return nil }
+        return phone
     }
 
     private func callPhone(_ number: String) {

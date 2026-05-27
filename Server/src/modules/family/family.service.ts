@@ -689,6 +689,9 @@ export class FamilyService {
     const members = group.members.map((m: any) => {
       const lastActive = m.user.lastActiveAt as Date | null;
       const activityStatus = this.computeActivityStatus(lastActive);
+      // V3-J SOS 拨号需要真号码；家庭内成员手机号互可见（毕竟是家人）
+      // 但隐私上 phone_display 做轻度脱敏，phone（完整号码）仅用于客户端 tel:// 拨号
+      const phone = m.user.phone as string | undefined;
       return {
         id: m.id,
         userId: m.userId,
@@ -698,6 +701,8 @@ export class FamilyService {
         elderModeEnabled: m.user.elderModeEnabled,
         activityStatus,
         joinedAt: m.joinedAt,
+        phone: phone ?? null,
+        phoneDisplay: phone ? this.maskPhone(phone) : null,
       };
     });
 
@@ -711,6 +716,11 @@ export class FamilyService {
       createdAt: group.createdAt,
       members,
     };
+  }
+
+  private maskPhone(phone: string): string {
+    if (phone.length < 7) return '***';
+    return phone.slice(0, 3) + '****' + phone.slice(-4);
   }
 
   private computeActivityStatus(lastActive: Date | null): string {

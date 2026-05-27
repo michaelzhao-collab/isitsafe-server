@@ -12,7 +12,10 @@ public struct IntelListView: View {
     @StateObject private var vm = IntelViewModel()
     @State private var selectedDetail: IntelAlertSummary?
     @State private var showSubmit = false
+    @State private var showPreferences = false
+    @State private var showOnboarding = false
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    @AppStorage("isitsafe.intelOnboarded") private var onboarded: Bool = false
 
     public init() {}
 
@@ -21,13 +24,33 @@ public struct IntelListView: View {
             AppTheme.background.ignoresSafeArea()
             content
         }
-        .onAppear { vm.refresh() }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button { showPreferences = true } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+                .a11y(label: languageCode == "en" ? "Intel preferences" : "情报偏好")
+            }
+        }
+        .onAppear {
+            vm.refresh()
+            // 首次进入情报 Tab + 已登录 → 弹引导
+            if !onboarded && AuthInterceptor.token() != nil {
+                showOnboarding = true
+            }
+        }
         .navigationDestination(item: $selectedDetail) { item in
             IntelDetailView(summary: item)
                 .mainTabBarHidden()
         }
         .sheet(isPresented: $showSubmit) {
             IntelSubmitSheet()
+        }
+        .sheet(isPresented: $showPreferences) {
+            IntelPreferencesView()
+        }
+        .sheet(isPresented: $showOnboarding, onDismiss: { vm.refresh() }) {
+            IntelOnboardingSheet()
         }
     }
 

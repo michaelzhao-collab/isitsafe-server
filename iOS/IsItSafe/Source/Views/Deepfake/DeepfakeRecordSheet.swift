@@ -12,11 +12,11 @@ public struct DeepfakeRecordSheet: View {
     public let onComplete: (DeepfakeCheck) -> Void
     @Environment(\.dismiss) private var dismiss
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    @StateObject private var recorder = AudioRecorderService()
 
     @State private var phase: Phase = .ready
-    @State private var elapsed: Int = 0
-    @State private var timer: Timer?
     @State private var submitting = false
+    @State private var errorMessage: String?
 
     public init(onComplete: @escaping (DeepfakeCheck) -> Void) {
         self.onComplete = onComplete
@@ -25,6 +25,9 @@ public struct DeepfakeRecordSheet: View {
     public enum Phase {
         case ready, recording, processing
     }
+
+    /// 实时 elapsed 直接走 recorder.elapsedSeconds
+    private var elapsed: Int { recorder.elapsedSeconds }
 
     public var body: some View {
         NavigationStack {
@@ -43,13 +46,19 @@ public struct DeepfakeRecordSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(languageCode == "en" ? "Cancel" : "取消") {
-                        stopTimer()
+                        recorder.cancel()
                         dismiss()
                     }
                 }
             }
+            // 录满 60 秒自动停止
+            .onChange(of: recorder.elapsedSeconds) { _, sec in
+                if phase == .recording && sec >= 60 {
+                    stopAndSubmit()
+                }
+            }
         }
-        .onDisappear { stopTimer() }
+        .onDisappear { recorder.cancel() }
     }
 
     // MARK: - Ready
@@ -70,9 +79,12 @@ public struct DeepfakeRecordSheet: View {
                 .font(.subheadline)
                 .foregroundColor(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
+            if let err = errorMessage {
+                Text(err).font(.caption).foregroundColor(AppTheme.riskHigh)
+            }
             Spacer()
             Button {
-                startRecord()
+                Task { await startRecord() }
             } label: {
                 Text(languageCode == "en" ? "Start Recording" : "开始录音")
                     .font(.body.weight(.semibold))
@@ -161,51 +173,70 @@ public struct DeepfakeRecordSheet: View {
 
     // MARK: - 流程
 
-    private func startRecord() {
-        phase = .recording
-        elapsed = 0
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            DispatchQueue.main.async {
-                elapsed += 1
-                if elapsed >= 60 {
-                    stopAndSubmit()
-                }
-            }
+    /// 开始录音（真实 AVAudioRecorder；权限拒绝时显示错误）
+    private func startRecord() async {
+        errorMessage = nil
+        let ok = await recorder.start()
+        if !ok {
+            errorMessage = languageCode == "en"
+                ? "Microphone permission denied"
+                : "麦克风权限被拒绝。请在系统设置中开启"
+            return
         }
+        phase = .recording
+        // 自动 60 秒停止：在 elapsed >= 60 时由 onChange 触发
     }
 
     private func stopAndSubmit() {
-        stopTimer()
+        guard let url = recorder.stop() else {
+            phase = .ready
+            errorMessage = languageCode == "en"
+                ? "Recording failed"
+                : "录音失败，请重试"
+            return
+        }
+        let duration = elapsed
         phase = .processing
         submitting = true
         Task {
-            // 一期 stub：直接调 createCheck，传 mock file URL
-            // 二期：真实录音文件先上传 R2 → 拿 url → createCheck
-            let mockUrl = "https://r2.starlens.ai/deepfake-stub/\(UUID().uuidString).m4a"
             do {
+                // 1) 读取本地文件
+                let audioData = try Data(contentsOf: url)
+                // 2) 上传到 R2
+                let fileUrl = try await NetworkManager.shared.uploadAudio(
+                    type: "deepfake",
+                    audioData: audioData,
+                    mimeType: "audio/mp4",
+                    filename: url.lastPathComponent
+                )
+                // 3) 调创建检测接口
                 let check = try await DeepfakeRepository.shared.create(
                     sourceType: "record",
-                    fileUrl: mockUrl,
-                    fileDurationSec: elapsed
+                    fileUrl: fileUrl,
+                    fileDurationSec: duration
                 )
+                // 4) 清理本地临时文件
+                try? FileManager.default.removeItem(at: url)
                 submitting = false
                 onComplete(check)
             } catch {
                 submitting = false
                 phase = .ready
+                errorMessage = error.localizedDescription
+                // 失败时也清理临时文件
+                try? FileManager.default.removeItem(at: url)
             }
         }
     }
 
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
-    }
-
     private func waveHeight(at i: Int) -> CGFloat {
-        let phaseOffset = Double(i) * 0.4 + Double(elapsed)
-        let v = sin(phaseOffset) * 24 + 32
-        return max(8, CGFloat(v))
+        // 用实时 meterDb 驱动波形（默认 -160 dB 时给个最小高度）
+        let db = recorder.meterDb // -160 ~ 0 dB
+        let normalized = max(0.05, CGFloat((db + 60) / 60))   // 映射到 0~1
+        // 不同条形位置加相位偏移
+        let phaseOffset = Double(i) * 0.5 + Double(elapsed)
+        let wobble = abs(sin(phaseOffset))
+        return max(8, 48 * normalized * (0.6 + 0.4 * CGFloat(wobble)))
     }
 
     private func formatTime(_ seconds: Int) -> String {

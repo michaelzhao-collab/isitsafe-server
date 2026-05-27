@@ -68,6 +68,14 @@ public struct ElderHomeView: View {
             .fullScreenCover(isPresented: $showHelp) {
                 ElderHelpView()
             }
+            // 子视图请求"立刻打孩子电话"（如检测结果页/我被骗了页）→ 打开 SOS 拨号
+            .onReceive(NotificationCenter.default.publisher(for: .elderRequestCallGuardian)) { _ in
+                showDetection = false
+                showHelp = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    showSOS = true
+                }
+            }
         }
     }
 

@@ -174,6 +174,39 @@ public final class NetworkManager {
         return decoded.url
     }
 
+    /// V3-A1 上传音频文件到 R2，返回 CDN URL（POST /api/upload/audio）
+    /// type 通常 'deepfake'；m4a / mp3 / wav / aac 都可
+    public func uploadAudio(type: String = "deepfake", audioData: Data, mimeType: String = "audio/mp4", filename: String = "voice.m4a") async throws -> String {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var urlString = AppConfiguration.shared.baseURL
+        if urlString.hasSuffix("/") { urlString = String(urlString.dropLast()) }
+        urlString += "/api/upload/audio"
+        guard let url = URL(string: urlString) else { throw APIError.invalidURL }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 60
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let token = AuthInterceptor.token() {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"type\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(type)\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(audioData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        req.httpBody = body
+        let (data, response) = try await session.data(for: req)
+        try ResponseValidator.validate(data: data, response: response)
+        struct UploadResponse: Decodable { let url: String }
+        let decoded = try decoder.decode(UploadResponse.self, from: data)
+        return decoded.url
+    }
+
     /// 上传文件（如截图）到 OSS，type 取 screenshot 等，返回 CDN URL
     public func uploadFile(type: String, imageData: Data, mimeType: String = "image/jpeg", filename: String = "screenshot.jpg") async throws -> String {
         let endpoint = APIEndpoint.uploadFile

@@ -14,9 +14,17 @@ import { UploadService, UPLOAD_TYPES } from './upload.service';
 import { memoryStorage } from 'multer';
 
 const MAX_SIZE_FILE = 10 * 1024 * 1024; // 10MB 统一接口
+const MAX_SIZE_AUDIO = 8 * 1024 * 1024; // 8MB 语音上传（60s @ 128kbps ≈ 1MB；留 8 倍冗余）
 const MAX_SIZE_AVATAR = 5 * 1024 * 1024; // 5MB 保留旧 avatar 限制
 // 文章/案例图片支持 GIF（用于动图截图）；avatar 仍维持 JPG/PNG
 const ALLOWED_MIMES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+// V3-A1 语音深伪上传支持的 audio 类型
+const ALLOWED_AUDIO_MIMES = [
+  'audio/mp4', 'audio/m4a', 'audio/x-m4a',
+  'audio/mpeg', 'audio/mp3',
+  'audio/wav', 'audio/x-wav',
+  'audio/aac',
+];
 
 function fileFilter(allowedTypes: string[]) {
   return (
@@ -70,6 +78,36 @@ function ensureRealImage(buffer: Buffer, allowedTypes: string[]): void {
   }
   if (!allowedTypes.includes(detected)) {
     throw new BadRequestException(`Detected ${detected} but only ${allowedTypes.join(', ')} are allowed`);
+  }
+}
+
+/**
+ * V3-A1 audio magic byte 校验
+ * 支持：M4A/MP4 audio / MP3 / WAV / AAC
+ */
+function detectAudioMimeFromMagic(buf: Buffer): string | null {
+  if (!buf || buf.length < 12) return null;
+  // ISO Base Media (M4A/AAC in MP4 container): bytes 4-7 = 'ftyp'
+  if (buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) {
+    return 'audio/mp4';
+  }
+  // MP3: ID3 tag 'ID3' or frame sync 0xFFFB/0xFFFA/0xFFE0
+  if (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) return 'audio/mpeg';
+  if (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0) return 'audio/mpeg';
+  // WAV: 'RIFF' xxxx 'WAVE'
+  if (
+    buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+    buf[8] === 0x57 && buf[9] === 0x41 && buf[10] === 0x56 && buf[11] === 0x45
+  ) return 'audio/wav';
+  // AAC ADTS (start with 0xFFF1 or 0xFFF9)
+  if (buf[0] === 0xff && (buf[1] === 0xf1 || buf[1] === 0xf9)) return 'audio/aac';
+  return null;
+}
+
+function ensureRealAudio(buffer: Buffer): void {
+  const detected = detectAudioMimeFromMagic(buffer);
+  if (!detected) {
+    throw new BadRequestException('File content is not a recognizable audio');
   }
 }
 
@@ -128,6 +166,39 @@ export class UploadController {
     // 头像只允许 jpg/png，magic byte 二次校验
     ensureRealImage(file.buffer, ['image/jpeg', 'image/png']);
     const url = await this.upload.uploadAvatar(userId, file.buffer, file.mimetype);
+    return { url };
+  }
+
+  /**
+   * V3-A1 语音上传专用接口
+   * POST /api/upload/audio
+   * multipart/form-data: file (audio/m4a etc.), type='deepfake'
+   * 返回 { url: "https://cdn.isitsafe.com/deepfake/xxx.m4a" }
+   */
+  @Post('audio')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_SIZE_AUDIO },
+      fileFilter: fileFilter(ALLOWED_AUDIO_MIMES),
+    }),
+  )
+  async audio(
+    @CurrentUser('sub') userId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('type') type: string,
+  ) {
+    if (!file?.buffer) throw new BadRequestException('Missing file');
+    const t = (type?.trim() || 'deepfake');
+    // magic byte 二次校验
+    ensureRealAudio(file.buffer);
+    const url = await this.upload.uploadFile(
+      file.buffer,
+      t,
+      userId,
+      file.mimetype || 'audio/mp4',
+      file.size,
+    );
     return { url };
   }
 }

@@ -53,6 +53,10 @@ public struct FamilyMember: Codable, Identifiable {
     public let elderModeEnabled: Bool
     public let activityStatus: FamilyActivityStatus
     public let joinedAt: String?
+    /// V3-J SOS 拨号需要真号码（仅家庭组内成员可见，服务端权限校验）
+    public let phone: String?
+    /// 脱敏号码，用于 UI 展示（如 138****1234）
+    public let phoneDisplay: String?
 }
 
 public struct FamilyGroup: Codable, Identifiable {

@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 /** 上传类型枚举，对应 R2 目录 */
-export const UPLOAD_TYPES = ['avatar', 'report', 'screenshot', 'case', 'knowledge', 'article'] as const;
+export const UPLOAD_TYPES = ['avatar', 'report', 'screenshot', 'case', 'knowledge', 'article', 'deepfake'] as const;
 export type UploadType = (typeof UPLOAD_TYPES)[number];
 
 const FOLDER_MAP: Record<UploadType, string> = {
@@ -14,9 +14,13 @@ const FOLDER_MAP: Record<UploadType, string> = {
   knowledge: 'knowledge',
   // 文章正文图片（防诈案例富文本中的内嵌图片）
   article: 'articles',
+  // V3-A1 语音深伪上传的 audio 文件（24h 后 cron 自动清理）
+  deepfake: 'deepfake',
 };
 
-const ALLOWED_MIMES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+const ALLOWED_MIMES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
+  // V3-A1 audio types（upload.controller 已 magic byte 校验，这里允许通过 service 层 mime 检查）
+  'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/aac'];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 /**
