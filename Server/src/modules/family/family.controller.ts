@@ -133,8 +133,21 @@ export class FamilyController {
     return { members: group.members };
   }
 
+  /**
+   * 监护人远程开启/关闭被监护人长辈模式
+   * PUT /api/v3/family/members/:userId/elder-mode
+   * body: { enabled: boolean }
+   *
+   * 权限：调用者必须是同家庭组的 owner 或 guardian；
+   *       target 必须在该家庭组内
+   */
   @Put('members/:userId/elder-mode')
-  async setMemberElderMode() {
-    return { code: 'NOT_IMPLEMENTED', message: 'Remote elder mode toggle in development (W6)' };
+  async setMemberElderMode(
+    @CurrentUser('sub') currentUserId: string,
+    @Param('userId') targetUserId: string,
+    @Body() body: { enabled?: boolean },
+  ) {
+    const enabled = !!body?.enabled;
+    return this.family.setMemberElderMode(currentUserId, targetUserId, enabled);
   }
 }

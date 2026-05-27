@@ -65,6 +65,10 @@ public final class AppStateViewModel: ObservableObject {
         user = auth.currentUser
         if isLoggedIn {
             Task { await refreshUnreadCount() }
+            // V3-J 同步服务端长辈模式状态（监护人远程开启场景）
+            Task { @MainActor in
+                ElderModeService.shared.syncFromServer(user?.elderModeEnabled)
+            }
         } else {
             hasUnreadMessages = false
         }
@@ -101,6 +105,10 @@ public final class AppStateViewModel: ObservableObject {
     public func setUser(_ u: UserInfoResponse?) {
         user = u
         isLoggedIn = u != nil
+        // V3-J 同步长辈模式
+        Task { @MainActor in
+            ElderModeService.shared.syncFromServer(u?.elderModeEnabled)
+        }
     }
 
     /// 在登录成功后调用：标记用户已完成一次正式登录

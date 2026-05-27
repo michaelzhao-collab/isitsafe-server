@@ -468,6 +468,39 @@ export class FamilyService {
     return true;
   }
 
+  /**
+   * 监护人远程切换被监护人长辈模式
+   * 权限：currentUser 必须与 targetUser 在同一家庭组，且 currentUser 是 owner/guardian
+   *      target 不能修改自己（自己用 /api/user/v3/elder-mode）
+   */
+  async setMemberElderMode(currentUserId: string, targetUserId: string, enabled: boolean) {
+    if (currentUserId === targetUserId) {
+      throw new BadRequestException('Use /api/user/v3/elder-mode for yourself');
+    }
+    // 同家庭组检查
+    const currentMember = await this.prisma.familyMember.findFirst({
+      where: { userId: currentUserId },
+    });
+    if (!currentMember) {
+      throw new ForbiddenException('Not in any family group');
+    }
+    const targetMember = await this.prisma.familyMember.findFirst({
+      where: { userId: targetUserId, groupId: currentMember.groupId },
+    });
+    if (!targetMember) {
+      throw new NotFoundException('Target user not in your family group');
+    }
+    // 权限检查：仅 owner / guardian 可以远程切换
+    if (currentMember.role === 'ward') {
+      throw new ForbiddenException('Only owner/guardian can toggle elder mode for others');
+    }
+    await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: { elderModeEnabled: enabled },
+    });
+    return { success: true, targetUserId, enabled };
+  }
+
   async getMyBroadcasts(userId: string, limit = 50) {
     const member = await this.prisma.familyMember.findFirst({ where: { userId } });
     if (!member) return [];

@@ -31,7 +31,10 @@ public enum MockData {
         lastLogin: ISO8601DateFormatter().string(from: Date()),
         createdAt: "2024-01-15T08:00:00.000Z",
         subscriptionStatus: "premium",
-        subscriptionExpire: "2026-12-31"
+        subscriptionExpire: "2026-12-31",
+        elderModeEnabled: false,
+        language: "zh",
+        regionCode: "CN"
     )
 
     // MARK: - 假历史记录（与 GET /api/queries 的 items 一致）

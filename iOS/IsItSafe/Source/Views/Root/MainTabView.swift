@@ -14,30 +14,37 @@ public struct MainTabView: View {
     @EnvironmentObject private var router: AppRouter
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @StateObject private var tabBarVisibility = TabBarVisibility.shared
+    @StateObject private var elderMode = ElderModeService.shared
 
     public init() {}
 
     public var body: some View {
         ZStack(alignment: .bottom) {
             Group {
-                switch selectedTab {
-                case 0:
-                    HomeContainerView(homeVm: homeVm, historyVm: historyVm)
-                case 1:
-                    KnowledgeView()
-                case 2:
-                    FamilyView()
-                case 3:
-                    ProfileView()
-                default:
-                    HomeContainerView(homeVm: homeVm, historyVm: historyVm)
+                if elderMode.isEnabled {
+                    // V3-J 长辈模式：替换整个首页 + 隐藏底导（极简界面）
+                    ElderHomeView()
+                } else {
+                    switch selectedTab {
+                    case 0:
+                        HomeContainerView(homeVm: homeVm, historyVm: historyVm)
+                    case 1:
+                        KnowledgeView()
+                    case 2:
+                        FamilyView()
+                    case 3:
+                        ProfileView()
+                    default:
+                        HomeContainerView(homeVm: homeVm, historyVm: historyVm)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .animation(.none, value: selectedTab)
 
             // 底导：贴边、正常高度、背景与主页面区分
-            if !tabBarVisibility.isHidden {
+            // 长辈模式下隐藏底导（极简单页设计）
+            if !tabBarVisibility.isHidden && !elderMode.isEnabled {
                 tabBar
             }
         }

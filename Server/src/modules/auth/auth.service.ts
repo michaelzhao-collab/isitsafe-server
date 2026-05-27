@@ -375,6 +375,10 @@ export class AuthService {
         subscriptionStatus: true,
         subscriptionExpire: true,
         createdAt: true,
+        // V3 新增字段
+        elderModeEnabled: true,
+        language: true,
+        regionCode: true,
       },
     });
     if (!user) throw new UnauthorizedException('User not found');
@@ -383,6 +387,9 @@ export class AuthService {
       ...u,
       birthday: u.birthday ? (u.birthday as Date).toISOString().slice(0, 10) : null,
       subscriptionExpire: u.subscriptionExpire ? (u.subscriptionExpire as Date).toISOString().slice(0, 10) : null,
+      // V3 snake_case 别名（iOS Codable 期望 elder_mode_enabled / region_code）
+      elder_mode_enabled: u.elderModeEnabled ?? false,
+      region_code: u.regionCode ?? null,
     };
   }
 
