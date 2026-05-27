@@ -56,6 +56,9 @@ model User {
   familyMembers       FamilyMember[]
   userActivities      UserActivity[]
   triggeredBroadcasts FamilyBroadcast[]
+  intelSubmissions    IntelSubmission[]
+  intelDeliveries     IntelDelivery[]
+  intelPreferences    UserIntelPreferences?
 
   @@index([familyGroupId])
   @@index([lastActiveAt(sort: Desc)])
@@ -139,6 +142,88 @@ model FamilyCareNotice {
 
   @@index([groupId, sentAt(sort: Desc)])
   @@map("family_care_notices")
+}
+
+// --------------------------------------------
+// V3-B 情报推送（intel）
+// 系统全网官方情报 + 用户上报 + 个人偏好 + 送达日志
+// --------------------------------------------
+model IntelAlert {
+  id              String   @id @default(cuid())
+  title           String   @db.VarChar(200)
+  summary         String   @db.Text
+  /// TipTap JSON：套路 3 步图、配图等结构化内容
+  contentBlocks   Json?    @map("content_blocks")
+  /// 'impersonation' | 'phishing' | 'investment' | 'package' | ...
+  category        String   @db.VarChar(64)
+  /// 'normal' | 'high' | 'urgent'
+  severity        String   @db.VarChar(20)
+  /// JSON 数组：['CN-11', 'US-CA', '*' 全球]
+  targetRegions   Json     @map("target_regions")
+  /// JSON 数组：['elder', 'student', 'finance', '*' 全部]
+  targetAudiences Json     @map("target_audiences")
+  language        String   @default("zh") @db.VarChar(10)
+  sourceUrl       String?  @map("source_url") @db.VarChar(500)
+  /// 'draft' | 'pending' | 'published' | 'archived'
+  status          String   @default("draft") @db.VarChar(20)
+  publishedAt     DateTime? @map("published_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  deliveries IntelDelivery[]
+
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([language, status])
+  @@map("intel_alerts")
+}
+
+/// 用户上报情报（审核后可合并到 IntelAlert）
+model IntelSubmission {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category          String?  @db.VarChar(64)
+  content           String   @db.Text
+  attachments       Json?    /// R2 URLs 数组
+  /// 'pending' | 'approved' | 'rejected' | 'merged'
+  status            String   @default("pending") @db.VarChar(20)
+  mergedToIntelId   String?  @map("merged_to_intel_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("intel_submissions")
+}
+
+/// 情报送达日志（用于未读数 + 防重复推送 + CTR 统计）
+model IntelDelivery {
+  id          String     @id @default(cuid())
+  intelId     String     @map("intel_id")
+  intel       IntelAlert @relation(fields: [intelId], references: [id], onDelete: Cascade)
+  userId      String     @map("user_id")
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveredAt DateTime   @default(now()) @map("delivered_at")
+  readAt      DateTime?  @map("read_at")
+
+  @@unique([intelId, userId])
+  @@index([userId, deliveredAt(sort: Desc)])
+  @@map("intel_deliveries")
+}
+
+/// 用户情报推送偏好
+model UserIntelPreferences {
+  userId     String   @id @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// JSON 数组：['impersonation', 'phishing', ...]
+  categories Json     @default("[]")
+  /// 'daily_1' | 'daily_3' | 'weekly' | 'off'
+  pushFreq   String   @default("daily_1") @map("push_freq") @db.VarChar(20)
+  /// 'HH:mm' 用户本地时间
+  pushTime   String?  @map("push_time") @db.VarChar(5)
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("user_intel_preferences")
 }
 
 // --------------------------------------------

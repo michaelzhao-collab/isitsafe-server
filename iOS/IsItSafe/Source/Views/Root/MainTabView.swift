@@ -29,7 +29,8 @@ public struct MainTabView: View {
                     case 0:
                         HomeContainerView(homeVm: homeVm, historyVm: historyVm)
                     case 1:
-                        KnowledgeView()
+                        // V3-B Tab 1 改造：合并今日情报 + 案例库（segment 切换）
+                        IntelCaseRootView()
                     case 2:
                         FamilyView()
                     case 3:
@@ -73,7 +74,7 @@ public struct MainTabView: View {
     private var tabBar: some View {
         HStack(spacing: 0) {
             tabItem(index: 0, icon: "bubble.left.and.text.bubble.right", title: languageCode == "en" ? "Assistant" : "问助手")
-            tabItem(index: 1, icon: "book.closed", title: languageCode == "en" ? "Cases" : "防诈案例")
+            tabItem(index: 1, icon: "newspaper", title: languageCode == "en" ? "Intel" : "情报案例")
             tabItem(index: 2, icon: "person.2.fill", title: languageCode == "en" ? "Family" : "家庭")
             tabItem(index: 3, icon: "person", title: languageCode == "en" ? "Profile" : "我的")
         }

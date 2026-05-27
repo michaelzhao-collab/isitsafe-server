@@ -70,6 +70,24 @@ public enum APIEndpoint {
     /// V3-E 成员活跃状态
     case v3FamilyGetMembersStatus
 
+    // V3-B 情报推送
+    /// 情报 feed
+    case v3IntelFeed(limit: Int, language: String?)
+    /// 单条详情
+    case v3IntelDetail(id: String)
+    /// 分类列表
+    case v3IntelCategories(language: String?)
+    /// 未读数（首页通知条用）
+    case v3IntelUnreadCount
+    /// 上报情报
+    case v3IntelSubmit
+    /// 我的上报
+    case v3IntelMySubmissions
+    /// 获取偏好
+    case v3IntelGetPreferences
+    /// 更新偏好
+    case v3IntelPutPreferences
+
     public var path: String {
         switch self {
         case .health: return "/api/health"
@@ -121,25 +139,38 @@ public enum APIEndpoint {
         case .v3FamilyCreateBroadcast: return "/api/v3/family/broadcast"
         case .v3FamilyGetBroadcasts: return "/api/v3/family/broadcasts"
         case .v3FamilyGetMembersStatus: return "/api/v3/family/members/status"
+        // V3-B 情报
+        case .v3IntelFeed: return "/api/v3/intel/feed"
+        case .v3IntelDetail(let id): return "/api/v3/intel/\(id)"
+        case .v3IntelCategories: return "/api/v3/intel/categories"
+        case .v3IntelUnreadCount: return "/api/v3/intel/unread-count"
+        case .v3IntelSubmit: return "/api/v3/intel/submit"
+        case .v3IntelMySubmissions: return "/api/v3/intel/me/submissions"
+        case .v3IntelGetPreferences: return "/api/v3/intel/preferences"
+        case .v3IntelPutPreferences: return "/api/v3/intel/preferences"
         }
     }
 
     public var method: HTTPMethod {
         switch self {
         case .health, .authUserInfo, .authRegionHint, .queryHistory, .queryTags, .knowledgeList, .knowledgeCategories, .knowledgeDetail, .subscriptionStatus, .membershipPlans, .messagesList, .messageUnreadCount, .publicConfig,
-             .v3FamilyGetMyGroup, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus:
+             .v3FamilyGetMyGroup, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
+             .v3IntelFeed, .v3IntelDetail, .v3IntelCategories, .v3IntelUnreadCount,
+             .v3IntelMySubmissions, .v3IntelGetPreferences:
             return .GET
         case .authLogin, .authAppleLogin, .authSendCode, .authLogout, .authDeleteAccount, .authRefreshToken, .aiAnalyze, .aiAnalyzeScreenshot,
              .queryPhone, .queryURL, .queryCompany, .reportSubmit, .subscriptionVerify, .messageMarkRead, .feedbackSubmit,
              .v3UserHeartbeat, .v3FamilyCreateGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
-             .v3FamilyLeaveGroup, .v3FamilyCreateBroadcast:
+             .v3FamilyLeaveGroup, .v3FamilyCreateBroadcast,
+             .v3IntelSubmit:
             return .POST
         case .deleteQuery, .deleteQueryConversation,
              .v3FamilyDissolveGroup, .v3FamilyRemoveMember:
             return .DELETE
         case .uploadAvatar, .uploadFile:
             return .POST
-        case .updateProfile, .v3UserElderMode, .v3FamilyUpdatePreferences:
+        case .updateProfile, .v3UserElderMode, .v3FamilyUpdatePreferences,
+             .v3IntelPutPreferences:
             return .PUT
         }
     }
@@ -151,7 +182,9 @@ public enum APIEndpoint {
              .v3UserHeartbeat, .v3UserElderMode,
              .v3FamilyCreateGroup, .v3FamilyGetMyGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyDissolveGroup, .v3FamilyRemoveMember, .v3FamilyUpdatePreferences,
-             .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus:
+             .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
+             .v3IntelFeed, .v3IntelDetail, .v3IntelUnreadCount, .v3IntelSubmit,
+             .v3IntelMySubmissions, .v3IntelGetPreferences, .v3IntelPutPreferences:
             return true
         default:
             return false
@@ -186,6 +219,13 @@ public enum APIEndpoint {
             ]
         case .v3FamilyGetBroadcasts(let limit):
             return [URLQueryItem(name: "limit", value: "\(limit)")]
+        case .v3IntelFeed(let limit, let lang):
+            var items = [URLQueryItem(name: "limit", value: "\(limit)")]
+            if let l = lang, !l.isEmpty { items.append(URLQueryItem(name: "language", value: l)) }
+            return items
+        case .v3IntelCategories(let lang):
+            if let l = lang, !l.isEmpty { return [URLQueryItem(name: "language", value: l)] }
+            return nil
         default:
             return nil
         }

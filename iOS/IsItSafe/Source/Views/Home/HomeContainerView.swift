@@ -249,6 +249,9 @@ public struct HomeContainerView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
                         if homeVm.turns.isEmpty {
+                            // V3-B 首页通知条：未读官方情报时显示
+                            HomeIntelBanner()
+                                .padding(.horizontal, 16)
                             HomeEmptyStateContent()
                         }
                         ForEach(homeVm.turns) { turn in

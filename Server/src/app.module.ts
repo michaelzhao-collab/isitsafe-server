@@ -20,6 +20,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { HealthModule } from './modules/health/health.module';
 import { FamilyModule } from './modules/family/family.module';
 import { WellKnownModule } from './modules/wellknown/wellknown.module';
+import { IntelModule } from './modules/intel/intel.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 
@@ -59,6 +60,7 @@ class PublicConfigController {
     HealthModule,
     FamilyModule,
     WellKnownModule,
+    IntelModule,
   ],
   controllers: [PublicConfigController],
 })
