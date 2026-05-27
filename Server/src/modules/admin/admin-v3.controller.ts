@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -37,8 +38,8 @@ export class AdminV3Controller {
     @Query('pageSize') pageSize = '20',
     @Query('keyword') keyword?: string,
   ) {
-    const p = parseInt(page, 10);
-    const ps = parseInt(pageSize, 10);
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 20));
     const where: any = {};
     if (keyword?.trim()) {
       where.OR = [
@@ -68,8 +69,8 @@ export class AdminV3Controller {
     @Query('pageSize') pageSize = '20',
     @Query('groupId') groupId?: string,
   ) {
-    const p = parseInt(page, 10);
-    const ps = parseInt(pageSize, 10);
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 20));
     const where: any = {};
     if (groupId) where.groupId = groupId;
     const [items, total] = await Promise.all([
@@ -100,8 +101,8 @@ export class AdminV3Controller {
     @Query('page') page = '1',
     @Query('pageSize') pageSize = '20',
   ) {
-    const p = parseInt(page, 10);
-    const ps = parseInt(pageSize, 10);
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 20));
     const [items, total] = await Promise.all([
       this.prisma.familyCareNotice.findMany({
         orderBy: { sentAt: 'desc' },
@@ -123,8 +124,8 @@ export class AdminV3Controller {
     @Query('enabled') enabled?: string,
     @Query('keyword') keyword?: string,
   ) {
-    const p = parseInt(page, 10);
-    const ps = parseInt(pageSize, 10);
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 20));
     const where: any = {};
     if (enabled === 'true') where.elderModeEnabled = true;
     if (enabled === 'false') where.elderModeEnabled = false;
@@ -161,13 +162,16 @@ export class AdminV3Controller {
   @Put('elder/users/:id/toggle')
   async toggleElderMode(
     @Param('id') id: string,
-    @Body('enabled') enabled: boolean,
+    @Body('enabled') enabled: unknown,
   ) {
+    if (typeof enabled !== 'boolean') {
+      throw new BadRequestException('enabled 必须是 true / false');
+    }
     await this.prisma.user.update({
       where: { id },
-      data: { elderModeEnabled: !!enabled },
+      data: { elderModeEnabled: enabled },
     });
-    return { success: true, id, elderModeEnabled: !!enabled };
+    return { success: true, id, elderModeEnabled: enabled };
   }
 
   // ====================================================================
@@ -180,8 +184,8 @@ export class AdminV3Controller {
     @Query('status') status?: string,
     @Query('label') label?: string,
   ) {
-    const p = parseInt(page, 10);
-    const ps = parseInt(pageSize, 10);
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 20));
     const where: any = {};
     if (status) where.status = status;
     if (label) where.resultLabel = label;
@@ -239,8 +243,8 @@ export class AdminV3Controller {
     @Query('pageSize') pageSize = '20',
     @Query('verified') verified?: string,
   ) {
-    const p = parseInt(page, 10);
-    const ps = parseInt(pageSize, 10);
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 20));
     const where: any = {};
     if (verified === 'true') where.verified = true;
     if (verified === 'false') where.verified = false;
@@ -273,8 +277,8 @@ export class AdminV3Controller {
     @Query('severity') severity?: string,
     @Query('dismissed') dismissed?: string,
   ) {
-    const p = parseInt(page, 10);
-    const ps = parseInt(pageSize, 10);
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const ps = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 20));
     const where: any = {};
     if (severity) where.severity = severity;
     if (dismissed === 'true') where.dismissed = true;
