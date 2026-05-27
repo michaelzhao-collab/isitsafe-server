@@ -42,6 +42,34 @@ public enum APIEndpoint {
     case feedbackSubmit
     case publicConfig
 
+    // ====== V3 一期 ======
+    /// V3-E 心跳上报（关怀机制依赖）
+    case v3UserHeartbeat
+    /// V3-J 长辈模式开关（自己开/关）
+    case v3UserElderMode
+    /// V3-E 创建家庭组（免费）
+    case v3FamilyCreateGroup
+    /// V3-E 我的家庭组
+    case v3FamilyGetMyGroup
+    /// V3-E 生成邀请码
+    case v3FamilyGenerateInvite(groupId: String)
+    /// V3-E 兑换邀请码
+    case v3FamilyRedeemInvite
+    /// V3-E 退出家庭组
+    case v3FamilyLeaveGroup(groupId: String)
+    /// V3-E 解散家庭组（owner）
+    case v3FamilyDissolveGroup(groupId: String)
+    /// V3-E 移除成员（owner）
+    case v3FamilyRemoveMember(groupId: String, userId: String)
+    /// V3-E 更新隐私偏好
+    case v3FamilyUpdatePreferences
+    /// V3-E 主动分享触发官方广播（W5 完整实现）
+    case v3FamilyCreateBroadcast
+    /// V3-E 拉取家庭官方消息
+    case v3FamilyGetBroadcasts(limit: Int)
+    /// V3-E 成员活跃状态
+    case v3FamilyGetMembersStatus
+
     public var path: String {
         switch self {
         case .health: return "/api/health"
@@ -63,9 +91,11 @@ public enum APIEndpoint {
         case .deleteQueryConversation(let conversationId): return "/api/queries/conversation/\(conversationId)"
         case .queryTags: return "/api/query/tags"
         case .reportSubmit: return "/api/report"
-        case .knowledgeList: return "/api/knowledge"
+        // 切到 V2：列表精简（去 contentBlocks，加 hasContentBlocks/firstImage），详情走 ETag/304 协商缓存
+        // V1 路由 /api/knowledge 仍由服务端 KnowledgeController 服务，老客户端不受影响
+        case .knowledgeList: return "/api/v2/knowledge"
         case .knowledgeCategories: return "/api/knowledge/categories"
-        case .knowledgeDetail(let id): return "/api/knowledge/\(id)"
+        case .knowledgeDetail(let id): return "/api/v2/knowledge/\(id)"
         case .subscriptionVerify: return "/api/subscription/verify"
         case .subscriptionStatus: return "/api/subscription/status"
         case .membershipPlans: return "/api/membership/plans"
@@ -77,21 +107,39 @@ public enum APIEndpoint {
         case .messageMarkRead(let id): return "/api/messages/\(id)/read"
         case .feedbackSubmit: return "/api/feedback"
         case .publicConfig: return "/api/config"
+        // ====== V3 ======
+        case .v3UserHeartbeat: return "/api/user/v3/heartbeat"
+        case .v3UserElderMode: return "/api/user/v3/elder-mode"
+        case .v3FamilyCreateGroup: return "/api/v3/family/groups"
+        case .v3FamilyGetMyGroup: return "/api/v3/family/groups/me"
+        case .v3FamilyGenerateInvite(let groupId): return "/api/v3/family/groups/\(groupId)/invites"
+        case .v3FamilyRedeemInvite: return "/api/v3/family/invites/redeem"
+        case .v3FamilyLeaveGroup(let groupId): return "/api/v3/family/groups/\(groupId)/leave"
+        case .v3FamilyDissolveGroup(let groupId): return "/api/v3/family/groups/\(groupId)"
+        case .v3FamilyRemoveMember(let groupId, let userId): return "/api/v3/family/groups/\(groupId)/members/\(userId)"
+        case .v3FamilyUpdatePreferences: return "/api/v3/family/members/me/preferences"
+        case .v3FamilyCreateBroadcast: return "/api/v3/family/broadcast"
+        case .v3FamilyGetBroadcasts: return "/api/v3/family/broadcasts"
+        case .v3FamilyGetMembersStatus: return "/api/v3/family/members/status"
         }
     }
 
     public var method: HTTPMethod {
         switch self {
-        case .health, .authUserInfo, .authRegionHint, .queryHistory, .queryTags, .knowledgeList, .knowledgeCategories, .knowledgeDetail, .subscriptionStatus, .membershipPlans, .messagesList, .messageUnreadCount, .publicConfig:
+        case .health, .authUserInfo, .authRegionHint, .queryHistory, .queryTags, .knowledgeList, .knowledgeCategories, .knowledgeDetail, .subscriptionStatus, .membershipPlans, .messagesList, .messageUnreadCount, .publicConfig,
+             .v3FamilyGetMyGroup, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus:
             return .GET
         case .authLogin, .authAppleLogin, .authSendCode, .authLogout, .authDeleteAccount, .authRefreshToken, .aiAnalyze, .aiAnalyzeScreenshot,
-             .queryPhone, .queryURL, .queryCompany, .reportSubmit, .subscriptionVerify, .messageMarkRead, .feedbackSubmit:
+             .queryPhone, .queryURL, .queryCompany, .reportSubmit, .subscriptionVerify, .messageMarkRead, .feedbackSubmit,
+             .v3UserHeartbeat, .v3FamilyCreateGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
+             .v3FamilyLeaveGroup, .v3FamilyCreateBroadcast:
             return .POST
-        case .deleteQuery, .deleteQueryConversation:
+        case .deleteQuery, .deleteQueryConversation,
+             .v3FamilyDissolveGroup, .v3FamilyRemoveMember:
             return .DELETE
         case .uploadAvatar, .uploadFile:
             return .POST
-        case .updateProfile:
+        case .updateProfile, .v3UserElderMode, .v3FamilyUpdatePreferences:
             return .PUT
         }
     }
@@ -99,7 +147,11 @@ public enum APIEndpoint {
     /// 是否需要携带 Authorization（有 token 就带，无 token 不报错）
     public var requiresAuth: Bool {
         switch self {
-        case .authLogout, .authDeleteAccount, .authUserInfo, .subscriptionVerify, .subscriptionStatus, .uploadAvatar, .uploadFile, .updateProfile, .deleteQuery, .deleteQueryConversation, .queryHistory, .messagesList, .messageUnreadCount, .messageMarkRead, .feedbackSubmit:
+        case .authLogout, .authDeleteAccount, .authUserInfo, .subscriptionVerify, .subscriptionStatus, .uploadAvatar, .uploadFile, .updateProfile, .deleteQuery, .deleteQueryConversation, .queryHistory, .messagesList, .messageUnreadCount, .messageMarkRead, .feedbackSubmit,
+             .v3UserHeartbeat, .v3UserElderMode,
+             .v3FamilyCreateGroup, .v3FamilyGetMyGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
+             .v3FamilyLeaveGroup, .v3FamilyDissolveGroup, .v3FamilyRemoveMember, .v3FamilyUpdatePreferences,
+             .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus:
             return true
         default:
             return false
@@ -132,6 +184,8 @@ public enum APIEndpoint {
                 URLQueryItem(name: "page", value: "\(page)"),
                 URLQueryItem(name: "pageSize", value: "\(pageSize)")
             ]
+        case .v3FamilyGetBroadcasts(let limit):
+            return [URLQueryItem(name: "limit", value: "\(limit)")]
         default:
             return nil
         }

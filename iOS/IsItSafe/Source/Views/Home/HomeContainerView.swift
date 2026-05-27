@@ -172,6 +172,8 @@ public struct HomeContainerView: View {
                 Task {
                     await MainActor.run { appState.refreshLoginState() }
                     await appState.refreshSubscriptionState()
+                    // V3-E 心跳上报（关怀机制依赖；内部已节流 5 分钟）
+                    await HeartbeatService.shared.reportActive()
                 }
             }
         }
@@ -197,6 +199,8 @@ public struct HomeContainerView: View {
                         showClipboardAlert = true
                     }
                 }
+                // V3-E 冷启即时上报心跳一次（关怀机制；服务端按今日 active_count 计数）
+                Task { await HeartbeatService.shared.reportActive() }
             }
         }
         .navigationDestination(item: $selectedHistoryItem) { item in

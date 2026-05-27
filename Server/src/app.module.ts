@@ -18,6 +18,7 @@ import { MessagesModule } from './modules/messages/messages.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { HealthModule } from './modules/health/health.module';
+import { FamilyModule } from './modules/family/family.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 
@@ -55,6 +56,7 @@ class PublicConfigController {
     AdminModule,
     SettingsModule,
     HealthModule,
+    FamilyModule,
   ],
   controllers: [PublicConfigController],
 })

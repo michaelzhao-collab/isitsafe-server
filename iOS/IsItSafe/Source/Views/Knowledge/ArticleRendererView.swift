@@ -20,62 +20,74 @@ public struct ArticleRendererView: View {
         }
     }
 
-    @ViewBuilder
-    private func blockView(_ block: ArticleBlock) -> some View {
+    /// 用 AnyView 打破 some View 自递归（list/blockquote 内部会再次调用 blockView）
+    private func blockView(_ block: ArticleBlock) -> AnyView {
         switch block {
         case .heading(let level, let spans):
-            inlineText(spans)
-                .font(headingFont(level: level))
-                .foregroundColor(AppTheme.titleColor)
-                .padding(.top, 6)
+            return AnyView(
+                inlineText(spans)
+                    .font(headingFont(level: level))
+                    .foregroundColor(AppTheme.textPrimary)
+                    .padding(.top, 6)
+            )
         case .paragraph(let spans):
-            inlineText(spans)
-                .font(.body)
-                .foregroundColor(.primary)
-                .lineSpacing(4)
-                .fixedSize(horizontal: false, vertical: true)
+            return AnyView(
+                inlineText(spans)
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            )
         case .image(let src, let alt, let caption):
-            articleImage(src: src, alt: alt, caption: caption)
+            return AnyView(articleImage(src: src, alt: alt, caption: caption))
         case .bulletList(let items):
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("•").font(.body).foregroundColor(.secondary)
-                        VStack(alignment: .leading, spacing: 6) {
-                            ForEach(item) { sub in blockView(sub) }
+            return AnyView(
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("•").font(.body).foregroundColor(.secondary)
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(item) { sub in blockView(sub) }
+                            }
                         }
                     }
                 }
-            }
+            )
         case .orderedList(let items):
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("\(idx + 1).").font(.body.weight(.medium)).foregroundColor(.secondary)
-                        VStack(alignment: .leading, spacing: 6) {
-                            ForEach(item) { sub in blockView(sub) }
+            return AnyView(
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("\(idx + 1).").font(.body.weight(.medium)).foregroundColor(.secondary)
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(item) { sub in blockView(sub) }
+                            }
                         }
                     }
                 }
-            }
-        case .blockquote(let blocks):
-            HStack(spacing: 12) {
-                Rectangle().fill(Color.accentColor.opacity(0.5)).frame(width: 3)
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(blocks) { sub in blockView(sub) }
+            )
+        case .blockquote(let subBlocks):
+            return AnyView(
+                HStack(spacing: 12) {
+                    Rectangle().fill(Color.accentColor.opacity(0.5)).frame(width: 3)
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(subBlocks) { sub in blockView(sub) }
+                    }
                 }
-            }
-            .padding(.vertical, 4)
+                .padding(.vertical, 4)
+            )
         case .codeBlock(let code, _):
-            ScrollView(.horizontal, showsIndicators: false) {
-                Text(code)
-                    .font(.system(.callout, design: .monospaced))
-                    .padding(12)
-            }
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(8)
+            return AnyView(
+                ScrollView(.horizontal, showsIndicators: false) {
+                    Text(code)
+                        .font(.system(.callout, design: .monospaced))
+                        .padding(12)
+                }
+                .background(Color(.secondarySystemBackground))
+                .cornerRadius(8)
+            )
         case .divider:
-            Divider().padding(.vertical, 4)
+            return AnyView(Divider().padding(.vertical, 4))
         }
     }
 

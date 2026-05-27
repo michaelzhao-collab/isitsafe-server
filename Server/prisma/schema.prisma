@@ -31,13 +31,145 @@ model User {
   subscriptionExpire DateTime?  @map("subscription_expire")
   createdAt          DateTime   @default(now()) @map("created_at")
 
+  // ====== V3 一期扩展字段 ======
+  /// 加入的家庭组 id；NULL 表示未加入任何家庭组
+  familyGroupId    String?    @map("family_group_id")
+  /// 'personal' | 'family_owner' | 'family_member' — 用于业务侧快速判断；同步自 family_members 表
+  userLevel        String     @default("personal") @map("user_level")
+  /// 长辈模式开关（V3 J 模块）
+  elderModeEnabled Boolean    @default(false) @map("elder_mode_enabled")
+  /// 用户偏好语言（zh | en）
+  language         String     @default("zh")
+  /// ISO 3166-2 地区码（CN-11/US-CA），用于 F 模块海外可见性 + B 情报本地化
+  regionCode       String?    @map("region_code")
+  /// 最后活跃时间（用户真实主动打开 App），关怀机制核心依赖
+  lastActiveAt     DateTime?  @map("last_active_at")
+
   queries          Query[]
   reports          Report[]
   subscriptions    Subscription[]
   messageReads    UserMessageRead[]
   authIdentities  AuthIdentity[]
 
+  // ====== V3 关联关系 ======
+  ownedFamilyGroups   FamilyGroup[]     @relation("FamilyGroupOwner")
+  familyMembers       FamilyMember[]
+  userActivities      UserActivity[]
+  triggeredBroadcasts FamilyBroadcast[]
+
+  @@index([familyGroupId])
+  @@index([lastActiveAt(sort: Desc)])
+  @@index([regionCode])
   @@map("users")
+}
+
+// --------------------------------------------
+// V3-E 家庭守护：家庭组
+// --------------------------------------------
+model FamilyGroup {
+  id                  String   @id @default(cuid())
+  ownerUserId         String   @map("owner_user_id")
+  owner               User     @relation("FamilyGroupOwner", fields: [ownerUserId], references: [id])
+  name                String?  @db.VarChar(100)
+  inviteCode          String?  @unique @map("invite_code") @db.VarChar(20)
+  inviteCodeExpiresAt DateTime? @map("invite_code_expires_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  members      FamilyMember[]
+  careNotices  FamilyCareNotice[]
+  broadcasts   FamilyBroadcast[]
+
+  @@index([ownerUserId])
+  @@map("family_groups")
+}
+
+// --------------------------------------------
+// V3-E 家庭守护：家庭成员
+// --------------------------------------------
+model FamilyMember {
+  id                String      @id @default(cuid())
+  groupId           String      @map("group_id")
+  group             FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId            String      @map("user_id")
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// owner | guardian | ward
+  role              String
+  /// 该成员是否允许"查询结果触发官方广播"
+  shareQueryResults Boolean     @default(true) @map("share_query_results")
+  joinedAt          DateTime    @default(now()) @map("joined_at")
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@map("family_members")
+}
+
+// --------------------------------------------
+// V3-E 关怀机制：用户每日活跃日志
+// 复合主键 (user_id, date)；服务端 cron 每日扫描找出连续未活跃成员
+// --------------------------------------------
+model UserActivity {
+  userId        String   @map("user_id")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime @db.Date
+  activeCount   Int      @default(0) @map("active_count")
+  firstActiveAt DateTime? @map("first_active_at")
+  lastActiveAt  DateTime? @map("last_active_at")
+
+  @@id([userId, date])
+  @@index([date])
+  @@map("user_activities")
+}
+
+// --------------------------------------------
+// V3-E 关怀机制：提醒发送记录（防重复轰炸）
+// --------------------------------------------
+model FamilyCareNotice {
+  id              String      @id @default(cuid())
+  groupId         String      @map("group_id")
+  group           FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  /// 谁未活跃
+  inactiveUserId  String      @map("inactive_user_id")
+  /// JSON 数组：通知了哪些 guardian 的 userId
+  notifiedUserIds Json        @map("notified_user_ids")
+  daysInactive    Int         @map("days_inactive")
+  /// push | sms
+  channel         String
+  sentAt          DateTime    @default(now()) @map("sent_at")
+
+  @@index([groupId, sentAt(sort: Desc)])
+  @@map("family_care_notices")
+}
+
+// --------------------------------------------
+// V3-E 官方匿名广播
+// triggeredByUserId 仅服务端可见，DTO 必须 @Exclude 不返回给前端
+// 排重：同家庭同 contentHash 当日仅 1 条（service 层校验，因 Prisma 不支持 partial unique）
+// --------------------------------------------
+model FamilyBroadcast {
+  id                String      @id @default(cuid())
+  groupId           String      @map("group_id")
+  group             FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  /// ⚠️ 隐私：仅服务端可见，前端 DTO 必须排除
+  triggeredByUserId String      @map("triggered_by_user_id")
+  triggeredBy       User        @relation(fields: [triggeredByUserId], references: [id])
+  /// phone | url | sms | voice
+  contentType       String      @map("content_type")
+  /// sha256(normalized_content)，用于当日排重
+  contentHash       String      @map("content_hash")
+  /// 展示给家人的内容（可脱敏后的版本）
+  contentDisplay    String      @map("content_display") @db.Text
+  /// scam | safe | unknown
+  resultLabel       String      @map("result_label")
+  /// AI 检测特征 + 建议（JSON）
+  resultDetail      Json        @map("result_detail")
+  /// auto_query（自动）| manual_share（用户主动分享）
+  source            String
+  createdAt         DateTime    @default(now()) @map("created_at")
+
+  @@index([groupId, createdAt(sort: Desc)])
+  @@index([groupId, contentHash])
+  @@map("family_broadcasts")
 }
 
 enum UserRole {

@@ -1,12 +1,20 @@
-import { Controller, Put, Body, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Put,
+  Post,
+  Body,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { FamilyService } from '../family/family.service';
 
 @Controller('user')
 @UseGuards(JwtAuthGuard)
 export class UserController {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private family: FamilyService) {}
 
   /**
    * 修改用户资料：avatar, nickname, gender, birthday
@@ -52,5 +60,34 @@ export class UserController {
       throw new BadRequestException(e?.message || '更新资料失败');
     }
     return { success: true };
+  }
+
+  /**
+   * V3 心跳：用户主动打开 App 时上报（关怀机制核心依赖）
+   * 客户端节流 5 分钟内一次即可
+   *
+   * POST /api/v3/user/heartbeat
+   */
+  @Post('v3/heartbeat')
+  async heartbeat(@CurrentUser('sub') userId: string) {
+    return this.family.recordHeartbeat(userId);
+  }
+
+  /**
+   * V3 长辈模式开关（自己开关）
+   *
+   * PUT /api/v3/user/elder-mode  body: { enabled: boolean }
+   */
+  @Put('v3/elder-mode')
+  async setElderMode(
+    @CurrentUser('sub') userId: string,
+    @Body() body: { enabled?: boolean },
+  ) {
+    const enabled = !!body?.enabled;
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { elderModeEnabled: enabled },
+    });
+    return { success: true, enabled };
   }
 }

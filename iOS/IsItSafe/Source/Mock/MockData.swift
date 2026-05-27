@@ -135,7 +135,11 @@ public enum MockData {
             language: "zh",
             source: "防诈案例库",
             createdAt: "2024-06-01T00:00:00.000Z",
-            updatedAt: nil
+            updatedAt: nil,
+            contentBlocks: nil,
+            coverImage: nil,
+            hasContentBlocks: nil,
+            firstImage: nil
         ),
         KnowledgeItem(
             id: "k_002",
@@ -146,7 +150,11 @@ public enum MockData {
             language: "zh",
             source: "防诈案例库",
             createdAt: "2024-06-02T00:00:00.000Z",
-            updatedAt: nil
+            updatedAt: nil,
+            contentBlocks: nil,
+            coverImage: nil,
+            hasContentBlocks: nil,
+            firstImage: nil
         ),
         KnowledgeItem(
             id: "k_003",
@@ -157,7 +165,11 @@ public enum MockData {
             language: "zh",
             source: "防诈案例库",
             createdAt: "2024-06-03T00:00:00.000Z",
-            updatedAt: nil
+            updatedAt: nil,
+            contentBlocks: nil,
+            coverImage: nil,
+            hasContentBlocks: nil,
+            firstImage: nil
         ),
         KnowledgeItem(
             id: "k_004",
@@ -168,7 +180,11 @@ public enum MockData {
             language: "zh",
             source: "防诈案例库",
             createdAt: "2024-06-04T00:00:00.000Z",
-            updatedAt: nil
+            updatedAt: nil,
+            contentBlocks: nil,
+            coverImage: nil,
+            hasContentBlocks: nil,
+            firstImage: nil
         ),
     ]
 }
