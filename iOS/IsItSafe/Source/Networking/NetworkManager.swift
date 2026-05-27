@@ -85,6 +85,13 @@ public final class NetworkManager {
     private init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = AppConfiguration.shared.apiTimeout
+        // V2 接口启用 ETag/304 协商缓存：URLSession 会自动带 If-None-Match，
+        // 命中 304 时系统透明返回缓存 body（statusCode 仍为 200），调用方无感知。
+        // 仅对 V2 详情类接口有显著收益；列表/会变化的接口因为带 Cache-Control: must-revalidate，每次仍会发起请求。
+        let mem = 10 * 1024 * 1024   // 10MB 内存
+        let disk = 50 * 1024 * 1024  // 50MB 磁盘
+        config.urlCache = URLCache(memoryCapacity: mem, diskCapacity: disk, diskPath: "isitsafe-http-cache")
+        config.requestCachePolicy = .useProtocolCachePolicy
         // 使用 TLSValidationDelegate 做证书校验（填入 pinnedHashes 后自动启用固定）
         session = URLSession(configuration: config, delegate: TLSValidationDelegate(), delegateQueue: nil)
         decoder = JSONDecoder()

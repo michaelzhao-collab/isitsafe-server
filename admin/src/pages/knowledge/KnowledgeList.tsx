@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, type Key } from 'react';
-import { Table, Card, Select, Input, Space, Button, message } from 'antd';
+import { Table, Card, Select, Input, Space, Button, message, Image, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
 import * as XLSX from 'xlsx';
@@ -140,9 +140,39 @@ export default function KnowledgeList() {
   };
 
   const columns = [
-    { title: 'id', dataIndex: 'id', key: 'id', ellipsis: true, width: 200 },
+    { title: 'id', dataIndex: 'id', key: 'id', ellipsis: true, width: 180 },
+    {
+      title: '封面',
+      dataIndex: 'coverImage',
+      key: 'coverImage',
+      width: 80,
+      render: (url: string | null | undefined) =>
+        url ? (
+          <Image
+            src={url}
+            width={56}
+            height={42}
+            style={{ objectFit: 'cover', borderRadius: 4 }}
+            placeholder
+            preview={{ mask: '预览' }}
+          />
+        ) : (
+          <span style={{ color: '#bfbfbf', fontSize: 12 }}>—</span>
+        ),
+    },
     { title: 'title', dataIndex: 'title', key: 'title', ellipsis: true },
     { title: 'category', dataIndex: 'category', key: 'category', width: 120 },
+    {
+      title: '模式',
+      key: 'mode',
+      width: 90,
+      render: (_: unknown, row: KnowledgeItem) =>
+        row.contentBlocks ? (
+          <Tag color="blue">富文本</Tag>
+        ) : (
+          <Tag>纯文本</Tag>
+        ),
+    },
     {
       title: 'content',
       dataIndex: 'content',

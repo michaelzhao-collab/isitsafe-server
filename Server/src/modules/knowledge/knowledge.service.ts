@@ -7,6 +7,36 @@ import { PrismaService } from '../../prisma/prisma.service';
  * 2) 列表预览（截断）
  * 当 blocks 为 null/解析失败时返回空串，调用方应在此时保留入参 content。
  */
+/**
+ * 从 TipTap JSON 中提取第一张图片 src，找不到返回 null。
+ * 用于列表缩略图回退（admin 没设封面时仍能展示文章首图）。
+ */
+function extractFirstImageFromBlocks(blocks: unknown): string | null {
+  if (!blocks || typeof blocks !== 'object') return null;
+  let found: string | null = null;
+  const walk = (node: any) => {
+    if (found || !node) return;
+    if (node.type === 'image' && typeof node.attrs?.src === 'string' && node.attrs.src.length > 0) {
+      found = node.attrs.src;
+      return;
+    }
+    if (Array.isArray(node.content)) {
+      for (const child of node.content) {
+        walk(child);
+        if (found) return;
+      }
+    }
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        walk(child);
+        if (found) return;
+      }
+    }
+  };
+  walk(blocks);
+  return found;
+}
+
 function extractPlainTextFromBlocks(blocks: unknown): string {
   if (!blocks || typeof blocks !== 'object') return '';
   const parts: string[] = [];
@@ -69,6 +99,64 @@ export class KnowledgeService {
   }
 
   async getById(id: string) {
+    return this.prisma.knowledgeCase.findUniqueOrThrow({ where: { id } });
+  }
+
+  /**
+   * V2 列表：
+   * - 剥掉 contentBlocks 大字段不返给客户端（列表无需渲染完整文章）
+   * - 派生 hasContentBlocks（前端判断模式）
+   * - 派生 firstImage（用于列表缩略图）：优先 coverImage，否则取 contentBlocks 中第一张图
+   * 注意：仅供 V2 接口使用；老 /knowledge 路由继续返回完整字段以兼容旧客户端。
+   */
+  async listV2(category?: string, page = 1, pageSize = 20, search?: string, language = 'zh') {
+    const skip = (page - 1) * pageSize;
+    const where: any = { language };
+    if (category) where.category = category;
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { content: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    const [rows, total] = await Promise.all([
+      this.prisma.knowledgeCase.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          category: true,
+          content: true,
+          tags: true,
+          source: true,
+          language: true,
+          coverImage: true,
+          contentBlocks: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      this.prisma.knowledgeCase.count({ where }),
+    ]);
+    const items = rows.map((row) => {
+      const hasBlocks = !!row.contentBlocks;
+      const firstImg = row.coverImage ?? extractFirstImageFromBlocks(row.contentBlocks);
+      // 列表只回 content 摘要 + 派生字段，剥掉 contentBlocks 减小体积
+      const { contentBlocks: _blocks, ...rest } = row;
+      return {
+        ...rest,
+        hasContentBlocks: hasBlocks,
+        firstImage: firstImg ?? null,
+      };
+    });
+    return { items, total, page, pageSize };
+  }
+
+  /** V2 详情：附带 ETag 计算所需字段；服务端使用 id + updatedAt 派生 ETag */
+  async getByIdV2(id: string) {
     return this.prisma.knowledgeCase.findUniqueOrThrow({ where: { id } });
   }
 
