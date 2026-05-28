@@ -27,24 +27,25 @@ export class AuthController {
       return this.auth.loginPhone(
         { phone: body.phone, password: body.password, code: body.code, smsCode: body.smsCode },
         ip,
+        req,
       );
     }
-    if (body.email) return this.auth.loginEmail({ email: body.email, code: body.code }, ip);
+    if (body.email) return this.auth.loginEmail({ email: body.email, code: body.code }, ip, req);
     throw new UnauthorizedException('请提供 phone 或 email');
   }
 
   /** Apple 登录：客户端传 identityToken，服务端校验后签发本系统 token */
   @Public()
   @Post('apple/login')
-  async appleLogin(@Body() dto: AppleLoginDto) {
-    return this.auth.loginApple(dto);
+  async appleLogin(@Body() dto: AppleLoginDto, @Req() req: any) {
+    return this.auth.loginApple(dto, req);
   }
 
   /** 统一第三方登录入口（当前支持 apple；google 预留） */
   @Public()
   @Post('social/login')
-  async socialLogin(@Body() dto: SocialLoginDto) {
-    return this.auth.loginSocial(dto);
+  async socialLogin(@Body() dto: SocialLoginDto, @Req() req: any) {
+    return this.auth.loginSocial(dto, req);
   }
 
   /** 默认国家码提示（无定位权限）；优先 CDN 头，否则客户端用 Locale / IP */

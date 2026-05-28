@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Param, Query, Body, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body, UseGuards, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
@@ -8,6 +8,76 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard, AdminRoleGuard)
 export class AdminUsersController {
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * 批量回填历史 country 为空的用户
+   * - 通过查 user.id 拿不到 IP（IP 不存档），只能用 phone 前缀兜底（已注册时部分写过）
+   * - 仅在 user.country 为空时回填；不覆盖已有值
+   * - 用 phone E.164 前缀映射常见国家
+   *
+   * 注意：本接口只能补 phone 前缀能推断的（+86→CN / +1→US / +44→GB ...）
+   * 其他渠道（email/Apple）注册的用户必须等下次登录由 GeoIpService 实时补写
+   */
+  @Post('backfill-country')
+  async backfillCountry() {
+    const PHONE_PREFIX_MAP: Array<{ prefix: string; country: string }> = [
+      { prefix: '+86', country: 'CN' },
+      { prefix: '+1', country: 'US' },
+      { prefix: '+44', country: 'GB' },
+      { prefix: '+81', country: 'JP' },
+      { prefix: '+82', country: 'KR' },
+      { prefix: '+852', country: 'HK' },
+      { prefix: '+853', country: 'MO' },
+      { prefix: '+886', country: 'TW' },
+      { prefix: '+65', country: 'SG' },
+      { prefix: '+60', country: 'MY' },
+      { prefix: '+61', country: 'AU' },
+      { prefix: '+49', country: 'DE' },
+      { prefix: '+33', country: 'FR' },
+      { prefix: '+39', country: 'IT' },
+      { prefix: '+34', country: 'ES' },
+      { prefix: '+7', country: 'RU' },
+      { prefix: '+91', country: 'IN' },
+      { prefix: '+62', country: 'ID' },
+      { prefix: '+84', country: 'VN' },
+      { prefix: '+66', country: 'TH' },
+      { prefix: '+63', country: 'PH' },
+      { prefix: '+55', country: 'BR' },
+      { prefix: '+52', country: 'MX' },
+    ];
+
+    const candidates = await this.prisma.user.findMany({
+      where: { country: null, phone: { not: null } },
+      select: { id: true, phone: true },
+      take: 5000,
+    });
+
+    let updated = 0;
+    for (const u of candidates) {
+      if (!u.phone) continue;
+      const hit = PHONE_PREFIX_MAP.find((m) => u.phone!.startsWith(m.prefix));
+      if (!hit) continue;
+      try {
+        await this.prisma.user.update({
+          where: { id: u.id },
+          data: { country: hit.country },
+        });
+        updated++;
+      } catch {
+        // ignore
+      }
+    }
+
+    const stillEmpty = await this.prisma.user.count({ where: { country: null } });
+    return {
+      scanned: candidates.length,
+      updated,
+      stillEmpty,
+      hint: stillEmpty > 0
+        ? `仍有 ${stillEmpty} 个用户 country 为空（多为非手机号注册的 email/Apple 用户）— 等他们下次登录会自动补写`
+        : '✓ 所有用户已有国家信息',
+    };
+  }
 
   @Get()
   async list(

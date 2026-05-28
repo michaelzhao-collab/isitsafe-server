@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Table, Card, Input, Select, Space, Button, message, Tag, Avatar } from 'antd';
+import { Table, Card, Input, Select, Space, Button, message, Tag, Avatar, Popconfirm } from 'antd';
+import { GlobalOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import { getUsers, updateUserStatus, type UserItem, type UsersRes } from '../../api/users';
+import request from '../../api/request';
 
 export default function UsersList() {
   const navigate = useNavigate();
@@ -33,6 +36,21 @@ export default function UsersList() {
       .catch((e) => message.error(e?.message ?? '操作失败'));
   };
 
+  const [backfilling, setBackfilling] = useState(false);
+  const handleBackfillCountry = async () => {
+    setBackfilling(true);
+    try {
+      const res = await request.post<{ scanned: number; updated: number; stillEmpty: number; hint: string }>('/admin/users/backfill-country');
+      const r = res as unknown as { scanned: number; updated: number; stillEmpty: number; hint: string };
+      message.success(`扫描 ${r.scanned} 个用户，补齐 ${r.updated} 个；${r.hint}`, 6);
+      load();
+    } catch (e: any) {
+      message.error(e?.message ?? '回填失败');
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   const genderMap: Record<string, string> = { male: '男', female: '女', unknown: '-' };
 
   const columns = [
@@ -46,7 +64,13 @@ export default function UsersList() {
     },
     { title: '昵称', dataIndex: 'nickname', key: 'nickname', width: 100 },
     { title: '手机', dataIndex: 'phone', key: 'phone', width: 120 },
-    { title: '国家', dataIndex: 'country', key: 'country', width: 80 },
+    {
+      title: '国家',
+      dataIndex: 'country',
+      key: 'country',
+      width: 90,
+      render: (v: string | null) => v ? <Tag>{v}</Tag> : <span style={{ color: '#bfbfbf' }}>未知</span>,
+    },
     {
       title: '性别',
       dataIndex: 'gender',
@@ -55,8 +79,8 @@ export default function UsersList() {
       render: (v: string) => genderMap[v] ?? v ?? '-',
     },
     { title: '生日', dataIndex: 'birthday', key: 'birthday', width: 110 },
-    { title: '注册时间', dataIndex: 'createdAt', key: 'createdAt', width: 180, render: (v: string) => v?.slice(0, 19) },
-    { title: '最后登录', dataIndex: 'lastLogin', key: 'lastLogin', width: 180, render: (v: string) => v?.slice(0, 19) ?? '-' },
+    { title: '注册时间', dataIndex: 'createdAt', key: 'createdAt', width: 160, render: (v: string) => v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '—' },
+    { title: '最后登录', dataIndex: 'lastLogin', key: 'lastLogin', width: 160, render: (v: string | null) => v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '—' },
     {
       title: '会员状态',
       dataIndex: 'subscriptionStatus',
@@ -86,12 +110,21 @@ export default function UsersList() {
           <Button type="link" size="small" onClick={() => navigate(`/users/${row.id}`)}>
             详情
           </Button>
-          <Button type="link" size="small" danger onClick={() => handleStatus(row.id, 'disabled')}>
-            禁用
-          </Button>
-          <Button type="link" size="small" onClick={() => handleStatus(row.id, 'active')}>
-            解封
-          </Button>
+          <Popconfirm
+            title={`确认禁用 ${row.nickname || row.phone || row.id.slice(0, 8)}？`}
+            description="禁用后该用户所有 API 请求被 403 拦截"
+            onConfirm={() => handleStatus(row.id, 'disabled')}
+            okText="禁用" cancelText="取消" okButtonProps={{ danger: true }}
+          >
+            <Button type="link" size="small" danger>禁用</Button>
+          </Popconfirm>
+          <Popconfirm
+            title="确认解封该用户？"
+            onConfirm={() => handleStatus(row.id, 'active')}
+            okText="解封" cancelText="取消"
+          >
+            <Button type="link" size="small">解封</Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -118,6 +151,16 @@ export default function UsersList() {
           <Button type="primary" onClick={load}>
             查询
           </Button>
+          <Popconfirm
+            title="按手机号前缀批量回填国家"
+            description="扫描所有 country 为空且有手机号的用户，按 E.164 前缀写入国家码。非手机号用户等下次登录由系统自动补写。"
+            onConfirm={handleBackfillCountry}
+            okText="开始" cancelText="取消"
+          >
+            <Button icon={<GlobalOutlined />} loading={backfilling}>
+              回填国家
+            </Button>
+          </Popconfirm>
         </Space>
         <Table
           rowKey="id"

@@ -14,6 +14,7 @@ import * as nodeJwt from 'jsonwebtoken';
 import * as bcrypt from 'bcrypt';
 import axios from 'axios';
 import { UserRole } from '@prisma/client';
+import { GeoIpService } from './geoip.service';
 import {
   LoginPhoneDto,
   LoginEmailDto,
@@ -52,7 +53,19 @@ export class AuthService {
     private redis: RedisService,
     private jwt: JwtService,
     private config: ConfigService,
+    private geoIp: GeoIpService,
   ) {}
+
+  /**
+   * 异步把用户的国家/地区码补齐（country 为空时才补，不覆盖已有值）
+   * fire-and-forget：不阻塞登录响应
+   */
+  private triggerGeoBackfill(userId: string, req?: { headers?: Record<string, any>; ip?: string }) {
+    if (!req) return;
+    this.geoIp.backfillUserGeo(userId, req).catch(() => {
+      // silent: GeoIpService 内部已记日志
+    });
+  }
 
   private get maxAttempts() {
     return parseInt(this.config.get('LOGIN_MAX_ATTEMPTS', '5'), 10);
@@ -150,20 +163,24 @@ export class AuthService {
     throw new UnauthorizedException('请提供 phone 或 email');
   }
 
-  async loginPhone(dto: LoginPhoneDto, ip?: string) {
-    return this.login(
+  async loginPhone(dto: LoginPhoneDto, ip?: string, req?: { headers?: Record<string, any>; ip?: string }) {
+    const result = await this.login(
       { phone: dto.phone, password: dto.password, code: dto.code, smsCode: dto.smsCode },
       ip,
     );
+    if (result?.userId) this.triggerGeoBackfill(result.userId, req);
+    return result;
   }
 
-  async loginEmail(dto: LoginEmailDto, ip?: string) {
-    return this.login({ email: dto.email, code: dto.code }, ip);
+  async loginEmail(dto: LoginEmailDto, ip?: string, req?: { headers?: Record<string, any>; ip?: string }) {
+    const result = await this.login({ email: dto.email, code: dto.code }, ip);
+    if (result?.userId) this.triggerGeoBackfill(result.userId, req);
+    return result;
   }
 
-  async loginSocial(dto: SocialLoginDto) {
+  async loginSocial(dto: SocialLoginDto, req?: { headers?: Record<string, any>; ip?: string }) {
     if (dto.provider === 'apple') {
-      return this.loginApple(dto);
+      return this.loginApple(dto, req);
     }
     if (dto.provider === 'google') {
       if (!this.googleLoginEnabled) {
@@ -175,7 +192,7 @@ export class AuthService {
     throw new BadRequestException('Unsupported social provider');
   }
 
-  async loginApple(dto: AppleLoginDto) {
+  async loginApple(dto: AppleLoginDto, req?: { headers?: Record<string, any>; ip?: string }) {
     const payload = await this.verifyAppleIdentityToken(dto.identityToken, dto.nonce);
     if (!payload.sub) {
       throw new UnauthorizedException('Invalid Apple identity token');
@@ -230,6 +247,7 @@ export class AuthService {
     });
 
     await this.recordLogin(user.id);
+    this.triggerGeoBackfill(user.id, req);
     return this.issueTokens(user);
   }
 
@@ -307,6 +325,7 @@ export class AuthService {
       accessToken,
       refreshToken,
       expiresIn: 604800, // 7d in seconds
+      userId: user.id, // 给调用方拿到 userId 用于后续异步操作（如 geoIp 回填）
     };
   }
 
