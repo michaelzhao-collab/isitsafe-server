@@ -16,6 +16,12 @@ public enum FamilyActivityStatus: String, Codable {
     case inactive3plus = "inactive_3plus"   // 🚨 已 3 天+ 未活跃
     case unknown                            // 从未记录
 
+    /// 解码时对未知/缺失的状态降级为 .unknown，避免整体解码失败
+    public init(from decoder: Decoder) throws {
+        let raw = (try? decoder.singleValueContainer().decode(String.self)) ?? ""
+        self = FamilyActivityStatus(rawValue: raw) ?? .unknown
+    }
+
     public var emoji: String {
         switch self {
         case .activeToday: return "🟢"
@@ -42,6 +48,12 @@ public enum FamilyMemberRole: String, Codable {
     case owner
     case guardian
     case ward
+
+    /// 未知角色降级为 .guardian（最小权限），避免解码失败
+    public init(from decoder: Decoder) throws {
+        let raw = (try? decoder.singleValueContainer().decode(String.self)) ?? ""
+        self = FamilyMemberRole(rawValue: raw.lowercased()) ?? .guardian
+    }
 }
 
 public struct FamilyMember: Codable, Identifiable {
@@ -57,6 +69,48 @@ public struct FamilyMember: Codable, Identifiable {
     public let phone: String?
     /// 脱敏号码，用于 UI 展示（如 138****1234）
     public let phoneDisplay: String?
+
+    /// 手写 init：对所有字段提供默认值，单个字段类型不匹配不再导致整体加载失败
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = (try? c.decode(String.self, forKey: .id)) ?? ""
+        self.userId = (try? c.decode(String.self, forKey: .userId)) ?? ""
+        self.role = (try? c.decode(FamilyMemberRole.self, forKey: .role)) ?? .guardian
+        self.nickname = try? c.decodeIfPresent(String.self, forKey: .nickname)
+        self.avatar = try? c.decodeIfPresent(String.self, forKey: .avatar)
+        self.elderModeEnabled = (try? c.decode(Bool.self, forKey: .elderModeEnabled)) ?? false
+        self.activityStatus = (try? c.decode(FamilyActivityStatus.self, forKey: .activityStatus)) ?? .unknown
+        self.joinedAt = (try? c.decodeIfPresent(String.self, forKey: .joinedAt))
+            ?? (try? c.decodeIfPresent(Date.self, forKey: .joinedAt))
+                .map { ISO8601DateFormatter().string(from: $0) }
+        self.phone = try? c.decodeIfPresent(String.self, forKey: .phone)
+        self.phoneDisplay = try? c.decodeIfPresent(String.self, forKey: .phoneDisplay)
+    }
+
+    /// 构造器（用于本地占位和测试）
+    public init(
+        id: String,
+        userId: String,
+        role: FamilyMemberRole,
+        nickname: String? = nil,
+        avatar: String? = nil,
+        elderModeEnabled: Bool = false,
+        activityStatus: FamilyActivityStatus = .unknown,
+        joinedAt: String? = nil,
+        phone: String? = nil,
+        phoneDisplay: String? = nil
+    ) {
+        self.id = id
+        self.userId = userId
+        self.role = role
+        self.nickname = nickname
+        self.avatar = avatar
+        self.elderModeEnabled = elderModeEnabled
+        self.activityStatus = activityStatus
+        self.joinedAt = joinedAt
+        self.phone = phone
+        self.phoneDisplay = phoneDisplay
+    }
 }
 
 public struct FamilyGroup: Codable, Identifiable {
@@ -75,6 +129,42 @@ public struct FamilyGroup: Codable, Identifiable {
 
     public var isFull: Bool {
         memberCount >= maxMembers
+    }
+
+    /// 手写 init：单字段类型不匹配不导致整体加载失败
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = (try? c.decode(String.self, forKey: .id)) ?? ""
+        self.name = try? c.decodeIfPresent(String.self, forKey: .name)
+        self.ownerUserId = (try? c.decode(String.self, forKey: .ownerUserId)) ?? ""
+        self.memberCount = (try? c.decode(Int.self, forKey: .memberCount)) ?? 0
+        self.maxMembers = (try? c.decode(Int.self, forKey: .maxMembers)) ?? 5
+        self.isOwner = (try? c.decode(Bool.self, forKey: .isOwner)) ?? false
+        self.createdAt = (try? c.decodeIfPresent(String.self, forKey: .createdAt))
+            ?? (try? c.decodeIfPresent(Date.self, forKey: .createdAt))
+                .map { ISO8601DateFormatter().string(from: $0) }
+        self.members = (try? c.decode([FamilyMember].self, forKey: .members)) ?? []
+    }
+
+    /// 构造器（用于本地占位和测试）
+    public init(
+        id: String,
+        name: String?,
+        ownerUserId: String,
+        memberCount: Int,
+        maxMembers: Int,
+        isOwner: Bool,
+        createdAt: String?,
+        members: [FamilyMember]
+    ) {
+        self.id = id
+        self.name = name
+        self.ownerUserId = ownerUserId
+        self.memberCount = memberCount
+        self.maxMembers = maxMembers
+        self.isOwner = isOwner
+        self.createdAt = createdAt
+        self.members = members
     }
 }
 

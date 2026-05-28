@@ -38,6 +38,11 @@ public struct SettingsView: View {
                     }
                 }
 
+                Section(languageCode == "en" ? "Accessibility" : "辅助功能") {
+                    // V3-J 长辈模式：放在系统设置里，方便子女在长辈手机上一次性设置
+                    elderModeToggleRow
+                }
+
                 Section(languageCode == "en" ? "Settings" : "系统设置") {
                     NavigationLink {
                         InAppWebView(url: AppTheme.termsURL, title: languageCode == "en" ? "User Agreement" : "用户协议")
@@ -125,6 +130,35 @@ public struct SettingsView: View {
         MockData.isMockModeEnabled = false
         UserSessionStore.shared.clearSession()
         appState.refreshLoginState()
+    }
+
+    /// V3-J 长辈模式开关 row（开启会切换主界面到 ElderHomeView）
+    private var elderModeToggleRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "figure.stand")
+                .font(.system(size: 18))
+                .foregroundColor(AppTheme.primary)
+                .frame(width: 24, alignment: .center)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(languageCode == "en" ? "Elder Mode" : "长辈模式")
+                    .font(.body)
+                    .foregroundColor(.primary)
+                Text(languageCode == "en"
+                     ? "Bigger buttons + voice read-back"
+                     : "字号放大、超大按钮、TTS 朗读")
+                    .font(.caption)
+                    .foregroundColor(AppTheme.textSecondary)
+            }
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { ElderModeService.shared.isEnabled },
+                set: { v in
+                    Task { await ElderModeService.shared.toggle(enabled: v) }
+                }
+            ))
+            .labelsHidden()
+            .tint(AppTheme.primary)
+        }
     }
 }
 

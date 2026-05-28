@@ -42,7 +42,8 @@ public struct IntelCaseRootView: View {
                     .opacity(segment == .intel ? 1 : 0)
                     .allowsHitTesting(segment == .intel)
 
-                    KnowledgeView()
+                    // 嵌入时隐藏 nav title，避免上方 segment 已有"案例库" tab 再叠一个"防诈案例"标题
+                    KnowledgeView(showsTitle: false)
                         .opacity(segment == .knowledge ? 1 : 0)
                         .allowsHitTesting(segment == .knowledge)
                 }

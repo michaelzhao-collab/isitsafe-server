@@ -24,15 +24,33 @@ public final class FamilyRepository {
     }
 
     /// 获取我的家庭组（null 表示未加入）
+    ///
+    /// 兼容性容错：
+    /// 1) 服务端可能返回 `null`、空 body、或 `{...}`；NetworkManager 对 top-level null 应正常返回 nil
+    /// 2) 极少数情况服务端字段类型与 iOS 模型不一致，模型已做容错（缺失字段降级默认值）
+    /// 3) 即便仍失败，本地按"未加入"处理，让用户能进入引导流程而不是卡在加载失败
     public func getMyGroup() async throws -> FamilyGroup? {
-        // 服务端在未加入时返回 null（200 + null body）
         do {
             let result: FamilyGroupOrNull = try await network.request(endpoint: .v3FamilyGetMyGroup)
             return result.value
-        } catch {
-            // 网络层 nil 解码失败时返回 nil
-            throw error
+        } catch let err {
+            // 如果是 decoding 错误，且实际响应体是 null / 空对象 / 缺关键字段
+            // → 视为"未加入家庭组"，返回 nil 而不是抛错
+            if isProbablyEmptyOrInvalidGroup(err) {
+                #if DEBUG
+                print("[FamilyRepo] getMyGroup decode fallback → treat as not-joined; underlying: \(err)")
+                #endif
+                return nil
+            }
+            throw err
         }
+    }
+
+    /// 判定是否应把 decode 错误降级为"未加入"
+    private func isProbablyEmptyOrInvalidGroup(_ error: Error) -> Bool {
+        guard let api = error as? APIError else { return false }
+        if case .decodingError = api { return true }
+        return false
     }
 
     /// 退出家庭组

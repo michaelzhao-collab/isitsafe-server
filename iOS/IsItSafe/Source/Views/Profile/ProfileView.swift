@@ -79,14 +79,7 @@ public struct ProfileView: View {
                     .listSectionSeparator(.hidden)
 
                     Section {
-                        // V3-J 长辈模式开关（放在最上方，对中老年用户更易找）
-                        elderModeToggleRow
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 0, trailing: 16))
-                            .listRowBackground(profileCardBackground)
-                            .overlay(bottomDivider, alignment: .bottom)
-
-                        // 顺序：消息中心、意见反馈、语言设置、系统设置
+                        // 顺序：消息中心、意见反馈、语言设置、系统设置（长辈模式已移到系统设置中）
                         Button {
                             // 立即清除红点，进入页面就消失，不等到离开时
                             appState.setHasUnreadMessages(false)
@@ -100,7 +93,7 @@ public struct ProfileView: View {
                         }
                         .buttonStyle(.plain)
                         .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 0, trailing: 16))
                         .listRowBackground(profileCardBackground)
                         .overlay(bottomDivider, alignment: .bottom)
 
@@ -251,42 +244,6 @@ public struct ProfileView: View {
             return !languageCode.lowercased().hasPrefix("zh")
         }
         return !region.uppercased().hasPrefix("CN")
-    }
-
-    // V3-J 长辈模式开关 row（开启会切换主界面到 ElderHomeView）
-    private var elderModeToggleRow: some View {
-        Button {
-            let next = !ElderModeService.shared.isEnabled
-            Task { await ElderModeService.shared.toggle(enabled: next) }
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "figure.stand")
-                    .font(.system(size: 18))
-                    .foregroundColor(.primary)
-                    .frame(width: 28, alignment: .center)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(languageCode == "en" ? "Elder Mode" : "长辈模式")
-                        .font(.body)
-                        .foregroundColor(.primary)
-                    Text(languageCode == "en"
-                         ? "Bigger buttons + voice read-back"
-                         : "字号放大、超大按钮、TTS 朗读")
-                        .font(.caption)
-                        .foregroundColor(AppTheme.textSecondary)
-                }
-                Spacer()
-                Toggle("", isOn: Binding(
-                    get: { ElderModeService.shared.isEnabled },
-                    set: { v in
-                        Task { await ElderModeService.shared.toggle(enabled: v) }
-                    }
-                ))
-                .labelsHidden()
-                .tint(AppTheme.primary)
-            }
-            .padding(.vertical, 12)
-        }
-        .buttonStyle(.plain)
     }
 
     private var bottomDivider: some View {

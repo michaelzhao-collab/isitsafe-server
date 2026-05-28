@@ -240,6 +240,21 @@ public struct LoginView: View {
                         )
                         .keyboardType(.phonePad)
                         .focused($phoneFieldFocused)
+                        .onChange(of: vm.nationalNumber) { _, newValue in
+                            // 按国家最大位数实时截断（CN=11、US=10 ...），输入纯数字
+                            let digits = newValue.filter(\.isNumber)
+                            let maxLen = PhoneCountry.maxNationalNumberLength(iso: vm.selectedCountry.id)
+                            let trimmed = String(digits.prefix(maxLen))
+                            if trimmed != newValue {
+                                vm.nationalNumber = trimmed
+                            }
+                        }
+                        .onChange(of: vm.selectedCountry) { _, newCountry in
+                            // 切换国家时按新国家上限再截一次
+                            let digits = vm.nationalNumber.filter(\.isNumber)
+                            let maxLen = PhoneCountry.maxNationalNumberLength(iso: newCountry.id)
+                            vm.nationalNumber = String(digits.prefix(maxLen))
+                        }
                     }
                     .frame(minHeight: 46)
                     if let phoneError = vm.phoneInputError, !phoneError.isEmpty {

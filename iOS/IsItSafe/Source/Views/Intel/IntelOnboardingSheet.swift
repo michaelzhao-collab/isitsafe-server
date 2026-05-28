@@ -66,11 +66,20 @@ public struct IntelOnboardingSheet: View {
 
     private var chipsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(languageCode == "en"
-                 ? "What worries you most?"
-                 : "你最担心哪类骗局？（多选）")
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(AppTheme.textSecondary)
+            HStack(spacing: 6) {
+                Text(languageCode == "en"
+                     ? "What worries you most?"
+                     : "你最担心哪类骗局？")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(AppTheme.textPrimary)
+                Text(languageCode == "en" ? "Select all that apply" : "可多选")
+                    .font(.caption.weight(.medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(AppTheme.primary)
+                    .clipShape(Capsule())
+            }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                 ForEach(categories) { cat in
                     chipCell(cat)
@@ -80,35 +89,47 @@ public struct IntelOnboardingSheet: View {
     }
 
     private func chipCell(_ cat: IntelCategory) -> some View {
-        Button {
-            if selected.contains(cat.key) {
+        let isOn = selected.contains(cat.key)
+        return Button {
+            if isOn {
                 selected.remove(cat.key)
             } else {
                 selected.insert(cat.key)
             }
         } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: selected.contains(cat.key) ? "checkmark.circle.fill" : "circle")
-                        .foregroundColor(selected.contains(cat.key) ? AppTheme.primary : AppTheme.textSecondary)
-                    Spacer()
+            HStack(alignment: .center, spacing: 10) {
+                // 方形复选框（与圆形单选区分）
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(isOn ? AppTheme.primary : AppTheme.textSecondary.opacity(0.5), lineWidth: 1.5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(isOn ? AppTheme.primary : Color.clear)
+                        )
+                        .frame(width: 18, height: 18)
+                    if isOn {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                    }
                 }
                 Text(cat.name)
                     .font(.subheadline.weight(.medium))
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
                     .foregroundColor(AppTheme.textPrimary)
+                Spacer(minLength: 0)
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                selected.contains(cat.key)
-                    ? AppTheme.primary.opacity(0.12)
+                isOn
+                    ? AppTheme.primary.opacity(0.10)
                     : AppTheme.cardBackground
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12)
-                    .stroke(selected.contains(cat.key) ? AppTheme.primary : Color.clear, lineWidth: 1.5)
+                    .stroke(isOn ? AppTheme.primary : Color.clear, lineWidth: 1.5)
             )
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }

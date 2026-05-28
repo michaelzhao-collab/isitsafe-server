@@ -11,8 +11,12 @@ public struct KnowledgeView: View {
     @StateObject private var vm = KnowledgeViewModel()
     @State private var selectedDetail: KnowledgeNavId?
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    /// 嵌入到 IntelCaseRootView 的 segment 内时设为 false：隐藏 navigationTitle，避免与上层 segment 标题重复
+    private let showsTitle: Bool
 
-    public init() {}
+    public init(showsTitle: Bool = true) {
+        self.showsTitle = showsTitle
+    }
 
     public var body: some View {
         NavigationStack {
@@ -29,8 +33,9 @@ public struct KnowledgeView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(AppTheme.background)
-            .navigationTitle(L10n.titleCases)
+            .navigationTitle(showsTitle ? L10n.titleCases : "")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(showsTitle ? .visible : .hidden, for: .navigationBar)
             .toolbarBackground(AppTheme.background, for: .navigationBar)
             .navigationDestination(item: $selectedDetail) { nav in
                 KnowledgeDetailView(id: nav.id)

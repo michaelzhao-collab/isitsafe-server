@@ -139,6 +139,24 @@ public struct PhoneCountry: Identifiable, Hashable {
         return (6...15).contains(d.count)
     }
 
+    /// 每个国家允许输入的最大位数（national number，不含区号）。
+    /// 用于注册/登录页 TextField 实时截断，防止用户继续输错位数。
+    public static func maxNationalNumberLength(iso: String) -> Int {
+        let country = iso.uppercased()
+        return maxLengthMap[country] ?? 15
+    }
+
+    private static let maxLengthMap: [String: Int] = [
+        "CN": 11, "US": 10, "GB": 10, "JP": 10, "KR": 10, "TW": 9, "HK": 8, "MO": 8,
+        "SG": 8, "MY": 10, "TH": 9, "VN": 9, "PH": 10, "ID": 12, "IN": 10, "AU": 9,
+        "NZ": 10, "CA": 10, "DE": 11, "FR": 9, "IT": 11, "ES": 9, "NL": 9, "BE": 9,
+        "CH": 9, "AT": 12, "SE": 9, "NO": 8, "DK": 8, "FI": 10, "PL": 9, "RU": 10,
+        "UA": 9, "TR": 10, "AE": 9, "SA": 9, "IL": 9, "EG": 10, "ZA": 9, "NG": 10,
+        "KE": 9, "BR": 11, "MX": 11, "AR": 11, "CL": 9, "CO": 10, "PT": 9, "GR": 10,
+        "CZ": 9, "RO": 9, "HU": 9, "IE": 9, "PK": 10, "BD": 10, "NP": 10, "LK": 9,
+        "KZ": 10,
+    ]
+
     // 常用国家号码段规则（mobile-focused，national number only）
     private static let nationalNumberPatterns: [String: String] = [
         "CN": "^1[3-9]\\d{9}$",
