@@ -66,11 +66,17 @@ export class UserController {
    * V3 心跳：用户主动打开 App 时上报（关怀机制核心依赖）
    * 客户端节流 5 分钟内一次即可
    *
-   * POST /api/v3/user/heartbeat
+   * POST /api/v3/user/heartbeat  body?: { trigger_source?: string }
+   * 合法 trigger_source: cold_launch | foreground | universal_link | share_extension
+   * push_tap 会被接受但不算"活跃"
    */
   @Post('v3/heartbeat')
-  async heartbeat(@CurrentUser('sub') userId: string) {
-    return this.family.recordHeartbeat(userId);
+  async heartbeat(
+    @CurrentUser('sub') userId: string,
+    @Body() body?: { trigger_source?: string; triggerSource?: string },
+  ) {
+    const source = body?.trigger_source ?? body?.triggerSource ?? 'foreground';
+    return this.family.recordHeartbeat(userId, source);
   }
 
   /**

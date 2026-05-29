@@ -8,6 +8,9 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import axios from 'axios';
+import { FamilyService } from '../family/family.service';
+import { Observable } from 'rxjs';
+import { MessageEvent } from '@nestjs/common';
 
 /**
  * V3-A1 语音深伪检测服务
@@ -23,7 +26,10 @@ import axios from 'axios';
 export class DeepfakeService {
   private readonly logger = new Logger(DeepfakeService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private family: FamilyService,
+  ) {}
 
   /**
    * 创建检测任务（同步返回 stub 结果）
@@ -219,6 +225,117 @@ export class DeepfakeService {
         createdAt: true,
         completedAt: true,
       },
+    });
+  }
+
+  /**
+   * S2-5 SSE 流式推送检测结果
+   *
+   * 由于一期 createCheck 同步完成 AI 调用，多数客户端调 stream 时任务已 done，
+   * 此方法会立刻吐第一帧再 complete。二期改成异步队列后，stream 自然变成"等待 + 增量"。
+   *
+   * 安全：仅 task owner 可订阅（getResult 内部校验 throws）；getResult 任何异常都
+   * 转成 SSE error 让客户端断开 → 走兜底 GET 路径。
+   */
+  streamResult(userId: string, taskId: string): Observable<MessageEvent> {
+    const POLL_MS = 1500;
+    const TIMEOUT_MS = 60_000;
+    return new Observable<MessageEvent>((subscriber) => {
+      const start = Date.now();
+      let cancelled = false;
+      let lastStatus: string | null = null;
+      let timer: NodeJS.Timeout | null = null;
+
+      const tick = async () => {
+        if (cancelled) return;
+        try {
+          const check = await this.getResult(userId, taskId);
+          if (check.status !== lastStatus) {
+            subscriber.next({ data: check });
+            lastStatus = check.status;
+          }
+          if (check.status === 'done' || check.status === 'failed') {
+            subscriber.complete();
+            return;
+          }
+          if (Date.now() - start > TIMEOUT_MS) {
+            subscriber.next({ data: { status: 'timeout', taskId } as any });
+            subscriber.complete();
+            return;
+          }
+          timer = setTimeout(tick, POLL_MS);
+        } catch (err) {
+          subscriber.error(err);
+        }
+      };
+      // 立刻先 kick 一次
+      tick();
+
+      // unsubscribe / 客户端断开：清理 timer
+      return () => {
+        cancelled = true;
+        if (timer) clearTimeout(timer);
+      };
+    });
+  }
+
+  /**
+   * S2-4：把一条已完成的深伪检测一键广播到家庭
+   *
+   * 业务约定：
+   *  - 仅 status=done 才能广播；processing/failed 直接拒
+   *  - 必须是 task 的 owner
+   *  - source='manual_share'（用户显式点的"广播到家庭"按钮）
+   *  - content_hash 用 `voice:{taskId}` 形式，保证家庭内同一 task 当日只广播 1 次
+   *  - label/contentDisplay/resultDetail 由检测结果映射：
+   *      score≥70%  → scam   "可能是 AI 合成"
+   *      30-70%     → unknown "AI 无法确认"
+   *      <30%       → safe   "判定为真人"
+   */
+  async broadcastToFamily(userId: string, taskId: string) {
+    const check = await this.prisma.deepfakeCheck.findUnique({
+      where: { id: taskId },
+    });
+    if (!check) throw new NotFoundException('Task not found');
+    if (check.userId !== userId) throw new ForbiddenException('Not your task');
+    if (check.status !== 'done') {
+      throw new BadRequestException(
+        `Cannot broadcast: task status is ${check.status}`,
+      );
+    }
+
+    const score = check.resultScore ?? 50;
+    const label: 'scam' | 'safe' | 'unknown' =
+      score >= 70 ? 'scam' : score < 30 ? 'safe' : 'unknown';
+    const contentDisplay =
+      label === 'scam'
+        ? '一段语音被识别为高度疑似 AI 合成，请家人警惕'
+        : label === 'safe'
+          ? '一段语音经检测判定为真人，暂未发现合成风险'
+          : '一段语音 AI 暂无法确认真伪，请通过其他渠道核实';
+
+    return this.family.createBroadcast({
+      triggeredByUserId: userId,
+      contentType: 'voice',
+      // content 用 taskId：保证同一 task 反复点"广播"也只发 1 次
+      content: `voice:${taskId}`,
+      source: 'manual_share',
+      classifier: async () => ({
+        label,
+        contentDisplay,
+        resultDetail: {
+          confidence: typeof score === 'number' ? score / 100 : 0.5,
+          score,
+          provider: check.aiProvider ?? 'unknown',
+          taskId,
+          durationSec: check.fileDurationSec ?? null,
+          triggerType: 'deepfake_voice_share',
+          advice:
+            label === 'scam'
+              ? ['通过视频通话或当面确认对方身份', '不要按指引转账或提供验证码', '如已转账请立刻拨打 96110']
+              : ['仍建议通过其他渠道核实对方身份'],
+        },
+      }),
     });
   }
 

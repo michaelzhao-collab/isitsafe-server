@@ -41,35 +41,91 @@ export class FamilyService {
 
   // ====================================================================
   // 心跳：用户主动打开 App 时上报
+  //
+  // S2-1 + S2-2 改造：
+  //   - 接受可选 triggerSource：'cold_launch' | 'foreground' | 'universal_link' | 'share_extension'
+  //     PRD"仅 push 被点击但无后续动作不算活跃" —— 客户端不会主动传 'push_tap'，
+  //     若不慎传入，服务端会接受并写入数组但**不计入** activeCount。
+  //   - activeCount 改为"日内唯一计数"语义：同一天首次 = 1；
+  //     后续命中只更新 lastActiveAt + 追加去重的 triggerSource（不再无界 increment）。
   // ====================================================================
-  async recordHeartbeat(userId: string): Promise<{ active: boolean; todayCount: number }> {
+  async recordHeartbeat(
+    userId: string,
+    triggerSource: string = 'foreground',
+  ): Promise<{ active: boolean; todayCount: number; triggerSources: string[] }> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const now = new Date();
 
-    // upsert：今日已有记录则 increment，否则 insert
-    const activity = await this.prisma.userActivity.upsert({
+    // 归一化 + 白名单（防垃圾值）
+    const validSource = this.normalizeTriggerSource(triggerSource);
+    const countsAsActive = validSource !== 'push_tap'; // push_tap 不算活跃
+
+    // 先读旧 record（用于 trigger_sources 数组合并）
+    const existing = await this.prisma.userActivity.findUnique({
       where: { userId_date: { userId, date: today } },
-      create: {
-        userId,
-        date: today,
-        activeCount: 1,
-        firstActiveAt: now,
-        lastActiveAt: now,
-      },
-      update: {
-        activeCount: { increment: 1 },
-        lastActiveAt: now,
-      },
+      select: { activeCount: true, triggerSources: true },
     });
 
-    // 同步更新 user.last_active_at（用于快速查询，但不实时一致）
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { lastActiveAt: now },
-    });
+    let nextSources: string[];
+    if (existing) {
+      const arr = Array.isArray(existing.triggerSources) ? (existing.triggerSources as string[]) : [];
+      nextSources = arr.includes(validSource) ? arr : [...arr, validSource];
+    } else {
+      nextSources = [validSource];
+    }
 
-    return { active: true, todayCount: activity.activeCount };
+    if (existing) {
+      // 已有当日记录：只刷 lastActiveAt + 合并 trigger_sources；不递增 activeCount
+      await this.prisma.userActivity.update({
+        where: { userId_date: { userId, date: today } },
+        data: {
+          lastActiveAt: now,
+          triggerSources: nextSources as any,
+          // 历史活跃 0（如老数据）且本次算活跃，则首次置 1（兜底）
+          activeCount: existing.activeCount === 0 && countsAsActive ? 1 : existing.activeCount,
+          firstActiveAt: existing.activeCount === 0 && countsAsActive ? now : undefined,
+        },
+      });
+    } else {
+      // 首次：activeCount = countsAsActive ? 1 : 0
+      await this.prisma.userActivity.create({
+        data: {
+          userId,
+          date: today,
+          activeCount: countsAsActive ? 1 : 0,
+          firstActiveAt: countsAsActive ? now : null,
+          lastActiveAt: now,
+          triggerSources: nextSources as any,
+        },
+      });
+    }
+
+    // 同步 user.last_active_at（仅当算活跃才更新；否则 push_tap 不应"复活"成员状态）
+    if (countsAsActive) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { lastActiveAt: now },
+      });
+    }
+
+    // 重新取 activeCount 返回（保持现有接口语义）
+    const after = await this.prisma.userActivity.findUnique({
+      where: { userId_date: { userId, date: today } },
+      select: { activeCount: true },
+    });
+    return {
+      active: countsAsActive,
+      todayCount: after?.activeCount ?? 0,
+      triggerSources: nextSources,
+    };
+  }
+
+  /** 归一化 trigger_source 白名单 */
+  private normalizeTriggerSource(s: string): string {
+    const v = (s || '').trim().toLowerCase();
+    const allowed = ['cold_launch', 'foreground', 'universal_link', 'share_extension', 'push_tap'];
+    return allowed.includes(v) ? v : 'foreground';
   }
 
   // ====================================================================
@@ -298,7 +354,7 @@ export class FamilyService {
     broadcastId?: string;
     resultLabel: 'scam' | 'safe' | 'unknown';
     quotaRemaining: number;
-    skipReason?: 'duplicate' | 'quota_exceeded' | 'no_group' | 'in_progress';
+    skipReason?: 'duplicate' | 'quota_exceeded' | 'no_group' | 'in_progress' | 'disabled_by_user';
   }> {
     // ────────────────────────────────────────────────
     // 流程（S1-2 改造）：
@@ -328,6 +384,16 @@ export class FamilyService {
         resultLabel: 'unknown',
         quotaRemaining: 0,
         skipReason: 'no_group',
+      };
+    }
+
+    // ①.5 S2-3：auto_query 必须尊重成员的"我触发的查询触发广播" 开关
+    if (params.source === 'auto_query' && !member.shareQueryResults) {
+      return {
+        delivered: false,
+        resultLabel: 'unknown',
+        quotaRemaining: 0,
+        skipReason: 'disabled_by_user',
       };
     }
 

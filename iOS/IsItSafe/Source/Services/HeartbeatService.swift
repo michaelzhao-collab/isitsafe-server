@@ -8,11 +8,26 @@
 //  节流：5 分钟内多次 active 只算一次（避免高频写服务端）
 //  失败处理：失败保留 lastReportedAt 不更新，下次仍会重试
 //
+//  S2-1：trigger_source 区分启动来源
+//   - cold_launch：冷启动（App 进程启动）
+//   - foreground：从后台回到前台
+//   - universal_link：Universal Link 打开 App
+//   - share_extension：Share Extension 唤起主 App
+//   仅 push tap 后用户无后续动作不应算活跃 —— 因此 iOS 不主动传 push_tap；
+//   push 唤起后若用户停留就会触发 foreground，自然走 foreground。
+//
 
 import Foundation
 
 public final class HeartbeatService {
     public static let shared = HeartbeatService()
+
+    public enum TriggerSource: String {
+        case coldLaunch = "cold_launch"
+        case foreground = "foreground"
+        case universalLink = "universal_link"
+        case shareExtension = "share_extension"
+    }
 
     /// 节流窗口：5 分钟内重复触发只算一次
     private let throttleInterval: TimeInterval = 300
@@ -23,7 +38,7 @@ public final class HeartbeatService {
 
     /// 上报活跃。
     /// 未登录用户直接 no-op（关怀机制依赖账号体系）。
-    public func reportActive() async {
+    public func reportActive(trigger: TriggerSource = .foreground) async {
         // 节流
         let shouldReport: Bool = await withCheckedContinuation { cont in
             queue.async {
@@ -39,22 +54,25 @@ public final class HeartbeatService {
         // 仅已登录用户上报
         guard AuthInterceptor.token() != nil else { return }
 
-        struct Empty: Codable {}
+        struct HeartbeatReq: Codable {
+            let trigger_source: String
+        }
         struct Response: Decodable {
             let active: Bool
             let todayCount: Int
+            let triggerSources: [String]?
 
             enum CodingKeys: String, CodingKey {
                 case active
                 case todayCount = "today_count"
+                case triggerSources = "trigger_sources"
             }
         }
 
         do {
-            // 服务端期望 POST，无 body
             let _: Response = try await NetworkManager.shared.request(
                 endpoint: .v3UserHeartbeat,
-                body: Empty()
+                body: HeartbeatReq(trigger_source: trigger.rawValue)
             )
             queue.async { self.lastReportedAt = Date() }
         } catch {

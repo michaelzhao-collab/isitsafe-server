@@ -96,6 +96,10 @@ public enum APIEndpoint {
     case v3DeepfakeHistory(limit: Int)
     case v3DeepfakeDelete(taskId: String)
     case v3DeepfakeFeedback(taskId: String)
+    /// V3-A1 一键广播深伪结果到家庭（S2-4）
+    case v3DeepfakeBroadcast(taskId: String)
+    /// V3-A1 SSE 实时结果推送（S2-5，PRD"WS /ws/deepfake"实质用 SSE）
+    case v3DeepfakeStream(taskId: String)
 
     // V3-F 暗网监控
     case v3BreachAddTarget
@@ -171,6 +175,8 @@ public enum APIEndpoint {
         case .v3DeepfakeHistory: return "/api/v3/deepfake/voice/history/me"
         case .v3DeepfakeDelete(let id): return "/api/v3/deepfake/voice/\(id)"
         case .v3DeepfakeFeedback(let id): return "/api/v3/deepfake/voice/\(id)/feedback"
+        case .v3DeepfakeBroadcast(let id): return "/api/v3/deepfake/voice/\(id)/broadcast"
+        case .v3DeepfakeStream(let id): return "/api/v3/deepfake/voice/\(id)/stream"
         // V3-F
         case .v3BreachAddTarget: return "/api/v3/breach/targets"
         case .v3BreachListTargets: return "/api/v3/breach/targets"
@@ -186,7 +192,7 @@ public enum APIEndpoint {
              .v3FamilyGetMyGroup, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
              .v3IntelFeed, .v3IntelDetail, .v3IntelCategories, .v3IntelUnreadCount,
              .v3IntelMySubmissions, .v3IntelGetPreferences,
-             .v3DeepfakeResult, .v3DeepfakeHistory,
+             .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeStream,
              .v3BreachListTargets, .v3BreachListAlerts:
             return .GET
         case .authLogin, .authAppleLogin, .authSendCode, .authLogout, .authDeleteAccount, .authRefreshToken, .aiAnalyze, .aiAnalyzeScreenshot,
@@ -195,7 +201,7 @@ public enum APIEndpoint {
              .v3FamilyCreateGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyCreateBroadcast,
              .v3IntelSubmit,
-             .v3DeepfakeCreate, .v3DeepfakeFeedback,
+             .v3DeepfakeCreate, .v3DeepfakeFeedback, .v3DeepfakeBroadcast,
              .v3BreachAddTarget:
             return .POST
         case .deleteQuery, .deleteQueryConversation,
@@ -221,7 +227,7 @@ public enum APIEndpoint {
              .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
              .v3IntelFeed, .v3IntelDetail, .v3IntelUnreadCount, .v3IntelSubmit,
              .v3IntelMySubmissions, .v3IntelGetPreferences, .v3IntelPutPreferences,
-             .v3DeepfakeCreate, .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeDelete, .v3DeepfakeFeedback,
+             .v3DeepfakeCreate, .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeDelete, .v3DeepfakeFeedback, .v3DeepfakeBroadcast, .v3DeepfakeStream,
              .v3BreachAddTarget, .v3BreachListTargets, .v3BreachDeleteTarget,
              .v3BreachListAlerts, .v3BreachDismissAlert:
             return true

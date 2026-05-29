@@ -126,6 +126,9 @@ model UserActivity {
   activeCount   Int       @default(0) @map("active_count")
   firstActiveAt DateTime? @map("first_active_at")
   lastActiveAt  DateTime? @map("last_active_at")
+  /// V3-S2-1 启动来源去重数组：['cold_launch','foreground',...]
+  /// PRD"真实主动"判定依据；push_tap 无对应客户端触发，不会出现在数组里
+  triggerSources Json     @default("[]") @map("trigger_sources")
 
   @@id([userId, date])
   @@index([date])

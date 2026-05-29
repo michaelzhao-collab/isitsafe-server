@@ -12,6 +12,8 @@ public struct DeepfakeResultView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var feedbackSent = false
+    @State private var broadcasting = false
+    @State private var broadcastMessage: String?
 
     public init(check: DeepfakeCheck) { self.check = check }
 
@@ -202,18 +204,47 @@ public struct DeepfakeResultView: View {
     private var actionsRow: some View {
         VStack(spacing: 8) {
             Button {
-                // 占位：分享到家庭官方广播（依赖 E 模块）
+                guard !broadcasting else { return }
+                broadcasting = true
+                broadcastMessage = nil
+                Task {
+                    do {
+                        let result = try await DeepfakeRepository.shared.broadcastToFamily(taskId: check.id)
+                        await MainActor.run {
+                            broadcasting = false
+                            broadcastMessage = result.userMessage
+                        }
+                    } catch {
+                        await MainActor.run {
+                            broadcasting = false
+                            broadcastMessage = languageCode == "en"
+                                ? "Broadcast failed, try again later"
+                                : "广播失败，请稍后重试"
+                        }
+                    }
+                }
             } label: {
                 HStack {
-                    Image(systemName: "megaphone.fill")
+                    if broadcasting {
+                        ProgressView().tint(.white)
+                    } else {
+                        Image(systemName: "megaphone.fill")
+                    }
                     Text(languageCode == "en" ? "Broadcast to Family" : "广播到家庭")
                 }
                 .font(.body.weight(.semibold))
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(AppTheme.primary)
+                .background(AppTheme.primary.opacity(broadcasting ? 0.6 : 1.0))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .disabled(broadcasting)
+            if let msg = broadcastMessage {
+                Text(msg)
+                    .font(.caption)
+                    .foregroundColor(AppTheme.textSecondary)
+                    .transition(.opacity)
             }
         }
     }
