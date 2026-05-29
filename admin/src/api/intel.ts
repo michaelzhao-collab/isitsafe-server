@@ -87,3 +87,16 @@ export function listSubmissions(params: { status?: string; page?: number; pageSi
 export function reviewSubmission(id: string, action: 'approve' | 'reject' | 'merge', mergedToIntelId?: string) {
   return request.post(`/admin/intel/submissions/${id}/review`, { action, mergedToIntelId });
 }
+
+/** S4-2 AI 改写：把原始草稿改写为更紧凑的"套路 3 步 + 防范建议"结构 */
+export function aiRewriteIntel(payload: {
+  title?: string;
+  summary?: string;
+  language?: string;
+}) {
+  return request.post<{
+    summary: string;
+    contentBlocks: Array<{ type: string; text: string }>;
+    provider?: string;
+  }>('/admin/intel/ai-rewrite', payload);
+}

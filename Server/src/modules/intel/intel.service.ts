@@ -1,9 +1,11 @@
 import {
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IntelSubmitDto, IntelPreferencesDto } from './dto/intel.dto';
+import { AiProviderService } from '../ai/providers/ai-provider.service';
 
 /**
  * V3-B 情报推送服务
@@ -16,7 +18,12 @@ import { IntelSubmitDto, IntelPreferencesDto } from './dto/intel.dto';
  */
 @Injectable()
 export class IntelService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(IntelService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private aiProvider: AiProviderService,
+  ) {}
 
   // ====================================================================
   // 用户侧
@@ -331,6 +338,84 @@ export class IntelService {
         mergedToIntelId: action === 'merge' ? mergedToIntelId ?? null : null,
       },
     });
+  }
+
+  /**
+   * S4-2 AI 改写：把原始草稿 → 结构化 summary + contentBlocks
+   *
+   * 返回 contentBlocks 格式：
+   *   [{type:'step', text:'步骤1：...'}, {type:'step', ...}, {type:'tip', text:'防范建议1：...'}, ...]
+   *
+   * 前端拿到结果后由编辑者自行决定是否覆盖表单。
+   */
+  async adminAiRewrite(input: {
+    title?: string;
+    summary?: string;
+    language: 'zh' | 'en';
+  }): Promise<{
+    summary: string;
+    contentBlocks: Array<{ type: string; text: string }>;
+    provider?: string;
+  }> {
+    const sys =
+      input.language === 'en'
+        ? `You are a scam-awareness editor. Given a raw note, produce:
+1) A single-sentence summary (max 180 chars).
+2) 3 "step" blocks describing how the scam unfolds.
+3) 3 "tip" blocks with concrete defensive advice.
+Return STRICT JSON: {"summary":"...","contentBlocks":[{"type":"step","text":"..."},{"type":"tip","text":"..."}]}.
+Do not add any extra commentary.`
+        : `你是反诈宣传编辑。把原始记录改写为：
+1) 一句话概括（≤ 180 字）；
+2) 3 个 step 块描述骗子套路；
+3) 3 个 tip 块给出防范建议（动作具体可执行）。
+严格返回 JSON：{"summary":"...","contentBlocks":[{"type":"step","text":"..."},{"type":"tip","text":"..."}]}。
+不要任何额外说明。`;
+
+    const user = JSON.stringify({
+      title: input.title ?? '',
+      summary: input.summary ?? '',
+    });
+
+    try {
+      const result = await this.aiProvider.analyze(user, sys);
+      // analyze 返回的 content 是字符串；尝试 JSON 解析
+      const text = (result as any)?.content ?? (result as any)?.text ?? '';
+      const parsed = this.safeJsonExtract(text);
+      if (parsed && typeof parsed.summary === 'string' && Array.isArray(parsed.contentBlocks)) {
+        const blocks = (parsed.contentBlocks as any[])
+          .filter((b) => b && typeof b.type === 'string' && typeof b.text === 'string')
+          .slice(0, 12)
+          .map((b) => ({ type: String(b.type).slice(0, 20), text: String(b.text).slice(0, 800) }));
+        return {
+          summary: String(parsed.summary).slice(0, 200),
+          contentBlocks: blocks,
+          provider: (result as any)?.provider,
+        };
+      }
+      this.logger.warn(`[Intel.aiRewrite] AI 返回无法解析为 JSON, 原文: ${text.slice(0, 200)}`);
+      return {
+        summary: input.summary ?? '',
+        contentBlocks: [],
+        provider: (result as any)?.provider,
+      };
+    } catch (err: any) {
+      this.logger.error(`[Intel.aiRewrite] failed: ${err?.message ?? err}`);
+      return { summary: input.summary ?? '', contentBlocks: [] };
+    }
+  }
+
+  /** 从模型自由文本里"抠出" JSON 块（容忍前后 markdown ```json fence） */
+  private safeJsonExtract(text: string): any | null {
+    if (!text) return null;
+    // 尝试直接 parse
+    try { return JSON.parse(text); } catch { /* fallthrough */ }
+    // 找第一个 { ... } 块
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) {
+      try { return JSON.parse(m[0]); } catch { /* nope */ }
+    }
+    return null;
   }
 
   getCategories(language: string = 'zh') {

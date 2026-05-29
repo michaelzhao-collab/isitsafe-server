@@ -98,6 +98,16 @@ public final class FamilyRepository {
         )
     }
 
+    /// S4-3 监护人远程开关被监护人长辈模式
+    /// 服务端要求调用者必须是同家庭组的 owner / guardian
+    public func setMemberElderMode(userId: String, enabled: Bool) async throws {
+        struct Body: Codable { let enabled: Bool }
+        try await network.requestVoid(
+            endpoint: .v3FamilyMemberElderMode(userId: userId),
+            body: Body(enabled: enabled)
+        )
+    }
+
     // MARK: - 官方广播
 
     /// 拉取家庭官方消息列表

@@ -113,7 +113,17 @@ public struct FamilyGroupView: View {
                 .foregroundColor(AppTheme.textSecondary)
             VStack(spacing: 0) {
                 ForEach(group.members) { member in
-                    memberRow(member: member)
+                    NavigationLink {
+                        // E-P5 独立成员详情页（S4-3）
+                        MemberDetailView(
+                            vm: vm,
+                            member: member,
+                            isCurrentUserOwnerOrGuardian: group.isOwner
+                        )
+                    } label: {
+                        memberRow(member: member)
+                    }
+                    .buttonStyle(.plain)
                     if member.id != group.members.last?.id {
                         Divider().padding(.leading, 60)
                     }

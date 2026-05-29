@@ -73,6 +73,8 @@ public enum APIEndpoint {
     case v3FamilyGetBroadcasts(limit: Int)
     /// V3-E 成员活跃状态
     case v3FamilyGetMembersStatus
+    /// V3-E S4-3 监护人远程开启被监护人长辈模式
+    case v3FamilyMemberElderMode(userId: String)
 
     // V3-B 情报推送
     /// 情报 feed
@@ -163,6 +165,7 @@ public enum APIEndpoint {
         case .v3FamilyCreateBroadcast: return "/api/v3/family/broadcast"
         case .v3FamilyGetBroadcasts: return "/api/v3/family/broadcasts"
         case .v3FamilyGetMembersStatus: return "/api/v3/family/members/status"
+        case .v3FamilyMemberElderMode(let userId): return "/api/v3/family/members/\(userId)/elder-mode"
         // V3-B 情报
         case .v3IntelFeed: return "/api/v3/intel/feed"
         case .v3IntelDetail(let id): return "/api/v3/intel/\(id)"
@@ -213,7 +216,7 @@ public enum APIEndpoint {
             return .DELETE
         case .uploadAvatar, .uploadFile:
             return .POST
-        case .updateProfile, .v3UserElderMode, .v3FamilyUpdatePreferences,
+        case .updateProfile, .v3UserElderMode, .v3FamilyUpdatePreferences, .v3FamilyMemberElderMode,
              .v3IntelPutPreferences,
              .v3BreachDismissAlert:
             return .PUT
@@ -227,7 +230,7 @@ public enum APIEndpoint {
              .v3UserHeartbeat, .v3UserElderMode, .v3UserRegisterDevice,
              .v3FamilyCreateGroup, .v3FamilyGetMyGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyDissolveGroup, .v3FamilyRemoveMember, .v3FamilyUpdatePreferences,
-             .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
+             .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus, .v3FamilyMemberElderMode,
              .v3IntelFeed, .v3IntelDetail, .v3IntelUnreadCount, .v3IntelSubmit,
              .v3IntelMySubmissions, .v3IntelGetPreferences, .v3IntelPutPreferences,
              .v3DeepfakeCreate, .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeDelete, .v3DeepfakeFeedback, .v3DeepfakeBroadcast, .v3DeepfakeStream,

@@ -132,6 +132,21 @@ public final class FamilyViewModel: ObservableObject {
         }
     }
 
+    /// S4-3 监护人远程开关被监护人长辈模式（owner / guardian 可用）
+    /// 成功后自动刷新家庭组以反映新的 elderModeEnabled 状态
+    public func setMemberElderMode(userId: String, enabled: Bool) async -> Bool {
+        inflightAction = "elder_mode_\(userId)"
+        defer { inflightAction = nil }
+        do {
+            try await repo.setMemberElderMode(userId: userId, enabled: enabled)
+            refresh()
+            return true
+        } catch {
+            state = .error(error.localizedDescription)
+            return false
+        }
+    }
+
     // MARK: - 生成邀请码
 
     public func generateInvite(groupId: String) async -> GenerateInviteResponse? {

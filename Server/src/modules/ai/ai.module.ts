@@ -24,6 +24,6 @@ import { QueryModule } from '../query/query.module';
     AiPromptsService,
     AiProviderService,
   ],
-  exports: [AiService],
+  exports: [AiService, AiProviderService],
 })
 export class AiModule {}

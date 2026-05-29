@@ -157,6 +157,9 @@ model FamilyCareNotice {
   daysInactive    Int         @map("days_inactive")
   /// push | sms
   channel         String
+  /// S4-4 投递状态：{ pushDelivered, pushFailed, smsDelivered, smsFailed, escalatedToSms }
+  /// 关怀 cron 用它来追踪：第 2 天 push 全失败时强制升级 SMS（默认 ≥ 3 天才走 SMS）
+  deliveryStatus  Json?       @map("delivery_status")
   sentAt          DateTime    @default(now()) @map("sent_at")
 
   @@index([groupId, sentAt(sort: Desc)])

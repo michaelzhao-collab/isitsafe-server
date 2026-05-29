@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Card, Form, Input, Select, Button, message, Tag, Space } from 'antd';
+import { Card, Form, Input, Select, Button, message, Tag, Space, Divider } from 'antd';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { createAlert, updateAlert, type IntelAlert } from '../../api/intel';
+import { createAlert, updateAlert, aiRewriteIntel, type IntelAlert } from '../../api/intel';
 
 const SEVERITY_OPTIONS = [
   { label: '紧急 urgent', value: 'urgent' },
@@ -29,12 +29,19 @@ const CATEGORY_OPTIONS = [
 const REGION_PRESETS = ['*', 'CN', 'CN-11', 'CN-31', 'CN-44', 'US', 'US-CA', 'US-NY'];
 const AUDIENCE_PRESETS = ['*', 'elder', 'student', 'finance', 'parent', 'overseas'];
 
+interface ContentBlock {
+  type: string;
+  text: string;
+}
+
 export default function IntelEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [aiRewriting, setAiRewriting] = useState(false);
+  const [blocks, setBlocks] = useState<ContentBlock[]>([]);
 
   const isNew = !id || id === 'new';
 
@@ -52,6 +59,12 @@ export default function IntelEdit() {
         sourceUrl: state.sourceUrl ?? '',
         status: state.status,
       });
+      if (Array.isArray(state.contentBlocks)) {
+        const valid = (state.contentBlocks as any[]).filter(
+          (b) => b && typeof b.type === 'string' && typeof b.text === 'string'
+        );
+        setBlocks(valid as ContentBlock[]);
+      }
     } else if (isNew) {
       form.setFieldsValue({
         severity: 'normal',
@@ -69,6 +82,7 @@ export default function IntelEdit() {
     const payload = {
       title: values.title as string,
       summary: values.summary as string,
+      contentBlocks: blocks.length > 0 ? blocks : undefined,
       category: values.category as string,
       severity: values.severity as 'normal' | 'high' | 'urgent',
       targetRegions: (values.targetRegions as string[]) ?? ['*'],
@@ -146,7 +160,52 @@ export default function IntelEdit() {
             <Select options={STATUS_OPTIONS} style={{ width: 200 }} />
           </Form.Item>
 
-          <Form.Item>
+          <Divider>结构化内容（套路 3 步 + 防范建议）</Divider>
+          <BlocksEditor blocks={blocks} onChange={setBlocks} />
+
+          <div style={{ marginTop: 16, padding: 12, background: '#F5F7FA', borderRadius: 6 }}>
+            <Space>
+              <Button
+                loading={aiRewriting}
+                onClick={async () => {
+                  const title = form.getFieldValue('title') as string;
+                  const summary = form.getFieldValue('summary') as string;
+                  const language = (form.getFieldValue('language') as string) || 'zh';
+                  if (!title?.trim() && !summary?.trim()) {
+                    message.warning('先填写标题或摘要再让 AI 改写');
+                    return;
+                  }
+                  setAiRewriting(true);
+                  try {
+                    // request interceptor 已经 unwrap res.data；TS 类型不准，用 unknown 中转
+                    const r = (await aiRewriteIntel({ title, summary, language })) as unknown as {
+                      summary: string;
+                      contentBlocks: ContentBlock[];
+                      provider?: string;
+                    };
+                    if (r.summary) form.setFieldsValue({ summary: r.summary });
+                    if (Array.isArray(r.contentBlocks) && r.contentBlocks.length > 0) {
+                      setBlocks(r.contentBlocks);
+                    } else {
+                      message.warning('AI 未返回结构化块，仅更新了摘要');
+                    }
+                    message.success(`AI 改写完成${r.provider ? `（${r.provider}）` : ''}`);
+                  } catch (e: any) {
+                    message.error(e?.message ?? 'AI 改写失败');
+                  } finally {
+                    setAiRewriting(false);
+                  }
+                }}
+              >
+                ✨ AI 改写（套路 3 步 + 防范建议）
+              </Button>
+              <span style={{ fontSize: 12, color: '#8492A6' }}>
+                基于标题 + 摘要调 AI 输出结构化内容；编辑者可二次修改后保存
+              </span>
+            </Space>
+          </div>
+
+          <Form.Item style={{ marginTop: 24 }}>
             <Space>
               <Button type="primary" htmlType="submit" loading={loading}>
                 保存
@@ -159,6 +218,100 @@ export default function IntelEdit() {
           </Form.Item>
         </Form>
       </Card>
+    </div>
+  );
+}
+
+const BLOCK_TYPE_OPTIONS = [
+  { label: '骗子套路 (step)', value: 'step' },
+  { label: '防范建议 (tip)', value: 'tip' },
+  { label: '配图/截图说明 (image)', value: 'image' },
+  { label: '小结 (summary)', value: 'summary' },
+];
+
+interface BlocksEditorProps {
+  blocks: ContentBlock[];
+  onChange: (next: ContentBlock[]) => void;
+}
+
+function BlocksEditor({ blocks, onChange }: BlocksEditorProps) {
+  return (
+    <div>
+      {blocks.map((b, idx) => (
+        <Card
+          key={idx}
+          size="small"
+          style={{ marginBottom: 8, background: '#FAFBFC' }}
+          title={
+            <Space size={8}>
+              <Select
+                value={b.type}
+                style={{ width: 200 }}
+                size="small"
+                onChange={(v) => {
+                  const next = blocks.slice();
+                  next[idx] = { ...next[idx], type: v };
+                  onChange(next);
+                }}
+                options={BLOCK_TYPE_OPTIONS}
+              />
+              <span style={{ color: '#8492A6', fontSize: 12 }}>第 {idx + 1} 块</span>
+            </Space>
+          }
+          extra={
+            <Space>
+              <Button
+                size="small"
+                disabled={idx === 0}
+                onClick={() => {
+                  const next = blocks.slice();
+                  [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                  onChange(next);
+                }}
+              >
+                上移
+              </Button>
+              <Button
+                size="small"
+                disabled={idx === blocks.length - 1}
+                onClick={() => {
+                  const next = blocks.slice();
+                  [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                  onChange(next);
+                }}
+              >
+                下移
+              </Button>
+              <Button
+                size="small"
+                danger
+                onClick={() => onChange(blocks.filter((_, i) => i !== idx))}
+              >
+                删除
+              </Button>
+            </Space>
+          }
+        >
+          <Input.TextArea
+            value={b.text}
+            rows={3}
+            maxLength={800}
+            showCount
+            onChange={(e) => {
+              const next = blocks.slice();
+              next[idx] = { ...next[idx], text: e.target.value };
+              onChange(next);
+            }}
+          />
+        </Card>
+      ))}
+      <Button
+        type="dashed"
+        block
+        onClick={() => onChange([...blocks, { type: 'step', text: '' }])}
+      >
+        + 添加一块
+      </Button>
     </div>
   );
 }

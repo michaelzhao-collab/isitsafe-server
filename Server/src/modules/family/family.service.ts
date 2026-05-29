@@ -795,8 +795,17 @@ export class FamilyService {
       const inactiveDisplayName =
         candidate.user.nickname || candidate.user.wechatNickname || '家人';
 
+      // S4-4 投递状态聚合
+      const stats = {
+        pushDelivered: 0,
+        pushFailed: 0,
+        smsDelivered: 0,
+        smsFailed: 0,
+        escalatedToSms: false,
+      };
+
       for (const channel of finalChannels) {
-        await this.prisma.familyCareNotice.create({
+        const notice = await this.prisma.familyCareNotice.create({
           data: {
             groupId: candidate.groupId,
             inactiveUserId: candidate.userId,
@@ -807,7 +816,7 @@ export class FamilyService {
         });
 
         if (channel === 'push') {
-          await this.notification.sendPushBatch(
+          const result = await this.notification.sendPushBatch(
             otherMembers.map((m) => ({
               userId: m.userId,
               title: '家庭关怀提醒',
@@ -820,6 +829,52 @@ export class FamilyService {
               },
             })),
           );
+          stats.pushDelivered += result.delivered;
+          stats.pushFailed += result.failed;
+
+          // S4-4：第 2 天 push 全失败 → 提前升级 SMS（绕过常规 daysInactive>=3 阈值）
+          const pushAllFailed = result.delivered === 0 && result.failed > 0;
+          const canEscalate =
+            pushAllFailed &&
+            daysInactive === 2 &&
+            !finalChannels.includes('sms') &&
+            !smsAlreadySent;
+          if (canEscalate) {
+            stats.escalatedToSms = true;
+            smsSent += 1;
+            const escalatedNotice = await this.prisma.familyCareNotice.create({
+              data: {
+                groupId: candidate.groupId,
+                inactiveUserId: candidate.userId,
+                notifiedUserIds: notifiedIds as any,
+                daysInactive,
+                channel: 'sms',
+              },
+            });
+            for (const m of otherMembers) {
+              const phone = m.user.phone;
+              if (!phone) continue;
+              const region: 'CN' | 'INTL' =
+                (m.user.regionCode ?? '').toUpperCase().startsWith('CN') ? 'CN' : 'INTL';
+              const r = await this.notification.sendSms({
+                userId: m.userId,
+                phone,
+                template: 'family_care_inactive',
+                variables: {
+                  inactiveName: inactiveDisplayName,
+                  days: String(daysInactive),
+                },
+                region,
+              });
+              if (r.delivered) stats.smsDelivered += 1;
+              else stats.smsFailed += 1;
+            }
+            // 单独保存升级 notice 的 deliveryStatus
+            await this.prisma.familyCareNotice.update({
+              where: { id: escalatedNotice.id },
+              data: { deliveryStatus: { ...stats, escalatedToSms: true } as any },
+            });
+          }
         } else if (channel === 'sms') {
           smsSent += 1;
           for (const m of otherMembers) {
@@ -827,7 +882,7 @@ export class FamilyService {
             if (!phone) continue;
             const region: 'CN' | 'INTL' =
               (m.user.regionCode ?? '').toUpperCase().startsWith('CN') ? 'CN' : 'INTL';
-            await this.notification.sendSms({
+            const r = await this.notification.sendSms({
               userId: m.userId,
               phone,
               template: 'family_care_inactive',
@@ -837,8 +892,16 @@ export class FamilyService {
               },
               region,
             });
+            if (r.delivered) stats.smsDelivered += 1;
+            else stats.smsFailed += 1;
           }
         }
+
+        // 把投递状态写回本条 notice（覆盖 escalated 的部分由其自身覆盖）
+        await this.prisma.familyCareNotice.update({
+          where: { id: notice.id },
+          data: { deliveryStatus: stats as any },
+        });
       }
 
       if (daysInactive === 2) notified2days += 1;

@@ -167,4 +167,23 @@ export class IntelAdminController {
   ) {
     return this.intel.adminReviewSubmission(id, body.action, body.mergedToIntelId);
   }
+
+  /**
+   * S4-2 AI 改写：把原始草稿 → "套路 3 步 + 防范建议"结构化
+   *
+   * 输入：title + summary（任一可空）+ language
+   * 输出：
+   *   summary: 整理后的一句话概括（≤ 200 字）
+   *   contentBlocks: [{type:'step', text:'...'}, {type:'tip', text:'...'}]
+   *
+   * 不持久化；前端拿到结果后由编辑者复制到表单再点保存。
+   */
+  @Post('ai-rewrite')
+  async aiRewrite(@Body() body: { title?: string; summary?: string; language?: string }) {
+    return this.intel.adminAiRewrite({
+      title: body.title?.slice(0, 500),
+      summary: body.summary?.slice(0, 2000),
+      language: body.language === 'en' ? 'en' : 'zh',
+    });
+  }
 }

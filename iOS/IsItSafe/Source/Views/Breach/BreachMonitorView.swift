@@ -9,11 +9,16 @@ import SwiftUI
 
 public struct BreachMonitorView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appState: AppStateViewModel
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var targets: [BreachTargetItem] = []
     @State private var alerts: [BreachAlert] = []
     @State private var loading = true
     @State private var showAdd = false
+    @State private var showUpgrade = false
+
+    /// 免费用户最多 1 个 target；Pro 5 个（与 PRD 一致）
+    private let freeTargetLimit = 1
 
     public init() {}
 
@@ -43,7 +48,7 @@ public struct BreachMonitorView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { showAdd = true } label: {
+                    Button { tryShowAdd() } label: {
                         Image(systemName: "plus")
                     }
                 }
@@ -51,6 +56,11 @@ public struct BreachMonitorView: View {
             .task { await reload() }
             .sheet(isPresented: $showAdd, onDismiss: { Task { await reload() } }) {
                 BreachAddTargetSheet()
+            }
+            .sheet(isPresented: $showUpgrade) {
+                BreachUpgradeSheet(onUpgrade: {
+                    // 关掉本 sheet 后引导至订阅页（V3 一期暂用 Profile→订阅入口）
+                })
             }
             .refreshable { await reload() }
         }
@@ -142,7 +152,7 @@ public struct BreachMonitorView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(AppTheme.textSecondary)
                 Spacer()
-                Button { showAdd = true } label: {
+                Button { tryShowAdd() } label: {
                     Label("Add", systemImage: "plus.circle.fill")
                         .font(.caption.weight(.semibold))
                 }
@@ -150,7 +160,7 @@ public struct BreachMonitorView: View {
             if loading {
                 ProgressView().frame(maxWidth: .infinity)
             } else if targets.isEmpty {
-                Button { showAdd = true } label: {
+                Button { tryShowAdd() } label: {
                     VStack(spacing: 6) {
                         Image(systemName: "envelope.badge")
                             .font(.system(size: 36))
@@ -170,10 +180,27 @@ public struct BreachMonitorView: View {
                 .buttonStyle(.plain)
             } else {
                 ForEach(targets) { t in
-                    targetRow(t)
+                    NavigationLink {
+                        // F-P3 目标详情
+                        BreachTargetDetailView(target: t, allAlerts: alerts) {
+                            Task { await reload() }
+                        }
+                    } label: {
+                        targetRow(t)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
+    }
+
+    /// 检查是否触发付费墙：免费用户达到 freeTargetLimit 时弹 BreachUpgradeSheet
+    private func tryShowAdd() {
+        if !appState.subscriptionActive && targets.count >= freeTargetLimit {
+            showUpgrade = true
+            return
+        }
+        showAdd = true
     }
 
     private func targetRow(_ t: BreachTargetItem) -> some View {
