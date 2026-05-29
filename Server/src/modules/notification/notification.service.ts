@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import axios from 'axios';
 import * as http2 from 'http2';
 import { createSign, createPrivateKey } from 'crypto';
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -56,6 +57,12 @@ export class NotificationService implements OnModuleDestroy {
     customData?: Record<string, unknown>;
     /** 可选：caller 直接给 token，跳过 DB 查找 */
     deviceToken?: string;
+    /**
+     * S5-3 apns-collapse-id：同 group 同事件的通知会替换前一条而非堆叠。
+     * 最长 64 字节；用于：家庭广播撤回时替换原通知、关怀提醒升级时替换 push。
+     * 当前调用方多数不传；预留参数为二期撤回功能服务。
+     */
+    collapseId?: string;
   }): Promise<{ delivered: boolean; messageId?: string; reason?: string }> {
     const apnsConfigured = this.isApnsConfigured();
     if (!apnsConfigured) {
@@ -83,7 +90,12 @@ export class NotificationService implements OnModuleDestroy {
     const payload = this.buildApsPayload(params);
     const results = await Promise.all(
       devices.map((d) =>
-        this.deliverOne(d.deviceToken, d.environment as 'production' | 'sandbox', payload).then((r) => ({
+        this.deliverOne(
+          d.deviceToken,
+          d.environment as 'production' | 'sandbox',
+          payload,
+          params.collapseId,
+        ).then((r) => ({
           deviceId: d.id,
           deviceToken: d.deviceToken,
           ...r,
@@ -111,6 +123,7 @@ export class NotificationService implements OnModuleDestroy {
     category?: string;
     customData?: Record<string, unknown>;
     deviceToken?: string;
+    collapseId?: string;
   }>): Promise<{ delivered: number; failed: number }> {
     const results = await Promise.allSettled(items.map((item) => this.sendPush(item)));
     let delivered = 0;
@@ -157,6 +170,7 @@ export class NotificationService implements OnModuleDestroy {
     deviceToken: string,
     environment: 'production' | 'sandbox',
     payload: Record<string, unknown>,
+    collapseId?: string,
   ): Promise<{ delivered: boolean; messageId?: string; reason?: string }> {
     try {
       const session = await this.getHttp2Client(environment);
@@ -164,7 +178,7 @@ export class NotificationService implements OnModuleDestroy {
       const bundleId = process.env.APNS_BUNDLE_ID as string;
 
       const body = JSON.stringify(payload);
-      const stream = session.request({
+      const headers: Record<string, string> = {
         ':method': 'POST',
         ':path': `/3/device/${deviceToken}`,
         authorization: `bearer ${jwt}`,
@@ -173,7 +187,12 @@ export class NotificationService implements OnModuleDestroy {
         'apns-priority': '10',
         'content-type': 'application/json',
         'content-length': Buffer.byteLength(body).toString(),
-      });
+      };
+      if (collapseId) {
+        // Apple 限制：apns-collapse-id ≤ 64 字节
+        headers['apns-collapse-id'] = collapseId.slice(0, 64);
+      }
+      const stream = session.request(headers);
 
       return await new Promise((resolve) => {
         let status = 0;
@@ -354,7 +373,8 @@ export class NotificationService implements OnModuleDestroy {
   }): Promise<{ delivered: boolean; messageId?: string; cost?: number; provider?: string }> {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
     const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const from = process.env.TWILIO_FROM_NUMBER;
+    // S5-2：按收信号码国家选 from。TWILIO_FROM_NUMBERS JSON 优先；缺则 fallback 单号
+    const from = this.selectTwilioFrom(params.phone);
     if (!accountSid || !authToken || !from) {
       this.logger.log(
         `[SMS:INTL-stub] user=${params.userId} phone=${this.maskPhone(params.phone)} vars=${JSON.stringify(params.variables)}`,
@@ -378,9 +398,60 @@ export class NotificationService implements OnModuleDestroy {
       const sid = resp.data?.sid;
       return { delivered: true, messageId: sid, provider: 'twilio' };
     } catch (err: any) {
-      this.logger.error(`[SMS:Twilio] failed: ${err?.response?.data?.message ?? err?.message}`);
+      this.logger.error(
+        `[SMS:Twilio] failed from=${from} to=${this.maskPhone(params.phone)}: ${err?.response?.data?.message ?? err?.message}`,
+      );
       return { delivered: false, provider: 'twilio' };
     }
+  }
+
+  /**
+   * S5-2 按收信号码国家选 Twilio from-number
+   *
+   * 配置：
+   *   TWILIO_FROM_NUMBERS = JSON 映射，键为 ISO 国家二字码，值为本地号
+   *   例：{"IN":"+91xxxx","BR":"+55xxxx","US":"+11234567890"}
+   * Fallback：TWILIO_FROM_NUMBER 单号（与 V3-S1 行为兼容）
+   *
+   * 印度 DLT / 巴西 ANATEL 等强制本地号场景：必须配置 TWILIO_FROM_NUMBERS。
+   */
+  private selectTwilioFrom(toPhone: string): string | undefined {
+    const fromMap = this.parseTwilioFromMap();
+    if (fromMap) {
+      const country = this.detectCountryCode(toPhone);
+      if (country && fromMap[country]) return fromMap[country];
+    }
+    return process.env.TWILIO_FROM_NUMBER;
+  }
+
+  private cachedFromMap: Record<string, string> | null | undefined;
+  private parseTwilioFromMap(): Record<string, string> | null {
+    if (this.cachedFromMap !== undefined) return this.cachedFromMap;
+    const raw = process.env.TWILIO_FROM_NUMBERS;
+    if (!raw) {
+      this.cachedFromMap = null;
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const norm: Record<string, string> = {};
+        for (const [k, v] of Object.entries(parsed)) {
+          if (typeof v === 'string') norm[k.toUpperCase()] = v;
+        }
+        this.cachedFromMap = norm;
+        return norm;
+      }
+    } catch (err: any) {
+      this.logger.warn(`[Twilio] TWILIO_FROM_NUMBERS JSON parse failed: ${err?.message}`);
+    }
+    this.cachedFromMap = null;
+    return null;
+  }
+
+  private detectCountryCode(phone: string): string | null {
+    const p = parsePhoneNumberFromString(phone);
+    return p?.country ?? null;
   }
 
   private renderTemplate(template: string, vars: Record<string, string>, region: 'CN' | 'INTL'): string {

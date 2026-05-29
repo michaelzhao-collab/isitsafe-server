@@ -11,6 +11,7 @@ import { RedisService } from '../../redis/redis.service';
 import { EntitlementService } from '../quota/entitlement.service';
 import { randomBytes, createHash } from 'crypto';
 import { regionToTimezone, daysDiffInTz, localHour } from '../../common/utils/region-timezone';
+import { normalizeByType } from '../../common/utils/content-normalize';
 
 const MAX_FAMILY_MEMBERS = 5;
 const INVITE_CODE_TTL_DAYS = 7;
@@ -548,6 +549,8 @@ export class FamilyService {
               groupId: member.groupId,
               resultLabel: classification.label,
             },
+            // S5-3：同一广播 ID 在客户端可被替换（如二期撤回时下发同 collapseId 的"已撤回"通知）
+            collapseId: `broadcast:${broadcastId}`,
           })),
         );
       }
@@ -566,13 +569,16 @@ export class FamilyService {
 
   /**
    * content_hash 算法
-   * 一期：sha256("{type}:{content.trim().toLowerCase()}")
-   * S5 会引入 phone E.164 / URL canonical / 全半角等归一化。
+   * S5-1：按类型走归一化器（phone E.164 / URL canonical / 全半角）→ sha256
+   * 相同语义内容（如 "+86 159-1234-5678" 与 "15912345678"）哈希一致，
+   * 配合 family_broadcasts 的 partial unique 索引实现真正的家庭内当日排重。
    */
   private computeContentHash(contentType: string, content: string): string {
-    return createHash('sha256')
-      .update(`${contentType}:${content.trim().toLowerCase()}`)
-      .digest('hex');
+    const normalized = normalizeByType(
+      contentType as 'phone' | 'url' | 'sms' | 'voice',
+      content,
+    );
+    return createHash('sha256').update(`${contentType}:${normalized}`).digest('hex');
   }
 
   private formatYmd(d: Date): string {
@@ -827,6 +833,8 @@ export class FamilyService {
                 inactiveUserId: candidate.userId,
                 daysInactive,
               },
+              // S5-3：同一关怀对象当天的连续提醒会替换（避免锁屏堆叠 N 条）
+              collapseId: `care:${candidate.userId}`,
             })),
           );
           stats.pushDelivered += result.delivered;

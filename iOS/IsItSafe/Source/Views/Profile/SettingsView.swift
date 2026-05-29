@@ -15,6 +15,10 @@ public struct SettingsView: View {
     @State private var showAbout = false
     @State private var showLogoutConfirm = false
     @State private var showDeleteAccountPage = false
+    /// S5-4 数据导出
+    @State private var exporting = false
+    @State private var exportShareURL: URL?
+    @State private var exportError: String?
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     public init() {}
@@ -67,6 +71,29 @@ public struct SettingsView: View {
                 }
 
                 if appState.isLoggedIn {
+                    // S5-4 GDPR / 个保法数据导出
+                    Section(footer: Text(languageCode == "en"
+                                        ? "Includes account, queries, family activity, deepfake checks, and breach monitoring."
+                                        : "包含账号、查询历史、家庭活动、深伪检测、暗网监控等全部记录。")) {
+                        Button {
+                            Task { await exportMyData() }
+                        } label: {
+                            HStack {
+                                if exporting {
+                                    ProgressView().scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "arrow.down.doc")
+                                }
+                                Text(languageCode == "en" ? "Export my data" : "导出我的数据")
+                            }
+                        }
+                        .disabled(exporting)
+                        if let err = exportError {
+                            Text(err)
+                                .font(.caption)
+                                .foregroundColor(AppTheme.riskHigh)
+                        }
+                    }
                     Section {
                         Button(languageCode == "en" ? "Delete account" : "删除账号", role: .destructive) {
                             showDeleteAccountPage = true
@@ -100,6 +127,13 @@ public struct SettingsView: View {
                         .mainTabBarHidden()
                 }
             }
+            // S5-4 数据导出 share sheet
+            .sheet(item: Binding(
+                get: { exportShareURL.map(ShareableFile.init) },
+                set: { exportShareURL = $0?.url }
+            )) { file in
+                ActivityViewController(items: [file.url])
+            }
             .safeAreaInset(edge: .bottom) {
                 if appState.isLoggedIn {
                     Button {
@@ -130,6 +164,33 @@ public struct SettingsView: View {
         MockData.isMockModeEnabled = false
         UserSessionStore.shared.clearSession()
         appState.refreshLoginState()
+    }
+
+    /// S5-4 调 /api/auth/export-data 拉 JSON → 写临时文件 → 弹 ShareSheet
+    @MainActor
+    private func exportMyData() async {
+        exporting = true
+        exportError = nil
+        defer { exporting = false }
+        do {
+            // 用 Any 接收，免去为完整结构定义 Decodable
+            let json: [String: Any] = try await NetworkManager.shared.requestRawDictionary(
+                endpoint: .authExportData
+            )
+            let data = try JSONSerialization.data(
+                withJSONObject: json,
+                options: [.prettyPrinted, .sortedKeys]
+            )
+            let ts = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+            let fileURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("starlens-export-\(ts).json")
+            try data.write(to: fileURL, options: .atomic)
+            exportShareURL = fileURL
+        } catch {
+            exportError = languageCode == "en"
+                ? "Export failed: \(error.localizedDescription)"
+                : "导出失败：\(error.localizedDescription)"
+        }
     }
 
     /// V3-J 长辈模式开关 row（开启会切换主界面到 ElderHomeView）

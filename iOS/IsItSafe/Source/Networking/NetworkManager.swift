@@ -144,6 +144,25 @@ public final class NetworkManager {
         let _: EmptyResponse = try await request(endpoint: endpoint, body: body)
     }
 
+    /// S5-4 拉任意 JSON 当字典返回，免去为完整结构定义 Decodable
+    /// 适用于：导出数据这种 schema 比较大但客户端只是透传的场景
+    public func requestRawDictionary(endpoint: APIEndpoint) async throws -> [String: Any] {
+        await AuthService.shared.ensureFreshTokenIfNearExpiry()
+        let token = AuthInterceptor.token()
+        let req = try RequestBuilder.build(
+            endpoint: endpoint,
+            baseURL: AppConfiguration.shared.baseURL,
+            body: nil,
+            authToken: token
+        )
+        let (data, response) = try await session.data(for: req)
+        try ResponseValidator.validate(data: data, response: response)
+        guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw APIError.unknown("Unexpected response shape")
+        }
+        return obj
+    }
+
     /// 上传头像：multipart/form-data，返回 CDN URL
     public func uploadAvatar(imageData: Data, filename: String = "avatar.jpg") async throws -> String {
         let endpoint = APIEndpoint.uploadAvatar
