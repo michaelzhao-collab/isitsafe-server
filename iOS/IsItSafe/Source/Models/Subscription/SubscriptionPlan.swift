@@ -26,5 +26,21 @@ public struct SubscriptionPlan: Identifiable {
         price: "¥38",
         period: "1个月"
     )
-    public static let all: [SubscriptionPlan] = [.week, .month]
+    public static let familyMonthly = SubscriptionPlan(
+        id: "family_monthly",
+        name: "家庭月订阅",
+        productId: ProductIdentifiers.familyMonthly,
+        price: "¥28",
+        period: "1个月 · 全家共享"
+    )
+    public static let familyAnnual = SubscriptionPlan(
+        id: "family_annual",
+        name: "家庭年订阅",
+        productId: ProductIdentifiers.familyAnnual,
+        price: "¥168",
+        period: "1年 · 全家共享"
+    )
+    /// 兜底列表（Server `GET /api/membership/plans` 不可用时用）。
+    /// 生产环境实际订阅由后台动态下发。
+    public static let all: [SubscriptionPlan] = [.week, .month, .familyMonthly, .familyAnnual]
 }

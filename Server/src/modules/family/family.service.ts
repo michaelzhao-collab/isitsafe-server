@@ -7,11 +7,18 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
+import { RedisService } from '../../redis/redis.service';
+import { EntitlementService } from '../quota/entitlement.service';
 import { randomBytes, createHash } from 'crypto';
 
 const MAX_FAMILY_MEMBERS = 5;
 const INVITE_CODE_TTL_DAYS = 7;
 const INVITE_CODE_MAX_USES = 4;
+
+/// 广播分布式锁 TTL：覆盖 AI 检测 P95 ≤ 15s 上限，留 4× buffer 防慢调用
+const BROADCAST_LOCK_TTL_SEC = 60;
+/// 免费家庭每天 1 条官方广播
+const BROADCAST_FREE_DAILY_LIMIT = 1;
 
 /**
  * V3-E 家庭守护服务
@@ -28,6 +35,8 @@ export class FamilyService {
   constructor(
     private prisma: PrismaService,
     private notification: NotificationService,
+    private redis: RedisService,
+    private entitlement: EntitlementService,
   ) {}
 
   // ====================================================================
@@ -289,9 +298,26 @@ export class FamilyService {
     broadcastId?: string;
     resultLabel: 'scam' | 'safe' | 'unknown';
     quotaRemaining: number;
-    skipReason?: 'duplicate' | 'quota_exceeded' | 'no_group';
+    skipReason?: 'duplicate' | 'quota_exceeded' | 'no_group' | 'in_progress';
   }> {
-    // 1) 查家庭组
+    // ────────────────────────────────────────────────
+    // 流程（S1-2 改造）：
+    //   ① 查家庭组（必须先有 groupId 才能算锁 key）
+    //   ② 计算 content_hash + ymd
+    //   ③ Redis SETNX 抢锁；抢不到说明同秒并发，直接返 in_progress
+    //      （另一个请求会完成 AI + 入库 + 推送，对端无需重复工作）
+    //   ④ 锁内 DB 预查重 / 预查配额：免费用户/重复内容跳过 AI（不花钱）
+    //   ⑤ 调 AI 分类
+    //   ⑥ Transaction 入库：DB UNIQUE 索引兜底（极端情况下还是会抓 P2002）
+    //   ⑦ 推送 + 重算剩余配额
+    //   ⑧ finally 释放锁
+    //
+    // 老逻辑的问题：AI 调用在 transaction / 配额检查之前，并发场景下两人
+    // 同秒触发同号码会双扣费且都拿到结果（DB UNIQUE 也是后加的）。改造后
+    // 单条最坏花 1 次 AI 钱。
+    // ────────────────────────────────────────────────
+
+    // ① 查家庭组
     const member = await this.prisma.familyMember.findFirst({
       where: { userId: params.triggeredByUserId },
       include: { group: { include: { members: true } } },
@@ -305,131 +331,170 @@ export class FamilyService {
       };
     }
 
-    // 2) AI 分类
-    const classifier =
-      params.classifier ?? this.defaultClassifier.bind(this);
-    const classification = await classifier(params.content);
-
-    // 3) 计算 content_hash（用于排重）
-    const contentHash = createHash('sha256')
-      .update(`${params.contentType}:${params.content.trim().toLowerCase()}`)
-      .digest('hex');
-
-    // 4) 查重 + 配额 + 入库放进 transaction：避免并发同一秒触发两次时双写
+    // ② content_hash + 当日范围 + 锁 key
+    const contentHash = this.computeContentHash(params.contentType, params.content);
     const today0 = new Date();
     today0.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today0.getTime() + 24 * 3600 * 1000);
-    const userIsPro = await this.isUserPro(params.triggeredByUserId);
-    const FREE_DAILY_LIMIT = 1;
+    const ymd = this.formatYmd(today0);
+    const lockKey = `family_broadcast:${member.groupId}:${contentHash}:${ymd}`;
 
-    type TxResult =
-      | { kind: 'duplicate'; dupId: string; dupLabel: string; quotaRemaining: number }
-      | { kind: 'quota_exceeded' }
-      | { kind: 'created'; broadcastId: string };
+    // ③ 抢锁
+    const lockAcquired = await this.redis.acquireLock(lockKey, BROADCAST_LOCK_TTL_SEC);
+    if (!lockAcquired) {
+      // 同秒并发：另一个请求正在跑 AI + 入库。对端无需重复，直接返。
+      return {
+        delivered: false,
+        resultLabel: 'unknown',
+        quotaRemaining: await this.computeQuotaRemaining(member.groupId, today0, tomorrow),
+        skipReason: 'in_progress',
+      };
+    }
 
-    const txResult: TxResult = await this.prisma.$transaction(async (tx) => {
-      // 4a) 查重：同家庭 + 同 hash + 今日已有
-      const dup = await tx.familyBroadcast.findFirst({
+    try {
+      // ④a DB 预查重（AI 之前，零成本）
+      const dup = await this.prisma.familyBroadcast.findFirst({
         where: {
           groupId: member.groupId,
           contentHash,
           createdAt: { gte: today0, lt: tomorrow },
         },
+        select: { id: true, resultLabel: true },
       });
       if (dup) {
-        const used = await tx.familyBroadcast.count({
-          where: {
-            groupId: member.groupId,
-            createdAt: { gte: today0, lt: tomorrow },
-          },
-        });
-        const remaining = Math.max(0, FREE_DAILY_LIMIT - used);
-        return { kind: 'duplicate', dupId: dup.id, dupLabel: dup.resultLabel, quotaRemaining: remaining };
+        return {
+          delivered: false,
+          broadcastId: dup.id,
+          resultLabel: dup.resultLabel as 'scam' | 'safe' | 'unknown',
+          quotaRemaining: await this.computeQuotaRemaining(member.groupId, today0, tomorrow),
+          skipReason: 'duplicate',
+        };
       }
-      // 4b) 配额：家庭每天 1 条免费
-      const todayCount = await tx.familyBroadcast.count({
+
+      // ④b 配额预查（AI 之前，零成本）
+      const userIsPro = await this.isUserPro(params.triggeredByUserId);
+      const todayCount = await this.prisma.familyBroadcast.count({
         where: {
           groupId: member.groupId,
           createdAt: { gte: today0, lt: tomorrow },
         },
       });
-      if (!userIsPro && todayCount >= FREE_DAILY_LIMIT) {
-        return { kind: 'quota_exceeded' };
+      if (!userIsPro && todayCount >= BROADCAST_FREE_DAILY_LIMIT) {
+        return {
+          delivered: false,
+          resultLabel: 'unknown',
+          quotaRemaining: 0,
+          skipReason: 'quota_exceeded',
+        };
       }
-      // 4c) 入库
-      const broadcast = await tx.familyBroadcast.create({
-        data: {
-          groupId: member.groupId,
-          triggeredByUserId: params.triggeredByUserId,
-          contentType: params.contentType,
-          contentHash,
-          contentDisplay: classification.contentDisplay,
-          resultLabel: classification.label,
-          resultDetail: classification.resultDetail as any,
-          source: params.source,
-        },
-      });
-      return { kind: 'created', broadcastId: broadcast.id };
-    });
 
-    if (txResult.kind === 'duplicate') {
-      return {
-        delivered: false,
-        broadcastId: txResult.dupId,
-        resultLabel: txResult.dupLabel as 'scam' | 'safe' | 'unknown',
-        quotaRemaining: txResult.quotaRemaining,
-        skipReason: 'duplicate',
-      };
-    }
-    if (txResult.kind === 'quota_exceeded') {
-      return {
-        delivered: false,
-        resultLabel: classification.label,
-        quotaRemaining: 0,
-        skipReason: 'quota_exceeded',
-      };
-    }
-    // created：补一个本地变量给后面 push 用
-    const broadcast = { id: txResult.broadcastId };
+      // ⑤ AI 分类（确认要花钱了才调）
+      const classifier = params.classifier ?? this.defaultClassifier.bind(this);
+      const classification = await classifier(params.content);
 
-    // 7) 推送给其他成员（不含触发者）
-    const otherMembers = member.group.members.filter(
-      (m) => m.userId !== params.triggeredByUserId,
-    );
-    if (otherMembers.length > 0) {
-      const titleByLabel = {
-        scam: '📢 已识别诈骗',
-        safe: '📢 经核实暂未发现风险',
-        unknown: '📢 暂无法确认，请谨慎',
-      } as const;
-      await this.notification.sendPushBatch(
-        otherMembers.map((m) => ({
-          userId: m.userId,
-          title: titleByLabel[classification.label],
-          body: classification.contentDisplay,
-          category: 'family_broadcast',
-          customData: {
-            broadcastId: broadcast.id,
+      // ⑥ 入库（DB partial unique 兜底处理 P2002）
+      let broadcastId: string;
+      try {
+        const created = await this.prisma.familyBroadcast.create({
+          data: {
             groupId: member.groupId,
+            triggeredByUserId: params.triggeredByUserId,
+            contentType: params.contentType,
+            contentHash,
+            contentDisplay: classification.contentDisplay,
             resultLabel: classification.label,
+            resultDetail: classification.resultDetail as any,
+            source: params.source,
           },
-        })),
-      );
-    }
+          select: { id: true },
+        });
+        broadcastId = created.id;
+      } catch (err: any) {
+        // Prisma P2002 unique constraint violation → 极端并发兜底
+        if (err?.code === 'P2002') {
+          const conflictDup = await this.prisma.familyBroadcast.findFirst({
+            where: {
+              groupId: member.groupId,
+              contentHash,
+              createdAt: { gte: today0, lt: tomorrow },
+            },
+            select: { id: true, resultLabel: true },
+          });
+          return {
+            delivered: false,
+            broadcastId: conflictDup?.id,
+            resultLabel: (conflictDup?.resultLabel as 'scam' | 'safe' | 'unknown') ?? classification.label,
+            quotaRemaining: await this.computeQuotaRemaining(member.groupId, today0, tomorrow),
+            skipReason: 'duplicate',
+          };
+        }
+        throw err;
+      }
 
-    // 重新计算剩余配额（避免共享 tx 内的 todayCount）
-    const usedAfter = await this.prisma.familyBroadcast.count({
-      where: {
-        groupId: member.groupId,
-        createdAt: { gte: today0, lt: tomorrow },
-      },
+      // ⑦ 推送给其他成员（不含触发者）
+      const otherMembers = member.group.members.filter(
+        (m) => m.userId !== params.triggeredByUserId,
+      );
+      if (otherMembers.length > 0) {
+        const titleByLabel = {
+          scam: '📢 已识别诈骗',
+          safe: '📢 经核实暂未发现风险',
+          unknown: '📢 暂无法确认，请谨慎',
+        } as const;
+        await this.notification.sendPushBatch(
+          otherMembers.map((m) => ({
+            userId: m.userId,
+            title: titleByLabel[classification.label],
+            body: classification.contentDisplay,
+            category: 'family_broadcast',
+            customData: {
+              broadcastId,
+              groupId: member.groupId,
+              resultLabel: classification.label,
+            },
+          })),
+        );
+      }
+
+      return {
+        delivered: true,
+        broadcastId,
+        resultLabel: classification.label,
+        quotaRemaining: await this.computeQuotaRemaining(member.groupId, today0, tomorrow),
+      };
+    } finally {
+      // ⑧ 主动释放锁（不等 TTL，避免下一个相同 hash 请求阻塞最多 60s）
+      await this.redis.releaseLock(lockKey);
+    }
+  }
+
+  /**
+   * content_hash 算法
+   * 一期：sha256("{type}:{content.trim().toLowerCase()}")
+   * S5 会引入 phone E.164 / URL canonical / 全半角等归一化。
+   */
+  private computeContentHash(contentType: string, content: string): string {
+    return createHash('sha256')
+      .update(`${contentType}:${content.trim().toLowerCase()}`)
+      .digest('hex');
+  }
+
+  private formatYmd(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}${m}${dd}`;
+  }
+
+  private async computeQuotaRemaining(
+    groupId: string,
+    today0: Date,
+    tomorrow: Date,
+  ): Promise<number> {
+    const used = await this.prisma.familyBroadcast.count({
+      where: { groupId, createdAt: { gte: today0, lt: tomorrow } },
     });
-    return {
-      delivered: true,
-      broadcastId: broadcast.id,
-      resultLabel: classification.label,
-      quotaRemaining: Math.max(0, FREE_DAILY_LIMIT - usedAfter),
-    };
+    return Math.max(0, BROADCAST_FREE_DAILY_LIMIT - used);
   }
 
   /**
@@ -476,25 +541,14 @@ export class FamilyService {
     return text.length > 200 ? text.slice(0, 200) + '…' : text;
   }
 
-  private async getRemainingQuota(groupId: string): Promise<number> {
-    const today0 = new Date();
-    today0.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today0.getTime() + 24 * 3600 * 1000);
-    const count = await this.prisma.familyBroadcast.count({
-      where: { groupId, createdAt: { gte: today0, lt: tomorrow } },
-    });
-    return Math.max(0, 1 - count);
-  }
-
+  /**
+   * "Pro" 判定 — 决定 1 条/天的官方广播配额是否豁免。
+   * 个人 Pro / 家庭 owner / 家庭 member 都视为 isUnlimited，统一豁免。
+   * 走 EntitlementService 复用 Query 侧同一份家庭权益分发逻辑。
+   */
   private async isUserPro(userId: string): Promise<boolean> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { subscriptionStatus: true, subscriptionExpire: true },
-    });
-    if (!user) return false;
-    if (user.subscriptionStatus !== 'premium') return false;
-    if (user.subscriptionExpire && user.subscriptionExpire < new Date()) return false;
-    return true;
+    const e = await this.entitlement.getUserEntitlement(userId);
+    return e.isUnlimited;
   }
 
   /**

@@ -38,6 +38,24 @@ export class RedisService implements OnModuleDestroy {
     await this.client.del(key);
   }
 
+  /**
+   * 原子获取锁。基于 ioredis 的 SET key value EX ttl NX。
+   * 成功返回 true（锁是你的）；失败返回 false（已有人持锁）。
+   *
+   * 典型用法：
+   *   const ok = await redis.acquireLock(`family_broadcast:${groupId}:${hash}:${ymd}`, 60);
+   *   if (!ok) return { skipReason: 'duplicate' };
+   *   try { ... } finally { await redis.releaseLock(key); }
+   */
+  async acquireLock(key: string, ttlSeconds: number): Promise<boolean> {
+    const result = await this.client.set(key, '1', 'EX', ttlSeconds, 'NX');
+    return result === 'OK';
+  }
+
+  async releaseLock(key: string): Promise<void> {
+    await this.client.del(key);
+  }
+
   async onModuleDestroy() {
     await this.client.quit();
   }

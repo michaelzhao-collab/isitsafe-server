@@ -47,6 +47,8 @@ public enum APIEndpoint {
     case v3UserHeartbeat
     /// V3-J 长辈模式开关（自己开/关）
     case v3UserElderMode
+    /// V3-S1-5 推送设备登记（APNs device token 上报）
+    case v3UserRegisterDevice
     /// V3-E 创建家庭组（免费）
     case v3FamilyCreateGroup
     /// V3-E 我的家庭组
@@ -142,6 +144,7 @@ public enum APIEndpoint {
         // ====== V3 ======
         case .v3UserHeartbeat: return "/api/user/v3/heartbeat"
         case .v3UserElderMode: return "/api/user/v3/elder-mode"
+        case .v3UserRegisterDevice: return "/api/user/v3/devices"
         case .v3FamilyCreateGroup: return "/api/v3/family/groups"
         case .v3FamilyGetMyGroup: return "/api/v3/family/groups/me"
         case .v3FamilyGenerateInvite(let groupId): return "/api/v3/family/groups/\(groupId)/invites"
@@ -188,7 +191,8 @@ public enum APIEndpoint {
             return .GET
         case .authLogin, .authAppleLogin, .authSendCode, .authLogout, .authDeleteAccount, .authRefreshToken, .aiAnalyze, .aiAnalyzeScreenshot,
              .queryPhone, .queryURL, .queryCompany, .reportSubmit, .subscriptionVerify, .messageMarkRead, .feedbackSubmit,
-             .v3UserHeartbeat, .v3FamilyCreateGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
+             .v3UserHeartbeat, .v3UserRegisterDevice,
+             .v3FamilyCreateGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyCreateBroadcast,
              .v3IntelSubmit,
              .v3DeepfakeCreate, .v3DeepfakeFeedback,
@@ -211,7 +215,7 @@ public enum APIEndpoint {
     public var requiresAuth: Bool {
         switch self {
         case .authLogout, .authDeleteAccount, .authUserInfo, .subscriptionVerify, .subscriptionStatus, .uploadAvatar, .uploadFile, .updateProfile, .deleteQuery, .deleteQueryConversation, .queryHistory, .messagesList, .messageUnreadCount, .messageMarkRead, .feedbackSubmit,
-             .v3UserHeartbeat, .v3UserElderMode,
+             .v3UserHeartbeat, .v3UserElderMode, .v3UserRegisterDevice,
              .v3FamilyCreateGroup, .v3FamilyGetMyGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyDissolveGroup, .v3FamilyRemoveMember, .v3FamilyUpdatePreferences,
              .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,

@@ -46,6 +46,15 @@
           "adHocOffers" : [
 
           ],
+          "billingPlans" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "commitmentDisplayPrice" : "0.99",
+              "displayPrice" : "0.99",
+              "internalID" : "FCF55ECB",
+              "isEnabled" : true
+            }
+          ],
           "codeOffers" : [
 
           ],
@@ -75,6 +84,15 @@
         {
           "adHocOffers" : [
 
+          ],
+          "billingPlans" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "commitmentDisplayPrice" : "4.99",
+              "displayPrice" : "4.99",
+              "internalID" : "B170F4AA",
+              "isEnabled" : true
+            }
           ],
           "codeOffers" : [
 
@@ -106,6 +124,15 @@
           "adHocOffers" : [
 
           ],
+          "billingPlans" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "commitmentDisplayPrice" : "24.99",
+              "displayPrice" : "24.99",
+              "internalID" : "220F0DE2",
+              "isEnabled" : true
+            }
+          ],
           "codeOffers" : [
 
           ],
@@ -126,6 +153,84 @@
           "productID" : "starlens.yearly.subscription",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Yearly",
+          "subscriptionGroupID" : "12676A9E",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "billingPlans" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "commitmentDisplayPrice" : "14.99",
+              "displayPrice" : "14.99",
+              "internalID" : "F1BB2C3D",
+              "isEnabled" : true
+            }
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "14.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "F1AB2C3D",
+          "introductoryOffers" : [
+
+          ],
+          "localizations" : [
+            {
+              "description" : "Whole family unlimited",
+              "displayName" : "Family Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "starlens.family.monthly.subscription",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Family Monthly",
+          "subscriptionGroupID" : "12676A9E",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "billingPlans" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "commitmentDisplayPrice" : "129.99",
+              "displayPrice" : "129.99",
+              "internalID" : "F2BB2C3D",
+              "isEnabled" : true
+            }
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "129.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "F2AB2C3D",
+          "introductoryOffers" : [
+
+          ],
+          "localizations" : [
+            {
+              "description" : "Whole family unlimited, best value",
+              "displayName" : "Family Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "starlens.family.annual.subscription",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Family Annual",
           "subscriptionGroupID" : "12676A9E",
           "type" : "RecurringSubscription",
           "winbackOffers" : [

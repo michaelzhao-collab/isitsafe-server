@@ -90,4 +90,63 @@ export class UserController {
     });
     return { success: true, enabled };
   }
+
+  /**
+   * V3-S1-5 注册/更新推送设备 token
+   *
+   * POST /api/v3/user/devices
+   * body: { deviceToken: string; platform: 'ios'|'android'; environment?: 'production'|'sandbox';
+   *         appVersion?: string; locale?: string }
+   *
+   * 行为：
+   *  - 同一 deviceToken 全局唯一；如果之前归属别人，归属迁移到当前用户
+   *  - failureCount/lastFailureReason 重置（用户重新登录意味 token 重新有效）
+   */
+  @Post('v3/devices')
+  async registerDevice(
+    @CurrentUser('sub') userId: string,
+    @Body()
+    body: {
+      deviceToken?: string;
+      platform?: string;
+      environment?: string;
+      appVersion?: string;
+      locale?: string;
+    },
+  ) {
+    const deviceToken = (body?.deviceToken || '').trim();
+    if (!deviceToken) throw new BadRequestException('deviceToken required');
+    const platform = (body?.platform || 'ios').toLowerCase();
+    if (!['ios', 'android'].includes(platform)) {
+      throw new BadRequestException('platform must be ios|android');
+    }
+    const environment = (body?.environment || 'production').toLowerCase();
+    if (!['production', 'sandbox'].includes(environment)) {
+      throw new BadRequestException('environment must be production|sandbox');
+    }
+
+    await this.prisma.userDevice.upsert({
+      where: { deviceToken },
+      create: {
+        userId,
+        deviceToken,
+        platform,
+        environment,
+        appVersion: body?.appVersion ?? null,
+        locale: body?.locale ?? null,
+      },
+      update: {
+        userId, // 归属迁移：同一设备换账号登录
+        platform,
+        environment,
+        appVersion: body?.appVersion ?? null,
+        locale: body?.locale ?? null,
+        failureCount: 0,
+        lastFailureReason: null,
+        lastSeenAt: new Date(),
+      },
+    });
+
+    return { success: true };
+  }
 }

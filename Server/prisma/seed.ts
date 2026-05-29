@@ -153,7 +153,17 @@ async function main() {
   // 先停用所有已有套餐（避免旧 productId 残留干扰），再 upsert 正确数据
   await prisma.membershipPlan.updateMany({ data: { isActive: false } });
 
-  const planSeeds = [
+  const planSeeds: Array<{
+    id: string;
+    name: string;
+    productId: string;
+    price: number;
+    currency: string;
+    period: string;
+    tier: 'personal' | 'family';
+    sortOrder: number;
+    isRecommended: boolean;
+  }> = [
     {
       id: 'seed-plan-weekly',
       name: '周会员',
@@ -161,6 +171,7 @@ async function main() {
       price: 0.99,
       currency: 'USD',
       period: 'weekly',
+      tier: 'personal',
       sortOrder: 1,
       isRecommended: false,
     },
@@ -171,6 +182,7 @@ async function main() {
       price: 4.99,
       currency: 'USD',
       period: 'monthly',
+      tier: 'personal',
       sortOrder: 2,
       isRecommended: true,
     },
@@ -181,7 +193,31 @@ async function main() {
       price: 24.99,
       currency: 'USD',
       period: 'yearly',
+      tier: 'personal',
       sortOrder: 3,
+      isRecommended: false,
+    },
+    // V3 一期新增：家庭套餐 — owner 付费 → 同家庭全员共享查询不限/天 + 官方提醒不限
+    {
+      id: 'seed-plan-family-monthly',
+      name: '家庭月会员',
+      productId: 'starlens.family.monthly.subscription',
+      price: 14.99,
+      currency: 'USD',
+      period: 'monthly',
+      tier: 'family',
+      sortOrder: 4,
+      isRecommended: false,
+    },
+    {
+      id: 'seed-plan-family-annual',
+      name: '家庭年会员',
+      productId: 'starlens.family.annual.subscription',
+      price: 129.99,
+      currency: 'USD',
+      period: 'yearly',
+      tier: 'family',
+      sortOrder: 5,
       isRecommended: false,
     },
   ];
@@ -194,13 +230,14 @@ async function main() {
         price: plan.price,
         currency: plan.currency,
         period: plan.period,
+        tier: plan.tier,
         sortOrder: plan.sortOrder,
         isRecommended: plan.isRecommended,
         isActive: true,
       },
     });
   }
-  console.log('Membership plans seeded: weekly / monthly / yearly (starlens.*).');
+  console.log('Membership plans seeded: weekly / monthly / yearly / family.monthly / family.annual.');
 
   // ---------- settings 默认一条（MVP 可读 env，预留后台改）----------
   const existing = await prisma.settings.findFirst();

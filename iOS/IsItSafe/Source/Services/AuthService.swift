@@ -19,6 +19,8 @@ public final class AuthService {
         tokenStore.saveToken(access: res.accessToken, refresh: res.refreshToken)
         let user = try await repo.userInfo()
         sessionStore.updateUser(user)
+        // V3-S1-5：登录成功后强制重传 push token（设备换号场景下归属迁移）
+        PushService.shared.reregisterIfTokenCached()
     }
 
     public func loginWithApple(identityToken: String, appleUser: String?, displayName: String?) async throws {
@@ -27,16 +29,20 @@ public final class AuthService {
         tokenStore.saveToken(access: res.accessToken, refresh: res.refreshToken)
         let user = try await repo.userInfo()
         sessionStore.updateUser(user)
+        PushService.shared.reregisterIfTokenCached()
     }
 
     public func logout() async throws {
         _ = try? await repo.logout()
         sessionStore.clearSession()
+        // V3-S1-5：登出清理 push 缓存，下次登录会重新上报
+        PushService.shared.clearOnLogout()
     }
 
     public func deleteAccount() async throws {
         _ = try await repo.deleteAccount()
         sessionStore.clearSession()
+        PushService.shared.clearOnLogout()
     }
 
     public func fetchUserInfo() async throws -> UserInfoResponse {

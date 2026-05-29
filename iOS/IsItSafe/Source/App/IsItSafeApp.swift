@@ -10,6 +10,9 @@ import SwiftUI
 
 @main
 struct IsItSafeApp: App {
+    // V3-S1-5：接 APNs 注册回调
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
+
     @StateObject private var appState = AppStateViewModel.shared
     @StateObject private var router = AppRouter.shared
     @AppStorage("app.fontScale") private var fontScale: Double = 1.0
@@ -42,6 +45,8 @@ struct IsItSafeApp: App {
                     languageCode = preferred.hasPrefix("zh") ? "zh" : "en"
                     // 启动时触发网络预热
                     Task { await AuthService.shared.refreshTokenIfNeeded() }
+                    // V3-S1-5：申请通知权限（系统弹框幂等，授权后会异步触发 APNs 注册）
+                    PushService.shared.requestAuthorizationAndRegister()
                 }
                 // V3-E Universal Link：starlens.ai/i/{code} 拉起 App 直接进兑换流程
                 .onOpenURL { url in

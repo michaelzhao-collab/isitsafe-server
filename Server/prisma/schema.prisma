@@ -14,49 +14,50 @@ datasource db {
 // 1) users
 // --------------------------------------------
 model User {
-  id                 String     @id @default(cuid())
-  phone              String?    @unique
-  email              String?    @unique
-  username           String?    @unique @map("username") // 管理后台登录用，仅 ADMIN/SUPERADMIN 可设
-  passwordHash       String?    @map("password_hash")    // 管理后台密码 bcrypt，仅管理员
+  id                 String    @id @default(cuid())
+  phone              String?   @unique
+  email              String?   @unique
+  username           String?   @unique @map("username") // 管理后台登录用，仅 ADMIN/SUPERADMIN 可设
+  passwordHash       String?   @map("password_hash") // 管理后台密码 bcrypt，仅管理员
   country            String?
   avatar             String?
   nickname           String?
-  wechatNickname     String?    @map("wechat_nickname")  // 微信登录时的昵称，优先展示
-  gender             String     @default("unknown")
+  wechatNickname     String?   @map("wechat_nickname") // 微信登录时的昵称，优先展示
+  gender             String    @default("unknown")
   birthday           DateTime?
-  role               UserRole   @default(USER)
+  role               UserRole  @default(USER)
   /// 管理员禁用账号开关：true 后所有 JWT 请求被 401 拒绝；老用户 default false 不受影响
-  isDisabled         Boolean    @default(false) @map("is_disabled")
-  disabledAt         DateTime?  @map("disabled_at")
-  disabledReason     String?    @map("disabled_reason")
-  lastLogin          DateTime?  @map("last_login")
-  subscriptionStatus String     @default("free") @map("subscription_status") // free | premium
-  subscriptionExpire DateTime?  @map("subscription_expire")
-  createdAt          DateTime   @default(now()) @map("created_at")
+  isDisabled         Boolean   @default(false) @map("is_disabled")
+  disabledAt         DateTime? @map("disabled_at")
+  disabledReason     String?   @map("disabled_reason")
+  lastLogin          DateTime? @map("last_login")
+  subscriptionStatus String    @default("free") @map("subscription_status") // free | premium
+  subscriptionExpire DateTime? @map("subscription_expire")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   // ====== V3 一期扩展字段 ======
   /// 加入的家庭组 id；NULL 表示未加入任何家庭组
-  familyGroupId    String?    @map("family_group_id")
+  familyGroupId    String?   @map("family_group_id")
   /// 'personal' | 'family_owner' | 'family_member' — 用于业务侧快速判断；同步自 family_members 表
-  userLevel        String     @default("personal") @map("user_level")
+  userLevel        String    @default("personal") @map("user_level")
   /// 长辈模式开关（V3 J 模块）
-  elderModeEnabled Boolean    @default(false) @map("elder_mode_enabled")
+  elderModeEnabled Boolean   @default(false) @map("elder_mode_enabled")
   /// 用户偏好语言（zh | en）
-  language         String     @default("zh")
+  language         String    @default("zh")
   /// ISO 3166-2 地区码（CN-11/US-CA），用于 F 模块海外可见性 + B 情报本地化
-  regionCode       String?    @map("region_code")
+  regionCode       String?   @map("region_code")
   /// 最后活跃时间（用户真实主动打开 App），关怀机制核心依赖
-  lastActiveAt     DateTime?  @map("last_active_at")
+  lastActiveAt     DateTime? @map("last_active_at")
 
-  queries          Query[]
-  reports          Report[]
-  subscriptions    Subscription[]
-  messageReads    UserMessageRead[]
-  authIdentities  AuthIdentity[]
+  queries        Query[]
+  reports        Report[]
+  subscriptions  Subscription[]
+  messageReads   UserMessageRead[]
+  authIdentities AuthIdentity[]
+  devices        UserDevice[]
 
   // ====== V3 关联关系 ======
-  ownedFamilyGroups   FamilyGroup[]     @relation("FamilyGroupOwner")
+  ownedFamilyGroups   FamilyGroup[]         @relation("FamilyGroupOwner")
   familyMembers       FamilyMember[]
   userActivities      UserActivity[]
   triggeredBroadcasts FamilyBroadcast[]
@@ -77,18 +78,18 @@ model User {
 // V3-E 家庭守护：家庭组
 // --------------------------------------------
 model FamilyGroup {
-  id                  String   @id @default(cuid())
-  ownerUserId         String   @map("owner_user_id")
-  owner               User     @relation("FamilyGroupOwner", fields: [ownerUserId], references: [id])
-  name                String?  @db.VarChar(100)
-  inviteCode          String?  @unique @map("invite_code") @db.VarChar(20)
+  id                  String    @id @default(cuid())
+  ownerUserId         String    @map("owner_user_id")
+  owner               User      @relation("FamilyGroupOwner", fields: [ownerUserId], references: [id])
+  name                String?   @db.VarChar(100)
+  inviteCode          String?   @unique @map("invite_code") @db.VarChar(20)
   inviteCodeExpiresAt DateTime? @map("invite_code_expires_at")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  members      FamilyMember[]
-  careNotices  FamilyCareNotice[]
-  broadcasts   FamilyBroadcast[]
+  members     FamilyMember[]
+  careNotices FamilyCareNotice[]
+  broadcasts  FamilyBroadcast[]
 
   @@index([ownerUserId])
   @@map("family_groups")
@@ -119,10 +120,10 @@ model FamilyMember {
 // 复合主键 (user_id, date)；服务端 cron 每日扫描找出连续未活跃成员
 // --------------------------------------------
 model UserActivity {
-  userId        String   @map("user_id")
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date          DateTime @db.Date
-  activeCount   Int      @default(0) @map("active_count")
+  userId        String    @map("user_id")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime  @db.Date
+  activeCount   Int       @default(0) @map("active_count")
   firstActiveAt DateTime? @map("first_active_at")
   lastActiveAt  DateTime? @map("last_active_at")
 
@@ -156,26 +157,26 @@ model FamilyCareNotice {
 // 系统全网官方情报 + 用户上报 + 个人偏好 + 送达日志
 // --------------------------------------------
 model IntelAlert {
-  id              String   @id @default(cuid())
-  title           String   @db.VarChar(200)
-  summary         String   @db.Text
+  id              String    @id @default(cuid())
+  title           String    @db.VarChar(200)
+  summary         String    @db.Text
   /// TipTap JSON：套路 3 步图、配图等结构化内容
-  contentBlocks   Json?    @map("content_blocks")
+  contentBlocks   Json?     @map("content_blocks")
   /// 'impersonation' | 'phishing' | 'investment' | 'package' | ...
-  category        String   @db.VarChar(64)
+  category        String    @db.VarChar(64)
   /// 'normal' | 'high' | 'urgent'
-  severity        String   @db.VarChar(20)
+  severity        String    @db.VarChar(20)
   /// JSON 数组：['CN-11', 'US-CA', '*' 全球]
-  targetRegions   Json     @map("target_regions")
+  targetRegions   Json      @map("target_regions")
   /// JSON 数组：['elder', 'student', 'finance', '*' 全部]
-  targetAudiences Json     @map("target_audiences")
-  language        String   @default("zh") @db.VarChar(10)
-  sourceUrl       String?  @map("source_url") @db.VarChar(500)
+  targetAudiences Json      @map("target_audiences")
+  language        String    @default("zh") @db.VarChar(10)
+  sourceUrl       String?   @map("source_url") @db.VarChar(500)
   /// 'draft' | 'pending' | 'published' | 'archived'
-  status          String   @default("draft") @db.VarChar(20)
+  status          String    @default("draft") @db.VarChar(20)
   publishedAt     DateTime? @map("published_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   deliveries IntelDelivery[]
 
@@ -186,17 +187,17 @@ model IntelAlert {
 
 /// 用户上报情报（审核后可合并到 IntelAlert）
 model IntelSubmission {
-  id                String   @id @default(cuid())
-  userId            String   @map("user_id")
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category          String?  @db.VarChar(64)
-  content           String   @db.Text
-  attachments       Json?    /// R2 URLs 数组
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        String?  @db.VarChar(64)
+  content         String   @db.Text
+  attachments     Json? /// R2 URLs 数组
   /// 'pending' | 'approved' | 'rejected' | 'merged'
-  status            String   @default("pending") @db.VarChar(20)
-  mergedToIntelId   String?  @map("merged_to_intel_id")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  status          String   @default("pending") @db.VarChar(20)
+  mergedToIntelId String?  @map("merged_to_intel_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([status, createdAt])
@@ -238,31 +239,31 @@ model UserIntelPreferences {
 // triggered_by_user_id 用 cuid；R2 文件 24h 后自动删除（cron 维护）
 // --------------------------------------------
 model DeepfakeCheck {
-  id              String   @id @default(cuid())
-  userId          String   @map("user_id")
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// 一期仅 'voice'；二期 'video' / 'voiceprint'
-  checkType       String   @default("voice") @map("check_type") @db.VarChar(20)
+  checkType       String    @default("voice") @map("check_type") @db.VarChar(20)
   /// 'upload' | 'record' | 'share'
-  sourceType      String   @map("source_type") @db.VarChar(20)
+  sourceType      String    @map("source_type") @db.VarChar(20)
   /// R2 URL，24h 后清空（保留记录）
-  fileUrl         String?  @map("file_url") @db.VarChar(500)
-  fileDurationSec Int?     @map("file_duration_sec")
+  fileUrl         String?   @map("file_url") @db.VarChar(500)
+  fileDurationSec Int?      @map("file_duration_sec")
   /// 0.0000 ~ 1.0000 AI 合成概率
-  resultScore     Float?   @map("result_score")
+  resultScore     Float?    @map("result_score")
   /// 'low' | 'medium' | 'high'
-  resultLabel     String?  @map("result_label") @db.VarChar(20)
-  resultFeatures  Json?    @map("result_features")
-  aiProvider      String?  @map("ai_provider") @db.VarChar(50)
-  aiRawResponse   Json?    @map("ai_raw_response")
+  resultLabel     String?   @map("result_label") @db.VarChar(20)
+  resultFeatures  Json?     @map("result_features")
+  aiProvider      String?   @map("ai_provider") @db.VarChar(50)
+  aiRawResponse   Json?     @map("ai_raw_response")
   /// 'queued' | 'processing' | 'done' | 'failed'
-  status          String   @default("queued") @db.VarChar(20)
+  status          String    @default("queued") @db.VarChar(20)
   /// 用户反馈：'accurate' | 'inaccurate' | null
-  userFeedback    String?  @map("user_feedback") @db.VarChar(20)
-  createdAt       DateTime @default(now()) @map("created_at")
+  userFeedback    String?   @map("user_feedback") @db.VarChar(20)
+  createdAt       DateTime  @default(now()) @map("created_at")
   completedAt     DateTime? @map("completed_at")
   /// created_at + 24h，cron 清理 R2 文件
-  expiresAt       DateTime @map("expires_at")
+  expiresAt       DateTime  @map("expires_at")
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([expiresAt])
@@ -273,45 +274,45 @@ model DeepfakeCheck {
 // V3-F 暗网监控（仅海外）
 // --------------------------------------------
 model BreachTarget {
-  id                      String   @id @default(cuid())
-  userId                  String   @map("user_id")
-  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// 'email'（一期仅 email；二期 phone / cc）
-  targetType              String   @default("email") @map("target_type") @db.VarChar(20)
+  targetType            String    @default("email") @map("target_type") @db.VarChar(20)
   /// bcrypt(email)，用户能确认是自己的目标（展示用，脱敏字符串）
-  targetValueHash         String   @map("target_value_hash")
+  targetValueHash       String    @map("target_value_hash")
   /// SHA256(lower(email)) + user salt — HIBP 查询用（不可逆）
-  targetValueLookup       String   @map("target_value_lookup")
+  targetValueLookup     String    @map("target_value_lookup")
   /// AES-GCM 加密的真实邮箱（HIBP 调用时解密）；密钥 BREACH_AES_KEY 配置在 env
   /// 未配置密钥时为 null，HIBP 降级到 stub
-  targetValueEncrypted    String?  @map("target_value_encrypted")
-  verified                Boolean  @default(false)
-  verificationToken       String?  @map("verification_token")
-  verificationExpiresAt   DateTime? @map("verification_expires_at")
-  lastScannedAt           DateTime? @map("last_scanned_at")
-  createdAt               DateTime @default(now()) @map("created_at")
+  targetValueEncrypted  String?   @map("target_value_encrypted")
+  verified              Boolean   @default(false)
+  verificationToken     String?   @map("verification_token")
+  verificationExpiresAt DateTime? @map("verification_expires_at")
+  lastScannedAt         DateTime? @map("last_scanned_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
 
   alerts BreachAlert[]
 
+  @@unique([userId, targetValueLookup])
   @@index([userId])
   @@index([verified, lastScannedAt])
-  @@unique([userId, targetValueLookup])
   @@map("breach_targets")
 }
 
 model BreachAlert {
-  id            String       @id @default(cuid())
-  targetId      String       @map("target_id")
-  target        BreachTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
-  userId        String       @map("user_id")
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  breachSource  String       @map("breach_source") @db.VarChar(50)  // 'HIBP' | 'DeHashed'
-  breachName    String       @map("breach_name") @db.VarChar(200)
-  breachDate    DateTime?    @map("breach_date") @db.Date
-  exposedData   Json         @map("exposed_data")  // ['email','password','phone']
-  severity      String       @db.VarChar(20)        // 'low' | 'medium' | 'high'
-  dismissed     Boolean      @default(false)
-  createdAt     DateTime     @default(now()) @map("created_at")
+  id           String       @id @default(cuid())
+  targetId     String       @map("target_id")
+  target       BreachTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+  userId       String       @map("user_id")
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  breachSource String       @map("breach_source") @db.VarChar(50) // 'HIBP' | 'DeHashed'
+  breachName   String       @map("breach_name") @db.VarChar(200)
+  breachDate   DateTime?    @map("breach_date") @db.Date
+  exposedData  Json         @map("exposed_data") // ['email','password','phone']
+  severity     String       @db.VarChar(20) // 'low' | 'medium' | 'high'
+  dismissed    Boolean      @default(false)
+  createdAt    DateTime     @default(now()) @map("created_at")
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("breach_alerts")
@@ -320,7 +321,10 @@ model BreachAlert {
 // --------------------------------------------
 // V3-E 官方匿名广播
 // triggeredByUserId 仅服务端可见，DTO 必须 @Exclude 不返回给前端
-// 排重：同家庭同 contentHash 当日仅 1 条（service 层校验，因 Prisma 不支持 partial unique）
+// 排重：同家庭同 contentHash 当日仅 1 条
+//   DB 层 partial unique 索引 family_broadcasts_group_hash_day_unique
+//   见 migrations/20260529000100_v3_007_family_broadcast_unique（Prisma schema
+//   无法表达表达式索引，必须靠 SQL migration 维护）。
 // --------------------------------------------
 model FamilyBroadcast {
   id                String      @id @default(cuid())
@@ -354,17 +358,46 @@ enum UserRole {
   SUPERADMIN
 }
 
+// --------------------------------------------
+// V3-S1-5 推送设备登记
+// 一个 deviceToken 全局唯一（同一台设备换用户登录时会迁移归属）；
+// 同一个 user 可有多个设备（手机 + iPad）。
+// platform = 'ios' | 'android'（一期仅 ios，但预留）
+// environment = 'production' | 'sandbox'（决定走 api.push.apple.com 还是 sandbox）
+// --------------------------------------------
+model UserDevice {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceToken       String   @unique @map("device_token") @db.VarChar(255)
+  platform          String   @db.VarChar(16)
+  environment       String   @default("production") @map("environment") @db.VarChar(16)
+  appVersion        String?  @map("app_version") @db.VarChar(32)
+  locale            String?  @db.VarChar(16)
+  /// 推送失败累计计数；超阈值视作 token 失效，清理时使用
+  failureCount      Int      @default(0) @map("failure_count")
+  /// 上次推送失败 reason（APNs response 的 reason 字段或本地错误码）
+  lastFailureReason String?  @map("last_failure_reason") @db.VarChar(64)
+  lastSeenAt        DateTime @default(now()) @map("last_seen_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([failureCount])
+  @@map("user_devices")
+}
+
 model AuthIdentity {
-  id            String       @id @default(cuid())
-  userId        String       @map("user_id")
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   provider      String
-  providerSub   String       @map("provider_sub")
-  providerEmail String?      @map("provider_email")
-  providerPhone String?      @map("provider_phone")
-  isVerified    Boolean      @default(true) @map("is_verified")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  providerSub   String   @map("provider_sub")
+  providerEmail String?  @map("provider_email")
+  providerPhone String?  @map("provider_phone")
+  isVerified    Boolean  @default(true) @map("is_verified")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@unique([provider, providerSub])
   @@index([userId])
@@ -377,19 +410,19 @@ model AuthIdentity {
 // 2) queries（user_id 可空，未登录也能问）
 // --------------------------------------------
 model Query {
-  id              String       @id @default(cuid())
-  userId          String?      @map("user_id")
-  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  conversationId  String?      @map("conversation_id") // 同一对话内多条消息共用一个 id，历史按会话聚合为一条
-  inputType       String       @map("input_type") // text | phone | url | company | screenshot
-  content         String       @db.Text
-  imageUrl        String?      @map("image_url")   // 用户上传的截图/图片 CDN 地址，供后台展示
-  resultJson      Json?        @map("result_json")
-  riskLevel       String?      @map("risk_level")
-  confidence      Int?
-  aiProvider      String?      @map("ai_provider")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  deletedAt       DateTime?    @map("deleted_at") // 软删除：不为空则不展示给用户
+  id             String    @id @default(cuid())
+  userId         String?   @map("user_id")
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  conversationId String?   @map("conversation_id") // 同一对话内多条消息共用一个 id，历史按会话聚合为一条
+  inputType      String    @map("input_type") // text | phone | url | company | screenshot
+  content        String    @db.Text
+  imageUrl       String?   @map("image_url") // 用户上传的截图/图片 CDN 地址，供后台展示
+  resultJson     Json?     @map("result_json")
+  riskLevel      String?   @map("risk_level")
+  confidence     Int?
+  aiProvider     String?   @map("ai_provider")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  deletedAt      DateTime? @map("deleted_at") // 软删除：不为空则不展示给用户
 
   reports Report[] @relation("ReportRelatedQuery")
 
@@ -405,7 +438,7 @@ model Query {
 // --------------------------------------------
 model RiskData {
   id           String   @id @default(cuid())
-  type         String   // phone | url | company | wallet | keyword
+  type         String // phone | url | company | wallet | keyword
   content      String   @db.Text
   riskLevel    String   @map("risk_level") // high | medium | low
   riskCategory String?  @map("risk_category")
@@ -424,21 +457,21 @@ model RiskData {
 // 4) knowledge_cases（RAG 关键词检索用）
 // --------------------------------------------
 model KnowledgeCase {
-  id        String   @id @default(cuid())
-  title     String
-  category  String
+  id            String   @id @default(cuid())
+  title         String
+  category      String
   // content 为纯文本（用于 RAG 关键词搜索 + 旧客户端兼容）；若 contentBlocks 存在则由其自动派生纯文本写入此字段
-  content   String   @db.Text
+  content       String   @db.Text
   // 文章结构化内容：TipTap JSON（type/content/attrs），iOS 端按 block 类型原生渲染
   // null 表示旧的纯文本案例；客户端遇 null 时降级展示 content 字段
-  contentBlocks Json? @map("content_blocks")
+  contentBlocks Json?    @map("content_blocks")
   // 封面图（可选）：列表页缩略图与详情页顶图，R2 URL
-  coverImage String? @map("cover_image")
-  tags      Json     @default("[]") // JSON 数组
-  language  String   @default("zh")
-  source    String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  coverImage    String?  @map("cover_image")
+  tags          Json     @default("[]") // JSON 数组
+  language      String   @default("zh")
+  source        String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@index([category])
   @@index([language])
@@ -468,7 +501,7 @@ model Report {
   id             String       @id @default(cuid())
   userId         String?      @map("user_id")
   user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
-  type           String       // text | phone | url | screenshot
+  type           String // text | phone | url | screenshot
   content        String       @db.Text
   status         ReportStatus @default(PENDING)
   relatedQueryId String?      @map("related_query_id")
@@ -492,34 +525,34 @@ enum ReportStatus {
 // 6) subscriptions
 // --------------------------------------------
 model Subscription {
-  id             String    @id @default(cuid())
-  userId         String    @map("user_id")
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productId      String    @map("product_id")
-  planType       String    @default("monthly") @map("plan_type") // weekly | monthly | yearly
-  status         String    // active | expired | cancelled | refunded | revoked
-  expireTime     DateTime  @map("expire_time")
-  transactionId  String?   @map("transaction_id")
-  originalTransactionId String? @map("original_transaction_id")
-  latestTransactionId String? @map("latest_transaction_id")
-  environment    String?   @db.VarChar(20)
-  autoRenewStatus Boolean? @map("auto_renew_status")
-  purchaseTime   DateTime? @map("purchase_time")
-  refundedAt     DateTime? @map("refunded_at")
-  revokedAt      DateTime? @map("revoked_at")
-  lastEventType  String?   @map("last_event_type") @db.VarChar(80)
-  historyLog     Json?     @map("history_log")
-  paymentMethod  String    @map("payment_method") // Apple | Google
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId             String    @map("product_id")
+  planType              String    @default("monthly") @map("plan_type") // weekly | monthly | yearly
+  status                String // active | expired | cancelled | refunded | revoked
+  expireTime            DateTime  @map("expire_time")
+  transactionId         String?   @map("transaction_id")
+  originalTransactionId String?   @map("original_transaction_id")
+  latestTransactionId   String?   @map("latest_transaction_id")
+  environment           String?   @db.VarChar(20)
+  autoRenewStatus       Boolean?  @map("auto_renew_status")
+  purchaseTime          DateTime? @map("purchase_time")
+  refundedAt            DateTime? @map("refunded_at")
+  revokedAt             DateTime? @map("revoked_at")
+  lastEventType         String?   @map("last_event_type") @db.VarChar(80)
+  historyLog            Json?     @map("history_log")
+  paymentMethod         String    @map("payment_method") // Apple | Google
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
+  // 防并发竞态：同一 Apple transactionId 不能产生重复记录
+  // 历史脏数据需先用 dedupe 迁移清理（见 add_subscription_unique_indexes 迁移）
+  @@unique([transactionId], map: "subscriptions_transaction_id_uq")
   @@index([userId])
   @@index([status, expireTime])
   @@index([originalTransactionId])
   @@index([latestTransactionId])
-  // 防并发竞态：同一 Apple transactionId 不能产生重复记录
-  // 历史脏数据需先用 dedupe 迁移清理（见 add_subscription_unique_indexes 迁移）
-  @@unique([transactionId], map: "subscriptions_transaction_id_uq")
   @@map("subscriptions")
 }
 
@@ -527,22 +560,27 @@ model Subscription {
 // 会员套餐配置表（Admin 管理，iOS 通过 GET /api/membership/plans 拉取）
 // --------------------------------------------
 model MembershipPlan {
-  id             String   @id @default(cuid())
-  name           String   @db.VarChar(100)
-  productId      String   @map("product_id") @db.VarChar(64)
-  price          Float
-  currency       String   @db.VarChar(10)
-  period         String   @db.VarChar(20) // weekly | monthly | yearly
-  description    String?  @db.Text
-  introPrice     Float?   @map("intro_price")
-  introPeriod    String?  @map("intro_period") @db.VarChar(20)
-  firstPurchaseOnly Boolean @default(false) @map("first_purchase_only")
-  isActive       Boolean  @default(true) @map("is_active")
-  sortOrder      Int      @default(0) @map("sort_order")
-  isRecommended  Boolean  @default(false) @map("is_recommended")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id                String   @id @default(cuid())
+  name              String   @db.VarChar(100)
+  productId         String   @map("product_id") @db.VarChar(64)
+  price             Float
+  currency          String   @db.VarChar(10)
+  period            String   @db.VarChar(20) // weekly | monthly | yearly
+  /// V3 新增：套餐档位
+  /// 'personal'：单用户配额
+  /// 'family'：家庭 owner 付费 → 同家庭全员共享配额（详见 query 配额体系）
+  tier              String   @default("personal") @db.VarChar(20)
+  description       String?  @db.Text
+  introPrice        Float?   @map("intro_price")
+  introPeriod       String?  @map("intro_period") @db.VarChar(20)
+  firstPurchaseOnly Boolean  @default(false) @map("first_purchase_only")
+  isActive          Boolean  @default(true) @map("is_active")
+  sortOrder         Int      @default(0) @map("sort_order")
+  isRecommended     Boolean  @default(false) @map("is_recommended")
+  createdAt         DateTime @default(now()) @map("created_at")
 
   @@index([isActive])
+  @@index([tier, isActive])
   @@map("membership_plans")
 }
 
@@ -550,13 +588,13 @@ model MembershipPlan {
 // 7) ai_logs（调用日志）
 // --------------------------------------------
 model AiLog {
-  id        String   @id @default(cuid())
-  provider  String
-  model     String?
-  tokens    Int?
-  latencyMs Int?     @map("latency_ms")
-  promptHash String? @map("prompt_hash")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid())
+  provider   String
+  model      String?
+  tokens     Int?
+  latencyMs  Int?     @map("latency_ms")
+  promptHash String?  @map("prompt_hash")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([createdAt])
   @@map("ai_logs")
@@ -581,14 +619,14 @@ model AdminAuditLog {
 // 9) settings（MVP 可先读 env，预留后台修改）
 // --------------------------------------------
 model Settings {
-  id              String   @id @default(cuid())
-  defaultProvider String   @map("default_provider") // doubao | deepseek | openai | other
-  fallbackProvider String? @map("fallback_provider") // 主 provider 失败时切换的备用 provider；null 表示不切换
-  doubaoKey       String?  @map("doubao_key")
-  deepseekKey     String?  @map("deepseek_key")
-  openaiKey       String?  @map("openai_key")
-  aiBaseUrl       String?  @map("ai_base_url")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(cuid())
+  defaultProvider  String   @map("default_provider") // doubao | deepseek | openai | other
+  fallbackProvider String?  @map("fallback_provider") // 主 provider 失败时切换的备用 provider；null 表示不切换
+  doubaoKey        String?  @map("doubao_key")
+  deepseekKey      String?  @map("deepseek_key")
+  openaiKey        String?  @map("openai_key")
+  aiBaseUrl        String?  @map("ai_base_url")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("settings")
 }
