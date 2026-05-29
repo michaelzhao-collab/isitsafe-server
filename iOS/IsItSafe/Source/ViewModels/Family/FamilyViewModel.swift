@@ -86,7 +86,7 @@ public final class FamilyViewModel: ObservableObject {
 
     // MARK: - 兑换邀请码
 
-    public func redeemInvite(code: String) async -> Bool {
+    public func redeemInvite(code: String, parentConsent: Bool? = nil) async -> Bool {
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         guard trimmed.count == 6 else {
             state = .error("邀请码应为 6 位字符")
@@ -95,7 +95,7 @@ public final class FamilyViewModel: ObservableObject {
         inflightAction = "redeem"
         defer { inflightAction = nil }
         do {
-            _ = try await repo.redeemInvite(code: trimmed)
+            _ = try await repo.redeemInvite(code: trimmed, parentConsent: parentConsent)
             refresh()
             return true
         } catch {

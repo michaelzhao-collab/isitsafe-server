@@ -15,6 +15,8 @@ public enum APIEndpoint {
     case authRegionHint
     case authLogout
     case authDeleteAccount
+    /// S3-5 数据导出（GDPR / 个保法 right of access）
+    case authExportData
     case authUserInfo
     case authRefreshToken
     case aiAnalyze
@@ -117,6 +119,7 @@ public enum APIEndpoint {
         case .authRegionHint: return "/api/auth/region-hint"
         case .authLogout: return "/api/auth/logout"
         case .authDeleteAccount: return "/api/auth/delete-account"
+        case .authExportData: return "/api/auth/export-data"
         case .authUserInfo: return "/api/auth/userinfo"
         case .authRefreshToken: return "/api/auth/refresh-token"
         case .aiAnalyze: return "/api/ai/analyze"
@@ -188,7 +191,7 @@ public enum APIEndpoint {
 
     public var method: HTTPMethod {
         switch self {
-        case .health, .authUserInfo, .authRegionHint, .queryHistory, .queryTags, .knowledgeList, .knowledgeCategories, .knowledgeDetail, .subscriptionStatus, .membershipPlans, .messagesList, .messageUnreadCount, .publicConfig,
+        case .health, .authUserInfo, .authExportData, .authRegionHint, .queryHistory, .queryTags, .knowledgeList, .knowledgeCategories, .knowledgeDetail, .subscriptionStatus, .membershipPlans, .messagesList, .messageUnreadCount, .publicConfig,
              .v3FamilyGetMyGroup, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
              .v3IntelFeed, .v3IntelDetail, .v3IntelCategories, .v3IntelUnreadCount,
              .v3IntelMySubmissions, .v3IntelGetPreferences,
@@ -220,7 +223,7 @@ public enum APIEndpoint {
     /// 是否需要携带 Authorization（有 token 就带，无 token 不报错）
     public var requiresAuth: Bool {
         switch self {
-        case .authLogout, .authDeleteAccount, .authUserInfo, .subscriptionVerify, .subscriptionStatus, .uploadAvatar, .uploadFile, .updateProfile, .deleteQuery, .deleteQueryConversation, .queryHistory, .messagesList, .messageUnreadCount, .messageMarkRead, .feedbackSubmit,
+        case .authLogout, .authDeleteAccount, .authExportData, .authUserInfo, .subscriptionVerify, .subscriptionStatus, .uploadAvatar, .uploadFile, .updateProfile, .deleteQuery, .deleteQueryConversation, .queryHistory, .messagesList, .messageUnreadCount, .messageMarkRead, .feedbackSubmit,
              .v3UserHeartbeat, .v3UserElderMode, .v3UserRegisterDevice,
              .v3FamilyCreateGroup, .v3FamilyGetMyGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyDissolveGroup, .v3FamilyRemoveMember, .v3FamilyUpdatePreferences,

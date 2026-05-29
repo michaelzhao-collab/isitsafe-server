@@ -24,6 +24,7 @@ import { AdminRiskDataController } from './admin-risk-data.controller';
 import { AdminV3Controller } from './admin-v3.controller';
 import { TurnstileService } from './turnstile.service';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
+import { AdminAuditLogService } from './audit/audit-log.service';
 
 @Module({
   imports: [AuthModule, ReportModule, KnowledgeModule, SubscriptionModule, SettingsModule, RedisModule],
@@ -45,6 +46,7 @@ import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
     AdminRiskDataController,
     AdminV3Controller,
   ],
-  providers: [AdminRoleGuard, AdminAuthService, TurnstileService],
+  providers: [AdminRoleGuard, AdminAuthService, TurnstileService, AdminAuditLogService],
+  exports: [AdminAuditLogService],
 })
 export class AdminModule {}

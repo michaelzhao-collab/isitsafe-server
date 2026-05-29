@@ -86,7 +86,9 @@ export class FamilyController {
 
   @Post('invites/redeem')
   async redeemInvite(@CurrentUser('sub') userId: string, @Body() dto: RedeemInviteDto) {
-    const member = await this.family.redeemInviteCode(userId, dto.inviteCode);
+    const member = await this.family.redeemInviteCode(userId, dto.inviteCode, {
+      parentConsent: dto.parentConsent,
+    });
     return { groupId: member.groupId, joinedAt: member.joinedAt };
   }
 

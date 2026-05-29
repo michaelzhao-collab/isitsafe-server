@@ -49,6 +49,12 @@ model User {
   /// 最后活跃时间（用户真实主动打开 App），关怀机制核心依赖
   lastActiveAt     DateTime? @map("last_active_at")
 
+  // ====== V3-S3-3 COPPA / 未成年人 ======
+  /// 是否标记为未成年（注册时按 birthday 自动推算 或 自报）
+  isMinor          Boolean   @default(false) @map("is_minor")
+  /// 监护人同意时间戳；NULL = 未勾选；用于家庭组加入审计
+  parentConsentAt  DateTime? @map("parent_consent_at")
+
   queries        Query[]
   reports        Report[]
   subscriptions  Subscription[]
@@ -71,6 +77,7 @@ model User {
   @@index([familyGroupId])
   @@index([lastActiveAt(sort: Desc)])
   @@index([regionCode])
+  @@index([isMinor])
   @@map("users")
 }
 
@@ -80,7 +87,8 @@ model User {
 model FamilyGroup {
   id                  String    @id @default(cuid())
   ownerUserId         String    @map("owner_user_id")
-  owner               User      @relation("FamilyGroupOwner", fields: [ownerUserId], references: [id])
+  // S3-4：owner 删号 = 家庭组解散（避免孤立的无主组）
+  owner               User      @relation("FamilyGroupOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   name                String?   @db.VarChar(100)
   inviteCode          String?   @unique @map("invite_code") @db.VarChar(20)
   inviteCodeExpiresAt DateTime? @map("invite_code_expires_at")
@@ -334,8 +342,9 @@ model FamilyBroadcast {
   groupId           String      @map("group_id")
   group             FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   /// ⚠️ 隐私：仅服务端可见，前端 DTO 必须排除
-  triggeredByUserId String      @map("triggered_by_user_id")
-  triggeredBy       User        @relation(fields: [triggeredByUserId], references: [id])
+  /// S3-4：用户删号后置空（CASCADE 会丢失历史；SET NULL 保历史但去匿名化）
+  triggeredByUserId String?     @map("triggered_by_user_id")
+  triggeredBy       User?       @relation(fields: [triggeredByUserId], references: [id], onDelete: SetNull)
   /// phone | url | sms | voice
   contentType       String      @map("content_type")
   /// sha256(normalized_content)，用于当日排重
@@ -607,13 +616,26 @@ model AiLog {
 // 8) admin_audit_logs（操作审计）
 // --------------------------------------------
 model AdminAuditLog {
-  id        String   @id @default(cuid())
-  adminId   String   @map("admin_id")
-  action    String
-  targetId  String?  @map("target_id")
-  createdAt DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid())
+  adminId     String   @map("admin_id")
+  /// 操作动作：user.disable / user.enable / family.broadcast.recall / intel.publish / ...
+  action      String   @db.VarChar(80)
+  /// 目标类型：user / family_broadcast / intel_alert / ...
+  targetType  String?  @map("target_type") @db.VarChar(40)
+  targetId    String?  @map("target_id")
+  /// S3-7：操作前快照（部分字段）；用于审计回放
+  beforeValue Json?    @map("before_value")
+  /// 操作后快照（部分字段）
+  afterValue  Json?    @map("after_value")
+  /// 操作来源 IP（X-Forwarded-For 取第一个）
+  ipAddress   String?  @map("ip_address") @db.VarChar(64)
+  /// User-Agent 截断 256 字符
+  userAgent   String?  @map("user_agent") @db.VarChar(256)
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([adminId])
+  @@index([targetType, targetId])
+  @@index([action, createdAt(sort: Desc)])
   @@index([createdAt])
   @@map("admin_audit_logs")
 }

@@ -1,13 +1,17 @@
-import { Controller, Get, Post, Put, Param, Query, Body, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Param, Query, Body, UseGuards, ForbiddenException, Req } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AdminAuditLogService } from './audit/audit-log.service';
 
 @Controller('admin/users')
 @UseGuards(JwtAuthGuard, AdminRoleGuard)
 export class AdminUsersController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AdminAuditLogService,
+  ) {}
 
   /**
    * 批量回填历史 country 为空的用户
@@ -166,14 +170,15 @@ export class AdminUsersController {
     @CurrentUser('role') operatorRole: string,
     @Param('id') id: string,
     @Body('status') status: string,
-    @Body('reason') reason?: string,
+    @Body('reason') reason: string | undefined,
+    @Req() req: any,
   ) {
     if (id === operatorId) {
       throw new ForbiddenException('不能对自己执行禁用/解封操作');
     }
     const target = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true },
+      select: { id: true, role: true, isDisabled: true, disabledReason: true },
     });
     if (!target) {
       throw new ForbiddenException('用户不存在');
@@ -195,15 +200,15 @@ export class AdminUsersController {
     });
     // 立即让 jwt-auth.guard 的缓存失效，避免最长 60s 延迟
     JwtAuthGuard.invalidateUser(id);
-    // 操作审计（轻量级 console.log；后续可落表）
-    console.log('[ADMIN_USER_STATUS_CHANGED]', {
-      operator: operatorId,
-      operatorRole,
-      target: id,
-      targetRole: target.role,
-      action: disable ? 'disable' : 'enable',
-      reason: reason ?? null,
-      at: new Date().toISOString(),
+    // S3-7：审计日志落表（取代原 console.log）
+    await this.audit.record({
+      adminId: operatorId,
+      action: disable ? 'user.disable' : 'user.enable',
+      targetType: 'user',
+      targetId: id,
+      before: { isDisabled: target.isDisabled, disabledReason: target.disabledReason },
+      after: { isDisabled: disable, disabledReason: disable ? (reason ?? null) : null },
+      req,
     });
     return { id, status: disable ? 'disabled' : 'active', success: true };
   }

@@ -10,6 +10,7 @@ import { NotificationService } from '../notification/notification.service';
 import { RedisService } from '../../redis/redis.service';
 import { EntitlementService } from '../quota/entitlement.service';
 import { randomBytes, createHash } from 'crypto';
+import { regionToTimezone, daysDiffInTz, localHour } from '../../common/utils/region-timezone';
 
 const MAX_FAMILY_MEMBERS = 5;
 const INVITE_CODE_TTL_DAYS = 7;
@@ -268,7 +269,19 @@ export class FamilyService {
     return { code, expiresAt };
   }
 
-  async redeemInviteCode(userId: string, inviteCode: string) {
+  /**
+   * 兑换邀请码加入家庭组
+   *
+   * S3-3 COPPA：
+   *   - 已标记 is_minor 的用户：必须传 parentConsent=true，且服务端落 parent_consent_at
+   *   - 非 minor 用户：parentConsent 字段忽略（也允许传）
+   *   - 一期不主动检查 birthday → minor；交由客户端在注册流程中自报
+   */
+  async redeemInviteCode(
+    userId: string,
+    inviteCode: string,
+    opts: { parentConsent?: boolean } = {},
+  ) {
     const group = await this.prisma.familyGroup.findUnique({
       where: { inviteCode },
     });
@@ -288,6 +301,18 @@ export class FamilyService {
       throw new BadRequestException('Family group is full');
     }
 
+    // COPPA：is_minor 必须勾选监护人同意
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isMinor: true, parentConsentAt: true },
+    });
+    if (u?.isMinor && !u.parentConsentAt && !opts.parentConsent) {
+      throw new ForbiddenException({
+        code: 'parental_consent_required',
+        message: 'Parental consent is required for minors to join a family group',
+      });
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const member = await tx.familyMember.create({
         data: {
@@ -298,7 +323,12 @@ export class FamilyService {
       });
       await tx.user.update({
         where: { id: userId },
-        data: { familyGroupId: group.id, userLevel: 'family_member' },
+        data: {
+          familyGroupId: group.id,
+          userLevel: 'family_member',
+          // 首次勾选则记录时间；后续保持原值
+          parentConsentAt: opts.parentConsent && !u?.parentConsentAt ? new Date() : undefined,
+        },
       });
       return member;
     });
@@ -678,21 +708,18 @@ export class FamilyService {
   //   - 连续 3 天 → push + sms（每家庭 1 条/天限）
   //   - 重新活跃 → 自动清除未发送的提醒（不需要主动取消，cron 时检查 last_active_at）
   // ====================================================================
-  async scanInactiveMembers(): Promise<{
+  async scanInactiveMembers(opts: { ignoreLocalHourWindow?: boolean } = {}): Promise<{
     scanned: number;
     notified2days: number;
     notified3plus: number;
     smsSent: number;
+    skippedOffHours: number;
   }> {
-    const now = Date.now();
-    const dayMs = 24 * 3600 * 1000;
-    const today0 = new Date();
-    today0.setHours(0, 0, 0, 0);
+    const now = new Date();
 
     // 1) 查所有加入了家庭组的用户
     const candidates = await this.prisma.familyMember.findMany({
       where: {
-        // 排除 owner-only group（单人家庭组无人需要被提醒）
         group: {
           members: { some: {} },
         },
@@ -708,12 +735,26 @@ export class FamilyService {
     let notified2days = 0;
     let notified3plus = 0;
     let smsSent = 0;
+    let skippedOffHours = 0;
 
     for (const candidate of candidates) {
       const lastActive = candidate.user.lastActiveAt;
       if (!lastActive) continue;
 
-      const daysInactive = Math.floor((now - lastActive.getTime()) / dayMs);
+      // S3-6 时区：按本人 region_code 映射本地 tz；缺失则 fallback UTC
+      const tz = regionToTimezone(candidate.user.regionCode);
+
+      // 仅在本地 9-22 点触发新提醒（凌晨/深夜不打扰）；admin 手动 runNow 忽略此限制
+      if (!opts.ignoreLocalHourWindow) {
+        const hour = localHour(now, tz);
+        if (hour < 9 || hour >= 22) {
+          skippedOffHours += 1;
+          continue;
+        }
+      }
+
+      // 按本人本地日历计算"未活跃天数"
+      const daysInactive = daysDiffInTz(lastActive, now, tz);
       if (daysInactive < 2) continue;
 
       // 同家庭其他成员（不含本人）
@@ -722,13 +763,13 @@ export class FamilyService {
       );
       if (otherMembers.length === 0) continue;
 
-      // 今日已发过提醒就跳过（per group + inactive_user 一天 1 次）
-      const todayStartDate = new Date(today0);
+      // 本地今天已发过 notice？查最近 20 小时（覆盖时区切换 + DST 边界，绝不重复轰炸）
+      const recentWindow = new Date(now.getTime() - 20 * 3600 * 1000);
       const alreadySent = await this.prisma.familyCareNotice.findFirst({
         where: {
           groupId: candidate.groupId,
           inactiveUserId: candidate.userId,
-          sentAt: { gte: todayStartDate },
+          sentAt: { gte: recentWindow },
         },
       });
       if (alreadySent) continue;
@@ -736,12 +777,12 @@ export class FamilyService {
       // 决定 channel：< 3 天只 push；≥ 3 天 push + sms
       const channels: ('push' | 'sms')[] = daysInactive >= 3 ? ['push', 'sms'] : ['push'];
 
-      // 每个家庭每天最多 1 条 SMS（防止成本失控）
+      // 每个家庭近 20 小时最多 1 条 SMS（防止成本失控）
       const smsAlreadySent = await this.prisma.familyCareNotice.findFirst({
         where: {
           groupId: candidate.groupId,
           channel: 'sms',
-          sentAt: { gte: todayStartDate },
+          sentAt: { gte: recentWindow },
         },
       });
 
@@ -750,10 +791,7 @@ export class FamilyService {
       );
       if (finalChannels.length === 0) continue;
 
-      // 调用通知层（push + sms 各自实现；这里先记录，实际发送由 worker 处理）
       const notifiedIds = otherMembers.map((m) => m.userId);
-
-      // 文案
       const inactiveDisplayName =
         candidate.user.nickname || candidate.user.wechatNickname || '家人';
 
@@ -769,7 +807,6 @@ export class FamilyService {
         });
 
         if (channel === 'push') {
-          // 给同家庭其他成员发 push
           await this.notification.sendPushBatch(
             otherMembers.map((m) => ({
               userId: m.userId,
@@ -785,7 +822,6 @@ export class FamilyService {
           );
         } else if (channel === 'sms') {
           smsSent += 1;
-          // 给同家庭其他成员发短信（按 region 路由）
           for (const m of otherMembers) {
             const phone = m.user.phone;
             if (!phone) continue;
@@ -814,6 +850,7 @@ export class FamilyService {
       notified2days,
       notified3plus,
       smsSent,
+      skippedOffHours,
     };
   }
 

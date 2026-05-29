@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OverseaOnlyGuard } from '../../common/guards/oversea-only.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { BreachService } from './breach.service';
 import { IsEmail, IsString, MaxLength } from 'class-validator';
@@ -29,7 +30,7 @@ class VerifyTargetDto {
  * 路由前缀：/api/v3/breach
  */
 @Controller('v3/breach')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, OverseaOnlyGuard)
 export class BreachController {
   constructor(private breach: BreachService) {}
 

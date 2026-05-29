@@ -181,9 +181,14 @@ public struct CreateFamilyGroupResponse: Codable {
 }
 
 /// 兑换邀请码请求
+/// S3-3：parentConsent 用于未成年人 COPPA 合规；非 minor 用户传 nil 即可
 public struct RedeemInviteRequest: Codable {
     public let inviteCode: String
-    public init(inviteCode: String) { self.inviteCode = inviteCode }
+    public let parentConsent: Bool?
+    public init(inviteCode: String, parentConsent: Bool? = nil) {
+        self.inviteCode = inviteCode
+        self.parentConsent = parentConsent
+    }
 }
 
 /// 兑换邀请码响应

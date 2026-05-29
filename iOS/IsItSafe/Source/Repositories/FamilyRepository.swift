@@ -78,10 +78,14 @@ public final class FamilyRepository {
     }
 
     /// 兑换邀请码
-    public func redeemInvite(code: String) async throws -> RedeemInviteResponse {
+    /// - parentConsent: S3-3 COPPA 合规，未成年用户必须勾选；非 minor 用户传 nil 即可
+    public func redeemInvite(
+        code: String,
+        parentConsent: Bool? = nil,
+    ) async throws -> RedeemInviteResponse {
         try await network.request(
             endpoint: .v3FamilyRedeemInvite,
-            body: RedeemInviteRequest(inviteCode: code)
+            body: RedeemInviteRequest(inviteCode: code, parentConsent: parentConsent)
         )
     }
 

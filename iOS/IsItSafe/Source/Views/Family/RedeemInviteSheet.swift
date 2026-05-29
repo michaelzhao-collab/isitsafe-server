@@ -14,6 +14,9 @@ public struct RedeemInviteSheet: View {
     @State private var code: String = ""
     @State private var submitting = false
     @State private var errorMessage: String?
+    /// S3-3 COPPA：默认勾上"我已年满 13 岁或已获得监护人同意"
+    /// 用户主动取消勾选 → 提交按钮置灰。服务端会落审计 parent_consent_at。
+    @State private var consentConfirmed: Bool = true
 
     private let prefilledCode: String?
 
@@ -31,6 +34,7 @@ public struct RedeemInviteSheet: View {
                 hero
                 codeField
                 tipCard
+                consentCheckbox
                 submitButton
                 Spacer()
             }
@@ -105,6 +109,27 @@ public struct RedeemInviteSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
     }
 
+    /// S3-3 COPPA 合规勾选；默认勾上以减少摩擦，用户可主动取消
+    private var consentCheckbox: some View {
+        Button {
+            consentConfirmed.toggle()
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: consentConfirmed ? "checkmark.square.fill" : "square")
+                    .foregroundColor(consentConfirmed ? AppTheme.primary : AppTheme.textSecondary)
+                    .font(.system(size: 18))
+                Text(languageCode == "en"
+                     ? "I am at least 13 years old, or my parent/guardian consents to me joining this family group."
+                     : "我已年满 13 岁，或已获得监护人同意加入此家庭组。")
+                    .font(.caption)
+                    .foregroundColor(AppTheme.textSecondary)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
     private var submitButton: some View {
         Button {
             submit()
@@ -117,10 +142,14 @@ public struct RedeemInviteSheet: View {
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(code.count == 6 ? AppTheme.primary : AppTheme.primary.opacity(0.4))
+            .background(canSubmit ? AppTheme.primary : AppTheme.primary.opacity(0.4))
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
         }
-        .disabled(code.count != 6 || submitting)
+        .disabled(!canSubmit)
+    }
+
+    private var canSubmit: Bool {
+        code.count == 6 && consentConfirmed && !submitting
     }
 
     private func submit() {
@@ -133,7 +162,8 @@ public struct RedeemInviteSheet: View {
         submitting = true
         errorMessage = nil
         Task {
-            let ok = await vm.redeemInvite(code: code)
+            // 用户勾上即视为给出 parentConsent 证据；服务端只在 isMinor=true 时强制要求
+            let ok = await vm.redeemInvite(code: code, parentConsent: consentConfirmed)
             submitting = false
             if ok { dismiss() }
             else if case .error(let msg) = vm.state {

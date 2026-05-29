@@ -67,6 +67,17 @@ export class AuthController {
     return this.auth.deleteAccount(userId);
   }
 
+  /**
+   * S3-5 用户数据导出（GDPR / 个保法 right of access）
+   * GET /api/auth/export-data
+   * 返回完整 JSON，二进制以 URL 形式包含
+   */
+  @Get('export-data')
+  @UseGuards(JwtAuthGuard)
+  async exportData(@CurrentUser('sub') userId: string) {
+    return this.auth.exportUserData(userId);
+  }
+
   @Get('userinfo')
   @UseGuards(JwtAuthGuard)
   async userinfo(@CurrentUser('sub') userId: string) {

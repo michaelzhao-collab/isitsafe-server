@@ -358,16 +358,108 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('User not found');
 
     await this.prisma.$transaction(async (tx) => {
+      // V3 一期：显式清理用户写入但无 onDelete=Cascade 兜底的表
+      // (Cascade 的 family_members / user_activities / intel_deliveries / deepfake_checks /
+      //  breach_targets / breach_alerts / auth_identities / user_devices 会自动随 user 删除)
       await tx.query.deleteMany({ where: { userId } });
       await tx.report.deleteMany({ where: { userId } });
       await tx.subscription.deleteMany({ where: { userId } });
       await tx.userMessageRead.deleteMany({ where: { userId } });
       await tx.userFeedback.deleteMany({ where: { userId } });
+      // S3-5：family_broadcasts.triggered_by_user_id 已 SET NULL（schema），无需显式清理
+      //       family_groups.owner_user_id Cascade 会自动解散 owner=self 的家庭组
+      // 最后 delete user，触发剩余 Cascade
       await tx.user.delete({ where: { id: userId } });
     });
 
     await this.redis.del(REFRESH_PREFIX + userId);
     return { success: true };
+  }
+
+  /**
+   * S3-5 用户数据导出（GDPR / 个保法 right of access）
+   *
+   * 返回一份 JSON，含用户主表 + V3 所有衍生数据。二进制（音频/图片）以 URL 形式返回，
+   * 不内嵌避免 payload 过大。
+   * 调用方：iOS 设置页"导出我的数据"按钮 → 客户端直接保存为 .json
+   */
+  async exportUserData(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        nickname: true,
+        gender: true,
+        birthday: true,
+        country: true,
+        regionCode: true,
+        language: true,
+        isMinor: true,
+        parentConsentAt: true,
+        subscriptionStatus: true,
+        subscriptionExpire: true,
+        familyGroupId: true,
+        userLevel: true,
+        elderModeEnabled: true,
+        lastActiveAt: true,
+        createdAt: true,
+      },
+    });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const [
+      queries,
+      reports,
+      subscriptions,
+      familyMember,
+      userActivities,
+      intelSubmissions,
+      intelDeliveries,
+      intelPreferences,
+      deepfakeChecks,
+      breachTargets,
+      breachAlerts,
+      authIdentities,
+      devices,
+      messageReads,
+    ] = await Promise.all([
+      this.prisma.query.findMany({ where: { userId } }),
+      this.prisma.report.findMany({ where: { userId } }),
+      this.prisma.subscription.findMany({ where: { userId } }),
+      this.prisma.familyMember.findFirst({ where: { userId } }),
+      this.prisma.userActivity.findMany({ where: { userId } }),
+      this.prisma.intelSubmission.findMany({ where: { userId } }),
+      this.prisma.intelDelivery.findMany({ where: { userId } }),
+      this.prisma.userIntelPreferences.findFirst({ where: { userId } }),
+      this.prisma.deepfakeCheck.findMany({ where: { userId } }),
+      this.prisma.breachTarget.findMany({ where: { userId } }),
+      this.prisma.breachAlert.findMany({ where: { userId } }),
+      this.prisma.authIdentity.findMany({ where: { userId } }),
+      this.prisma.userDevice.findMany({ where: { userId } }),
+      this.prisma.userMessageRead.findMany({ where: { userId } }),
+    ]);
+
+    return {
+      exportedAt: new Date().toISOString(),
+      schemaVersion: 'v3.1',
+      user,
+      queries,
+      reports,
+      subscriptions,
+      family: { membership: familyMember, activities: userActivities },
+      intel: {
+        submissions: intelSubmissions,
+        deliveries: intelDeliveries,
+        preferences: intelPreferences,
+      },
+      deepfakeChecks,
+      breach: { targets: breachTargets, alerts: breachAlerts },
+      authIdentities,
+      devices,
+      messageReads,
+    };
   }
 
   /** 供管理后台等使用：根据已有用户签发 token（会更新 lastLogin） */
