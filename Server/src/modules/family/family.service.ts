@@ -280,7 +280,13 @@ export class FamilyService {
   async generateInviteCode(userId: string, groupId: string): Promise<{ code: string; expiresAt: Date }> {
     const group = await this.prisma.familyGroup.findUnique({ where: { id: groupId } });
     if (!group) throw new NotFoundException('Group not found');
-    if (group.ownerUserId !== userId) throw new ForbiddenException('Only owner can invite');
+    // S5-12：任一家庭成员都可邀请（不再仅 owner）；踢人 / 解散仍 owner only
+    const callerMember = await this.prisma.familyMember.findFirst({
+      where: { userId, groupId },
+    });
+    if (!callerMember) {
+      throw new ForbiddenException('You are not a member of this group');
+    }
 
     const memberCount = await this.prisma.familyMember.count({ where: { groupId } });
     const maxMembers = await this.getMaxMembersFor(group.ownerUserId);
@@ -1017,6 +1023,19 @@ export class FamilyService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // S5-12：拉当前查询人给本组成员设的私人备注，map by familyMemberId
+    const memberIds: string[] = group.members.map((m: any) => m.id);
+    const myAliases = memberIds.length
+      ? await this.prisma.familyMemberAlias.findMany({
+          where: {
+            creatorUserId: currentUserId,
+            familyMemberId: { in: memberIds },
+          },
+          select: { familyMemberId: true, alias: true },
+        })
+      : [];
+    const aliasMap = new Map(myAliases.map((a) => [a.familyMemberId, a.alias]));
+
     const members = group.members.map((m: any) => {
       const lastActive = m.user.lastActiveAt as Date | null;
       const activityStatus = this.computeActivityStatus(lastActive);
@@ -1034,6 +1053,9 @@ export class FamilyService {
         joinedAt: m.joinedAt,
         phone: phone ?? null,
         phoneDisplay: phone ? this.maskPhone(phone) : null,
+        // S5-12：family 内的命名（display_name 全员可见，myAlias 仅自己可见）
+        displayName: m.displayName ?? null,
+        myAlias: aliasMap.get(m.id) ?? null,
       };
     });
 
@@ -1050,6 +1072,75 @@ export class FamilyService {
       createdAt: group.createdAt,
       members,
     };
+  }
+
+  /**
+   * S5-12：成员改自己在该家庭内的称呼（display_name）
+   * 全员可见。NULL → 回退到 user.nickname
+   */
+  async setMyDisplayName(
+    userId: string,
+    groupId: string,
+    displayName: string | null,
+  ) {
+    const member = await this.prisma.familyMember.findFirst({
+      where: { userId, groupId },
+    });
+    if (!member) throw new NotFoundException('Not a member of this group');
+    const trimmed = displayName?.trim() || null;
+    if (trimmed && trimmed.length > 64) {
+      throw new BadRequestException('Display name too long (max 64 chars)');
+    }
+    await this.prisma.familyMember.update({
+      where: { id: member.id },
+      data: { displayName: trimmed },
+    });
+    return { success: true, displayName: trimmed };
+  }
+
+  /**
+   * S5-12：给同家庭某成员设私人备注（仅创建者可见）
+   *   alias = 非空 → upsert
+   *   alias = null/空 → 删除
+   */
+  async setAlias(
+    creatorUserId: string,
+    targetMemberId: string,
+    alias: string | null,
+  ) {
+    const target = await this.prisma.familyMember.findUnique({
+      where: { id: targetMemberId },
+      select: { id: true, groupId: true },
+    });
+    if (!target) throw new NotFoundException('Target member not found');
+    // creator 必须是同一家庭组成员
+    const callerMember = await this.prisma.familyMember.findFirst({
+      where: { userId: creatorUserId, groupId: target.groupId },
+    });
+    if (!callerMember) {
+      throw new ForbiddenException('You are not in this family group');
+    }
+    const trimmed = alias?.trim() || null;
+    if (trimmed === null) {
+      await this.prisma.familyMemberAlias.deleteMany({
+        where: { familyMemberId: targetMemberId, creatorUserId },
+      });
+      return { success: true, alias: null };
+    }
+    if (trimmed.length > 64) {
+      throw new BadRequestException('Alias too long (max 64 chars)');
+    }
+    await this.prisma.familyMemberAlias.upsert({
+      where: {
+        familyMemberId_creatorUserId: {
+          familyMemberId: targetMemberId,
+          creatorUserId,
+        },
+      },
+      create: { familyMemberId: targetMemberId, creatorUserId, alias: trimmed },
+      update: { alias: trimmed },
+    });
+    return { success: true, alias: trimmed };
   }
 
   private maskPhone(phone: string): string {

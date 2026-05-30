@@ -184,6 +184,30 @@ public final class FamilyViewModel: ObservableObject {
         }
     }
 
+    /// S5-12 改自己在该家庭组里的家庭内称呼
+    public func setMyDisplayName(in groupId: String, name: String?) async -> Bool {
+        do {
+            try await repo.setMyDisplayName(groupId: groupId, displayName: name)
+            refresh()
+            return true
+        } catch {
+            redeemError = friendlyMessage(for: error)
+            return false
+        }
+    }
+
+    /// S5-12 给某成员设私人备注（仅自己可见）；alias=nil 删除
+    public func setAlias(for memberId: String, alias: String?) async -> Bool {
+        do {
+            try await repo.setAlias(memberId: memberId, alias: alias)
+            refresh()
+            return true
+        } catch {
+            redeemError = friendlyMessage(for: error)
+            return false
+        }
+    }
+
     /// S4-3 监护人远程开关被监护人长辈模式（owner / guardian 可用）
     /// 成功后自动刷新家庭组以反映新的 elderModeEnabled 状态
     public func setMemberElderMode(userId: String, enabled: Bool) async -> Bool {

@@ -65,6 +65,7 @@ model User {
   // ====== V3 关联关系 ======
   ownedFamilyGroups   FamilyGroup[]         @relation("FamilyGroupOwner")
   familyMembers       FamilyMember[]
+  familyAliasesCreated FamilyMemberAlias[] @relation("FamilyAliasesCreated")
   userActivities      UserActivity[]
   triggeredBroadcasts FamilyBroadcast[]
   intelSubmissions    IntelSubmission[]
@@ -116,11 +117,37 @@ model FamilyMember {
   role              String
   /// 该成员是否允许"查询结果触发官方广播"
   shareQueryResults Boolean     @default(true) @map("share_query_results")
+  /// S5-12 成员在此家庭内的自我命名（owner 也是 member，自己改自己）
+  /// NULL → 回退到 user.nickname；非 NULL → 全员可见的家庭内称呼
+  displayName       String?     @map("display_name") @db.VarChar(64)
   joinedAt          DateTime    @default(now()) @map("joined_at")
+
+  /// S5-12 别人给我打的私人备注（仅其他成员可见自己设的备注）
+  aliasesReceived   FamilyMemberAlias[] @relation("AliasesForMember")
 
   @@unique([groupId, userId])
   @@index([userId])
   @@map("family_members")
+}
+
+/// S5-12 家庭内私人备注
+/// 任一成员可以给同家庭其他成员起备注；仅备注的创建者本人可见
+/// 不影响 APP 全局 user.nickname
+model FamilyMemberAlias {
+  id              String       @id @default(cuid())
+  /// 被备注的目标 family_member
+  familyMemberId  String       @map("family_member_id")
+  familyMember    FamilyMember @relation("AliasesForMember", fields: [familyMemberId], references: [id], onDelete: Cascade)
+  /// 备注创建者
+  creatorUserId   String       @map("creator_user_id")
+  creator         User         @relation("FamilyAliasesCreated", fields: [creatorUserId], references: [id], onDelete: Cascade)
+  alias           String       @db.VarChar(64)
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@unique([familyMemberId, creatorUserId])
+  @@index([creatorUserId])
+  @@map("family_member_aliases")
 }
 
 // --------------------------------------------

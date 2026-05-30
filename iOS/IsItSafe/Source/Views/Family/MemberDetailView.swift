@@ -4,11 +4,12 @@
 //
 //  V3-E E-P5 家庭成员详情
 //
-//  - 头部：头像 + 昵称 + role + 活跃状态徽章
-//  - 操作区：
-//      * owner / guardian 可远程开关被监护人长辈模式（调 setMemberElderMode）
-//      * 任何成员可拨打电话（phone scheme）；自家成员显示完整号码
-//  - 信息：加入时间 / 隐私偏好说明
+//  - 头部：头像 + 有效名字 + 角色 + 活跃状态
+//  - S5-12 修改名字 section：
+//      * 自己：改家庭内自我命名（display_name，全员可见）
+//      * 别人：改私人备注（alias，仅自己可见）
+//  - owner/guardian 可远程开关被监护人长辈模式
+//  - 任何成员可拨打电话
 //
 
 import SwiftUI
@@ -16,20 +17,24 @@ import SwiftUI
 public struct MemberDetailView: View {
     @ObservedObject var vm: FamilyViewModel
     public let member: FamilyMember
+    public let groupId: String
     public let isCurrentUserOwnerOrGuardian: Bool
     @Environment(\.dismiss) private var dismiss
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var togglingElder = false
     @State private var localElderEnabled: Bool
     @State private var feedback: String?
+    @State private var showRenameSheet = false
 
     public init(
         vm: FamilyViewModel,
         member: FamilyMember,
+        groupId: String,
         isCurrentUserOwnerOrGuardian: Bool
     ) {
         self.vm = vm
         self.member = member
+        self.groupId = groupId
         self.isCurrentUserOwnerOrGuardian = isCurrentUserOwnerOrGuardian
         _localElderEnabled = State(initialValue: member.elderModeEnabled)
     }
@@ -38,6 +43,7 @@ public struct MemberDetailView: View {
         ScrollView {
             VStack(spacing: 16) {
                 headerCard
+                nameEditCard
                 activityCard
                 if shouldShowElderToggle {
                     elderToggleCard
@@ -51,34 +57,40 @@ public struct MemberDetailView: View {
             .padding(.vertical, 12)
         }
         .background(AppTheme.background.ignoresSafeArea())
-        .navigationTitle(member.nickname ?? (languageCode == "en" ? "Member" : "成员"))
+        .navigationTitle(member.effectiveName)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showRenameSheet) {
+            RenameMemberSheet(
+                vm: vm,
+                member: member,
+                groupId: groupId,
+                isSelf: isSelf
+            )
+        }
     }
 
     private var shouldShowElderToggle: Bool {
-        // 自己不展示远程开关（自己用 SettingsView 里的开关）；owner/guardian 才看得到
+        // 自己不展示远程开关；owner/guardian 才看得到
         isCurrentUserOwnerOrGuardian && !isSelf
     }
 
-    /// 判定当前查看者是不是被查看者本人
-    /// vm.group 是 FamilyGroup? — 当前用户 userId 在 AppState 里，这里简化：永远视为 false
-    /// （服务端会再校验；UI 误操作的容错由服务端 BadRequest 兜底）
+    /// 当前查看者是不是被查看者本人
     private var isSelf: Bool {
-        // V3 一期前端无 currentUserId 注入到 FamilyViewModel；服务端 setMemberElderMode 已防止自指
-        false
+        guard let myId = UserSessionStore.shared.currentUser?.id else { return false }
+        return member.userId == myId
     }
 
     private var headerCard: some View {
         HStack(spacing: 14) {
             ZStack {
                 Circle().fill(AppTheme.primary.opacity(0.18)).frame(width: 64, height: 64)
-                Text(String(member.nickname?.prefix(1) ?? "?"))
+                Text(String(member.effectiveName.prefix(1)))
                     .font(.system(size: 28, weight: .bold))
                     .foregroundColor(AppTheme.primary)
             }
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(member.nickname ?? (languageCode == "en" ? "Member" : "成员"))
+                    Text(member.effectiveName)
                         .font(.title3.weight(.bold))
                     if member.elderModeEnabled || localElderEnabled {
                         Text("👴").font(.title3)
@@ -114,6 +126,56 @@ public struct MemberDetailView: View {
             .clipShape(Capsule())
     }
 
+    // MARK: - S5-12 名字修改卡片
+
+    private var nameEditCard: some View {
+        Button {
+            showRenameSheet = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.text.rectangle")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(AppTheme.primary)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(nameEditTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(AppTheme.textPrimary)
+                    Text(nameEditSubtitle)
+                        .font(.caption)
+                        .foregroundColor(AppTheme.textSecondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(AppTheme.textSecondary)
+            }
+            .padding(14)
+            .background(AppTheme.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var nameEditTitle: String {
+        if isSelf {
+            return languageCode == "en" ? "Edit my name in this family" : "我在该家庭的称呼"
+        }
+        return languageCode == "en" ? "Set a private nickname" : "给 TA 设私人备注"
+    }
+
+    private var nameEditSubtitle: String {
+        if isSelf {
+            return languageCode == "en"
+                ? "Visible to all members of this family. Doesn't change your APP profile."
+                : "全家可见。不影响 APP 我的页昵称"
+        }
+        return languageCode == "en"
+            ? "Only you can see this. Useful for renaming Dad / Mom / Sis"
+            : "仅自己可见。给爸/妈/老婆/孩子起个备注"
+    }
+
     private var activityCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(languageCode == "en" ? "Activity" : "活跃状态")
@@ -139,8 +201,8 @@ public struct MemberDetailView: View {
                     Text(languageCode == "en" ? "Elder Mode (Remote)" : "远程开启长辈模式")
                         .font(.subheadline.weight(.semibold))
                     Text(languageCode == "en"
-                         ? "Large fonts, big buttons, SOS shortcut. Helps elders use the app safely."
-                         : "字号放大、按钮变大、SOS 一键拨打。帮长辈更安全使用 App")
+                         ? "Large fonts, big buttons, SOS shortcut."
+                         : "字号放大、按钮变大、SOS 一键拨打")
                         .font(.caption)
                         .foregroundColor(AppTheme.textSecondary)
                 }
@@ -155,15 +217,10 @@ public struct MemberDetailView: View {
                     await MainActor.run {
                         togglingElder = false
                         if !ok {
-                            // 失败回滚开关，避免显示错误状态
                             localElderEnabled = member.elderModeEnabled
-                            feedback = languageCode == "en"
-                                ? "Failed to update. Try again."
-                                : "更新失败，请重试"
+                            feedback = languageCode == "en" ? "Failed" : "更新失败"
                         } else {
-                            feedback = languageCode == "en"
-                                ? "Updated ✓"
-                                : "已更新 ✓"
+                            feedback = languageCode == "en" ? "Updated ✓" : "已更新 ✓"
                         }
                     }
                 }
@@ -201,11 +258,127 @@ public struct MemberDetailView: View {
             Image(systemName: "lock.shield")
                 .foregroundColor(AppTheme.textSecondary)
             Text(languageCode == "en"
-                 ? "We never show specific search history or location to family members. Only activity status and official broadcasts are shared."
-                 : "我们绝不展示家人具体查询历史或位置，只共享活跃状态和官方匿名广播。")
+                 ? "Members never see each other's specific query history. Only activity status & official broadcasts are shared."
+                 : "我们绝不展示家人具体查询历史或位置，只共享活跃状态和官方匿名广播")
                 .font(.caption)
                 .foregroundColor(AppTheme.textSecondary)
         }
         .padding(.horizontal, 4)
+    }
+}
+
+// MARK: - S5-12 重命名 sheet
+
+private struct RenameMemberSheet: View {
+    @ObservedObject var vm: FamilyViewModel
+    let member: FamilyMember
+    let groupId: String
+    let isSelf: Bool
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    @State private var inputName: String
+    @State private var saving = false
+    @State private var error: String?
+
+    init(vm: FamilyViewModel, member: FamilyMember, groupId: String, isSelf: Bool) {
+        self.vm = vm
+        self.member = member
+        self.groupId = groupId
+        self.isSelf = isSelf
+        // 自己 → 当前 display_name；他人 → 当前 myAlias
+        let initial = isSelf ? (member.displayName ?? "") : (member.myAlias ?? "")
+        _inputName = State(initialValue: initial)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text(headerText), footer: Text(footerText)) {
+                    TextField(placeholder, text: $inputName)
+                        .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .onSubmit { Task { await save() } }
+                }
+                Section {
+                    Button(role: .destructive) {
+                        Task { await save(clear: true) }
+                    } label: {
+                        Text(languageCode == "en" ? "Reset to default" : "恢复默认")
+                    }
+                    .disabled(saving)
+                }
+                if let err = error {
+                    Section {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundColor(AppTheme.riskHigh)
+                    }
+                }
+            }
+            .navigationTitle(navTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(languageCode == "en" ? "Cancel" : "取消") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        if saving { ProgressView() } else {
+                            Text(languageCode == "en" ? "Save" : "保存").bold()
+                        }
+                    }
+                    .disabled(saving || inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+
+    private var navTitle: String {
+        if isSelf {
+            return languageCode == "en" ? "My name in family" : "我的家庭称呼"
+        }
+        return languageCode == "en" ? "Private nickname" : "私人备注"
+    }
+
+    private var headerText: String {
+        if isSelf {
+            return languageCode == "en" ? "Name visible to family" : "家庭内称呼（全员可见）"
+        }
+        return languageCode == "en" ? "Private note for this member" : "仅自己可见的备注"
+    }
+
+    private var footerText: String {
+        if isSelf {
+            return languageCode == "en"
+                ? "Other family members will see this name. Empty → uses your APP nickname."
+                : "其他家人会看到这个名字。留空 → 用 APP 昵称"
+        }
+        return languageCode == "en"
+            ? "Only you can see this. Useful for tagging Dad / Mom / Spouse."
+            : "仅自己可见。可用于备注爸/妈/老婆"
+    }
+
+    private var placeholder: String {
+        languageCode == "en" ? "Enter a name" : "输入称呼"
+    }
+
+    private func save(clear: Bool = false) async {
+        saving = true
+        defer { saving = false }
+        let name: String? = clear ? nil : inputName.trimmingCharacters(in: .whitespacesAndNewlines)
+        error = nil
+        let ok: Bool
+        if isSelf {
+            ok = await vm.setMyDisplayName(in: groupId, name: name)
+        } else {
+            ok = await vm.setAlias(for: member.id, alias: name)
+        }
+        if ok {
+            dismiss()
+        } else {
+            error = vm.redeemError ?? (languageCode == "en" ? "Save failed" : "保存失败")
+        }
     }
 }

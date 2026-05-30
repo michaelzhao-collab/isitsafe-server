@@ -403,6 +403,7 @@ public struct FamilyGroupView: View {
                         MemberDetailView(
                             vm: vm,
                             member: member,
+                            groupId: group.id,
                             isCurrentUserOwnerOrGuardian: group.isOwner
                         )
                     } label: {
@@ -464,18 +465,19 @@ public struct FamilyGroupView: View {
 
     private func memberRow(member: FamilyMember) -> some View {
         HStack(spacing: 12) {
-            // 头像占位
+            // 头像占位（首字按 effectiveName 取）
             ZStack {
                 Circle()
                     .fill(AppTheme.primary.opacity(0.2))
                     .frame(width: 40, height: 40)
-                Text(String(member.nickname?.prefix(1) ?? "?"))
+                Text(String(member.effectiveName.prefix(1)))
                     .font(.headline)
                     .foregroundColor(AppTheme.primary)
             }
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(member.nickname ?? "用户")
+                    // S5-12 显示家庭内有效名字（私人备注 > 自我命名 > APP 昵称）
+                    Text(member.effectiveName)
                         .font(.subheadline.weight(.medium))
                         .foregroundColor(AppTheme.textPrimary)
                     if member.role == .owner {

@@ -77,6 +77,10 @@ public enum APIEndpoint {
     case v3FamilyGetMembersStatus
     /// V3-E S4-3 监护人远程开启被监护人长辈模式
     case v3FamilyMemberElderMode(userId: String)
+    /// V3-E S5-12 改自己在该家庭组里的称呼（全员可见）
+    case v3FamilySetMyDisplayName(groupId: String)
+    /// V3-E S5-12 给某成员设私人备注（仅自己可见）
+    case v3FamilySetAlias(memberId: String)
 
     // V3-B 情报推送
     /// 情报 feed
@@ -169,6 +173,8 @@ public enum APIEndpoint {
         case .v3FamilyGetBroadcasts: return "/api/v3/family/broadcasts"
         case .v3FamilyGetMembersStatus: return "/api/v3/family/members/status"
         case .v3FamilyMemberElderMode(let userId): return "/api/v3/family/members/\(userId)/elder-mode"
+        case .v3FamilySetMyDisplayName(let groupId): return "/api/v3/family/groups/\(groupId)/members/me/display-name"
+        case .v3FamilySetAlias(let memberId): return "/api/v3/family/members/\(memberId)/alias"
         // V3-B 情报
         case .v3IntelFeed: return "/api/v3/intel/feed"
         case .v3IntelDetail(let id): return "/api/v3/intel/\(id)"
@@ -220,6 +226,7 @@ public enum APIEndpoint {
         case .uploadAvatar, .uploadFile:
             return .POST
         case .updateProfile, .v3UserElderMode, .v3FamilyUpdatePreferences, .v3FamilyMemberElderMode,
+             .v3FamilySetMyDisplayName, .v3FamilySetAlias,
              .v3IntelPutPreferences,
              .v3BreachDismissAlert:
             return .PUT
@@ -234,6 +241,7 @@ public enum APIEndpoint {
              .v3FamilyCreateGroup, .v3FamilyGetMyGroup, .v3FamilyGetMyGroups, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyDissolveGroup, .v3FamilyRemoveMember, .v3FamilyUpdatePreferences,
              .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus, .v3FamilyMemberElderMode,
+             .v3FamilySetMyDisplayName, .v3FamilySetAlias,
              .v3IntelFeed, .v3IntelDetail, .v3IntelUnreadCount, .v3IntelSubmit,
              .v3IntelMySubmissions, .v3IntelGetPreferences, .v3IntelPutPreferences,
              .v3DeepfakeCreate, .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeDelete, .v3DeepfakeFeedback, .v3DeepfakeBroadcast, .v3DeepfakeStream,

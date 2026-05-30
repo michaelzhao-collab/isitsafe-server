@@ -103,6 +103,30 @@ public final class FamilyRepository {
         )
     }
 
+    /// S5-12 改自己在该家庭组里的称呼（全员可见，仅自己可改）
+    /// displayName=nil/空 → 恢复为 user.nickname
+    public func setMyDisplayName(groupId: String, displayName: String?) async throws {
+        struct Body: Codable {
+            let displayName: String?
+        }
+        try await network.requestVoid(
+            endpoint: .v3FamilySetMyDisplayName(groupId: groupId),
+            body: Body(displayName: displayName?.isEmpty == true ? nil : displayName)
+        )
+    }
+
+    /// S5-12 给某成员设私人备注（仅自己可见）
+    /// alias=nil/空 → 删除备注
+    public func setAlias(memberId: String, alias: String?) async throws {
+        struct Body: Codable {
+            let alias: String?
+        }
+        try await network.requestVoid(
+            endpoint: .v3FamilySetAlias(memberId: memberId),
+            body: Body(alias: alias?.isEmpty == true ? nil : alias)
+        )
+    }
+
     /// S4-3 监护人远程开关被监护人长辈模式
     /// 服务端要求调用者必须是同家庭组的 owner / guardian
     public func setMemberElderMode(userId: String, enabled: Bool) async throws {

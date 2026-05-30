@@ -69,6 +69,25 @@ public struct FamilyMember: Codable, Identifiable {
     public let phone: String?
     /// 脱敏号码，用于 UI 展示（如 138****1234）
     public let phoneDisplay: String?
+    /// S5-12 该成员在此家庭组内的自我命名（全员可见，仅自己可改；NULL → 回退 nickname）
+    public let displayName: String?
+    /// S5-12 我对该成员的私人备注（仅自己可见；NULL → 没设过）
+    public let myAlias: String?
+
+    /// 家庭页显示用的有效名字
+    /// 优先级：私人备注 > 自我命名 > APP 昵称 > "用户"
+    public var effectiveName: String {
+        if let alias = myAlias?.trimmingCharacters(in: .whitespacesAndNewlines), !alias.isEmpty {
+            return alias
+        }
+        if let dn = displayName?.trimmingCharacters(in: .whitespacesAndNewlines), !dn.isEmpty {
+            return dn
+        }
+        if let nn = nickname?.trimmingCharacters(in: .whitespacesAndNewlines), !nn.isEmpty {
+            return nn
+        }
+        return "用户"
+    }
 
     /// 手写 init：对所有字段提供默认值，单个字段类型不匹配不再导致整体加载失败
     public init(from decoder: Decoder) throws {
@@ -85,6 +104,8 @@ public struct FamilyMember: Codable, Identifiable {
                 .map { ISO8601DateFormatter().string(from: $0) }
         self.phone = try? c.decodeIfPresent(String.self, forKey: .phone)
         self.phoneDisplay = try? c.decodeIfPresent(String.self, forKey: .phoneDisplay)
+        self.displayName = try? c.decodeIfPresent(String.self, forKey: .displayName)
+        self.myAlias = try? c.decodeIfPresent(String.self, forKey: .myAlias)
     }
 
     /// 构造器（用于本地占位和测试）
@@ -98,7 +119,9 @@ public struct FamilyMember: Codable, Identifiable {
         activityStatus: FamilyActivityStatus = .unknown,
         joinedAt: String? = nil,
         phone: String? = nil,
-        phoneDisplay: String? = nil
+        phoneDisplay: String? = nil,
+        displayName: String? = nil,
+        myAlias: String? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -110,6 +133,8 @@ public struct FamilyMember: Codable, Identifiable {
         self.joinedAt = joinedAt
         self.phone = phone
         self.phoneDisplay = phoneDisplay
+        self.displayName = displayName
+        self.myAlias = myAlias
     }
 }
 

@@ -107,6 +107,33 @@ export class FamilyController {
     return this.family.updatePreferences(userId, dto);
   }
 
+  // ====== S5-12 家庭内命名 ======
+  /**
+   * 改自己在该家庭组里的称呼（display_name）— 全员可见
+   * body: { displayName: string | null }（null 或空字符串 → 恢复为 user.nickname）
+   */
+  @Put('groups/:groupId/members/me/display-name')
+  async setMyDisplayName(
+    @CurrentUser('sub') userId: string,
+    @Param('groupId') groupId: string,
+    @Body() body: { displayName?: string | null },
+  ) {
+    return this.family.setMyDisplayName(userId, groupId, body?.displayName ?? null);
+  }
+
+  /**
+   * 给某成员设私人备注 — 仅创建者本人可见
+   * body: { alias: string | null }（null 或空字符串 → 删除备注）
+   */
+  @Put('members/:memberId/alias')
+  async setAlias(
+    @CurrentUser('sub') userId: string,
+    @Param('memberId') memberId: string,
+    @Body() body: { alias?: string | null },
+  ) {
+    return this.family.setAlias(userId, memberId, body?.alias ?? null);
+  }
+
   // ====== 官方广播 ======
   @Get('broadcasts')
   async getBroadcasts(@CurrentUser('sub') userId: string, @Query('limit') limit?: string) {
