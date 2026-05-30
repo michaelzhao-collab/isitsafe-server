@@ -23,13 +23,24 @@ public struct KnowledgeView: View {
             VStack(spacing: 0) {
                 // 分类 + 搜索：紧贴导航标题，刷新在下方 List 上
                 categoriesSearchHeader
-                List {
-                    contentBody
+                // F9：loading / error / empty 状态从 List 中抽出来，避免被 List 默认行背景包成白卡
+                if case .loading = vm.state {
+                    loadingStateBare
+                } else if case .failure(let e) = vm.state {
+                    ErrorStateView(message: (e as? APIError)?.userMessage ?? e.localizedDescription, retry: { vm.refresh() })
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(AppTheme.background)
+                } else if vm.items.isEmpty {
+                    emptyStateBare
+                } else {
+                    List {
+                        contentBody
+                    }
+                    .listStyle(.plain)
+                    .listRowSeparator(.hidden)
+                    .scrollContentBackground(.hidden)
+                    .refreshable { vm.refresh() }
                 }
-                .listStyle(.plain)
-                .listRowSeparator(.hidden)
-                .scrollContentBackground(.hidden)
-                .refreshable { vm.refresh() }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(AppTheme.background)
@@ -62,60 +73,68 @@ public struct KnowledgeView: View {
         .background(AppTheme.background)
     }
 
-    /// 列表主体内容，受当前加载状态影响
+    /// F9 极简 loading：无背景框 + 小菊花 + 灰色辅助文字
+    private var loadingStateBare: some View {
+        VStack(spacing: 10) {
+            Spacer(minLength: 80)
+            ProgressView()
+                .tint(AppTheme.textSecondary)
+            Text(languageCode == "en" ? "Loading..." : "加载中…")
+                .font(.footnote)
+                .foregroundColor(AppTheme.textSecondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background)
+    }
+
+    private var emptyStateBare: some View {
+        VStack(spacing: 12) {
+            Spacer(minLength: 80)
+            Text(languageCode == "en" ? "No cases yet" : "暂无案例")
+                .font(.subheadline)
+                .foregroundColor(AppTheme.textSecondary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background)
+    }
+
+    /// 列表主体（仅 items 不为空时调用，loading/error/empty 已抽到 body 顶层）
+    @ViewBuilder
     private var contentBody: some View {
-        Group {
-            if case .loading = vm.state {
-                ZStack {
-                    AppTheme.background
-                    ProgressView(languageCode == "en" ? "Loading..." : "加载中...")
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if case .failure(let e) = vm.state {
-                ErrorStateView(message: (e as? APIError)?.userMessage ?? e.localizedDescription, retry: { vm.refresh() })
-            } else if vm.items.isEmpty {
-                VStack(spacing: 12) {
-                    Spacer(minLength: 40)
-                    Text(languageCode == "en" ? "No cases yet" : "暂无案例")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                    Spacer(minLength: 40)
-                }
-            } else {
-                ForEach(vm.items, id: \.id) { item in
-                    Button {
-                        selectedDetail = KnowledgeNavId(id: item.id)
-                    } label: {
-                        KnowledgeRow(item: item)
-                    }
-                    .buttonStyle(.plain)
-                    // P0-5：卡片化样式适配 — 透明背景 + 行间距 + 隐藏分隔线
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                    .onAppear {
-                        if item.id == vm.items.last?.id { vm.loadMore() }
-                    }
-                }
-                if vm.hasMore {
-                    HStack {
-                        Spacer()
-                        if vm.isLoadingMore {
-                            ProgressView()
-                                .padding()
-                        } else {
-                            Text(languageCode == "en" ? "Pull up to load more" : "上拉加载更多")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .padding()
-                        }
-                        Spacer()
-                    }
-                    .listRowSeparator(.hidden)
-                    .onAppear { vm.loadMore() }
-                }
+        ForEach(vm.items, id: \.id) { item in
+            Button {
+                selectedDetail = KnowledgeNavId(id: item.id)
+            } label: {
+                KnowledgeRow(item: item)
             }
+            .buttonStyle(.plain)
+            // P0-5：卡片化样式适配 — 透明背景 + 行间距 + 隐藏分隔线
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+            .onAppear {
+                if item.id == vm.items.last?.id { vm.loadMore() }
+            }
+        }
+        if vm.hasMore {
+            HStack {
+                Spacer()
+                if vm.isLoadingMore {
+                    ProgressView()
+                        .padding()
+                } else {
+                    Text(languageCode == "en" ? "Pull up to load more" : "上拉加载更多")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding()
+                }
+                Spacer()
+            }
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .onAppear { vm.loadMore() }
         }
     }
 }

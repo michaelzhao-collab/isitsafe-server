@@ -16,7 +16,7 @@ import type { Intent } from './intent-classifier.service';
 interface IntentResponse {
   summary?: string;
   steps?: string[];
-  actions?: Array<{ label: string; type: string; value?: string }>;
+  actions?: Array<{ label?: string | null; type?: string | null; value?: string }>;
   freeText?: string;
 }
 
@@ -54,17 +54,31 @@ export class IntentResponseService {
 
   private safeJsonParse(text: string): IntentResponse {
     const stripped = text.replace(/```json\s?/gi, '').replace(/```\s?/g, '').trim();
+    let parsed: any = null;
     try {
-      return JSON.parse(stripped);
+      parsed = JSON.parse(stripped);
     } catch {
       const m = stripped.match(/\{[\s\S]*\}/);
       if (m) {
         try {
-          return JSON.parse(m[0]);
+          parsed = JSON.parse(m[0]);
         } catch {
           /* fall through */
         }
       }
+    }
+    if (parsed && typeof parsed === 'object') {
+      // F3: 过滤掉无 label 且无 type 的脏 action，避免客户端解码失败
+      if (Array.isArray(parsed.actions)) {
+        parsed.actions = parsed.actions
+          .filter((a: any) => a && typeof a === 'object' && (a.label || a.type))
+          .map((a: any) => ({
+            label: typeof a.label === 'string' ? a.label : null,
+            type: typeof a.type === 'string' ? a.type : null,
+            value: typeof a.value === 'string' ? a.value : undefined,
+          }));
+      }
+      return parsed;
     }
     // 兜底：把整段当 freeText
     return { freeText: text };
@@ -90,7 +104,7 @@ export class IntentResponseService {
       ? r.steps
       : [r.freeText ?? summary, isZh ? '更多信息请追问' : 'Ask follow-ups for details', ''];
     const advice = r.actions && r.actions.length > 0
-      ? r.actions.map((a) => a.label)
+      ? r.actions.map((a) => a.label || a.type || '').filter((s) => s.length > 0)
       : (isZh ? ['可继续追问'] : ['Ask me anything']);
 
     return {

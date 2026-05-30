@@ -25,8 +25,12 @@ import { IntentClassifierService, Intent } from './intent/intent-classifier.serv
 import { IntentResponseService } from './intent/intent-response.service';
 
 const CACHE_PREFIX = 'cache:ai:';
+const INTENT_CACHE_PREFIX = 'cache:intent:';
 const TTL_DEFAULT = 90 * 24 * 3600;       // 90 天
 const TTL_HIGH_RISK = 365 * 24 * 3600;    // 365 天
+// F5: 非 scam 意图缓存：聊天 / 知识类问答短期复用，避免重复 AI 调用
+// 1h 内同语言同内容直接走缓存（help_request 不缓存，紧急场景始终调 AI 给最新建议）
+const TTL_INTENT_NON_SCAM = 3600;
 const CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 分钟
 
 const FALLBACK_REASONS = ['请结合其他渠道核实', '勿轻信单方说法', '注意保护个人隐私与资金安全'];
@@ -134,22 +138,47 @@ export class AiService {
     // URL 与截图天然属于 scam_detection 场景（用户在让我们判断风险），跳过分类
     if (parsed.inputType !== 'url' && !isScreenshot) {
       try {
-        const intentRes = await this.intentClassifier.classify(parsed.originalContent, {});
+        // F6：从上一轮 assistant 响应推断 lastIntent，支持"那这个呢"延续
+        const lastIntent = this.inferLastIntent(input.context);
+        const intentRes = await this.intentClassifier.classify(parsed.originalContent, { lastIntent });
         console.log('[AI_FLOW] 1.5 INTENT intent=' + intentRes.intent + ' via=' + intentRes.via);
         if (intentRes.intent !== 'scam_detection') {
           const nonScamIntent = intentRes.intent as Exclude<Intent, 'scam_detection'>;
+
+          // F5：非 scam 短期缓存（1h），仅 general_chat / knowledge_query
+          // help_request 不缓存（紧急场景需最新建议）
+          const intentCacheKey = INTENT_CACHE_PREFIX + hashForCache({
+            intent: nonScamIntent,
+            content: parsed.normalizedContent,
+            language,
+          });
+          const canCache = nonScamIntent !== 'help_request' && !Array.isArray(input.context);
+          if (canCache) {
+            const cached = await this.redis.get(intentCacheKey);
+            if (cached) {
+              try {
+                const obj = ensureFullResult(JSON.parse(cached) as AnalyzeResult);
+                console.log('[AI_FLOW] INTENT_CACHE_HIT intent=' + nonScamIntent);
+                await this.writeQuery(userId, conversationId, parsed, obj, provider, true, input.imageUrl);
+                return { ...obj, conversation_id: conversationId };
+              } catch {}
+            }
+          }
+
           const intentOutput = await this.intentResponse.generate(
             parsed.originalContent,
             nonScamIntent,
             language,
           );
+          // F7: 非 scam 不写 score / risk_db_hit，避免污染后台统计
           const intentFinal = ensureFullResult({
             ...intentOutput,
             risk_level: intentOutput.risk_level ?? 'unknown',
-            score: 0,
-            risk_db_hit: false,
           });
           console.log('[AI_FLOW] INTENT 早返回 intent=' + intentFinal.intent + ' summary=' + intentFinal.summary?.slice(0, 60));
+          if (canCache) {
+            await this.redis.set(intentCacheKey, JSON.stringify(intentFinal), TTL_INTENT_NON_SCAM);
+          }
           await this.writeQuery(userId, conversationId, parsed, intentFinal, provider, false, input.imageUrl);
           return { ...intentFinal, conversation_id: conversationId };
         }
@@ -313,6 +342,38 @@ export class AiService {
 
     await this.writeQuery(userId, conversationId, parsed, final, provider, false, input.imageUrl);
     return { ...final, conversation_id: conversationId };
+  }
+
+  /**
+   * F6: 从客户端传来的上下文（最多 1 轮）推断上一轮 intent。
+   * 优先级：
+   *  - 上轮 assistant 消息里如果是 JSON 且含 intent 字段 → 直接用
+   *  - 否则尝试从 content / freeText 文本做轻量规则匹配（步骤式 → knowledge，慌张词 → help，否则 chat）
+   *  - 都不行返回 undefined（让分类器走完整流程）
+   */
+  private inferLastIntent(context?: Array<{ role: string; content: string }>): Intent | undefined {
+    if (!Array.isArray(context) || context.length === 0) return undefined;
+    // 找最近一条 assistant 消息
+    const lastAssistant = [...context].reverse().find((m) => m.role === 'assistant');
+    if (!lastAssistant?.content) return undefined;
+    const c = lastAssistant.content;
+    // 1) JSON 含 intent
+    try {
+      const obj = JSON.parse(c);
+      if (obj && typeof obj.intent === 'string') {
+        const i = obj.intent as Intent;
+        if (i === 'scam_detection' || i === 'general_chat' || i === 'knowledge_query' || i === 'help_request') {
+          return i;
+        }
+      }
+    } catch {
+      /* not JSON, fall through */
+    }
+    // 2) 文本启发式
+    if (/96110|止付|报案|二次诈骗|银行止付/.test(c)) return 'help_request';
+    if (/什么是|杀猪盘|钓鱼|诈骗手段|要点|定义|常见手段/.test(c)) return 'knowledge_query';
+    if (/(scam|safe|verdict|风险等级|高风险|低风险)/i.test(c)) return 'scam_detection';
+    return 'general_chat';
   }
 
   /**

@@ -33,14 +33,30 @@ public struct RiskAnalysisResult: Codable {
     public let freeText: String?
 
     public struct ResponseAction: Codable, Hashable {
-        public let label: String
-        public let type: String
+        // F3: label / type 全可选，避免 AI 漏返字段导致整个响应解码失败
+        public let label: String?
+        public let type: String?
         public let value: String?
 
-        public init(label: String, type: String, value: String? = nil) {
+        public init(label: String?, type: String?, value: String? = nil) {
             self.label = label
             self.type = type
             self.value = value
+        }
+
+        /// 渲染用：label 缺失时回落到 type 友好名
+        public var displayLabel: String {
+            if let l = label, !l.isEmpty { return l }
+            switch type {
+            case "call": return "拨打"
+            case "call_family": return "拨打家人"
+            case "knowledge": return "看案例"
+            case "report": return "举报"
+            case "open_url": return "打开链接"
+            case "family_broadcast": return "告诉家人"
+            case "dismiss": return "知道了"
+            default: return "查看"
+            }
         }
     }
 

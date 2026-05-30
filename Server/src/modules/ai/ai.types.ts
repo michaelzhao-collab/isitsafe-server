@@ -35,8 +35,8 @@ export interface AiOutputSchema {
   verdict?: string;
   /** 3-5 句决策性建议（新版风险卡渲染） */
   steps?: string[];
-  /** 可点动作按钮 */
-  actions?: Array<{ label: string; type: string; value?: string }>;
+  /** 可点动作按钮（label/type 都可选，避免 AI 漏返时整体解码失败） */
+  actions?: Array<{ label?: string | null; type?: string | null; value?: string }>;
   /** general_chat 时的自由文本回答（无 verdict 时由 iOS 渲染纯文本气泡） */
   free_text?: string;
 }

@@ -38,12 +38,6 @@ public struct RiskAnalysisViewData {
         return i != "scam_detection"
     }
 
-    /// 是否隐藏「分享到家庭 / 举报 / 加入风险库」等仅对 scam_detection 才有意义的操作
-    public var hidesScamOnlyActions: Bool {
-        if let i = intent, i == "general_chat" { return true }
-        return isConversational
-    }
-
     public init(from result: RiskAnalysisResult) {
         riskLevel = result.riskLevel ?? "unknown"
         confidence = result.confidence ?? 0

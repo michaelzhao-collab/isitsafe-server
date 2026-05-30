@@ -198,33 +198,14 @@ public struct ChatMessageView: View {
 
     @ViewBuilder
     private func actionButtonsRow(actions: [RiskAnalysisResult.ResponseAction]) -> some View {
-        FlowingActionsView(actions: actions)
-    }
-
-    private func conversationalBubble(text: String) -> some View {
-        Text(text.isEmpty ? "…" : text)
-            .font(.subheadline)
-            .foregroundColor(AppTheme.textPrimary)
-            .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(AppTheme.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .contextMenu {
-                Button {
-                    UIPasteboard.general.string = text
-                } label: {
-                    Label("复制", systemImage: "doc.on.doc")
-                }
-            }
+        ActionButtonsStack(actions: actions)
     }
 }
 
-/// V3 #5：动作按钮行（拨打 / 跳转知识库 / 拨打家人）
-/// 简化排版：横向 wrap，多按钮换行
-private struct FlowingActionsView: View {
+/// V3 #5：动作按钮纵向堆叠（每条单独一行）
+private struct ActionButtonsStack: View {
     let actions: [RiskAnalysisResult.ResponseAction]
+    @EnvironmentObject private var router: AppRouter
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -235,7 +216,7 @@ private struct FlowingActionsView: View {
                     HStack(spacing: 6) {
                         Image(systemName: icon(for: action.type))
                             .font(.subheadline.weight(.semibold))
-                        Text(action.label)
+                        Text(action.displayLabel)
                             .font(.subheadline.weight(.semibold))
                     }
                     .foregroundColor(AppTheme.primary)
@@ -249,12 +230,14 @@ private struct FlowingActionsView: View {
         }
     }
 
-    private func icon(for type: String) -> String {
+    private func icon(for type: String?) -> String {
         switch type {
         case "call", "call_family": return "phone.fill"
         case "knowledge": return "book.fill"
         case "report": return "exclamationmark.shield.fill"
         case "open_url": return "link"
+        case "family_broadcast": return "person.2.fill"
+        case "dismiss": return "checkmark"
         default: return "arrow.right.circle.fill"
         }
     }
@@ -270,8 +253,13 @@ private struct FlowingActionsView: View {
             if let v = action.value, let url = URL(string: v) {
                 UIApplication.shared.open(url)
             }
+        case "call_family", "family_broadcast", "knowledge":
+            // 跳到家庭 Tab（用户自己挑家人拨打 / 走广播 / 看相关案例）
+            // F4：知识跳家庭 Tab 是临时方案，后续可改成直接打开案例库
+            router.pendingTabIndex = (action.type == "knowledge") ? 1 : 2
+        case "dismiss":
+            break
         default:
-            // call_family / knowledge / report 等留给上层路由扩展
             break
         }
     }

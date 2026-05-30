@@ -398,31 +398,37 @@ public struct PremiumSubscriptionView: View {
                     .clipShape(Capsule())
             }
 
-            VStack(spacing: 10) {
-                familyBenefitRow(
+            // F10：与"核心会员权益"对齐，改 2 列网格卡片
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
+                benefitCard(
                     icon: "person.3.fill",
-                    title: languageCode == "en" ? "Up to 10 members per group" : "每个家庭最多 10 人（免费 3 人）",
-                    desc: languageCode == "en" ? "Add parents, siblings, kids — covers extended family" : "覆盖父母、伴侣、孩子的多代家庭"
+                    iconColor: AppTheme.primary,
+                    title: languageCode == "en" ? "10 members/group" : "最多 10 人/家",
+                    subtitle: languageCode == "en" ? "Free 3, Pro 10 — multi-gen" : "免费 3 人，多代家庭"
                 )
-                familyBenefitRow(
+                benefitCard(
                     icon: "infinity",
-                    title: languageCode == "en" ? "Shared unlimited AI checks" : "全家共享 AI 查询不限/天",
-                    desc: languageCode == "en" ? "Owner pays once, everyone gets Pro privileges" : "owner 付费一次，全家成员都解锁 Pro"
+                    iconColor: .green,
+                    title: languageCode == "en" ? "Shared AI checks" : "全家共享 AI",
+                    subtitle: languageCode == "en" ? "Owner pays, all get Pro" : "owner 付费全家 Pro"
                 )
-                familyBenefitRow(
+                benefitCard(
                     icon: "megaphone.fill",
-                    title: languageCode == "en" ? "Unlimited official broadcasts" : "官方提醒不限次（免费 1 条/天）",
-                    desc: languageCode == "en" ? "Any family member's high-risk query auto-broadcasts" : "任一成员查到高风险，自动以官方名义提醒全家"
+                    iconColor: .red,
+                    title: languageCode == "en" ? "Unlimited broadcasts" : "官方提醒不限次",
+                    subtitle: languageCode == "en" ? "Free 1/day, Pro unlimited" : "免费 1 条/天"
                 )
-                familyBenefitRow(
+                benefitCard(
                     icon: "house.fill",
-                    title: languageCode == "en" ? "Create up to 3 family groups" : "最多创建 3 个家庭（免费 1 个）",
-                    desc: languageCode == "en" ? "Manage your home + spouse's family + parents'" : "同时管理自己家、伴侣家、双方父母家"
+                    iconColor: .orange,
+                    title: languageCode == "en" ? "Up to 3 groups" : "最多 3 个家庭",
+                    subtitle: languageCode == "en" ? "Manage spouse / parents" : "管伴侣 / 父母家"
                 )
-                familyBenefitRow(
+                benefitCard(
                     icon: "heart.text.square",
-                    title: languageCode == "en" ? "Care: SMS escalation when push fails" : "关怀机制：push 失败自动升级短信",
-                    desc: languageCode == "en" ? "Elderly users with notifications off still get reached" : "长辈关了通知？2 天未活跃直接短信提醒"
+                    iconColor: .purple,
+                    title: languageCode == "en" ? "SMS care escalation" : "关怀短信升级",
+                    subtitle: languageCode == "en" ? "Reach silent elderly users" : "长辈 2 天没看 → 短信"
                 )
             }
         }
@@ -430,29 +436,6 @@ public struct PremiumSubscriptionView: View {
         .background(AppTheme.cardBackground)
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
-    }
-
-    private func familyBenefitRow(icon: String, title: String, desc: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(AppTheme.primary.opacity(0.12))
-                    .frame(width: 36, height: 36)
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(AppTheme.primary)
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(AppTheme.textPrimary)
-                Text(desc)
-                    .font(.caption)
-                    .foregroundColor(AppTheme.textSecondary)
-                    .lineLimit(2)
-            }
-            Spacer()
-        }
     }
 
     // MARK: - 为什么选择 Premium?（浅蓝卡片，[F] 为下发展示）

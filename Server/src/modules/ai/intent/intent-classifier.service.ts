@@ -375,8 +375,9 @@ export class IntentClassifierService {
       'knowledge_query (问反诈知识) / help_request (紧急求助)';
     const user = `用户消息：「${content.slice(0, 500)}」\n类别：`;
     try {
+      // F2: AiProviderService.analyze 返回 AiCallResult{raw,...}，不是 {content/text}
       const r = await this.aiProvider.analyze(user, system);
-      const text = ((r as any)?.content ?? (r as any)?.text ?? '').toLowerCase().trim();
+      const text = (r?.raw ?? '').toLowerCase().trim();
       if (text.includes('scam_detection')) return 'scam_detection';
       if (text.includes('help_request')) return 'help_request';
       if (text.includes('knowledge_query')) return 'knowledge_query';
@@ -407,18 +408,19 @@ export class IntentClassifierService {
       return { intent: 'scam_detection', via: 'rule_strong' };
     }
 
-    // 第 6 层先做（避免无意义短句跑完全部规则）
+    // F1：第 1 层强信号必须先于 Layer 6 trivial
+    // 否则 "13800138000" / 纯卡号 等无字母内容会被 isTooShortOrTrivial 视为 trivial → general_chat
+    if (this.hasStrongSignal(merged)) {
+      return { intent: 'scam_detection', via: 'rule_strong' };
+    }
+
+    // 第 6 层（避免无意义短句跑完全部规则）
     if (this.isTooShortOrTrivial(content)) {
       // 但是上下文继承优先
       if (ctx.lastIntent && content.length < 20) {
         return { intent: ctx.lastIntent, via: 'rule_ctx' };
       }
       return { intent: 'general_chat', via: 'rule_short' };
-    }
-
-    // 第 1 层
-    if (this.hasStrongSignal(merged)) {
-      return { intent: 'scam_detection', via: 'rule_strong' };
     }
 
     // 第 2 层
