@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -17,7 +18,9 @@ public struct SettingsView: View {
     @State private var showDeleteAccountPage = false
     /// S5-4 数据导出
     @State private var exporting = false
-    @State private var exportShareURL: URL?
+    @State private var exportDocument: ExportDataDocument?
+    @State private var showExporter = false
+    @State private var exportFilename: String = "starlens-export"
     @State private var exportError: String?
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
@@ -127,12 +130,28 @@ public struct SettingsView: View {
                         .mainTabBarHidden()
                 }
             }
-            // S5-4 数据导出 share sheet
-            .sheet(item: Binding(
-                get: { exportShareURL.map(ShareableFile.init) },
-                set: { exportShareURL = $0?.url }
-            )) { file in
-                ActivityViewController(items: [file.url])
+            // S5-4 数据导出：系统文件保存器（替代之前会死循环的 ShareSheet 方案）
+            // 之前 .sheet(item:) + ShareableFile.id=UUID() 每次 binding 求值都新 UUID，
+            // SwiftUI 误以为 item 变了 → 反复 dismiss + present 死循环
+            .fileExporter(
+                isPresented: $showExporter,
+                document: exportDocument,
+                contentType: .json,
+                defaultFilename: exportFilename
+            ) { result in
+                switch result {
+                case .success:
+                    // 保存成功
+                    break
+                case .failure(let error):
+                    // 用户取消（NSUserCancelledError）不当错误
+                    let ns = error as NSError
+                    if ns.code != NSUserCancelledError {
+                        exportError = languageCode == "en"
+                            ? "Save failed: \(error.localizedDescription)"
+                            : "保存失败：\(error.localizedDescription)"
+                    }
+                }
             }
             .safeAreaInset(edge: .bottom) {
                 if appState.isLoggedIn {
@@ -166,7 +185,7 @@ public struct SettingsView: View {
         appState.refreshLoginState()
     }
 
-    /// S5-4 调 /api/auth/export-data 拉 JSON → 写临时文件 → 弹 ShareSheet
+    /// S5-4 调 /api/auth/export-data 拉 JSON → 系统文件保存器（替代 ShareSheet）
     @MainActor
     private func exportMyData() async {
         exporting = true
@@ -181,11 +200,11 @@ public struct SettingsView: View {
                 withJSONObject: json,
                 options: [.prettyPrinted, .sortedKeys]
             )
+            // 准备 FileDocument + 默认文件名（不含路径，由用户在 Files 选保存位置）
             let ts = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-            let fileURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("starlens-export-\(ts).json")
-            try data.write(to: fileURL, options: .atomic)
-            exportShareURL = fileURL
+            exportDocument = ExportDataDocument(data: data)
+            exportFilename = "starlens-export-\(ts)"
+            showExporter = true
         } catch {
             exportError = languageCode == "en"
                 ? "Export failed: \(error.localizedDescription)"

@@ -2,28 +2,34 @@
 //  DataExportHelpers.swift
 //  IsItSafe
 //
-//  V3-S5-4 数据导出辅助：临时文件 + UIActivityViewController 桥接
+//  S5-4 数据导出辅助：FileDocument 用于 .fileExporter
+//
+//  历史：之前用 ShareableFile + ActivityViewController，但 ShareableFile.id=UUID()
+//        每次 binding 求值都新 UUID 导致 SwiftUI 反复 dismiss + present 死循环。
+//        改用 .fileExporter（系统 Files 保存对话框）后无此问题，
+//        且更符合"数据备份"的使用场景。
 //
 
 import SwiftUI
-import UIKit
+import UniformTypeIdentifiers
 
-/// 把 URL 包成 Identifiable 以便 .sheet(item:) 使用
-public struct ShareableFile: Identifiable {
-    public let id = UUID()
-    public let url: URL
-    public init(url: URL) { self.url = url }
-}
+/// 导出数据的 FileDocument 包装
+/// 用于 SwiftUI `.fileExporter()` modifier
+public struct ExportDataDocument: FileDocument {
+    public static var readableContentTypes: [UTType] = [.json]
+    public static var writableContentTypes: [UTType] = [.json]
 
-/// UIActivityViewController 桥接为 SwiftUI Sheet
-public struct ActivityViewController: UIViewControllerRepresentable {
-    public let items: [Any]
+    public let data: Data
 
-    public init(items: [Any]) { self.items = items }
-
-    public func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    public init(data: Data) {
+        self.data = data
     }
 
-    public func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
+    public init(configuration: ReadConfiguration) throws {
+        self.data = configuration.file.regularFileContents ?? Data()
+    }
+
+    public func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
 }
