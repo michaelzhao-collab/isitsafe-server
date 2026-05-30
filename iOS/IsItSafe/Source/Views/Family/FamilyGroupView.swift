@@ -464,20 +464,21 @@ public struct FamilyGroupView: View {
     }
 
     private func memberRow(member: FamilyMember) -> some View {
-        HStack(spacing: 12) {
-            // 头像占位（首字按 effectiveName 取）
+        let name = member.effectiveName(language: languageCode)
+        return HStack(spacing: 12) {
+            // 头像占位（首字按有效名字取）
             ZStack {
                 Circle()
                     .fill(AppTheme.primary.opacity(0.2))
                     .frame(width: 40, height: 40)
-                Text(String(member.effectiveName.prefix(1)))
+                Text(String(name.prefix(1)))
                     .font(.headline)
                     .foregroundColor(AppTheme.primary)
             }
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    // S5-12 显示家庭内有效名字（私人备注 > 自我命名 > APP 昵称）
-                    Text(member.effectiveName)
+                    // S5-12 显示家庭内有效名字（私人备注 > 自我命名 > APP 昵称 > 手机后4位 > id后4位）
+                    Text(name)
                         .font(.subheadline.weight(.medium))
                         .foregroundColor(AppTheme.textPrimary)
                     if member.role == .owner {

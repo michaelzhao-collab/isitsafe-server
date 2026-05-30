@@ -75,8 +75,15 @@ public struct FamilyMember: Codable, Identifiable {
     public let myAlias: String?
 
     /// 家庭页显示用的有效名字
-    /// 优先级：私人备注 > 自我命名 > APP 昵称 > "用户"
+    /// 优先级：私人备注 > 自我命名 > APP 昵称 > 手机后 4 位 > member id 后 4 位
+    /// 永远返回有辨识度的字符串，不会出现多个成员都显示"用户"的情况
     public var effectiveName: String {
+        effectiveName(language: nil)
+    }
+
+    /// view 层可以传入 languageCode 拿到本地化的 fallback 名
+    /// language=nil 时按系统首选语言判定（en/其他）
+    public func effectiveName(language: String?) -> String {
         if let alias = myAlias?.trimmingCharacters(in: .whitespacesAndNewlines), !alias.isEmpty {
             return alias
         }
@@ -86,7 +93,22 @@ public struct FamilyMember: Codable, Identifiable {
         if let nn = nickname?.trimmingCharacters(in: .whitespacesAndNewlines), !nn.isEmpty {
             return nn
         }
-        return "用户"
+        // —— 以下是 fallback，让没设昵称的成员也有辨识度 ——
+        let isEnglish: Bool = {
+            if let lang = language { return lang == "en" }
+            return Locale.preferredLanguages.first?.lowercased().hasPrefix("en") ?? false
+        }()
+        // 1) 手机后 4 位（phoneDisplay 已脱敏为 "138****1234"，取尾部 4 位即可）
+        if let pd = phoneDisplay {
+            let digits = pd.filter { $0.isNumber }
+            if digits.count >= 4 {
+                let last4 = String(digits.suffix(4))
+                return isEnglish ? "Member \(last4)" : "家人 \(last4)"
+            }
+        }
+        // 2) member id 后 4 位（cuid 是 24-25 字符，取尾部足够区分）
+        let idTail = String(id.suffix(4))
+        return isEnglish ? "Member \(idTail)" : "成员 \(idTail)"
     }
 
     /// 手写 init：对所有字段提供默认值，单个字段类型不匹配不再导致整体加载失败

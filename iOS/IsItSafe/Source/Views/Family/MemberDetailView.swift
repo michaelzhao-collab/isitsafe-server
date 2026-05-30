@@ -57,7 +57,7 @@ public struct MemberDetailView: View {
             .padding(.vertical, 12)
         }
         .background(AppTheme.background.ignoresSafeArea())
-        .navigationTitle(member.effectiveName)
+        .navigationTitle(member.effectiveName(language: languageCode))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showRenameSheet) {
             RenameMemberSheet(
@@ -84,13 +84,13 @@ public struct MemberDetailView: View {
         HStack(spacing: 14) {
             ZStack {
                 Circle().fill(AppTheme.primary.opacity(0.18)).frame(width: 64, height: 64)
-                Text(String(member.effectiveName.prefix(1)))
+                Text(String(member.effectiveName(language: languageCode).prefix(1)))
                     .font(.system(size: 28, weight: .bold))
                     .foregroundColor(AppTheme.primary)
             }
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(member.effectiveName)
+                    Text(member.effectiveName(language: languageCode))
                         .font(.title3.weight(.bold))
                     if member.elderModeEnabled || localElderEnabled {
                         Text("👴").font(.title3)
