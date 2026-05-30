@@ -125,8 +125,11 @@ public struct ElderHomeView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
             .background(AppTheme.riskHigh)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
-        .ignoresSafeArea(edges: .bottom)
+        // 不再 ignoresSafeArea(.bottom)：让 SOS bar 落在底导上方，避免被新保留的 iOS 底导覆盖
+        .padding(.horizontal, 14)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder

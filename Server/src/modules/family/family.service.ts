@@ -13,7 +13,18 @@ import { randomBytes, createHash } from 'crypto';
 import { regionToTimezone, daysDiffInTz, localHour } from '../../common/utils/region-timezone';
 import { normalizeByType } from '../../common/utils/content-normalize';
 
-const MAX_FAMILY_MEMBERS = 5;
+/**
+ * 家庭组容量上限（S5-7 改为按 owner 订阅动态）
+ *   免费：3 人（owner + 2 名成员）
+ *   付费（pro.* 或 family.* 订阅生效）：10 人
+ *
+ * 行为：
+ *   - 邀请 / 兑换时校验 owner 当时的订阅状态
+ *   - owner 从 Pro 降级到免费 → 已有成员**保留**，但无法再邀请新人
+ *     （和 Apple Family Sharing 行为一致）
+ */
+const FREE_MAX_FAMILY_MEMBERS = 3;
+const PAID_MAX_FAMILY_MEMBERS = 10;
 const INVITE_CODE_TTL_DAYS = 7;
 const INVITE_CODE_MAX_USES = 4;
 
@@ -179,7 +190,7 @@ export class FamilyService {
       include: { group: { include: { members: { include: { user: true } } } } },
     });
     if (!member) return null;
-    return this.composeGroupDto(member.group, userId);
+    return await this.composeGroupDto(member.group, userId);
   }
 
   async leaveGroup(userId: string) {
@@ -244,8 +255,11 @@ export class FamilyService {
     if (group.ownerUserId !== userId) throw new ForbiddenException('Only owner can invite');
 
     const memberCount = await this.prisma.familyMember.count({ where: { groupId } });
-    if (memberCount >= MAX_FAMILY_MEMBERS) {
-      throw new BadRequestException('Family group is full');
+    const maxMembers = await this.getMaxMembersFor(group.ownerUserId);
+    if (memberCount >= maxMembers) {
+      throw new BadRequestException(
+        `Family group is full (${memberCount}/${maxMembers}). Upgrade to Pro for up to ${PAID_MAX_FAMILY_MEMBERS} members.`,
+      );
     }
 
     // 6 位 BASE32 邀请码，DB 唯一约束防碰撞（最多重试 5 次）
@@ -298,8 +312,11 @@ export class FamilyService {
     }
 
     const memberCount = await this.prisma.familyMember.count({ where: { groupId: group.id } });
-    if (memberCount >= MAX_FAMILY_MEMBERS) {
-      throw new BadRequestException('Family group is full');
+    const maxMembers = await this.getMaxMembersFor(group.ownerUserId);
+    if (memberCount >= maxMembers) {
+      throw new BadRequestException(
+        `Family group is full (${memberCount}/${maxMembers})`,
+      );
     }
 
     // COPPA：is_minor 必须勾选监护人同意
@@ -939,7 +956,18 @@ export class FamilyService {
     return code;
   }
 
-  private composeGroupDto(group: any, currentUserId: string) {
+  /**
+   * 按 owner 订阅状态返回家庭组容量上限
+   *   free → FREE_MAX_FAMILY_MEMBERS（3）
+   *   personal_pro / family_owner / family_member → PAID_MAX_FAMILY_MEMBERS（10）
+   * EntitlementService 已在 S1-4 注入，复用同一份权益判定
+   */
+  private async getMaxMembersFor(ownerUserId: string): Promise<number> {
+    const e = await this.entitlement.getUserEntitlement(ownerUserId);
+    return e.isUnlimited ? PAID_MAX_FAMILY_MEMBERS : FREE_MAX_FAMILY_MEMBERS;
+  }
+
+  private async composeGroupDto(group: any, currentUserId: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -963,12 +991,15 @@ export class FamilyService {
       };
     });
 
+    // 按 owner 订阅状态动态返回容量上限
+    const maxMembers = await this.getMaxMembersFor(group.ownerUserId);
+
     return {
       id: group.id,
       name: group.name,
       ownerUserId: group.ownerUserId,
       memberCount: members.length,
-      maxMembers: MAX_FAMILY_MEMBERS,
+      maxMembers,
       isOwner: group.ownerUserId === currentUserId,
       createdAt: group.createdAt,
       members,

@@ -20,32 +20,14 @@ public struct MainTabView: View {
 
     public var body: some View {
         ZStack(alignment: .bottom) {
-            Group {
-                if elderMode.isEnabled {
-                    // V3-J 长辈模式：替换整个首页 + 隐藏底导（极简界面）
-                    ElderHomeView()
-                } else {
-                    switch selectedTab {
-                    case 0:
-                        HomeContainerView(homeVm: homeVm, historyVm: historyVm)
-                    case 1:
-                        // V3-B Tab 1 改造：合并今日情报 + 案例库（segment 切换）
-                        IntelCaseRootView()
-                    case 2:
-                        FamilyView()
-                    case 3:
-                        ProfileView()
-                    default:
-                        HomeContainerView(homeVm: homeVm, historyVm: historyVm)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.none, value: selectedTab)
+            // 长辈模式：仅"问助手" Tab 替换为 ElderHomeView，
+            // 其余 Tab 走原页面但全局字号放大（其他页面所有字放大）
+            elderAwareContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .animation(.none, value: selectedTab)
 
-            // 底导：贴边、正常高度、背景与主页面区分
-            // 长辈模式下隐藏底导（极简单页设计）
-            if !tabBarVisibility.isHidden && !elderMode.isEnabled {
+            // 底导：长辈模式也保留（用户能切到"我的"再关掉长辈模式）
+            if !tabBarVisibility.isHidden {
                 tabBar
             }
         }
@@ -67,6 +49,41 @@ public struct MainTabView: View {
             if let idx = newIdx, idx >= 0 && idx <= 3 {
                 selectedTab = idx
                 router.pendingTabIndex = nil
+            }
+        }
+    }
+
+    /// 长辈模式下：
+    ///   - Tab 0 (问助手) 替换为 ElderHomeView（已是大字大按钮设计）
+    ///   - Tab 1/2/3 走原页面，但额外应用 `.dynamicTypeSize(.xLarge)` 字号统一放大
+    /// 普通模式下：4 个 Tab 各自页面，沿用用户在"设置 → 字号"的全局 fontScale
+    @ViewBuilder
+    private var elderAwareContent: some View {
+        if elderMode.isEnabled {
+            switch selectedTab {
+            case 0:
+                ElderHomeView()
+            case 1:
+                IntelCaseRootView().dynamicTypeSize(.xLarge)
+            case 2:
+                FamilyView().dynamicTypeSize(.xLarge)
+            case 3:
+                ProfileView().dynamicTypeSize(.xLarge)
+            default:
+                ElderHomeView()
+            }
+        } else {
+            switch selectedTab {
+            case 0:
+                HomeContainerView(homeVm: homeVm, historyVm: historyVm)
+            case 1:
+                IntelCaseRootView()
+            case 2:
+                FamilyView()
+            case 3:
+                ProfileView()
+            default:
+                HomeContainerView(homeVm: homeVm, historyVm: historyVm)
             }
         }
     }

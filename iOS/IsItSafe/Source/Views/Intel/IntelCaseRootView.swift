@@ -4,9 +4,9 @@
 //
 //  V3-B "情报案例" Tab 主入口（替换原 Tab 1 KnowledgeView）
 //
-//  顶部 Segment：[今日情报] / [案例库]
-//   - 今日情报 → IntelListView（新）
-//   - 案例库   → KnowledgeView（V2 现有，完全不动）
+//  顶部 SegmentBar：
+//   - [今日情报] / [案例库] segment 切换 + 右侧 ⚙ 偏好按钮（只在今日情报 segment 显示）
+//   - 下划线设计，比默认 iOS UISegmentedControl 更现代
 //
 //  NavigationStack 嵌套规避：
 //   - IntelListView 不带自己的 NavigationStack（详情 push 由外层负责）
@@ -22,6 +22,7 @@ public struct IntelCaseRootView: View {
     }
 
     @State private var segment: Segment = .intel
+    @State private var showPreferences = false
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     public init() {}
@@ -31,13 +32,14 @@ public struct IntelCaseRootView: View {
             AppTheme.background.ignoresSafeArea()
             VStack(spacing: 0) {
                 segmentBar
+                Divider().opacity(0.4)
                 ZStack {
                     // 用 opacity 切换保持状态（避免每次重建子视图丢历史）
+                    // V3-B 改：删 navigationTitle，segment bar 已经显示"今日情报"，
+                    // 再加导航栏标题就重复了
                     NavigationStack {
                         IntelListView()
-                            .navigationTitle(languageCode == "en" ? "Daily Intel" : "今日情报")
-                            .navigationBarTitleDisplayMode(.inline)
-                            .toolbarBackground(AppTheme.background, for: .navigationBar)
+                            .navigationBarHidden(true)
                     }
                     .opacity(segment == .intel ? 1 : 0)
                     .allowsHitTesting(segment == .intel)
@@ -51,43 +53,57 @@ public struct IntelCaseRootView: View {
             // 底部 tabBar 占位（MainTabView 占了 88pt）
             .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: 0) }
         }
+        .sheet(isPresented: $showPreferences) {
+            IntelPreferencesView()
+        }
     }
+
+    // MARK: - SegmentBar（下划线风格 + 右侧偏好按钮）
 
     private var segmentBar: some View {
         HStack(spacing: 0) {
             segmentButton(.intel, label: languageCode == "en" ? "Daily Intel" : "今日情报")
             segmentButton(.knowledge, label: languageCode == "en" ? "Case Library" : "案例库")
+            Spacer()
+            // 偏好按钮：只在"今日情报"segment 显示；切到"案例库"时隐藏
+            if segment == .intel {
+                Button {
+                    showPreferences = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppTheme.textSecondary)
+                        .frame(width: 36, height: 36)
+                        .background(Color(.systemGray6))
+                        .clipShape(Circle())
+                }
+                .transition(.opacity.combined(with: .scale))
+                .padding(.trailing, 16)
+            }
         }
-        .padding(4)
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
+        .padding(.top, 6)
+        .padding(.bottom, 0)
     }
 
     private func segmentButton(_ s: Segment, label: String) -> some View {
         Button {
-            withAnimation(.easeOut(duration: 0.15)) {
+            withAnimation(.easeOut(duration: 0.18)) {
                 segment = s
             }
         } label: {
-            Text(label)
-                .font(.subheadline.weight(segment == s ? .semibold : .regular))
-                .foregroundColor(segment == s ? AppTheme.textPrimary : AppTheme.textSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(
-                    Group {
-                        if segment == s {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(AppTheme.cardBackground)
-                                .shadow(color: .black.opacity(0.06), radius: 2, x: 0, y: 1)
-                        } else {
-                            Color.clear
-                        }
-                    }
-                )
+            VStack(spacing: 6) {
+                Text(label)
+                    .font(.subheadline.weight(segment == s ? .semibold : .regular))
+                    .foregroundColor(segment == s ? AppTheme.textPrimary : AppTheme.textSecondary)
+                // 下划线：选中态主色填色短线
+                Rectangle()
+                    .fill(segment == s ? AppTheme.primary : Color.clear)
+                    .frame(height: 2.5)
+                    .frame(maxWidth: 32)
+                    .animation(.easeOut(duration: 0.18), value: segment)
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
         }
     }
 }
