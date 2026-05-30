@@ -1,5 +1,6 @@
-# Cloudflare Pages 路径重写
-# 等价于 Railway 时代的 WEB/serve.json rewrites
-# 用户协议 / 隐私政策的短链路径
-/terms     /terms.html     200
-/privacy   /privacy.html   200
+# Cloudflare Pages 跳转规则
+# /terms 与 /privacy 短链：用 301 永久跳转到对应 .html
+# 之前用 "200 rewrite" 会因 CF Pages 的 Pretty URL 默认行为冲突，导致死循环
+# 改为 301 后浏览器地址栏会变成 .html 但能正确跳转
+/terms     /terms.html     301
+/privacy   /privacy.html   301

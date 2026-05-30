@@ -2,10 +2,7 @@
   "name": "isitsafe-web",
   "version": "1.0.0",
   "private": true,
-  "description": "星识安全助手对外静态落地页",
-  "scripts": {
-    "start": "npx serve . -l $PORT"
-  },
+  "description": "StarLens AI 对外静态落地页 — 部署在 Cloudflare Pages（无 build 步骤）",
   "engines": {
     "node": ">=18"
   }
