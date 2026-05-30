@@ -101,7 +101,13 @@ export class UploadService {
       );
       return `${this.cdnDomain}/${objectKey}`;
     } catch (err: any) {
-      this.logger.warn(`[Upload] R2 put failed: ${err?.name ?? err?.message ?? err}`);
+      // #1 详细日志（运维定位 R2 失败必备）
+      this.logger.error(
+        `[Upload] R2 put failed key=${objectKey} bucket=${this.bucket} ` +
+        `name=${err?.name ?? '-'} code=${err?.Code ?? err?.code ?? '-'} ` +
+        `status=${err?.$metadata?.httpStatusCode ?? '-'} ` +
+        `message=${err?.message ?? '-'}`,
+      );
       throw new BadRequestException(this.translateR2Error(err));
     }
   }
@@ -146,10 +152,17 @@ export class UploadService {
 
   private translateR2Error(err: any): string {
     const name = err?.name || err?.Code;
+    const status = err?.$metadata?.httpStatusCode;
     if (name === 'NoSuchBucket') return 'R2 Bucket 不存在，请联系管理员';
     if (name === 'InvalidAccessKeyId' || name === 'SignatureDoesNotMatch')
       return '存储凭证错误，请联系管理员';
+    if (name === 'AccessDenied') return 'R2 拒绝访问（权限不足），请联系管理员';
+    if (status === 403) return 'R2 拒绝访问（403），请联系管理员';
+    if (status === 401) return 'R2 凭证未授权（401），请联系管理员';
     if (err?.message?.includes('timeout')) return '上传超时，请检查网络后重试';
-    return '上传失败，请检查网络后重试';
+    if (err?.message?.includes('ENOTFOUND') || err?.message?.includes('ECONNREFUSED'))
+      return 'R2 服务连接失败，请检查 R2_ACCOUNT_ID 配置';
+    // 兜底带上具体 name 让运维 grep 日志能定位
+    return `上传失败（${name ?? 'unknown'}）`;
   }
 }

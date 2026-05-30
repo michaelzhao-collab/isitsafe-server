@@ -703,22 +703,19 @@ private struct MediaPickerSheet: View {
                 }
                 .buttonStyle(.plain)
 
-                // V3-A1 入口
+                // V3-A1 入口 #6：三个按钮统一样式（浅灰底 + 主色 icon + 主色文字）
                 Button { onDeepfake() } label: {
                     VStack(spacing: 6) {
                         Image(systemName: "mic.fill")
                             .font(.system(size: 24))
-                            .foregroundColor(.white)
+                            .foregroundColor(AppTheme.primary)
                         Text(languageCode == "en" ? "Voice AI" : "语音深伪")
-                            .font(.caption.weight(.semibold))
-                            .foregroundColor(.white)
+                            .font(.caption)
+                            .foregroundColor(.primary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(
-                        LinearGradient(colors: [AppTheme.primary, AppTheme.premiumHeader],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
+                    .background(Color(.systemGray6))
                     .cornerRadius(12)
                 }
                 .buttonStyle(.plain)

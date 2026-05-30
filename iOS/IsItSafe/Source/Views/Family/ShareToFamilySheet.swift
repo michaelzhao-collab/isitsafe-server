@@ -175,7 +175,14 @@ public struct ShareToFamilySheet: View {
 }
 
 extension BroadcastResponse: Identifiable {
-    public var id: String { broadcastId ?? UUID().uuidString }
+    /// 稳定 id：必须确保同一个 BroadcastResponse 实例多次求值返回同一字符串
+    /// 否则 .sheet(item:) 会反复 dismiss + re-present 死循环（之前用 UUID() 就是这个 bug）
+    public var id: String {
+        if let bid = broadcastId { return bid }
+        // 没 broadcastId（quota_exceeded / no_group / duplicate / in_progress 等）：
+        // 用 resultLabel + skipReason 派生稳定 key（同实例多次 get 一定相同）
+        return "\(resultLabel.rawValue)#\(skipReasonEnum?.rawValue ?? "ok")"
+    }
 }
 
 /// 三结果弹框

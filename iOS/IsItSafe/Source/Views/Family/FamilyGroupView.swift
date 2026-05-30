@@ -63,8 +63,13 @@ public struct FamilyGroupView: View {
             .padding(.bottom, 78)
         }
         .background(AppTheme.background)
-        .task {
+        .task(id: group.id) {
+            // #10：family 切换 / 视图重建时都会重新拉，确保 B 视角能看到 A 发的最新消息
             await loadBroadcasts()
+        }
+        .onAppear {
+            // tab 切回时（已有 view 实例）也强制刷一次（.task 不会再触发）
+            Task { await loadBroadcasts() }
         }
         .refreshable {
             await loadBroadcasts()
@@ -74,16 +79,13 @@ public struct FamilyGroupView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 if vm.allGroups.count > 1 {
+                    // #2：与⋯菜单 ellipsis.circle 统一风格 — 纯 SF Symbol
                     Button {
                         showSwitchSheet = true
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.left.arrow.right")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text(languageCode == "en" ? "Switch" : "切换")
-                                .font(.subheadline)
-                        }
-                        .foregroundColor(AppTheme.primary)
+                        Image(systemName: "arrow.left.arrow.right.circle")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(AppTheme.textPrimary)
                     }
                 }
             }
@@ -308,9 +310,9 @@ public struct FamilyGroupView: View {
                 .background(AppTheme.cardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
             }
-        } else if loadingBroadcasts {
-            HStack { ProgressView(); Spacer() }
         }
+        // #4：去掉这里独立的 loading（之前用户反馈"家庭成员"下方出现的多余 loading）
+        // broadcastSection 加载完前直接不渲染，避免视觉混乱
     }
 
     private func broadcastRow(_ bc: FamilyBroadcast) -> some View {
@@ -470,8 +472,14 @@ public struct FamilyGroupView: View {
         .padding(.horizontal, 14)
     }
 
+    /// 当前登录用户的 user id（用于判定哪行是"我"）
+    private var currentUserId: String? {
+        UserSessionStore.shared.currentUser?.id
+    }
+
     private func memberRow(member: FamilyMember) -> some View {
         let name = member.effectiveName(language: languageCode)
+        let isSelf = (member.userId == currentUserId)
         return HStack(spacing: 12) {
             // 头像占位（首字按有效名字取）
             ZStack {
@@ -494,6 +502,15 @@ public struct FamilyGroupView: View {
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(AppTheme.primary.opacity(0.12))
                             .foregroundColor(AppTheme.primary)
+                            .clipShape(Capsule())
+                    }
+                    // #9：自己那行加"我"标注，与群主同样的 capsule 样式但用次要色
+                    if isSelf {
+                        Text(languageCode == "en" ? "Me" : "我")
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(AppTheme.riskLow.opacity(0.15))
+                            .foregroundColor(AppTheme.riskLow)
                             .clipShape(Capsule())
                     }
                     if member.elderModeEnabled {
