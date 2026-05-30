@@ -1,0 +1,4 @@
+# Cloudflare Pages SPA 回退
+# admin 用 react-router-dom，所有非静态资源 URL 都需回退到 index.html
+# 否则刷新 /intel/abc/edit 这种深层路径会 404
+/*    /index.html   200
