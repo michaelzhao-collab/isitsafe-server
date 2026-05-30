@@ -18,7 +18,6 @@ public struct ElderHomeView: View {
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var showDetection = false
     @State private var showSOS = false
-    @State private var showHelp = false
 
     public init() {}
 
@@ -41,21 +40,14 @@ public struct ElderHomeView: View {
                         bg: AppTheme.riskLow,
                         action: { showSOS = true }
                     )
-
-                    bigButton(
-                        icon: "🆘",
-                        title: languageCode == "en" ? "I got scammed" : "我被骗了",
-                        bg: AppTheme.riskMedium,
-                        action: { showHelp = true }
-                    )
+                    // S5-8：删"我被骗了"按钮 — 给长辈太复杂，
+                    //   "给孩子打电话" 已涵盖紧急求助场景。
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 24)
 
                 Spacer()
-
-                // 底部红色 SOS bar
-                sosBar
+                // S5-8：删底部 SOS bar — "给孩子打电话" 已等效，避免重复入口
             }
             .background(AppTheme.background.ignoresSafeArea())
             .navigationBarHidden(true)
@@ -65,13 +57,9 @@ public struct ElderHomeView: View {
             .fullScreenCover(isPresented: $showSOS) {
                 ElderSOSView()
             }
-            .fullScreenCover(isPresented: $showHelp) {
-                ElderHelpView()
-            }
-            // 子视图请求"立刻打孩子电话"（如检测结果页/我被骗了页）→ 打开 SOS 拨号
+            // 检测页请求"立刻打孩子电话" → 弹 SOS 拨号
             .onReceive(NotificationCenter.default.publisher(for: .elderRequestCallGuardian)) { _ in
                 showDetection = false
-                showHelp = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     showSOS = true
                 }
@@ -103,33 +91,6 @@ public struct ElderHomeView: View {
                 .foregroundColor(AppTheme.textSecondary)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var sosBar: some View {
-        Button {
-            showSOS = true
-        } label: {
-            HStack(spacing: 10) {
-                Text("🆘").font(.system(size: 24))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(languageCode == "en" ? "Emergency" : "紧急情况")
-                        .font(.system(size: 15, weight: .semibold))
-                    Text(languageCode == "en" ? "Tap to call family" : "点击拨打家人电话")
-                        .font(.system(size: 13))
-                        .opacity(0.92)
-                }
-                Spacer()
-                Text("›").font(.system(size: 24, weight: .bold))
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            .background(AppTheme.riskHigh)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-        }
-        // 不再 ignoresSafeArea(.bottom)：让 SOS bar 落在底导上方，避免被新保留的 iOS 底导覆盖
-        .padding(.horizontal, 14)
-        .padding(.bottom, 8)
     }
 
     @ViewBuilder

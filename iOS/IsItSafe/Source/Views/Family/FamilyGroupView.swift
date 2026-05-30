@@ -24,6 +24,9 @@ public struct FamilyGroupView: View {
     @State private var showDissolveConfirm = false
     @State private var showShareSheet = false
     @State private var showPrivacy = false
+    /// S5-9 家庭官方消息（来自自己或其他成员的分享，AI 检测后官方匿名广播）
+    @State private var recentBroadcasts: [FamilyBroadcast] = []
+    @State private var loadingBroadcasts = false
 
     public init(group: FamilyGroup, vm: FamilyViewModel) {
         self.group = group
@@ -34,12 +37,20 @@ public struct FamilyGroupView: View {
         ScrollView {
             VStack(spacing: AppTheme.Spacing.md) {
                 headerCard
+                broadcastSection
                 memberSection
                 shareAction
             }
             .padding(AppTheme.Spacing.lg)
         }
         .background(AppTheme.background)
+        .task {
+            await loadBroadcasts()
+        }
+        .refreshable {
+            await loadBroadcasts()
+            vm.refresh()
+        }
         // 右上角 ⋯ Menu：隐藏次级操作（退出/解散/隐私）
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -182,6 +193,129 @@ public struct FamilyGroupView: View {
         return "\(group.memberCount) / \(group.maxMembers) 名成员"
     }
 
+    // MARK: - Broadcasts（S5-9 家庭官方消息显示入口）
+
+    @ViewBuilder
+    private var broadcastSection: some View {
+        if !recentBroadcasts.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "megaphone.fill")
+                        .font(.caption)
+                        .foregroundColor(AppTheme.primary)
+                    Text(languageCode == "en" ? "Recent Messages" : "最近家庭消息")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(AppTheme.textSecondary)
+                    Spacer()
+                    if recentBroadcasts.count > 3 {
+                        NavigationLink {
+                            FamilyBroadcastListView(broadcasts: recentBroadcasts)
+                        } label: {
+                            Text(languageCode == "en" ? "See all" : "查看全部")
+                                .font(.caption)
+                                .foregroundColor(AppTheme.primary)
+                        }
+                    }
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(recentBroadcasts.prefix(3).enumerated()), id: \.element.id) { idx, bc in
+                        broadcastRow(bc)
+                        if idx < min(2, recentBroadcasts.count - 1) {
+                            Divider().padding(.leading, 36)
+                        }
+                    }
+                }
+                .background(AppTheme.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
+            }
+        } else if loadingBroadcasts {
+            HStack { ProgressView(); Spacer() }
+        }
+    }
+
+    private func broadcastRow(_ bc: FamilyBroadcast) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .fill(colorForLabel(bc.resultLabel))
+                .frame(width: 10, height: 10)
+                .padding(.top, 6)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(labelText(bc.resultLabel))
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(colorForLabel(bc.resultLabel))
+                    if bc.source == "auto_query" {
+                        Text(languageCode == "en" ? "Auto" : "自动")
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(AppTheme.textSecondary.opacity(0.1))
+                            .clipShape(Capsule())
+                            .foregroundColor(AppTheme.textSecondary)
+                    }
+                    Spacer()
+                    Text(timeAgo(bc.createdAt))
+                        .font(.caption2)
+                        .foregroundColor(AppTheme.textSecondary)
+                }
+                Text(bc.contentDisplay)
+                    .font(.caption)
+                    .foregroundColor(AppTheme.textPrimary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.vertical, 10)
+        .padding(.horizontal, 14)
+    }
+
+    private func colorForLabel(_ label: FamilyBroadcast.ResultLabel) -> Color {
+        switch label {
+        case .scam: return AppTheme.riskHigh
+        case .safe: return AppTheme.riskLow
+        case .unknown: return AppTheme.riskMedium
+        }
+    }
+
+    private func labelText(_ label: FamilyBroadcast.ResultLabel) -> String {
+        switch label {
+        case .scam: return languageCode == "en" ? "Scam" : "诈骗"
+        case .safe: return languageCode == "en" ? "Safe" : "安全"
+        case .unknown: return languageCode == "en" ? "Unverified" : "未确认"
+        }
+    }
+
+    private func timeAgo(_ iso: String?) -> String {
+        guard let iso else { return "" }
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let d = f.date(from: iso) ?? {
+            let f2 = ISO8601DateFormatter()
+            f2.formatOptions = [.withInternetDateTime]
+            return f2.date(from: iso)
+        }()
+        guard let date = d else { return "" }
+        let dt = -date.timeIntervalSinceNow
+        if dt < 60 { return languageCode == "en" ? "now" : "刚刚" }
+        if dt < 3600 { return languageCode == "en" ? "\(Int(dt/60))m" : "\(Int(dt/60))分钟前" }
+        if dt < 86400 { return languageCode == "en" ? "\(Int(dt/3600))h" : "\(Int(dt/3600))小时前" }
+        return languageCode == "en" ? "\(Int(dt/86400))d" : "\(Int(dt/86400))天前"
+    }
+
+    private func loadBroadcasts() async {
+        guard AuthInterceptor.token() != nil else { return }
+        loadingBroadcasts = true
+        defer { loadingBroadcasts = false }
+        do {
+            let list = try await FamilyRepository.shared.getBroadcasts(limit: 20)
+            await MainActor.run {
+                recentBroadcasts = list
+            }
+        } catch {
+            #if DEBUG
+            print("[FamilyGroupView] loadBroadcasts failed: \(error)")
+            #endif
+        }
+    }
+
     // MARK: - Members
 
     private var memberSection: some View {
@@ -309,6 +443,54 @@ public struct FamilyGroupView: View {
             .padding(.vertical, 14)
             .background(AppTheme.primary.opacity(0.12))
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
+        }
+    }
+}
+
+// MARK: - 全部家庭消息列表（"查看全部" 入口）
+
+private struct FamilyBroadcastListView: View {
+    let broadcasts: [FamilyBroadcast]
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+
+    var body: some View {
+        List(broadcasts) { bc in
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(colorForLabel(bc.resultLabel))
+                        .frame(width: 8, height: 8)
+                    Text(labelText(bc.resultLabel))
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(colorForLabel(bc.resultLabel))
+                    Spacer()
+                    Text(bc.createdAt ?? "")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                Text(bc.contentDisplay)
+                    .font(.subheadline)
+            }
+            .padding(.vertical, 4)
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle(languageCode == "en" ? "Family Messages" : "家庭消息")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func colorForLabel(_ label: FamilyBroadcast.ResultLabel) -> Color {
+        switch label {
+        case .scam: return AppTheme.riskHigh
+        case .safe: return AppTheme.riskLow
+        case .unknown: return AppTheme.riskMedium
+        }
+    }
+
+    private func labelText(_ label: FamilyBroadcast.ResultLabel) -> String {
+        switch label {
+        case .scam: return languageCode == "en" ? "Scam" : "诈骗"
+        case .safe: return languageCode == "en" ? "Safe" : "安全"
+        case .unknown: return languageCode == "en" ? "Unverified" : "未确认"
         }
     }
 }
