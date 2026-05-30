@@ -25,6 +25,7 @@ public struct FamilyGroupView: View {
     @State private var showShareSheet = false
     @State private var showPrivacy = false
     @State private var showSwitchSheet = false
+    @State private var showRedeemSheet = false
     /// S5-9 家庭官方消息（来自自己或其他成员的分享，AI 检测后官方匿名广播）
     @State private var recentBroadcasts: [FamilyBroadcast] = []
     @State private var loadingBroadcasts = false
@@ -44,13 +45,18 @@ public struct FamilyGroupView: View {
             .padding(AppTheme.Spacing.lg)
         }
         .background(AppTheme.background)
-        // P0-1：分享按钮固定在底部（safeAreaInset 自动给 ScrollView 加 bottom inset）
+        // P0-1：分享按钮固定底部
+        // 修：之前用 .ultraThinMaterial 在浅色背景下接近透明 + 按钮 0.12 浅蓝 → 完全融化
+        // 改：实色背景 + 顶部细分隔线，让按钮区域有清晰视觉边界
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            shareAction
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .padding(.bottom, 12)
-                .background(.ultraThinMaterial)
+            VStack(spacing: 0) {
+                Divider()
+                shareAction
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 12)
+            }
+            .background(Color(.systemBackground))
         }
         .task {
             await loadBroadcasts()
@@ -100,6 +106,15 @@ public struct FamilyGroupView: View {
                             )
                         }
                     }
+                    // 用邀请码加入别人的家庭（多家庭场景核心入口）
+                    Button {
+                        showRedeemSheet = true
+                    } label: {
+                        Label(
+                            languageCode == "en" ? "Join Another Family" : "加入其他家庭",
+                            systemImage: "rectangle.portrait.and.arrow.forward"
+                        )
+                    }
                     Button {
                         showPrivacy = true
                     } label: {
@@ -146,6 +161,9 @@ public struct FamilyGroupView: View {
         }
         .sheet(isPresented: $showSwitchSheet) {
             FamilySwitchSheet(vm: vm)
+        }
+        .sheet(isPresented: $showRedeemSheet) {
+            RedeemInviteSheet(vm: vm)
         }
         .confirmationDialog(
             languageCode == "en" ? "Leave family group?" : "退出家庭组？",
@@ -210,17 +228,35 @@ public struct FamilyGroupView: View {
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
     }
 
-    /// 免费 / Pro 徽章
+    /// 免费 / Pro 徽章（免费状态可点 → 跳订阅页升级）
     private var tierBadge: some View {
         let isPro = appState.subscriptionActive
         let text: String = isPro
             ? (languageCode == "en" ? "Pro" : "Pro")
-            : (languageCode == "en" ? "Free" : "免费")
-        return Text(text)
-            .font(.caption.weight(.bold))
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(Color.white.opacity(isPro ? 0.28 : 0.18))
-            .clipShape(Capsule())
+            : (languageCode == "en" ? "Free" : "免费 ›")
+        return Group {
+            if isPro {
+                Text(text)
+                    .font(.caption.weight(.bold))
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(Color.white.opacity(0.28))
+                    .clipShape(Capsule())
+            } else {
+                NavigationLink {
+                    PremiumSubscriptionView()
+                        .environmentObject(appState)
+                        .mainTabBarHidden()
+                } label: {
+                    Text(text)
+                        .font(.caption.weight(.bold))
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(Color.white.opacity(0.18))
+                        .foregroundColor(.white)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private var memberCountText: String {
@@ -480,6 +516,11 @@ public struct FamilyGroupView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(AppTheme.primary.opacity(0.12))
+            .overlay(
+                // 加边框增强可见度，跟实心 fill 区分（柔和但可识别）
+                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                    .strokeBorder(AppTheme.primary.opacity(0.45), lineWidth: 1)
+            )
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
         }
     }

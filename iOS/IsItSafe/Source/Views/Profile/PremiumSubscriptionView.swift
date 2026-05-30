@@ -55,6 +55,7 @@ public struct PremiumSubscriptionView: View {
                 }
                 if !plans.isEmpty { primaryButton }
                 coreBenefitsSection
+                familyBenefitsSection
                 whyPremiumSection
                 subscriptionNoticeSection
                 bottomLinksSection
@@ -374,6 +375,83 @@ public struct PremiumSubscriptionView: View {
                     )
                     .padding(8)
             }
+        }
+    }
+
+    // MARK: - 家庭套餐权益（S5-11 新增）
+    /// PRD V3-E：family.* 订阅 = owner 付费 → 同家庭全员共享配额
+    private var familyBenefitsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(AppTheme.primary)
+                    .frame(width: 4, height: 22)
+                Text(languageCode == "en" ? "Family plan benefits" : "家庭套餐权益")
+                    .font(.headline)
+                    .foregroundColor(AppTheme.textPrimary)
+                Spacer()
+                Text(languageCode == "en" ? "Up to 10 people" : "最多 10 人")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(AppTheme.primary.opacity(0.12))
+                    .foregroundColor(AppTheme.primary)
+                    .clipShape(Capsule())
+            }
+
+            VStack(spacing: 10) {
+                familyBenefitRow(
+                    icon: "person.3.fill",
+                    title: languageCode == "en" ? "Up to 10 members per group" : "每个家庭最多 10 人（免费 3 人）",
+                    desc: languageCode == "en" ? "Add parents, siblings, kids — covers extended family" : "覆盖父母、伴侣、孩子的多代家庭"
+                )
+                familyBenefitRow(
+                    icon: "infinity",
+                    title: languageCode == "en" ? "Shared unlimited AI checks" : "全家共享 AI 查询不限/天",
+                    desc: languageCode == "en" ? "Owner pays once, everyone gets Pro privileges" : "owner 付费一次，全家成员都解锁 Pro"
+                )
+                familyBenefitRow(
+                    icon: "megaphone.fill",
+                    title: languageCode == "en" ? "Unlimited official broadcasts" : "官方提醒不限次（免费 1 条/天）",
+                    desc: languageCode == "en" ? "Any family member's high-risk query auto-broadcasts" : "任一成员查到高风险，自动以官方名义提醒全家"
+                )
+                familyBenefitRow(
+                    icon: "house.fill",
+                    title: languageCode == "en" ? "Create up to 3 family groups" : "最多创建 3 个家庭（免费 1 个）",
+                    desc: languageCode == "en" ? "Manage your home + spouse's family + parents'" : "同时管理自己家、伴侣家、双方父母家"
+                )
+                familyBenefitRow(
+                    icon: "heart.text.square",
+                    title: languageCode == "en" ? "Care: SMS escalation when push fails" : "关怀机制：push 失败自动升级短信",
+                    desc: languageCode == "en" ? "Elderly users with notifications off still get reached" : "长辈关了通知？2 天未活跃直接短信提醒"
+                )
+            }
+        }
+        .padding(20)
+        .background(AppTheme.cardBackground)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
+    }
+
+    private func familyBenefitRow(icon: String, title: String, desc: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(AppTheme.primary.opacity(0.12))
+                    .frame(width: 36, height: 36)
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(AppTheme.primary)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(AppTheme.textPrimary)
+                Text(desc)
+                    .font(.caption)
+                    .foregroundColor(AppTheme.textSecondary)
+                    .lineLimit(2)
+            }
+            Spacer()
         }
     }
 

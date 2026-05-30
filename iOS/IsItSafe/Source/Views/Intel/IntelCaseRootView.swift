@@ -23,6 +23,7 @@ public struct IntelCaseRootView: View {
 
     @State private var segment: Segment = .intel
     @State private var showPreferences = false
+    @StateObject private var tabBarVisibility = TabBarVisibility.shared
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     public init() {}
@@ -31,8 +32,11 @@ public struct IntelCaseRootView: View {
         ZStack {
             AppTheme.background.ignoresSafeArea()
             VStack(spacing: 0) {
-                segmentBar
-                Divider().opacity(0.4)
+                // 详情页（.mainTabBarHidden）pushes TabBarVisibility → 同步隐藏 segment bar
+                if !tabBarVisibility.isHidden {
+                    segmentBar
+                    Divider().opacity(0.4)
+                }
                 ZStack {
                     // 用 opacity 切换保持状态（避免每次重建子视图丢历史）
                     // V3-B 改：删 navigationTitle，segment bar 已经显示"今日情报"，

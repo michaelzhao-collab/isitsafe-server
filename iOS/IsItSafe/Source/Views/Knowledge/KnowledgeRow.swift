@@ -13,6 +13,7 @@ import SwiftUI
 
 public struct KnowledgeRow: View {
     public let item: KnowledgeItem
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -69,12 +70,12 @@ public struct KnowledgeRow: View {
 
     // MARK: - chips
 
-    /// 分类 chip：emoji + 文本，颜色按分类映射
+    /// 分类 chip：emoji + 本地化文本，颜色按分类映射
     private var categoryChip: some View {
         let (emoji, color) = categoryStyle(item.category)
         return HStack(spacing: 4) {
             Text(emoji).font(.caption2)
-            Text(item.category)
+            Text(categoryDisplayName(item.category))
                 .font(.caption2.weight(.semibold))
         }
         .padding(.horizontal, 8)
@@ -82,6 +83,34 @@ public struct KnowledgeRow: View {
         .background(color.opacity(0.13))
         .foregroundColor(color)
         .clipShape(Capsule())
+    }
+
+    /// 把 server 返回的 category key（英文）映射到本地化显示名
+    /// 中文环境显示中文，英文环境显示英文
+    private func categoryDisplayName(_ category: String) -> String {
+        let key = category.lowercased()
+        // 中英映射表 — 与 KnowledgeViewModel.categories 的 name 字段保持一致
+        let map: [String: (zh: String, en: String)] = [
+            "scam": ("诈骗", "Scam"),
+            "phishing": ("钓鱼", "Phishing"),
+            "investment_scam": ("投资骗局", "Investment Scam"),
+            "investment": ("投资骗局", "Investment Scam"),
+            "job_scam": ("兼职骗局", "Job Scam"),
+            "job": ("兼职骗局", "Job Scam"),
+            "impersonation": ("冒充客服", "Impersonation"),
+            "fake_customer_service": ("假客服", "Fake CS"),
+            "elder_scam": ("老年人骗局", "Elder Scam"),
+            "elder": ("老年人骗局", "Elder Scam"),
+            "romance": ("杀猪盘", "Romance Scam"),
+            "package": ("快递诈骗", "Package Scam"),
+            "crypto": ("加密货币", "Crypto"),
+            "black_market": ("黑灰产", "Black Market"),
+        ]
+        if let pair = map[key] {
+            return languageCode == "en" ? pair.en : pair.zh
+        }
+        // 后端可能直接给中文 — 原样返回
+        return category
     }
 
     private func tagChip(_ tag: String) -> some View {
