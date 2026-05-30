@@ -95,19 +95,20 @@ public struct IntelCaseRootView: View {
                 segment = s
             }
         } label: {
-            VStack(spacing: 6) {
+            VStack(spacing: 5) {
                 Text(label)
-                    .font(.subheadline.weight(segment == s ? .semibold : .regular))
+                    // 17pt 对齐系统 inline navigationTitle，选中加粗
+                    .font(.system(size: 17, weight: segment == s ? .semibold : .regular))
                     .foregroundColor(segment == s ? AppTheme.textPrimary : AppTheme.textSecondary)
-                // 下划线：选中态主色填色短线
+                // 下划线：选中态主色短线
                 Rectangle()
                     .fill(segment == s ? AppTheme.primary : Color.clear)
-                    .frame(height: 2.5)
-                    .frame(maxWidth: 32)
+                    .frame(height: 2)
+                    .frame(maxWidth: 28)
                     .animation(.easeOut(duration: 0.18), value: segment)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 8)
+            .padding(.horizontal, 14)
+            .padding(.top, 6)
         }
     }
 }

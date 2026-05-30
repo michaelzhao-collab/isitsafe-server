@@ -36,28 +36,33 @@ public struct FamilyGroupView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            VStack(spacing: AppTheme.Spacing.md) {
-                headerCard
-                broadcastSection
-                memberSection
+        // 之前用 .safeAreaInset(.bottom) 不可见：MainTabView 自定义 tabBar 用 .ignoresSafeArea 覆盖在
+        // NavigationStack 上方，把 safeAreaInset 的按钮挡死。改 ZStack + 显式 bottom padding。
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                VStack(spacing: AppTheme.Spacing.md) {
+                    headerCard
+                    broadcastSection
+                    memberSection
+                }
+                .padding(AppTheme.Spacing.lg)
+                // 给底部留出浮动按钮高度，免得内容被挡住
+                .padding(.bottom, 60)
             }
-            .padding(AppTheme.Spacing.lg)
-        }
-        .background(AppTheme.background)
-        // P0-1：分享按钮固定底部
-        // 修：之前用 .ultraThinMaterial 在浅色背景下接近透明 + 按钮 0.12 浅蓝 → 完全融化
-        // 改：实色背景 + 顶部细分隔线，让按钮区域有清晰视觉边界
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+
+            // 浮动分享栏：贴在 MainTabView tabBar 上方
             VStack(spacing: 0) {
-                Divider()
+                Divider().opacity(0.5)
                 shareAction
                     .padding(.horizontal, 16)
                     .padding(.top, 10)
                     .padding(.bottom, 12)
             }
             .background(Color(.systemBackground))
+            // MainTabView tabBar 高度约 78pt（6 top + ~46 content + 12 bottom + ~14 home indicator）
+            .padding(.bottom, 78)
         }
+        .background(AppTheme.background)
         .task {
             await loadBroadcasts()
         }
@@ -96,7 +101,8 @@ public struct FamilyGroupView: View {
                         }
                         Divider()
                     }
-                    if group.isOwner && !group.isFull {
+                    // S5-12：任一成员都可发邀请码（删 owner 限制）
+                    if !group.isFull {
                         Button {
                             showInviteSheet = true
                         } label: {
@@ -438,7 +444,8 @@ public struct FamilyGroupView: View {
     }
 
     private var canShowInviteRow: Bool {
-        group.isOwner && !group.isFull
+        // S5-12：任一成员都可邀请；只看是否满员
+        !group.isFull
     }
 
     private var inviteRowLabel: some View {
