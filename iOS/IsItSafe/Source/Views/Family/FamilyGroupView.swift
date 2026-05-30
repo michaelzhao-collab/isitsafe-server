@@ -39,11 +39,18 @@ public struct FamilyGroupView: View {
                 headerCard
                 broadcastSection
                 memberSection
-                shareAction
             }
             .padding(AppTheme.Spacing.lg)
         }
         .background(AppTheme.background)
+        // P0-1：分享按钮固定在底部（safeAreaInset 自动给 ScrollView 加 bottom inset）
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            shareAction
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .padding(.bottom, 12)
+                .background(.ultraThinMaterial)
+        }
         .task {
             await loadBroadcasts()
         }

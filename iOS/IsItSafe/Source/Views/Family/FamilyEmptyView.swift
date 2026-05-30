@@ -65,8 +65,8 @@ public struct FamilyEmptyView: View {
                     .clipShape(Capsule())
             }
             Text(languageCode == "en"
-                 ? "Up to 5 members. No payment required."
-                 : "最多 5 人，无需付费")
+                 ? "Free up to 3 members · Upgrade to Pro for up to 10"
+                 : "免费 3 人 · 升级 Pro 最多 10 人")
                 .font(.subheadline)
                 .foregroundColor(AppTheme.textSecondary)
             Button(action: onCreate) {

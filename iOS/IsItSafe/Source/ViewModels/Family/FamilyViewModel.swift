@@ -35,6 +35,10 @@ public final class FamilyViewModel: ObservableObject {
     /// 正在进行的异步操作（创建 / 兑换 / 邀请 ...），用于禁用按钮
     @Published public var inflightAction: String?
 
+    /// 邀请码兑换的非阻塞错误（"邀请码无效 / 已过期 / 群满"等）
+    /// 单独存储，不污染全局 state — 否则整个家庭 Tab 会变成"加载失败"页
+    @Published public var redeemError: String?
+
     private let repo = FamilyRepository.shared
     private var refreshTask: Task<Void, Never>?
 
@@ -87,9 +91,10 @@ public final class FamilyViewModel: ObservableObject {
     // MARK: - 兑换邀请码
 
     public func redeemInvite(code: String, parentConsent: Bool? = nil) async -> Bool {
+        redeemError = nil
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         guard trimmed.count == 6 else {
-            state = .error("邀请码应为 6 位字符")
+            redeemError = "邀请码应为 6 位字符"
             return false
         }
         inflightAction = "redeem"
@@ -99,9 +104,32 @@ public final class FamilyViewModel: ObservableObject {
             refresh()
             return true
         } catch {
-            state = .error(error.localizedDescription)
+            // P0-4：失败仅在 sheet 内显示错误，不让整个 Tab 进 .error 状态
+            redeemError = friendlyMessage(for: error)
             return false
         }
+    }
+
+    /// 把后端错误码翻译成长辈也能看懂的中文
+    private func friendlyMessage(for error: Error) -> String {
+        let raw = error.localizedDescription
+        // 常见后端错误关键词映射
+        if raw.contains("Invalid invite code") || raw.contains("404") {
+            return "邀请码无效，请确认后重试"
+        }
+        if raw.contains("expired") || raw.contains("Invite code expired") {
+            return "邀请码已过期，请向家人重新获取"
+        }
+        if raw.contains("already in a family group") {
+            return "你已经在一个家庭组里，无法再加入"
+        }
+        if raw.contains("Family group is full") || raw.contains("full") {
+            return "对方家庭已满员，无法再加入"
+        }
+        if raw.contains("parental_consent_required") {
+            return "未成年用户需先勾选监护人同意"
+        }
+        return "兑换失败：\(raw)"
     }
 
     // MARK: - 退出/解散

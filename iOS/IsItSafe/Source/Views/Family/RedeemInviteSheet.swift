@@ -165,9 +165,13 @@ public struct RedeemInviteSheet: View {
             // 用户勾上即视为给出 parentConsent 证据；服务端只在 isMinor=true 时强制要求
             let ok = await vm.redeemInvite(code: code, parentConsent: consentConfirmed)
             submitting = false
-            if ok { dismiss() }
-            else if case .error(let msg) = vm.state {
-                errorMessage = msg
+            if ok {
+                dismiss()
+            } else {
+                // P0-4：只显示 sheet 内的 redeemError，不读 vm.state（避免污染 Tab）
+                errorMessage = vm.redeemError ?? (languageCode == "en"
+                    ? "Failed to redeem. Try again."
+                    : "兑换失败，请重试")
             }
         }
     }

@@ -89,6 +89,11 @@ public struct KnowledgeView: View {
                     } label: {
                         KnowledgeRow(item: item)
                     }
+                    .buttonStyle(.plain)
+                    // P0-5：卡片化样式适配 — 透明背景 + 行间距 + 隐藏分隔线
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                     .onAppear {
                         if item.id == vm.items.last?.id { vm.loadMore() }
                     }
