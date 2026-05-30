@@ -10,30 +10,71 @@ import UIKit
 
 public enum AppTheme {
     // MARK: - 基础色（随系统浅色/深色自适应）
-    /// 主色 #2F6BFF
+    /// 主色 #2F6BFF（保持不变）
     public static let primary = Color(hex: "2F6BFF")
-    /// 主背景（浅色 #F6F8FC，深色 系统背景）
-    public static var background: Color { Color(UIColor.systemGroupedBackground) }
-    /// 卡片背景（浅色 #FFFFFF，深色 次级系统背景）
-    public static var cardBackground: Color { Color(UIColor.secondarySystemGroupedBackground) }
-    /// 边框/分割线
-    public static var border: Color { Color(UIColor.separator) }
+
+    // #7 配色调整（2026-05）：
+    // 旧版用 systemGroupedBackground 太"系统默认"，没有产品记忆点
+    // 新版用极浅冷灰，让卡片更突出 + 整体不刺眼
+
+    /// 主背景
+    ///   浅色 #ECEFF3 — 极浅冷灰（之前是 systemGroupedBackground 偏纯白）
+    ///   深色 #0F1115 — 深空蓝灰
+    public static var background: Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0x0F/255, green: 0x11/255, blue: 0x15/255, alpha: 1)
+                : UIColor(red: 0xEC/255, green: 0xEF/255, blue: 0xF3/255, alpha: 1)
+        })
+    }
+
+    /// 卡片背景
+    ///   浅色 #FFFFFF — 保留纯白让卡片与背景对比清晰
+    ///   深色 #1C1F26 — 深色卡片
+    public static var cardBackground: Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0x1C/255, green: 0x1F/255, blue: 0x26/255, alpha: 1)
+                : UIColor.white
+        })
+    }
+
+    /// 边框/分割线 #E5E7EB（浅色） / #2A2E36（深色）
+    public static var border: Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0x2A/255, green: 0x2E/255, blue: 0x36/255, alpha: 1)
+                : UIColor(red: 0xE5/255, green: 0xE7/255, blue: 0xEB/255, alpha: 1)
+        })
+    }
 
     // MARK: - 文字（随系统自适应）
-    /// 主文字
-    public static var textPrimary: Color { Color(UIColor.label) }
-    /// 次要文字
-    public static var textSecondary: Color { Color(UIColor.secondaryLabel) }
+    /// 主文字 #1A1F2E（浅色，略带蓝调，不像普通系统黑） / #F2F4F8（深色）
+    public static var textPrimary: Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0xF2/255, green: 0xF4/255, blue: 0xF8/255, alpha: 1)
+                : UIColor(red: 0x1A/255, green: 0x1F/255, blue: 0x2E/255, alpha: 1)
+        })
+    }
+    /// 次要文字 #6B7280 中性灰（兼顾浅 / 深）
+    public static var textSecondary: Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0x9B/255, green: 0xA1/255, blue: 0xAD/255, alpha: 1)
+                : UIColor(red: 0x6B/255, green: 0x72/255, blue: 0x80/255, alpha: 1)
+        })
+    }
 
-    // MARK: - 风险等级
-    /// 低风险 #2ECC71
-    public static let riskLow = Color(hex: "2ECC71")
-    /// 中风险 #F5A623
-    public static let riskMedium = Color(hex: "F5A623")
-    /// 高风险 #FF4D4F
-    public static let riskHigh = Color(hex: "FF4D4F")
-    /// 未知 #8A94A6
-    public static let riskUnknown = Color(hex: "8A94A6")
+    // MARK: - 风险等级（Tailwind 系列，柔和但识别度高）
+    /// 低风险 #10B981 emerald-500
+    public static let riskLow = Color(hex: "10B981")
+    /// 中风险 #F59E0B amber-500
+    public static let riskMedium = Color(hex: "F59E0B")
+    /// 高风险 #DC2626 red-600
+    public static let riskHigh = Color(hex: "DC2626")
+    /// 未知 #6B7280 中性灰
+    public static let riskUnknown = Color(hex: "6B7280")
 
     // MARK: - 会员页
     /// 会员页头部深蓝 #1A237E
@@ -58,8 +99,14 @@ public enum AppTheme {
     public static var secondaryText: Color { textSecondary }
     /// Tab 未选中（随系统）
     public static var tabInactive: Color { Color(UIColor.secondaryLabel) }
-    /// 底导背景
-    public static var tabBarBackground: Color { cardBackground }
+    /// 底导背景：跟 cardBackground 微差，让 tabBar 跟主体分层
+    public static var tabBarBackground: Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0x14/255, green: 0x17/255, blue: 0x1D/255, alpha: 1)
+                : UIColor(red: 0xFA/255, green: 0xFB/255, blue: 0xFD/255, alpha: 1)
+        })
+    }
 
     // MARK: - 圆角规范（统一全局圆角口径，避免 8/10/12/16/20 散落各处）
     public enum CornerRadius {

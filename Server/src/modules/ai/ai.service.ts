@@ -21,6 +21,8 @@ import {
 import { hashForCache } from '../../common/utils/hash';
 import { extractUrlFromContent } from '../../common/utils/normalize';
 import { QueryService } from '../query/query.service';
+import { IntentClassifierService, Intent } from './intent/intent-classifier.service';
+import { IntentResponseService } from './intent/intent-response.service';
 
 const CACHE_PREFIX = 'cache:ai:';
 const TTL_DEFAULT = 90 * 24 * 3600;       // 90 天
@@ -105,6 +107,8 @@ export class AiService {
     private prompts: AiPromptsService,
     private provider: AiProviderService,
     private scoreEngine: RiskScoreService,
+    private intentClassifier: IntentClassifierService,
+    private intentResponse: IntentResponseService,
   ) {}
 
   /**
@@ -125,6 +129,35 @@ export class AiService {
     const parsed = this.parser.parse(input.content, isScreenshot);
     console.log('[AI_FLOW] 1.PARSED inputType=' + parsed.inputType + ' normalizedContent=' + JSON.stringify(parsed.normalizedContent.slice(0, 200)) + ' originalLen=' + parsed.originalContent.length);
     const provider = await this.provider.getDefaultProvider();
+
+    // ====== V3 #5 意图分流（非 URL / 非截图、非 scam_detection 时早返回）======
+    // URL 与截图天然属于 scam_detection 场景（用户在让我们判断风险），跳过分类
+    if (parsed.inputType !== 'url' && !isScreenshot) {
+      try {
+        const intentRes = await this.intentClassifier.classify(parsed.originalContent, {});
+        console.log('[AI_FLOW] 1.5 INTENT intent=' + intentRes.intent + ' via=' + intentRes.via);
+        if (intentRes.intent !== 'scam_detection') {
+          const nonScamIntent = intentRes.intent as Exclude<Intent, 'scam_detection'>;
+          const intentOutput = await this.intentResponse.generate(
+            parsed.originalContent,
+            nonScamIntent,
+            language,
+          );
+          const intentFinal = ensureFullResult({
+            ...intentOutput,
+            risk_level: intentOutput.risk_level ?? 'unknown',
+            score: 0,
+            risk_db_hit: false,
+          });
+          console.log('[AI_FLOW] INTENT 早返回 intent=' + intentFinal.intent + ' summary=' + intentFinal.summary?.slice(0, 60));
+          await this.writeQuery(userId, conversationId, parsed, intentFinal, provider, false, input.imageUrl);
+          return { ...intentFinal, conversation_id: conversationId };
+        }
+      } catch (e) {
+        // 分类失败：降级走原 scam_detection 完整流程，行为同 V2
+        console.log('[AI_FLOW] INTENT_CLASSIFY_ERROR (降级走 scam_detection) ' + (e instanceof Error ? e.message : String(e)));
+      }
+    }
 
     const cacheKey = CACHE_PREFIX + hashForCache({
       input_type: parsed.inputType,

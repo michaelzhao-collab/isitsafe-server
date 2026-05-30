@@ -106,8 +106,10 @@ public struct ChatMessageView: View {
         Group {
             switch result {
             case .analysis(let data):
-                if data.isConversational {
-                    conversationalBubble(text: data.summary)
+                // V3 #5：非检测意图（chat / knowledge / help）→ 文本气泡/步骤卡
+                // scam_detection → 老的红黄绿风险卡
+                if data.isNonDetection {
+                    nonDetectionBubble(data: data)
                 } else {
                     RiskResultCard(data: data)
                 }
@@ -130,6 +132,75 @@ public struct ChatMessageView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// V3 #5 非检测意图统一渲染：
+    /// - 优先 freeText（general_chat 回答）
+    /// - 否则 summary + steps（knowledge / help 列表式）
+    /// - 末尾追加 actions 按钮（一键拨打、看案例库等）
+    @ViewBuilder
+    private func nonDetectionBubble(data: RiskAnalysisViewData) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let free = data.freeText, !free.isEmpty {
+                Text(free)
+                    .font(.subheadline)
+                    .foregroundColor(AppTheme.textPrimary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                if !data.summary.isEmpty {
+                    Text(data.summary)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(AppTheme.textPrimary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if !data.steps.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(data.steps.enumerated()), id: \.offset) { idx, step in
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("\(idx + 1).")
+                                    .font(.subheadline)
+                                    .foregroundColor(AppTheme.textSecondary)
+                                Text(step)
+                                    .font(.subheadline)
+                                    .foregroundColor(AppTheme.textPrimary)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }
+                } else if !data.reasons.isEmpty {
+                    // 老服务端没有 steps 时回落到 reasons
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(data.reasons.enumerated()), id: \.offset) { _, r in
+                            Text("• \(r)")
+                                .font(.subheadline)
+                                .foregroundColor(AppTheme.textPrimary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
+            if !data.actions.isEmpty {
+                actionButtonsRow(actions: data.actions)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contextMenu {
+            Button {
+                UIPasteboard.general.string = data.freeText ?? data.summary
+            } label: {
+                Label("复制", systemImage: "doc.on.doc")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func actionButtonsRow(actions: [RiskAnalysisResult.ResponseAction]) -> some View {
+        FlowingActionsView(actions: actions)
+    }
+
     private func conversationalBubble(text: String) -> some View {
         Text(text.isEmpty ? "…" : text)
             .font(.subheadline)
@@ -147,5 +218,61 @@ public struct ChatMessageView: View {
                     Label("复制", systemImage: "doc.on.doc")
                 }
             }
+    }
+}
+
+/// V3 #5：动作按钮行（拨打 / 跳转知识库 / 拨打家人）
+/// 简化排版：横向 wrap，多按钮换行
+private struct FlowingActionsView: View {
+    let actions: [RiskAnalysisResult.ResponseAction]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(actions, id: \.self) { action in
+                Button {
+                    handle(action: action)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: icon(for: action.type))
+                            .font(.subheadline.weight(.semibold))
+                        Text(action.label)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundColor(AppTheme.primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.primary.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func icon(for type: String) -> String {
+        switch type {
+        case "call", "call_family": return "phone.fill"
+        case "knowledge": return "book.fill"
+        case "report": return "exclamationmark.shield.fill"
+        case "open_url": return "link"
+        default: return "arrow.right.circle.fill"
+        }
+    }
+
+    private func handle(action: RiskAnalysisResult.ResponseAction) {
+        switch action.type {
+        case "call":
+            if let v = action.value,
+               let url = URL(string: "tel://\(v.filter { $0.isNumber || $0 == "+" })") {
+                UIApplication.shared.open(url)
+            }
+        case "open_url":
+            if let v = action.value, let url = URL(string: v) {
+                UIApplication.shared.open(url)
+            }
+        default:
+            // call_family / knowledge / report 等留给上层路由扩展
+            break
+        }
     }
 }

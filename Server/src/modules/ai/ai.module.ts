@@ -6,6 +6,8 @@ import { RagKeywordService } from './rag/rag-keyword.service';
 import { RiskScoreService } from './risk-engine/risk-score.service';
 import { AiPromptsService } from './prompts/ai-prompts.service';
 import { AiProviderService } from './providers/ai-provider.service';
+import { IntentClassifierService } from './intent/intent-classifier.service';
+import { IntentResponseService } from './intent/intent-response.service';
 import { AiRateLimitGuard } from '../../common/rate-limit/ai-rate-limit.guard';
 import { SettingsModule } from '../settings/settings.module';
 import { RiskModule } from '../risk/risk.module';
@@ -23,6 +25,8 @@ import { QueryModule } from '../query/query.module';
     RiskScoreService,
     AiPromptsService,
     AiProviderService,
+    IntentClassifierService,
+    IntentResponseService,
   ],
   exports: [AiService, AiProviderService],
 })

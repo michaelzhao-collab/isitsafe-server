@@ -27,6 +27,18 @@ export interface AiOutputSchema {
   reasons: string[];
   advice: string[];
   is_conversational?: boolean;
+
+  // ====== #5 V3 意图分流（老字段保留兼容老客户端）======
+  /** 'scam_detection' | 'general_chat' | 'knowledge_query' | 'help_request' */
+  intent?: string;
+  /** scam_detection 专用：'scam' | 'safe' | 'unknown'（与 risk_level 映射） */
+  verdict?: string;
+  /** 3-5 句决策性建议（新版风险卡渲染） */
+  steps?: string[];
+  /** 可点动作按钮 */
+  actions?: Array<{ label: string; type: string; value?: string }>;
+  /** general_chat 时的自由文本回答（无 verdict 时由 iOS 渲染纯文本气泡） */
+  free_text?: string;
 }
 
 const ZH_TO_EN: Record<string, RiskLevel> = {
