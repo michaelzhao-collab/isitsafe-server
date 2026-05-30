@@ -91,6 +91,11 @@ public final class FamilyRepository {
 
     // MARK: - 隐私偏好
 
+    /// S5-10 多家庭：拉取我加入的所有家庭组
+    public func getMyGroups() async throws -> [FamilyGroup] {
+        try await network.request(endpoint: .v3FamilyGetMyGroups)
+    }
+
     public func updatePreferences(shareQueryResults: Bool?) async throws {
         try await network.requestVoid(
             endpoint: .v3FamilyUpdatePreferences,

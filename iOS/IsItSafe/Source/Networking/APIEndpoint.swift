@@ -53,8 +53,10 @@ public enum APIEndpoint {
     case v3UserRegisterDevice
     /// V3-E 创建家庭组（免费）
     case v3FamilyCreateGroup
-    /// V3-E 我的家庭组
+    /// V3-E 我的家庭组（兼容旧版：返回单一最早加入的）
     case v3FamilyGetMyGroup
+    /// V3-E S5-10 多家庭：拉取我加入的全部家庭组
+    case v3FamilyGetMyGroups
     /// V3-E 生成邀请码
     case v3FamilyGenerateInvite(groupId: String)
     /// V3-E 兑换邀请码
@@ -156,6 +158,7 @@ public enum APIEndpoint {
         case .v3UserRegisterDevice: return "/api/user/v3/devices"
         case .v3FamilyCreateGroup: return "/api/v3/family/groups"
         case .v3FamilyGetMyGroup: return "/api/v3/family/groups/me"
+        case .v3FamilyGetMyGroups: return "/api/v3/family/groups/me/all"
         case .v3FamilyGenerateInvite(let groupId): return "/api/v3/family/groups/\(groupId)/invites"
         case .v3FamilyRedeemInvite: return "/api/v3/family/invites/redeem"
         case .v3FamilyLeaveGroup(let groupId): return "/api/v3/family/groups/\(groupId)/leave"
@@ -195,7 +198,7 @@ public enum APIEndpoint {
     public var method: HTTPMethod {
         switch self {
         case .health, .authUserInfo, .authExportData, .authRegionHint, .queryHistory, .queryTags, .knowledgeList, .knowledgeCategories, .knowledgeDetail, .subscriptionStatus, .membershipPlans, .messagesList, .messageUnreadCount, .publicConfig,
-             .v3FamilyGetMyGroup, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
+             .v3FamilyGetMyGroup, .v3FamilyGetMyGroups, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
              .v3IntelFeed, .v3IntelDetail, .v3IntelCategories, .v3IntelUnreadCount,
              .v3IntelMySubmissions, .v3IntelGetPreferences,
              .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeStream,
@@ -228,7 +231,7 @@ public enum APIEndpoint {
         switch self {
         case .authLogout, .authDeleteAccount, .authExportData, .authUserInfo, .subscriptionVerify, .subscriptionStatus, .uploadAvatar, .uploadFile, .updateProfile, .deleteQuery, .deleteQueryConversation, .queryHistory, .messagesList, .messageUnreadCount, .messageMarkRead, .feedbackSubmit,
              .v3UserHeartbeat, .v3UserElderMode, .v3UserRegisterDevice,
-             .v3FamilyCreateGroup, .v3FamilyGetMyGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
+             .v3FamilyCreateGroup, .v3FamilyGetMyGroup, .v3FamilyGetMyGroups, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyDissolveGroup, .v3FamilyRemoveMember, .v3FamilyUpdatePreferences,
              .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus, .v3FamilyMemberElderMode,
              .v3IntelFeed, .v3IntelDetail, .v3IntelUnreadCount, .v3IntelSubmit,

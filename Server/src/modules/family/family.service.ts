@@ -14,17 +14,20 @@ import { regionToTimezone, daysDiffInTz, localHour } from '../../common/utils/re
 import { normalizeByType } from '../../common/utils/content-normalize';
 
 /**
- * 家庭组容量上限（S5-7 改为按 owner 订阅动态）
- *   免费：3 人（owner + 2 名成员）
- *   付费（pro.* 或 family.* 订阅生效）：10 人
- *
- * 行为：
- *   - 邀请 / 兑换时校验 owner 当时的订阅状态
- *   - owner 从 Pro 降级到免费 → 已有成员**保留**，但无法再邀请新人
- *     （和 Apple Family Sharing 行为一致）
+ * 家庭组容量上限（S5-7 按 owner 订阅动态）
+ *   免费：3 人 / Pro：10 人
  */
 const FREE_MAX_FAMILY_MEMBERS = 3;
 const PAID_MAX_FAMILY_MEMBERS = 10;
+
+/**
+ * 创建家庭组数量上限（S5-10 多家庭支持）
+ *   免费：1 个 / Pro：3 个
+ *   加入家庭组数量不限（自己家、伴侣家、父母家等场景）
+ */
+const FREE_MAX_OWNED_GROUPS = 1;
+const PAID_MAX_OWNED_GROUPS = 3;
+
 const INVITE_CODE_TTL_DAYS = 7;
 const INVITE_CODE_MAX_USES = 4;
 
@@ -145,12 +148,18 @@ export class FamilyService {
   // 家庭组 CRUD
   // ====================================================================
   async createGroup(userId: string, name?: string) {
-    // 一个用户只能加入一个家庭组
-    const existing = await this.prisma.familyMember.findFirst({
-      where: { userId },
+    // S5-10 多家庭：免费用户最多创建 1 个家庭组，Pro 最多 3 个
+    const ownedCount = await this.prisma.familyGroup.count({
+      where: { ownerUserId: userId },
     });
-    if (existing) {
-      throw new ConflictException('You are already in a family group. Leave it first.');
+    const e = await this.entitlement.getUserEntitlement(userId);
+    const maxOwned = e.isUnlimited ? PAID_MAX_OWNED_GROUPS : FREE_MAX_OWNED_GROUPS;
+    if (ownedCount >= maxOwned) {
+      throw new BadRequestException(
+        e.isUnlimited
+          ? `You already own ${ownedCount} family groups (max ${PAID_MAX_OWNED_GROUPS} for Pro)`
+          : `Free users can create 1 family group. Upgrade to Pro to create up to ${PAID_MAX_OWNED_GROUPS}.`,
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -185,12 +194,31 @@ export class FamilyService {
   }
 
   async getMyGroup(userId: string) {
+    // S5-10：兼容旧 iOS 客户端 — 仍返回单一家庭组（按 joinedAt 最早的那个），
+    //        新客户端应该用 getMyGroups 拉全量
     const member = await this.prisma.familyMember.findFirst({
       where: { userId },
+      orderBy: { joinedAt: 'asc' },
       include: { group: { include: { members: { include: { user: true } } } } },
     });
     if (!member) return null;
     return await this.composeGroupDto(member.group, userId);
+  }
+
+  /**
+   * S5-10 多家庭：拉取我加入的全部家庭组
+   * 按 joinedAt 升序（最早加入的排前），客户端自行 sort/select active
+   */
+  async getMyGroups(userId: string) {
+    const members = await this.prisma.familyMember.findMany({
+      where: { userId },
+      orderBy: { joinedAt: 'asc' },
+      include: { group: { include: { members: { include: { user: true } } } } },
+    });
+    const groups = await Promise.all(
+      members.map((m) => this.composeGroupDto(m.group, userId)),
+    );
+    return groups;
   }
 
   async leaveGroup(userId: string) {
@@ -305,10 +333,12 @@ export class FamilyService {
       throw new BadRequestException('Invite code expired');
     }
 
-    // 一个用户只能加入一个组
-    const existing = await this.prisma.familyMember.findFirst({ where: { userId } });
-    if (existing) {
-      throw new ConflictException('You are already in a family group');
+    // S5-10 多家庭：用户可以加入多个家庭组，但不能在同一个组里出现两次
+    const existingInThisGroup = await this.prisma.familyMember.findFirst({
+      where: { userId, groupId: group.id },
+    });
+    if (existingInThisGroup) {
+      throw new ConflictException('You are already a member of this family group');
     }
 
     const memberCount = await this.prisma.familyMember.count({ where: { groupId: group.id } });
@@ -703,11 +733,27 @@ export class FamilyService {
     return { success: true, targetUserId, enabled };
   }
 
-  async getMyBroadcasts(userId: string, limit = 50) {
+  /**
+   * 拉取家庭官方消息列表
+   *
+   * S5-10 信息架构调整（方案 C）：
+   *   家庭 Tab 是"inbox"心智 → 默认只返回**别人触发**广播给我的消息，
+   *   排除自己触发的（避免与"我的分享历史"重叠）。
+   *
+   * @param excludeOwn  true（默认）= 仅别人触发的；false = 含自己（"我的分享"场景）
+   */
+  async getMyBroadcasts(
+    userId: string,
+    limit = 50,
+    excludeOwn = true,
+  ) {
     const member = await this.prisma.familyMember.findFirst({ where: { userId } });
     if (!member) return [];
     return this.prisma.familyBroadcast.findMany({
-      where: { groupId: member.groupId },
+      where: {
+        groupId: member.groupId,
+        ...(excludeOwn ? { triggeredByUserId: { not: userId } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       take: limit,
       // ⚠️ 严禁 select triggeredByUserId！服务层就过滤掉，DTO 再防一道

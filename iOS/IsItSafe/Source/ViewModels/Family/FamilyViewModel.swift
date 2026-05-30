@@ -39,6 +39,13 @@ public final class FamilyViewModel: ObservableObject {
     /// 单独存储，不污染全局 state — 否则整个家庭 Tab 会变成"加载失败"页
     @Published public var redeemError: String?
 
+    /// S5-10 多家庭：我加入的全部家庭组（含 owner / member）
+    @Published public var allGroups: [FamilyGroup] = []
+
+    /// S5-10 当前选中显示的家庭组 id（本地持久化，跨会话保留）
+    /// 未选 / 选中 group 不在 allGroups 时 fallback 到第一个
+    private let selectedGroupIdKey = "isitsafe.family.selectedGroupId"
+
     private let repo = FamilyRepository.shared
     private var refreshTask: Task<Void, Never>?
 
@@ -46,12 +53,11 @@ public final class FamilyViewModel: ObservableObject {
 
     // MARK: - 加载
 
-    /// 拉取我的家庭组（未登录 → notLoggedIn；未加入 → empty；已加入 → loaded）
+    /// 拉取所有家庭组（未登录 → notLoggedIn；未加入 → empty；已加入 → loaded 选中那个）
     public func refresh() {
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
             guard let self else { return }
-            // 未登录直接 short-circuit
             guard AuthInterceptor.token() != nil else {
                 self.state = .notLoggedIn
                 return
@@ -60,11 +66,17 @@ public final class FamilyViewModel: ObservableObject {
                 self.state = .loading
             }
             do {
-                if let group = try await self.repo.getMyGroup() {
-                    self.state = .loaded(group)
-                } else {
+                let groups = try await self.repo.getMyGroups()
+                self.allGroups = groups
+                if groups.isEmpty {
                     self.state = .empty
+                    return
                 }
+                // 优先选 user 上次选中的；不在列表则 fallback 第一个（按 joinedAt 最早）
+                let saved = UserDefaults.standard.string(forKey: self.selectedGroupIdKey) ?? ""
+                let current = groups.first { $0.id == saved } ?? groups[0]
+                UserDefaults.standard.set(current.id, forKey: self.selectedGroupIdKey)
+                self.state = .loaded(current)
             } catch is CancellationError {
                 // ignore
             } catch {
@@ -73,17 +85,27 @@ public final class FamilyViewModel: ObservableObject {
         }
     }
 
+    /// 切换到指定家庭组（多家庭场景下用户从顶部切换器选）
+    public func switchTo(groupId: String) {
+        guard let g = allGroups.first(where: { $0.id == groupId }) else { return }
+        UserDefaults.standard.set(groupId, forKey: selectedGroupIdKey)
+        state = .loaded(g)
+    }
+
     // MARK: - 创建
 
     public func createGroup(name: String?) async -> Bool {
         inflightAction = "create"
         defer { inflightAction = nil }
         do {
-            _ = try await repo.createGroup(name: name)
+            let resp = try await repo.createGroup(name: name)
+            // S5-10：新建后自动切到该家庭
+            UserDefaults.standard.set(resp.id, forKey: selectedGroupIdKey)
             refresh()
             return true
         } catch {
-            state = .error(error.localizedDescription)
+            // 失败不污染 state（用户当前家庭仍可用）；用 redeemError 复用作通用错误显示
+            redeemError = friendlyMessage(for: error)
             return false
         }
     }
@@ -100,7 +122,9 @@ public final class FamilyViewModel: ObservableObject {
         inflightAction = "redeem"
         defer { inflightAction = nil }
         do {
-            _ = try await repo.redeemInvite(code: trimmed, parentConsent: parentConsent)
+            let resp = try await repo.redeemInvite(code: trimmed, parentConsent: parentConsent)
+            // S5-10：兑换成功后自动切到新加入的家庭
+            UserDefaults.standard.set(resp.groupId, forKey: selectedGroupIdKey)
             refresh()
             return true
         } catch {

@@ -84,6 +84,15 @@ export class FamilyController {
     return this.family.generateInviteCode(userId, groupId);
   }
 
+  /**
+   * S5-10 多家庭：拉取我加入的所有家庭组
+   * 兼容性：老接口 GET /groups/me 仍返回单一（最早加入的）
+   */
+  @Get('groups/me/all')
+  async getMyGroups(@CurrentUser('sub') userId: string) {
+    return this.family.getMyGroups(userId);
+  }
+
   @Post('invites/redeem')
   async redeemInvite(@CurrentUser('sub') userId: string, @Body() dto: RedeemInviteDto) {
     const member = await this.family.redeemInviteCode(userId, dto.inviteCode, {

@@ -24,6 +24,7 @@ public struct FamilyGroupView: View {
     @State private var showDissolveConfirm = false
     @State private var showShareSheet = false
     @State private var showPrivacy = false
+    @State private var showSwitchSheet = false
     /// S5-9 家庭官方消息（来自自己或其他成员的分享，AI 检测后官方匿名广播）
     @State private var recentBroadcasts: [FamilyBroadcast] = []
     @State private var loadingBroadcasts = false
@@ -58,10 +59,37 @@ public struct FamilyGroupView: View {
             await loadBroadcasts()
             vm.refresh()
         }
-        // 右上角 ⋯ Menu：隐藏次级操作（退出/解散/隐私）
+        // 左上角"切换家庭"按钮（仅当有多个家庭时显示）+ 右上角 ⋯ Menu
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                if vm.allGroups.count > 1 {
+                    Button {
+                        showSwitchSheet = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.left.arrow.right")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text(languageCode == "en" ? "Switch" : "切换")
+                                .font(.subheadline)
+                        }
+                        .foregroundColor(AppTheme.primary)
+                    }
+                }
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
+                    // 多家庭场景：菜单里也有"切换家庭"
+                    if vm.allGroups.count > 1 {
+                        Button {
+                            showSwitchSheet = true
+                        } label: {
+                            Label(
+                                languageCode == "en" ? "Switch Family" : "切换家庭",
+                                systemImage: "arrow.left.arrow.right"
+                            )
+                        }
+                        Divider()
+                    }
                     if group.isOwner && !group.isFull {
                         Button {
                             showInviteSheet = true
@@ -115,6 +143,9 @@ public struct FamilyGroupView: View {
         }
         .sheet(isPresented: $showPrivacy) {
             FamilyPrivacySheet(vm: vm)
+        }
+        .sheet(isPresented: $showSwitchSheet) {
+            FamilySwitchSheet(vm: vm)
         }
         .confirmationDialog(
             languageCode == "en" ? "Leave family group?" : "退出家庭组？",
