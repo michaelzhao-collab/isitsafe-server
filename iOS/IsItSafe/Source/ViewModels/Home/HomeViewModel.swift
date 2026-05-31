@@ -372,6 +372,13 @@ public final class HomeViewModel: ObservableObject {
                     queryRiskState = .idle
                     lastResult = nil
                     lastQueryRisk = nil
+                    // 打开历史时滚动到最后一条（用户看最新对话，而不是从顶部开始）
+                    if let lastId = newTurns.last?.id {
+                        // 异步触发，等 ForEach 渲染完成
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                            self?.scrollToTurnId = lastId
+                        }
+                    }
                 }
             } catch {
                 await MainActor.run {

@@ -9,6 +9,7 @@ import SwiftUI
 
 public struct ChatMessageView: View {
     public let turn: ChatTurn
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     public init(turn: ChatTurn) {
         self.turn = turn
@@ -78,7 +79,7 @@ public struct ChatMessageView: View {
                                 Button {
                                     UIPasteboard.general.string = text
                                 } label: {
-                                    Label("复制", systemImage: "doc.on.doc")
+                                    Label(languageCode == "en" ? "Copy" : "复制", systemImage: "doc.on.doc")
                                 }
                             }
                     }
@@ -191,7 +192,7 @@ public struct ChatMessageView: View {
             Button {
                 UIPasteboard.general.string = data.freeText ?? data.summary
             } label: {
-                Label("复制", systemImage: "doc.on.doc")
+                Label(languageCode == "en" ? "Copy" : "复制", systemImage: "doc.on.doc")
             }
         }
     }

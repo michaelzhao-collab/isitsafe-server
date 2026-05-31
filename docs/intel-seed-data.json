@@ -1,0 +1,350 @@
+{
+  "_": "情报库种子数据 v1 — 20 条 (10 zh + 10 en)",
+  "_usage": [
+    "1) 用 admin 账号登录拿到 jwt",
+    "2) 对每条 POST /api/admin/intel/alerts，body 用下方 alerts 数组里的对象（去掉首字段下划线说明）",
+    "3) 创建时如果 status 'published' 会立刻在 iOS 客户端「今日情报」可见；'draft' 不可见",
+    "4) language='zh' 只对中文用户展示；language='en' 只对英文用户展示",
+    "5) targetRegions=['*'] 全球可见；targetAudiences=['*'] 全人群可见"
+  ],
+  "_curl_example": "curl -X POST https://YOUR_HOST/api/admin/intel/alerts -H 'Authorization: Bearer YOUR_JWT' -H 'Content-Type: application/json' -d @one-alert.json",
+  "alerts": [
+    {
+      "title": "冒充公检法新套路：AI 合成警官视频电话",
+      "summary": "诈骗团伙开始用 AI 换脸 + 声音合成冒充警察、检察官出镜视频通话，称受害人涉嫌洗钱要求转账到\"安全账户\"。视频细节做到了眨眼、转头、灯光投影都对得上。",
+      "contentBlocks": [
+        {"type": "step", "text": "第 1 步：陌生号码自称公检法，要求加微信视频"},
+        {"type": "step", "text": "第 2 步：视频里出现穿警服、戴警徽的\"民警\"，背景是\"派出所\""},
+        {"type": "step", "text": "第 3 步：告知你涉嫌洗钱/贩毒/电信诈骗，要求把钱转到\"安全账户\"配合调查"},
+        {"type": "tip", "text": "公安机关绝不会通过电话/视频要求转账。挂断后立即拨打 96110 反诈热线核实。"}
+      ],
+      "category": "impersonation",
+      "severity": "urgent",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "zh",
+      "sourceUrl": "https://www.gov.cn/lianbo/2024",
+      "status": "published"
+    },
+    {
+      "title": "杀猪盘新变种：海外婚恋 + 加密货币投资",
+      "summary": "国内反诈中心通报：诈骗分子从 Tinder、Hinge 等海外婚恋平台引流，建立 3-6 个月感情后，诱导投资虚假加密货币平台。",
+      "contentBlocks": [
+        {"type": "step", "text": "第 1 步：海外婚恋 APP 主动加你，自称医生/工程师/律师等高收入人群"},
+        {"type": "step", "text": "第 2 步：长期甜蜜聊天 + 频繁视频建立信任，但永远见不到面"},
+        {"type": "step", "text": "第 3 步：提到自家亲戚是\"加密货币内部\"，邀你一起投资某个不知名平台"},
+        {"type": "step", "text": "第 4 步：初期能小额提现取得信任，加大投入后无法提现、客服失联"},
+        {"type": "tip", "text": "凡是网恋对象主动谈投资 / 借钱 / 加密货币，100% 是骗子。"}
+      ],
+      "category": "investment",
+      "severity": "urgent",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "zh",
+      "status": "published"
+    },
+    {
+      "title": "快递理赔骗局：扫码自动扣 6 个月会员",
+      "summary": "近 30 天激增的诈骗手段：自称\"顺丰/京东客服\"，称你的包裹丢失要赔付，要求扫描\"理赔二维码\"。二维码实际跳转到某视频平台的 6 个月会员订阅。",
+      "contentBlocks": [
+        {"type": "step", "text": "第 1 步：自称物流客服打电话，准确说出你的姓名、订单号、收件地址"},
+        {"type": "step", "text": "第 2 步：告知\"快递在分拣时弄丢/破损\"，要扫码理赔（10 元 / 20 元）"},
+        {"type": "step", "text": "第 3 步：扫码后实际是某视频/音乐平台的连续会员订阅页面，金额 198~598/年不等"},
+        {"type": "tip", "text": "正规理赔不会要求扫码。在快递 APP 内自助申诉才安全。"}
+      ],
+      "category": "package",
+      "severity": "high",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "zh",
+      "status": "published"
+    },
+    {
+      "title": "兼职刷单 → 跳转 \"高仿京东\" APP",
+      "summary": "新型刷单骗局：在 boss 直聘等正规平台投放\"日结 200-500\"的兼职广告，引导加 QQ 群后下载\"专属 APP\"（高仿京东/拼多多），完成几单后系统提示\"卡单\"要求充值解锁。",
+      "contentBlocks": [
+        {"type": "step", "text": "第 1 步：正规招聘平台看到\"在家兼职日结\"广告，加群"},
+        {"type": "step", "text": "第 2 步：群里要求下载\"专属 APP\"（实际是高仿大厂电商 APP）"},
+        {"type": "step", "text": "第 3 步：前几单返现到账（50-200 元）建立信任"},
+        {"type": "step", "text": "第 4 步：连刷 3 单后\"系统提示\"要充值更多才能提现"},
+        {"type": "tip", "text": "凡是要求下载 APP 才能做兼职的，100% 是骗子。"}
+      ],
+      "category": "part_time",
+      "severity": "high",
+      "targetRegions": ["*"],
+      "targetAudiences": ["student", "*"],
+      "language": "zh",
+      "status": "published"
+    },
+    {
+      "title": "退税补贴诈骗：冒充税务局发短信",
+      "summary": "短信内容\"您 2024 年退税 ¥XXXX 已到账，请点击链接确认\"，链接打开后是高仿\"个税 APP\"，要求输入银行卡号、密码、验证码。",
+      "contentBlocks": [
+        {"type": "step", "text": "第 1 步：收到\"税务总局\"短信，金额具体到分（如 ¥3,728.46）增加可信度"},
+        {"type": "step", "text": "第 2 步：链接打开类似官方\"个税\" APP 的页面，要求绑卡领取"},
+        {"type": "step", "text": "第 3 步：输入验证码后银行卡余额被秒转"},
+        {"type": "tip", "text": "退税只能在官方\"个人所得税\" APP 操作。短信里的链接一律不点。"}
+      ],
+      "category": "impersonation",
+      "severity": "urgent",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "zh",
+      "status": "published"
+    },
+    {
+      "title": "老年人保健品骗局升级版：\"中医名家\"直播带货",
+      "summary": "针对老年人的新型骗局：通过短视频平台直播间推广\"祖传秘方\"，主播打扮成中医大师，售价从 3000-30000 不等。实际成分仅是普通食品/淀粉。",
+      "contentBlocks": [
+        {"type": "step", "text": "第 1 步：直播间打\"X 老师传人\"\"中医协会主席\"标签"},
+        {"type": "step", "text": "第 2 步：以\"治疗高血压/糖尿病/老年痴呆\"为卖点"},
+        {"type": "step", "text": "第 3 步：每天发福利、送礼品逐步加价"},
+        {"type": "step", "text": "第 4 步：私聊\"加大用量\"\"组合疗法\"，金额数万"},
+        {"type": "tip", "text": "国家药监局明确：任何宣称治疗作用的食品/保健品都是违规。可在国家药监局官网查产品备案。"}
+      ],
+      "category": "elder_scam",
+      "severity": "high",
+      "targetRegions": ["*"],
+      "targetAudiences": ["elder"],
+      "language": "zh",
+      "status": "published"
+    },
+    {
+      "title": "校园贷新马甲：\"学历提升助学金\"",
+      "summary": "针对在校大学生：以\"教育部学历提升计划\"\"成人本科助学金\"名义，承诺垫付学费、毕业后还款，实际是套路贷。",
+      "contentBlocks": [
+        {"type": "step", "text": "第 1 步：QQ/微信加你，自称\"教育部合作机构\"工作人员"},
+        {"type": "step", "text": "第 2 步：承诺\"零首付/零利息\"学历提升，毕业后再还款"},
+        {"type": "step", "text": "第 3 步：要求签电子合同（实际是借贷合同 + 高额服务费）"},
+        {"type": "step", "text": "第 4 步：分期金额远超报名机构本身收费，催收时威胁通讯录"},
+        {"type": "tip", "text": "正规学历提升不需要分期贷款。要查机构合规性请上教育部学信网。"}
+      ],
+      "category": "loan",
+      "severity": "high",
+      "targetRegions": ["*"],
+      "targetAudiences": ["student"],
+      "language": "zh",
+      "status": "published"
+    },
+    {
+      "title": "假客服\"账户安全升级\"骗术",
+      "summary": "诈骗团伙冒充支付宝、微信支付、银行客服，声称账户存在风险需立即\"安全升级\"，引导下载屏幕共享 APP（如 ToDesk/向日葵），实际盗取付款密码。",
+      "contentBlocks": [
+        {"type": "step", "text": "第 1 步：陌生电话自称\"XX 银行/支付宝安全中心\"，说账户被冻结/异常"},
+        {"type": "step", "text": "第 2 步：要求下载\"屏幕共享\"或\"远程协助\" APP 配合检查"},
+        {"type": "step", "text": "第 3 步：通过共享屏幕实时看到你的密码、验证码"},
+        {"type": "step", "text": "第 4 步：盗刷你的银行卡 / 解绑微信支付宝"},
+        {"type": "tip", "text": "正规客服绝不会要求下载第三方共享 APP。挂断电话，从官方 APP 内查询账户状态。"}
+      ],
+      "category": "impersonation",
+      "severity": "urgent",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "zh",
+      "status": "published"
+    },
+    {
+      "title": "AI 换脸冒充亲友借钱",
+      "summary": "AI 换脸 + 声音克隆技术已下沉到诈骗团伙：通过你被盗的微信视频通话，向你的亲友\"借钱周转\"。受害人通过视频确认身份后转账，事后才发现被骗。",
+      "contentBlocks": [
+        {"type": "step", "text": "第 1 步：你或家人的微信被盗，骗子拿到通讯录"},
+        {"type": "step", "text": "第 2 步：用 AI 合成你的视频形象 + 声音，主动视频通话给你的亲友"},
+        {"type": "step", "text": "第 3 步：以\"急用钱周转/医院急诊/出差被困\"为由要求转账"},
+        {"type": "step", "text": "第 4 步：亲友看到\"你的脸\"听到\"你的声音\"，无戒心转账"},
+        {"type": "tip", "text": "任何视频通话要求转账，挂断后用电话回拨本人号码核实。AI 换脸现在很难识破。"}
+      ],
+      "category": "ai_fraud",
+      "severity": "urgent",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "zh",
+      "status": "published"
+    },
+    {
+      "title": "钓鱼短信常用 10 大开头词，一秒辨真伪",
+      "summary": "国家反诈中心数据：钓鱼短信开头词高频统计。如果收到带这些关键词的短信，且要求点击链接，95% 以上是钓鱼。",
+      "contentBlocks": [
+        {"type": "tip", "text": "高危关键词：【银行卡冻结】、【积分到期】、【验证码即将失效】、【ETC 失效】、【社保异常】、【个税补退】、【快递理赔】、【订单异常】、【账户升级】、【中奖通知】"},
+        {"type": "tip", "text": "正规机构发短信不会带短链接（如 t.cn/xxx），通常带 95XXX 客服电话和官网域名"},
+        {"type": "tip", "text": "可在 12321 短信网址（12321.cn）输入举报"}
+      ],
+      "category": "phishing",
+      "severity": "normal",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "zh",
+      "status": "published"
+    },
+
+    {
+      "title": "AI Voice Cloning: Family Emergency Scam",
+      "summary": "Scammers now use AI to clone a relative's voice from social media clips. They call you in distress (kidnapping/accident/jail) and demand wire transfer. The voice sounds 100% real.",
+      "contentBlocks": [
+        {"type": "step", "text": "Step 1: Scammer scrapes 30-second voice samples from TikTok/Instagram/YouTube"},
+        {"type": "step", "text": "Step 2: AI clones the voice with high fidelity (Eleven Labs etc.)"},
+        {"type": "step", "text": "Step 3: They call you crying/panicking: 'It's me, I'm in trouble, send money now'"},
+        {"type": "step", "text": "Step 4: A 'lawyer' or 'officer' takes over to provide wire instructions"},
+        {"type": "tip", "text": "Hang up. Call the relative directly on their known number. Set up a family safe word in advance."}
+      ],
+      "category": "ai_fraud",
+      "severity": "urgent",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "en",
+      "sourceUrl": "https://www.consumer.ftc.gov/articles/scammers-use-ai-enhance-their-family-emergency-schemes",
+      "status": "published"
+    },
+    {
+      "title": "Romance Scam → Crypto Investment (\"Pig Butchering\")",
+      "summary": "FBI 2024: $4.5B+ lost to pig-butchering scams. Scammers spend 3-6 months building romantic rapport on Tinder/Hinge/Bumble, then introduce a 'safe crypto opportunity' through a fake platform.",
+      "contentBlocks": [
+        {"type": "step", "text": "Step 1: Attractive stranger matches you on a dating app. Says they're a doctor/engineer/lawyer."},
+        {"type": "step", "text": "Step 2: Months of sweet daily messages — but they always cancel video calls or in-person meetings."},
+        {"type": "step", "text": "Step 3: Casually mentions a relative who works in crypto/forex and offers 'insider' tips."},
+        {"type": "step", "text": "Step 4: You invest in a polished-looking platform. Small withdrawals work. Then larger deposits get locked."},
+        {"type": "tip", "text": "Anyone you've never met in person introducing crypto investment = scam. Report at ic3.gov."}
+      ],
+      "category": "investment",
+      "severity": "urgent",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "en",
+      "sourceUrl": "https://www.ic3.gov/Media/PDF/AnnualReport/2023_IC3Report.pdf",
+      "status": "published"
+    },
+    {
+      "title": "IRS/Tax Authority Impersonation Calls",
+      "summary": "Sophisticated robocall + live-agent combo claiming you owe back taxes. They demand immediate payment via gift cards, crypto, or wire — and threaten arrest. IRS never works this way.",
+      "contentBlocks": [
+        {"type": "step", "text": "Step 1: Robocall: 'This is the IRS. We are filing a lawsuit against you...'"},
+        {"type": "step", "text": "Step 2: You press 1 to speak to an 'agent' who gives a fake badge number"},
+        {"type": "step", "text": "Step 3: They demand payment in gift cards (Apple/Google Play/Amazon) or crypto"},
+        {"type": "step", "text": "Step 4: Threats: 'If you hang up, police will arrest you within the hour'"},
+        {"type": "tip", "text": "The IRS NEVER calls demanding immediate payment, NEVER accepts gift cards, NEVER threatens arrest. Hang up and report to TIGTA: 1-800-366-4484"}
+      ],
+      "category": "impersonation",
+      "severity": "urgent",
+      "targetRegions": ["US", "CA", "*"],
+      "targetAudiences": ["*"],
+      "language": "en",
+      "status": "published"
+    },
+    {
+      "title": "Fake Package Delivery SMS",
+      "summary": "USPS/FedEx/UPS impersonation texts claim a package is on hold and ask you to 'confirm delivery' via a link. The link installs a banking trojan or harvests credit card info.",
+      "contentBlocks": [
+        {"type": "step", "text": "Step 1: SMS: 'USPS: Your package is on hold. Confirm address: bit.ly/xxx'"},
+        {"type": "step", "text": "Step 2: Link goes to a near-perfect lookalike USPS site"},
+        {"type": "step", "text": "Step 3: Site asks $1.99 'redelivery fee' — enter card → recurring charges + card stolen"},
+        {"type": "tip", "text": "Real USPS does not text random links. Track packages only at usps.com or tools.usps.com."}
+      ],
+      "category": "package",
+      "severity": "high",
+      "targetRegions": ["US", "GB", "AU", "CA", "*"],
+      "targetAudiences": ["*"],
+      "language": "en",
+      "status": "published"
+    },
+    {
+      "title": "\"Hi Mom\" Text Scam on WhatsApp/iMessage",
+      "summary": "Text from an unknown number: 'Hi Mom/Dad, I dropped my phone, this is my new number. Can you transfer some money? I'll explain later.' Targets parents.",
+      "contentBlocks": [
+        {"type": "step", "text": "Step 1: Unknown number messages you addressing you as Mom/Dad"},
+        {"type": "step", "text": "Step 2: Claims they lost/broke their phone and this is the new number"},
+        {"type": "step", "text": "Step 3: Says they need to pay a bill / car repair / friend back and can't access banking yet"},
+        {"type": "step", "text": "Step 4: Asks you to send money to a Venmo/PayPal/bank account they 'borrowed from a friend'"},
+        {"type": "tip", "text": "Always call your child's known number to verify. Agree on a family code word ahead of time."}
+      ],
+      "category": "impersonation",
+      "severity": "high",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "en",
+      "status": "published"
+    },
+    {
+      "title": "Crypto Recovery Scam (Targets Past Victims)",
+      "summary": "If you've already lost money to a crypto scam, you're now on a list. 'Recovery agents' contact you promising to retrieve your funds for an upfront 'legal fee'. This is a second scam.",
+      "contentBlocks": [
+        {"type": "step", "text": "Step 1: You've lost crypto. Months later, someone reaches out claiming to be a 'recovery specialist'"},
+        {"type": "step", "text": "Step 2: They show fake court docs / blockchain analyses / 'partnered with FBI'"},
+        {"type": "step", "text": "Step 3: They quote $5K-$50K upfront for 'legal/tracking fees'"},
+        {"type": "step", "text": "Step 4: After payment they disappear, or ask for more fees"},
+        {"type": "tip", "text": "Legitimate crypto recovery is extremely rare. Only contact authorities directly: ic3.gov / your local police."}
+      ],
+      "category": "investment",
+      "severity": "urgent",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "en",
+      "status": "published"
+    },
+    {
+      "title": "Job Scam: Easy Remote Work for Crypto Wallet Access",
+      "summary": "Fake job postings on LinkedIn/Indeed: 'Data entry, $30/hr, remote'. After interview, you're asked to install a 'work environment app' or connect a crypto wallet for 'payroll testing'.",
+      "contentBlocks": [
+        {"type": "step", "text": "Step 1: Easy-money remote job posting on real platforms"},
+        {"type": "step", "text": "Step 2: Quick 'interview' via Telegram/Discord (no real video)"},
+        {"type": "step", "text": "Step 3: You're asked to install a 'company workspace' app — actually malware"},
+        {"type": "step", "text": "Step 4: Or asked to connect crypto wallet for 'payroll test' — wallet drained"},
+        {"type": "tip", "text": "Real employers never need wallet access or remote desktop apps to onboard. Verify company at sec.gov / bbb.org."}
+      ],
+      "category": "part_time",
+      "severity": "high",
+      "targetRegions": ["US", "GB", "CA", "*"],
+      "targetAudiences": ["*"],
+      "language": "en",
+      "status": "published"
+    },
+    {
+      "title": "Tech Support Pop-up Scam (Fake Microsoft/Apple Alerts)",
+      "summary": "While browsing, a full-screen pop-up appears: 'Your computer is infected! Call 1-800-XXX-XXXX now'. Calling the number connects you to scammers who request remote access.",
+      "contentBlocks": [
+        {"type": "step", "text": "Step 1: Browser pop-up locks screen with siren sound + warning"},
+        {"type": "step", "text": "Step 2: Number leads to 'Microsoft/Apple support' who insist on remote access"},
+        {"type": "step", "text": "Step 3: They install actual malware while pretending to remove it"},
+        {"type": "step", "text": "Step 4: Charge $300-$3000 for 'lifetime protection' and steal banking creds"},
+        {"type": "tip", "text": "Microsoft and Apple NEVER show pop-ups with phone numbers. Close the browser (Cmd+Q on Mac). Never give remote access to unknown callers."}
+      ],
+      "category": "tech_support",
+      "severity": "high",
+      "targetRegions": ["*"],
+      "targetAudiences": ["elder", "*"],
+      "language": "en",
+      "status": "published"
+    },
+    {
+      "title": "Phishing: Streaming Service \"Account Suspended\" Emails",
+      "summary": "Realistic Netflix/Spotify/Disney+ emails saying your account is suspended due to payment issue. Link goes to a perfect lookalike login page that harvests password + card.",
+      "contentBlocks": [
+        {"type": "step", "text": "Step 1: Email subject: 'We were unable to validate your payment'"},
+        {"type": "step", "text": "Step 2: Click 'Update payment info' button → goes to fake login page"},
+        {"type": "step", "text": "Step 3: Enter password and full card → instant account takeover + card fraud"},
+        {"type": "tip", "text": "Never click email links to log in. Always open the app or go to the official website directly (netflix.com, spotify.com)."}
+      ],
+      "category": "phishing",
+      "severity": "normal",
+      "targetRegions": ["*"],
+      "targetAudiences": ["*"],
+      "language": "en",
+      "status": "published"
+    },
+    {
+      "title": "QR Code Parking Meter Fraud",
+      "summary": "Cities like Atlanta and San Francisco report stickers placed over real parking meter QR codes, redirecting drivers to fake payment sites that steal credit cards.",
+      "contentBlocks": [
+        {"type": "step", "text": "Step 1: You park, see official-looking QR sticker on the meter"},
+        {"type": "step", "text": "Step 2: Scan goes to convincing 'CityPark' / 'ParkPay' page"},
+        {"type": "step", "text": "Step 3: Enter card → no parking paid + card stolen for fraud"},
+        {"type": "tip", "text": "Avoid QR-only payment for parking. Use the official city parking app installed from App Store, or pay at a kiosk/with coins."}
+      ],
+      "category": "qr_fraud",
+      "severity": "high",
+      "targetRegions": ["US", "GB", "*"],
+      "targetAudiences": ["*"],
+      "language": "en",
+      "sourceUrl": "https://www.fbi.gov/contact-us/field-offices/sandiego/news/qr-code-scams",
+      "status": "published"
+    }
+  ]
+}

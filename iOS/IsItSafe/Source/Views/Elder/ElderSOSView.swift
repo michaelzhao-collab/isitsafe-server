@@ -97,7 +97,7 @@ public struct ElderSOSView: View {
                 if callable.isEmpty {
                     VStack(spacing: 8) {
                         Text("👨‍👩‍👧").font(.system(size: 56))
-                        Text("家庭成员暂无可拨号码")
+                        Text(languageCode == "en" ? "No family member has a callable number" : "家庭成员暂无可拨号码")
                             .font(.system(size: 18))
                             .foregroundColor(AppTheme.textSecondary)
                     }.padding(.top, 32)

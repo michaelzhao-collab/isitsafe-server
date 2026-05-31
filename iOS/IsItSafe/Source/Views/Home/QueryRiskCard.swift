@@ -7,6 +7,7 @@ import SwiftUI
 
 public struct QueryRiskCard: View {
     public let response: QueryRiskResponse
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     public init(response: QueryRiskResponse) {
         self.response = response
@@ -21,7 +22,9 @@ public struct QueryRiskCard: View {
                 Spacer()
             }
             if let tags = response.tags, !tags.isEmpty {
-                Text("标签：\(tags.joined(separator: "、"))")
+                let sep = languageCode == "en" ? ", " : "、"
+                let prefix = languageCode == "en" ? "Tags: " : "标签："
+                Text("\(prefix)\(tags.joined(separator: sep))")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             }
@@ -34,10 +37,12 @@ public struct QueryRiskCard: View {
 
     private var riskDisplay: String {
         let level = response.riskLevel?.lowercased() ?? "unknown"
+        let isZh = languageCode != "en"
         switch level {
-        case "high": return "高风险"
-        case "medium": return "中风险"
-        default: return "低风险"
+        case "high": return isZh ? "高风险" : "High risk"
+        case "medium": return isZh ? "中风险" : "Medium risk"
+        case "low": return isZh ? "低风险" : "Low risk"
+        default: return isZh ? "未知" : "Unknown"
         }
     }
 

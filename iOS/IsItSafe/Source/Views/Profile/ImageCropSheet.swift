@@ -18,6 +18,7 @@ public struct ImageCropSheet: View {
 
     @State private var offset: CGSize = .zero
     @State private var dragStart: CGSize = .zero
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     public init(image: UIImage, onConfirm: @escaping (UIImage) -> Void, onCancel: @escaping () -> Void) {
         self.image = image
@@ -65,7 +66,7 @@ public struct ImageCropSheet: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
-                Text("拖动图片调整裁剪区域")
+                Text(languageCode == "en" ? "Drag the image to adjust the crop area" : "拖动图片调整裁剪区域")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 ZStack {
@@ -100,14 +101,14 @@ public struct ImageCropSheet: View {
                 Spacer()
             }
             .padding()
-            .navigationTitle("裁剪头像")
+            .navigationTitle(languageCode == "en" ? "Crop Avatar" : "裁剪头像")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { onCancel() }
+                    Button(languageCode == "en" ? "Cancel" : "取消") { onCancel() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("使用") {
+                    Button(languageCode == "en" ? "Use" : "使用") {
                         let rect = cropRectInImage()
                         let cropped = cropImage(image, to: rect)
                         onConfirm(cropped)

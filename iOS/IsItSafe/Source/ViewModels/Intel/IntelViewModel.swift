@@ -45,7 +45,8 @@ public final class IntelViewModel: ObservableObject {
             }
             self.state = .loading
             do {
-                let feed = try await self.repo.getFeed(limit: 50)
+                // 按 UI 语言拉对应语言情报（之前传 nil 会回落到 user.language，与 UI 不同步）
+                let feed = try await self.repo.getFeed(limit: 50, language: AppSettingsStore.shared.languageCode)
                 self.state = feed.isEmpty ? .empty : .loaded(feed)
                 self.unreadCount = feed.filter { !$0.isRead }.count
             } catch is CancellationError {

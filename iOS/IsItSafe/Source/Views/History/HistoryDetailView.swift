@@ -7,6 +7,7 @@ import SwiftUI
 
 public struct HistoryDetailView: View {
     @StateObject private var vm: HistoryDetailViewModel
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     public init(item: QueryHistoryItem) {
         _vm = StateObject(wrappedValue: HistoryDetailViewModel(item: item))
@@ -42,7 +43,7 @@ public struct HistoryDetailView: View {
                         .frame(maxWidth: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
-                    Text("原文")
+                    Text(languageCode == "en" ? "Original" : "原文")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Text(item.content)
@@ -52,6 +53,6 @@ public struct HistoryDetailView: View {
                 .padding()
             }
         }
-        .navigationTitle("分析详情")
+        .navigationTitle(languageCode == "en" ? "Analysis Detail" : "分析详情")
     }
 }
