@@ -130,11 +130,14 @@ public final class NetworkManager {
                 }
             } catch {
                 lastError = error
-                if attempt < retries, (error as? APIError)?.canRetry == true {
+                // 先映射再判断 canRetry，否则裸 URLError（networkConnectionLost / timeout）
+                // 会因为 (error as? APIError) == nil 而被错判为不可重试
+                let mapped = mapError(error, data: nil)
+                if attempt < retries, mapped.canRetry {
                     try? await Task.sleep(nanoseconds: 1_000_000_000)
                     continue
                 }
-                throw mapError(error, data: nil)
+                throw mapped
             }
         }
         throw mapError(lastError ?? APIError.unknown(nil), data: nil)
