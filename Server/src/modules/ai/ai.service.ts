@@ -33,13 +33,21 @@ const TTL_HIGH_RISK = 365 * 24 * 3600;    // 365 天
 const TTL_INTENT_NON_SCAM = 3600;
 const CATEGORY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 分钟
 
-const FALLBACK_REASONS = ['请结合其他渠道核实', '勿轻信单方说法', '注意保护个人隐私与资金安全'];
-const FALLBACK_ADVICE = ['请谨慎对待，勿轻信对方', '可向官方渠道求证', '注意保护个人隐私与资金安全'];
+const FALLBACK_REASONS_ZH = ['请结合其他渠道核实', '勿轻信单方说法', '注意保护个人隐私与资金安全'];
+const FALLBACK_ADVICE_ZH = ['请谨慎对待，勿轻信对方', '可向官方渠道求证', '注意保护个人隐私与资金安全'];
+const FALLBACK_REASONS_EN = ['Verify through other channels', 'Do not trust a single-source claim', 'Protect personal info and funds'];
+const FALLBACK_ADVICE_EN = ['Treat with caution, do not trust easily', 'Verify through official channels', 'Protect personal info and funds'];
+const FALLBACK_SUMMARY_ZH = '暂无总结';
+const FALLBACK_SUMMARY_EN = 'No summary';
 
-function ensureFullResult(r: AnalyzeResult): AnalyzeResult {
-  const reasons = Array.isArray(r.reasons) && r.reasons.length > 0 ? r.reasons : FALLBACK_REASONS;
-  const advice = Array.isArray(r.advice) && r.advice.length > 0 ? r.advice : FALLBACK_ADVICE;
-  const summary = typeof r.summary === 'string' && r.summary.length > 0 ? r.summary : '暂无总结';
+function ensureFullResult(r: AnalyzeResult, language: 'zh' | 'en' = 'zh'): AnalyzeResult {
+  const isZh = language !== 'en';
+  const fbReasons = isZh ? FALLBACK_REASONS_ZH : FALLBACK_REASONS_EN;
+  const fbAdvice = isZh ? FALLBACK_ADVICE_ZH : FALLBACK_ADVICE_EN;
+  const fbSummary = isZh ? FALLBACK_SUMMARY_ZH : FALLBACK_SUMMARY_EN;
+  const reasons = Array.isArray(r.reasons) && r.reasons.length > 0 ? r.reasons : fbReasons;
+  const advice = Array.isArray(r.advice) && r.advice.length > 0 ? r.advice : fbAdvice;
+  const summary = typeof r.summary === 'string' && r.summary.length > 0 ? r.summary : fbSummary;
   return { ...r, reasons, advice, summary };
 }
 
@@ -157,7 +165,7 @@ export class AiService {
             const cached = await this.redis.get(intentCacheKey);
             if (cached) {
               try {
-                const obj = ensureFullResult(JSON.parse(cached) as AnalyzeResult);
+                const obj = ensureFullResult(JSON.parse(cached) as AnalyzeResult, language);
                 console.log('[AI_FLOW] INTENT_CACHE_HIT intent=' + nonScamIntent);
                 await this.writeQuery(userId, conversationId, parsed, obj, provider, true, input.imageUrl);
                 return { ...obj, conversation_id: conversationId };
@@ -174,7 +182,7 @@ export class AiService {
           const intentFinal = ensureFullResult({
             ...intentOutput,
             risk_level: intentOutput.risk_level ?? 'unknown',
-          });
+          }, language);
           console.log('[AI_FLOW] INTENT 早返回 intent=' + intentFinal.intent + ' summary=' + intentFinal.summary?.slice(0, 60));
           if (canCache) {
             await this.redis.set(intentCacheKey, JSON.stringify(intentFinal), TTL_INTENT_NON_SCAM);
@@ -202,7 +210,7 @@ export class AiService {
       const cached = await this.redis.get(cacheKey);
       if (cached) {
         try {
-          const obj = ensureFullResult(JSON.parse(cached) as AnalyzeResult);
+          const obj = ensureFullResult(JSON.parse(cached) as AnalyzeResult, language);
           console.log('[AI_FLOW] CACHE_HIT 未调豆包，直接使用缓存 risk_level=' + (obj?.risk_level ?? '?'));
           await this.writeQuery(userId, conversationId, parsed, obj, provider, true, input.imageUrl);
           return { ...obj, conversation_id: conversationId };
@@ -234,11 +242,11 @@ export class AiService {
       try {
         urlAiResult = await this.provider.analyze(urlUserPrompt, urlSystemPrompt, provider);
         console.log('[AI_FLOW] URL 豆包返回原始(未解析): ' + (urlAiResult?.raw ?? '(null)'));
-        urlParsedAi = parseAndValidateAiOutput(urlAiResult.raw);
+        urlParsedAi = parseAndValidateAiOutput(urlAiResult.raw, language);
         console.log('[AI_FLOW] URL 解析后的完整结果: ' + JSON.stringify(urlParsedAi));
       } catch (e) {
         console.log('[AI_FLOW] URL_AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
-        urlParsedAi = parseAndValidateAiOutput('');
+        urlParsedAi = parseAndValidateAiOutput('', language);
         await this.logAiCall(provider, null, null, 0, null);
       }
       if (recordCount > 0 && isAiParseFallbackOutput(urlParsedAi)) {
@@ -267,7 +275,7 @@ export class AiService {
         risk_db_hit: recordCount > 0,
         risk_db_hit_level: recordCount > 0 ? urlResult.risk_level : undefined,
         risk_db_hit_record_count: recordCount,
-      });
+      }, language);
       console.log('[AI_FLOW] 6.RESULT URL 最终返回 risk_db_hit=' + urlFinal.risk_db_hit);
       const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
       await this.redis.set(cacheKey, JSON.stringify(urlFinal), ttl);
@@ -301,11 +309,11 @@ export class AiService {
     try {
       aiResult = await this.provider.analyze(userPrompt, systemPrompt, provider);
       console.log('[AI_FLOW] 豆包返回原始(未解析): ' + (aiResult?.raw ?? '(null)'));
-      parsedAi = parseAndValidateAiOutput(aiResult.raw);
+      parsedAi = parseAndValidateAiOutput(aiResult.raw, language);
       console.log('[AI_FLOW] 解析后的完整结果: ' + JSON.stringify(parsedAi));
     } catch (e) {
       console.log('[AI_FLOW] 4.AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
-      parsedAi = parseAndValidateAiOutput('');
+      parsedAi = parseAndValidateAiOutput('', language);
       await this.logAiCall(provider, null, null, 0, null);
     }
 
@@ -332,7 +340,7 @@ export class AiService {
       risk_level,
       score,
       risk_db_hit: false,
-    });
+    }, language);
     console.log('[AI_FLOW] 6.RESULT 最终返回 risk_level=' + final.risk_level + ' reasonsLen=' + (final.reasons?.length ?? 0) + ' adviceLen=' + (final.advice?.length ?? 0));
 
     if (!final.is_conversational) {
@@ -504,21 +512,34 @@ export class AiService {
     }
     const text = await this.parser.ocrFromImage(imageBase64OrText);
     if (!text?.trim()) {
+      const isZh = (language ?? 'zh') !== 'en';
       return {
         risk_level: 'unknown',
         confidence: 0,
-        risk_type: ['未知风险'],
-        summary: '图片内容无法识别',
-        reasons: [
-          '图片中未识别到可分析文字',
-          '当前无法对纯图片内容进行风险分析',
-          '可尝试上传包含文字的截图或直接输入文字',
-        ],
-        advice: [
-          '请上传包含文字的图片以便分析',
-          '或直接输入您要检测的文字内容',
-          '如有疑问可联系客服',
-        ],
+        risk_type: [isZh ? '未知风险' : 'Unknown risk'],
+        summary: isZh ? '图片内容无法识别' : 'Cannot recognize image content',
+        reasons: isZh
+          ? [
+              '图片中未识别到可分析文字',
+              '当前无法对纯图片内容进行风险分析',
+              '可尝试上传包含文字的截图或直接输入文字',
+            ]
+          : [
+              'No analyzable text detected in image',
+              'Cannot analyze image content without text',
+              'Try uploading a screenshot with text or paste text directly',
+            ],
+        advice: isZh
+          ? [
+              '请上传包含文字的图片以便分析',
+              '或直接输入您要检测的文字内容',
+              '如有疑问可联系客服',
+            ]
+          : [
+              'Upload an image containing text for analysis',
+              'Or paste the text you want to check',
+              'Contact support if you have questions',
+            ],
       };
     }
     return this.analyze(

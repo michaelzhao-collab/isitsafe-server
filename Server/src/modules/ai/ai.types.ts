@@ -60,12 +60,22 @@ function normalizeRiskLevel(value: string | undefined): RiskLevel {
 /** 与 parse 失败兜底文案一致，供 URL+风险库命中时判断是否替换展示 */
 export const AI_PARSE_FALLBACK_SUMMARY = '无法确定风险';
 export const AI_PARSE_FALLBACK_REASON_FIRST = 'AI 返回格式异常或无法解析';
+/** 英文兜底（防止 EN 响应混入中文） */
+export const AI_PARSE_FALLBACK_SUMMARY_EN = 'Could not determine risk';
+export const AI_PARSE_FALLBACK_REASON_FIRST_EN = 'AI returned invalid format or could not be parsed';
+
+const FALLBACK_REASONS_ZH = ['请结合其他渠道核实', '勿轻信单方说法', '注意保护个人隐私与资金安全'];
+const FALLBACK_ADVICE_ZH = ['请谨慎对待，勿轻信对方', '可向官方渠道求证', '注意保护个人隐私与资金安全'];
+const FALLBACK_REASONS_EN = ['Verify through other channels', 'Do not trust a single-source claim', 'Protect personal info and funds'];
+const FALLBACK_ADVICE_EN = ['Treat with caution, do not trust easily', 'Verify through official channels', 'Protect personal info and funds'];
 
 export function isAiParseFallbackOutput(o: AiOutputSchema): boolean {
+  if (!Array.isArray(o.reasons)) return false;
+  const s = o.summary;
+  const r0 = o.reasons[0];
   return (
-    o.summary === AI_PARSE_FALLBACK_SUMMARY &&
-    Array.isArray(o.reasons) &&
-    o.reasons[0] === AI_PARSE_FALLBACK_REASON_FIRST
+    (s === AI_PARSE_FALLBACK_SUMMARY && r0 === AI_PARSE_FALLBACK_REASON_FIRST) ||
+    (s === AI_PARSE_FALLBACK_SUMMARY_EN && r0 === AI_PARSE_FALLBACK_REASON_FIRST_EN)
   );
 }
 
@@ -83,32 +93,37 @@ function tryParseJsonObject(raw: string): Record<string, unknown> {
   }
 }
 
-/** 校验并兜底：无效则返回 unknown + 低置信度；支持豆包返回中文 risk_level */
-export function parseAndValidateAiOutput(raw: string): AiOutputSchema {
+/** 校验并兜底：无效则返回 unknown + 低置信度；支持豆包返回中文 risk_level
+ *
+ *  i18n：language 决定兜底文案语言，避免英文响应里混入中文兜底（如 '请结合其他渠道核实'）
+ */
+export function parseAndValidateAiOutput(raw: string, language: 'zh' | 'en' = 'zh'): AiOutputSchema {
+  const isZh = language !== 'en';
+  const fallbackSummary = isZh ? AI_PARSE_FALLBACK_SUMMARY : AI_PARSE_FALLBACK_SUMMARY_EN;
+  const fallbackReasonFirst = isZh ? AI_PARSE_FALLBACK_REASON_FIRST : AI_PARSE_FALLBACK_REASON_FIRST_EN;
+  const fallbackReasonsRest = isZh ? FALLBACK_REASONS_ZH : FALLBACK_REASONS_EN;
+  const fallbackAdvice = isZh ? FALLBACK_ADVICE_ZH : FALLBACK_ADVICE_EN;
   const fallback: AiOutputSchema = {
     risk_level: 'unknown',
     confidence: 50,
-    risk_type: ['未知风险'],
-    summary: AI_PARSE_FALLBACK_SUMMARY,
-    reasons: [
-      AI_PARSE_FALLBACK_REASON_FIRST,
-      '请结合其他渠道核实',
-      '勿轻信单方说法',
-    ],
-    advice: ['请谨慎对待，勿轻信对方', '可向官方渠道求证', '注意保护个人隐私与资金安全'],
+    risk_type: [isZh ? '未知风险' : 'Unknown risk'],
+    summary: fallbackSummary,
+    reasons: [fallbackReasonFirst, fallbackReasonsRest[0], fallbackReasonsRest[1]],
+    advice: [...fallbackAdvice],
   };
   try {
     const obj = tryParseJsonObject(String(raw ?? ''));
     const level = normalizeRiskLevel((obj.risk_level as string) ?? undefined);
     const confidence = typeof obj.confidence === 'number' ? Math.max(0, Math.min(100, obj.confidence)) : 50;
-    const risk_type = Array.isArray(obj.risk_type) ? obj.risk_type.map(String) : ['未知风险'];
-    const summary = typeof obj.summary === 'string' ? obj.summary : AI_PARSE_FALLBACK_SUMMARY;
+    const risk_type = Array.isArray(obj.risk_type) ? obj.risk_type.map(String) : [isZh ? '未知风险' : 'Unknown risk'];
+    const summary = typeof obj.summary === 'string' ? obj.summary : fallbackSummary;
     const is_conversational = obj.is_conversational === true;
     let reasons = Array.isArray(obj.reasons) ? obj.reasons.map(String) : fallback.reasons;
     let advice = Array.isArray(obj.advice) ? obj.advice.map(String) : fallback.advice;
     if (!is_conversational) {
-      if (reasons.length < 3) reasons = [...reasons, ...fallback.reasons].slice(0, 3);
-      if (advice.length < 3) advice = [...advice, ...fallback.advice].slice(0, 3);
+      // 不足 3 条时按当前语言补齐（不再混语言）
+      if (reasons.length < 3) reasons = [...reasons, ...fallbackReasonsRest].slice(0, 3);
+      if (advice.length < 3) advice = [...advice, ...fallbackAdvice].slice(0, 3);
     }
     return { risk_level: level, confidence, risk_type, summary, reasons, advice, is_conversational };
   } catch (e) {

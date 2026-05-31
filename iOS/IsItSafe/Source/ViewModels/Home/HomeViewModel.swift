@@ -210,12 +210,14 @@ public final class HomeViewModel: ObservableObject {
                 }
                 let cid = await MainActor.run { self.currentConversationId }
                 let ctx = await MainActor.run { self.buildContext() }
+                // i18n：按用户 UI 语言要求 AI 回复，避免纯数字 query 拿到英文回复
+                // 老逻辑（language=nil 让服务端按内容自动检测）会让中国用户输入 "13800138000" 时拿到全英文回复
+                let uiLang = AppSettingsStore.shared.languageCode
                 let viewData: RiskAnalysisViewData
-                // 不传 language，由服务端根据用户输入内容自动判断：中文内容用中文回答，英文内容用英文回答
                 if isScreenshot {
-                    viewData = try await aiService.analyzeScreenshot(content: content, language: nil, imageUrl: imageUrl, conversationId: cid, context: ctx)
+                    viewData = try await aiService.analyzeScreenshot(content: content, language: uiLang, imageUrl: imageUrl, conversationId: cid, context: ctx)
                 } else {
-                    viewData = try await aiService.analyzeText(content: content, language: nil, country: nil, conversationId: cid, context: ctx)
+                    viewData = try await aiService.analyzeText(content: content, language: uiLang, country: nil, conversationId: cid, context: ctx)
                 }
                 result = .analysis(viewData)
             } catch {
