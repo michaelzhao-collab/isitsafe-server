@@ -34,7 +34,7 @@ export class ContentFetchController {
   @Post('trigger')
   async trigger(
     @Query('type') type: string,
-    @CurrentUser('userId') adminUserId: string,
+    @CurrentUser('sub') adminUserId: string,
   ): Promise<{ jobId: string }> {
     const t = this.normalizeType(type);
     if (!adminUserId) throw new BadRequestException('未鉴权');
