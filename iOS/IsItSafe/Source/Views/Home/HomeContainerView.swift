@@ -225,6 +225,16 @@ public struct HomeContainerView: View {
         .onChange(of: homeVm.showDailyQuotaAlert) { _, isShowing in
             if isShowing { isInputFocused = false }
         }
+        // 登入新用户（含注册首次登入）后重新触发默认聊天注入
+        // 之前只在 onAppear 跑一次，登入后无法补显示
+        .onChange(of: appState.isLoggedIn) { wasIn, isIn in
+            if !wasIn && isIn {
+                // 让 SwiftUI 渲染稳定后再注入，避免被同步 reset 抹掉
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    maybeInjectLocalDefaultQAIfNeeded()
+                }
+            }
+        }
         .onAppear {
             if previousScenePhase == nil {
                 previousScenePhase = scenePhase

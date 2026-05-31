@@ -98,5 +98,11 @@ public final class LocalDefaultQAStore {
         state.defaultConversation = rec
         saveState(state)
     }
+
+    /// 切账号时清空：登入新用户 / 登出 / 删号都要调
+    /// 否则老用户的"已展示"标记会让新用户看不到默认聊天
+    public func resetForNewUser() {
+        try? FileManager.default.removeItem(at: fileURL)
+    }
 }
 

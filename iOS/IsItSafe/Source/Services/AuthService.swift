@@ -19,8 +19,9 @@ public final class AuthService {
         tokenStore.saveToken(access: res.accessToken, refresh: res.refreshToken)
         let user = try await repo.userInfo()
         sessionStore.updateUser(user)
-        // 登入新用户：清掉上个用户的本地免费次数计数（之前没按 userId 隔离会串号）
+        // 登入新用户：清掉上个用户的本地状态
         AppSettingsStore.shared.resetFreeQueryCount()
+        LocalDefaultQAStore.shared.resetForNewUser()
         // V3-S1-5：登录成功后强制重传 push token（设备换号场景下归属迁移）
         PushService.shared.reregisterIfTokenCached()
     }
@@ -32,6 +33,7 @@ public final class AuthService {
         let user = try await repo.userInfo()
         sessionStore.updateUser(user)
         AppSettingsStore.shared.resetFreeQueryCount()
+        LocalDefaultQAStore.shared.resetForNewUser()
         PushService.shared.reregisterIfTokenCached()
     }
 
@@ -39,6 +41,7 @@ public final class AuthService {
         _ = try? await repo.logout()
         sessionStore.clearSession()
         AppSettingsStore.shared.resetFreeQueryCount()
+        LocalDefaultQAStore.shared.resetForNewUser()
         // V3-S1-5：登出清理 push 缓存，下次登录会重新上报
         PushService.shared.clearOnLogout()
     }
@@ -47,6 +50,7 @@ public final class AuthService {
         _ = try await repo.deleteAccount()
         sessionStore.clearSession()
         AppSettingsStore.shared.resetFreeQueryCount()
+        LocalDefaultQAStore.shared.resetForNewUser()
         PushService.shared.clearOnLogout()
     }
 
