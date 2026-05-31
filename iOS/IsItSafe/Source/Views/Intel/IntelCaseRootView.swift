@@ -49,9 +49,13 @@ public struct IntelCaseRootView: View {
                     .allowsHitTesting(segment == .intel)
 
                     // 嵌入时隐藏 nav title，避免上方 segment 已有"案例库" tab 再叠一个"防诈案例"标题
-                    KnowledgeView(showsTitle: false)
-                        .opacity(segment == .knowledge ? 1 : 0)
-                        .allowsHitTesting(segment == .knowledge)
+                    // 用外层 NavigationStack 提供导航能力（KnowledgeView 内部已剥掉以消除"案例库"与分类条之间的空白）
+                    NavigationStack {
+                        KnowledgeView(showsTitle: false)
+                            .navigationBarHidden(true)
+                    }
+                    .opacity(segment == .knowledge ? 1 : 0)
+                    .allowsHitTesting(segment == .knowledge)
                 }
             }
             // 底部 tabBar 占位（MainTabView 占了 88pt）

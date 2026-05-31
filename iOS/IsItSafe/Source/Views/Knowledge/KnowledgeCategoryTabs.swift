@@ -23,29 +23,22 @@ public struct KnowledgeCategoryTabs: View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    Button(allLabel) {
+                    chip(label: allLabel, isSelected: selectedId == nil) {
                         selectedId = nil
-                        withAnimation {
-                            proxy.scrollTo("all", anchor: .center)
-                        }
+                        withAnimation { proxy.scrollTo("all", anchor: .center) }
                     }
                     .id("all")
-                    .buttonStyle(.bordered)
-                    .tint(selectedId == nil ? .blue : .secondary)
 
                     ForEach(categories, id: \.id) { cat in
-                        Button(cat.name) {
+                        chip(label: cat.name, isSelected: selectedId == cat.id) {
                             selectedId = cat.id
-                            withAnimation {
-                                proxy.scrollTo(cat.id, anchor: .center)
-                            }
+                            withAnimation { proxy.scrollTo(cat.id, anchor: .center) }
                         }
                         .id(cat.id)
-                        .buttonStyle(.bordered)
-                        .tint(selectedId == cat.id ? .blue : .secondary)
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
             }
             .onChange(of: selectedId) { _, newValue in
                 let target = (newValue ?? "").isEmpty ? "all" : newValue!
@@ -54,5 +47,31 @@ public struct KnowledgeCategoryTabs: View {
                 }
             }
         }
+    }
+
+    /// 紫蓝主色填充选中态 + 浅灰胶囊未选中态；切换带柔和缩放
+    @ViewBuilder
+    private func chip(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? .white : AppTheme.textSecondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(
+                    Group {
+                        if isSelected {
+                            Capsule().fill(AppTheme.primary)
+                        } else {
+                            Capsule().fill(AppTheme.cardBackground)
+                                .overlay(Capsule().stroke(AppTheme.border, lineWidth: 1))
+                        }
+                    }
+                )
+                .shadow(color: isSelected ? AppTheme.primary.opacity(0.25) : .clear, radius: 6, x: 0, y: 2)
+                .scaleEffect(isSelected ? 1.02 : 1.0)
+                .animation(.spring(response: 0.28, dampingFraction: 0.85), value: isSelected)
+        }
+        .buttonStyle(.plain)
     }
 }

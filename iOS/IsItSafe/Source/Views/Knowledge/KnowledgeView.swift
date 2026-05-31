@@ -19,41 +19,52 @@ public struct KnowledgeView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // 分类 + 搜索：紧贴导航标题，刷新在下方 List 上
-                categoriesSearchHeader
-                // F9：loading / error / empty 状态从 List 中抽出来，避免被 List 默认行背景包成白卡
-                if case .loading = vm.state {
-                    loadingStateBare
-                } else if case .failure(let e) = vm.state {
-                    ErrorStateView(message: (e as? APIError)?.userMessage ?? e.localizedDescription, retry: { vm.refresh() })
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(AppTheme.background)
-                } else if vm.items.isEmpty {
-                    emptyStateBare
-                } else {
-                    List {
-                        contentBody
-                    }
-                    .listStyle(.plain)
-                    .listRowSeparator(.hidden)
-                    .scrollContentBackground(.hidden)
-                    .refreshable { vm.refresh() }
-                }
+        // 嵌入到 IntelCaseRootView 时，外层已提供 NavigationStack，
+        // 这里再套一层会预留隐藏的 nav bar 空间，造成"案例库" segment 与分类条之间的空白
+        // 独立打开时（showsTitle=true）仍包一层 NavigationStack 提供 title+nav
+        Group {
+            if showsTitle {
+                NavigationStack { contentRoot }
+            } else {
+                contentRoot
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(AppTheme.background)
-            .navigationTitle(showsTitle ? L10n.titleCases : "")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar(showsTitle ? .visible : .hidden, for: .navigationBar)
-            .toolbarBackground(AppTheme.background, for: .navigationBar)
-            .navigationDestination(item: $selectedDetail) { nav in
-                KnowledgeDetailView(id: nav.id)
-                    .mainTabBarHidden()
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: 88) }
         }
+    }
+
+    private var contentRoot: some View {
+        VStack(spacing: 0) {
+            // 分类 + 搜索：紧贴导航标题，刷新在下方 List 上
+            categoriesSearchHeader
+            // F9：loading / error / empty 状态从 List 中抽出来，避免被 List 默认行背景包成白卡
+            if case .loading = vm.state {
+                loadingStateBare
+            } else if case .failure(let e) = vm.state {
+                ErrorStateView(message: (e as? APIError)?.userMessage ?? e.localizedDescription, retry: { vm.refresh() })
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(AppTheme.background)
+            } else if vm.items.isEmpty {
+                emptyStateBare
+            } else {
+                List {
+                    contentBody
+                }
+                .listStyle(.plain)
+                .listRowSeparator(.hidden)
+                .scrollContentBackground(.hidden)
+                .refreshable { vm.refresh() }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppTheme.background)
+        .navigationTitle(showsTitle ? L10n.titleCases : "")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(showsTitle ? .visible : .hidden, for: .navigationBar)
+        .toolbarBackground(AppTheme.background, for: .navigationBar)
+        .navigationDestination(item: $selectedDetail) { nav in
+            KnowledgeDetailView(id: nav.id)
+                .mainTabBarHidden()
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: 88) }
         .onAppear { vm.loadFirstPage() }
         .onChange(of: vm.selectedCategory) { _, _ in vm.loadFirstPage() }
     }
