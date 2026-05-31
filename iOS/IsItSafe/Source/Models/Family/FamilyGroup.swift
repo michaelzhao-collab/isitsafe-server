@@ -306,14 +306,11 @@ public struct BroadcastResponse: Codable {
 }
 
 /// 心跳响应
+/// 不写显式 CodingKeys：让 NetworkManager 全局 .convertFromSnakeCase 处理
+/// 同时兼容 server 返回 today_count 或 todayCount 两种格式
 public struct HeartbeatResponse: Codable {
     public let active: Bool
     public let todayCount: Int
-
-    enum CodingKeys: String, CodingKey {
-        case active
-        case todayCount = "today_count"
-    }
 }
 
 /// 通用 JSON value，用于 resultDetail 这种动态结构

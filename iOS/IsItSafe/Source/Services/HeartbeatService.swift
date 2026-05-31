@@ -57,16 +57,12 @@ public final class HeartbeatService {
         struct HeartbeatReq: Codable {
             let trigger_source: String
         }
+        // 不写显式 CodingKeys：让 NetworkManager 全局 .convertFromSnakeCase 处理
+        // 兼容 server 返回 today_count / todayCount 两种格式
         struct Response: Decodable {
             let active: Bool
             let todayCount: Int
             let triggerSources: [String]?
-
-            enum CodingKeys: String, CodingKey {
-                case active
-                case todayCount = "today_count"
-                case triggerSources = "trigger_sources"
-            }
         }
 
         do {
