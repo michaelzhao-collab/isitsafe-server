@@ -29,6 +29,7 @@ import ElderUsersList from '../pages/v3/ElderUsersList';
 import DeepfakeChecksList from '../pages/v3/DeepfakeChecksList';
 import BreachMonitorList from '../pages/v3/BreachMonitorList';
 import ContentFetch from '../pages/contentFetch/ContentFetch';
+import AiEvaluation from '../pages/aiEvaluation/AiEvaluation';
 import Login from '../pages/Login';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -75,6 +76,7 @@ const router = createBrowserRouter([
       { path: 'intel/:id/edit', element: <IntelEdit /> },
       { path: 'intel/submissions', element: <IntelSubmissions /> },
       { path: 'content-fetch', element: <ContentFetch /> },
+      { path: 'ai-evaluation', element: <AiEvaluation /> },
       // V3 一期反诈模块
       { path: 'v3/family', element: <FamilyGroupsList /> },
       { path: 'v3/elder', element: <ElderUsersList /> },

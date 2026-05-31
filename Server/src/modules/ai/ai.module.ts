@@ -13,9 +13,10 @@ import { SettingsModule } from '../settings/settings.module';
 import { RiskModule } from '../risk/risk.module';
 import { MembershipModule } from '../membership/membership.module';
 import { QueryModule } from '../query/query.module';
+import { AiEvaluationModule } from '../ai-evaluation/ai-evaluation.module';
 
 @Module({
-  imports: [SettingsModule, RiskModule, MembershipModule, QueryModule],
+  imports: [SettingsModule, RiskModule, MembershipModule, QueryModule, AiEvaluationModule],
   controllers: [AiController],
   providers: [
     AiRateLimitGuard,

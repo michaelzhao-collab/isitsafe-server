@@ -782,3 +782,57 @@ model ContentFetchJob {
   @@index([triggeredBy, createdAt(sort: Desc)])
   @@map("content_fetch_jobs")
 }
+
+
+// --------------------------------------------
+// V4-P0 AI 分析评测样本表
+// 每次 /api/ai/analyze 调用（含 scam_detection 完整流程 + intent 非 scam 分支）
+// 异步写一条样本，记录 prompt / 输出 / 用户行为 / admin 评分
+// 用途：建立 baseline → 灰度新 prompt → 影子模式对比 → 数据驱动决策
+// --------------------------------------------
+model AiEvaluationSample {
+  id                 String   @id @default(cuid())
+  conversationId     String?  @map("conversation_id")
+  userId             String?  @map("user_id")
+  /// 输入快照
+  inputContent       String   @map("input_content") @db.Text
+  /// text / phone / url / company / screenshot
+  inputType          String   @map("input_type") @db.VarChar(20)
+  /// zh / en
+  language           String   @db.VarChar(10)
+  /// 实际发给 AI 的 prompt 完整副本 { system, user }
+  promptSnapshot     Json     @map("prompt_snapshot")
+  /// AI 原始 raw 响应（未经 parse）
+  aiRawResponse      String   @map("ai_raw_response") @db.Text
+  /// 经 parseAndValidateAiOutput 后的结构化结果
+  parsedResult       Json     @map("parsed_result")
+  /// scam_detection / general_chat / knowledge_query / help_request
+  intent             String?  @db.VarChar(30)
+  /// rule_strong / rule_help / rule_scam / rule_knowledge / rule_chat / rule_short / rule_ctx / ai / ai_fail
+  intentVia          String?  @map("intent_via") @db.VarChar(20)
+  /// prompt 版本号："baseline" / "v1_cot_2026q2" / "shadow_*"
+  /// 用于灰度 / 影子模式区分
+  promptVersion      String   @default("baseline") @map("prompt_version") @db.VarChar(40)
+  /// 后续行为（事后填）
+  userSharedToFamily Boolean? @map("user_shared_to_family")
+  userDismissed      Boolean? @map("user_dismissed")
+  /// admin 评分（1-5 ⭐），事后填
+  adminScore         Int?     @map("admin_score")
+  /// 综合标签 "准确" / "具体" / "安全" 多选用逗号分隔
+  adminLabel         String?  @map("admin_label") @db.VarChar(200)
+  adminNotes         String?  @map("admin_notes") @db.Text
+  /// 评分者 admin userId
+  scoredByUserId     String?  @map("scored_by_user_id")
+  scoredAt           DateTime? @map("scored_at")
+  /// 元信息
+  modelProvider      String   @map("model_provider") @db.VarChar(30)
+  latencyMs          Int      @map("latency_ms")
+  tokensUsed         Int?     @map("tokens_used")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([promptVersion, createdAt])
+  @@index([adminScore])
+  @@index([intent, createdAt])
+  @@map("ai_evaluation_samples")
+}

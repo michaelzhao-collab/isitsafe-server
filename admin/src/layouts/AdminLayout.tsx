@@ -88,6 +88,7 @@ const menuItems: MenuProps['items'] = [
     children: [
       { key: '/admin-users', icon: <TeamOutlined />, label: '管理员账号' },
       { key: '/ai-settings', icon: <ApiOutlined />, label: 'AI 配置' },
+      { key: '/ai-evaluation', label: 'AI 评测中心' },
       { key: '/system-settings', label: '系统设置' },
     ],
   },
@@ -116,6 +117,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   '/analytics': { label: '数据分析', parent: '消息/数据' },
   '/admin-users': { label: '管理员账号', parent: '系统设置' },
   '/ai-settings': { label: 'AI 配置', parent: '系统设置' },
+  '/ai-evaluation': { label: 'AI 评测中心', parent: '系统设置' },
   '/system-settings': { label: '系统设置', parent: '系统设置' },
 };
 

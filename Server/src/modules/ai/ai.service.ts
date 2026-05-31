@@ -23,6 +23,7 @@ import { extractUrlFromContent } from '../../common/utils/normalize';
 import { QueryService } from '../query/query.service';
 import { IntentClassifierService, Intent } from './intent/intent-classifier.service';
 import { IntentResponseService } from './intent/intent-response.service';
+import { AiEvaluationService } from '../ai-evaluation/ai-evaluation.service';
 
 const CACHE_PREFIX = 'cache:ai:';
 const INTENT_CACHE_PREFIX = 'cache:intent:';
@@ -121,7 +122,47 @@ export class AiService {
     private scoreEngine: RiskScoreService,
     private intentClassifier: IntentClassifierService,
     private intentResponse: IntentResponseService,
+    private aiEval: AiEvaluationService,
   ) {}
+
+  /**
+   * V4-P0 采样辅助：异步写一条评测样本，失败不抛错
+   * 在 analyze() 各 return 路径前调（intent 早返回 / URL 路径 / 主流程）
+   */
+  private async sampleAsync(args: {
+    conversationId: string;
+    userId: string | null;
+    inputContent: string;
+    inputType: string;
+    language: 'zh' | 'en';
+    systemPrompt: string;
+    userPrompt: string;
+    aiRawResponse: string;
+    parsedResult: any;
+    intent?: string;
+    intentVia?: string;
+    modelProvider: string;
+    latencyMs: number;
+    tokensUsed?: number | null;
+  }): Promise<void> {
+    // 不 await，fire-and-forget
+    this.aiEval.record({
+      conversationId: args.conversationId,
+      userId: args.userId,
+      inputContent: args.inputContent,
+      inputType: args.inputType,
+      language: args.language,
+      promptSnapshot: { system: args.systemPrompt, user: args.userPrompt },
+      aiRawResponse: args.aiRawResponse,
+      parsedResult: args.parsedResult,
+      intent: args.intent,
+      intentVia: args.intentVia,
+      promptVersion: 'baseline',
+      modelProvider: args.modelProvider,
+      latencyMs: args.latencyMs,
+      tokensUsed: args.tokensUsed ?? null,
+    }).catch(() => {});
+  }
 
   /**
    * 主流程：解析 → DB → RAG → AI → 得分 → 缓存 → 写 queries + ai_logs → 返回
@@ -130,6 +171,7 @@ export class AiService {
     input: AnalyzeInput,
     userId: string | null,
   ): Promise<AnalyzeResult> {
+    const startedAtMs = Date.now();
     const conversationId = (input.conversationId && input.conversationId.trim()) || randomUUID();
     console.log('[AI_FLOW] ========== 开始 AI 分析（会调用豆包） ========== content=' + JSON.stringify(input.content?.slice(0, 300)) + ' conversationId=' + conversationId);
     // 回答语言：按用户提问语言决定（不传则根据内容检测：含中文→中文回答，否则英文回答）
@@ -188,6 +230,22 @@ export class AiService {
             await this.redis.set(intentCacheKey, JSON.stringify(intentFinal), TTL_INTENT_NON_SCAM);
           }
           await this.writeQuery(userId, conversationId, parsed, intentFinal, provider, false, input.imageUrl);
+          // V4-P0：intent 非 scam 路径采样（system/user 用 intent prompt 的近似快照）
+          this.sampleAsync({
+            conversationId,
+            userId,
+            inputContent: parsed.originalContent,
+            inputType: parsed.inputType,
+            language,
+            systemPrompt: `[IntentResponseService:${nonScamIntent}]`,
+            userPrompt: parsed.originalContent,
+            aiRawResponse: JSON.stringify(intentOutput).slice(0, 4000),
+            parsedResult: intentFinal,
+            intent: nonScamIntent,
+            intentVia: intentRes.via,
+            modelProvider: provider,
+            latencyMs: Date.now() - startedAtMs,
+          });
           return { ...intentFinal, conversation_id: conversationId };
         }
       } catch (e) {
@@ -280,6 +338,23 @@ export class AiService {
       const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
       await this.redis.set(cacheKey, JSON.stringify(urlFinal), ttl);
       await this.writeQuery(userId, conversationId, parsed, urlFinal, provider, false, input.imageUrl);
+      // V4-P0：URL 路径采样
+      this.sampleAsync({
+        conversationId,
+        userId,
+        inputContent: parsed.originalContent,
+        inputType: parsed.inputType,
+        language,
+        systemPrompt: urlSystemPrompt,
+        userPrompt: urlUserPrompt,
+        aiRawResponse: urlAiResult?.raw ?? '',
+        parsedResult: urlFinal,
+        intent: 'scam_detection',
+        intentVia: 'url_flow',
+        modelProvider: provider,
+        latencyMs: Date.now() - startedAtMs,
+        tokensUsed: urlAiResult?.tokens ?? null,
+      });
       return { ...urlFinal, conversation_id: conversationId };
     }
 
@@ -349,6 +424,23 @@ export class AiService {
     }
 
     await this.writeQuery(userId, conversationId, parsed, final, provider, false, input.imageUrl);
+    // V4-P0：scam_detection 主流程采样
+    this.sampleAsync({
+      conversationId,
+      userId,
+      inputContent: parsed.originalContent,
+      inputType: parsed.inputType,
+      language,
+      systemPrompt,
+      userPrompt,
+      aiRawResponse: aiResult?.raw ?? '',
+      parsedResult: final,
+      intent: 'scam_detection',
+      intentVia: 'main_flow',
+      modelProvider: provider,
+      latencyMs: Date.now() - startedAtMs,
+      tokensUsed: aiResult?.tokens ?? null,
+    });
     return { ...final, conversation_id: conversationId };
   }
 
