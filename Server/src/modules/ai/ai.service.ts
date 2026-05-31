@@ -459,7 +459,8 @@ export class AiService {
     const c = lastAssistant.content;
 
     // 0) iOS 新格式：assistant 内容以 [intent:X] 或 [intent:X|risk:Y] 开头（可靠）
-    const tagMatch = c.match(/^\[intent:([a-z_]+)(?:\|[^\]]*)?\]/i);
+    // 容忍前导空格（iOS 端 trim 不保证）
+    const tagMatch = c.match(/^\s*\[intent:([a-z_]+)(?:\|[^\]]*)?\]/i);
     if (tagMatch) {
       const i = tagMatch[1].toLowerCase() as Intent;
       if (i === 'scam_detection' || i === 'general_chat' || i === 'knowledge_query' || i === 'help_request') {

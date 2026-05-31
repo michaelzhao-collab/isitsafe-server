@@ -56,24 +56,34 @@ export class IntentResponseService {
     return this.toAiOutputSchema(parsed, intent, language);
   }
 
-  /** 把上下文转成可读文本块，注入 user prompt 前 */
+  /** 把上下文转成可读文本块，注入 user prompt 前
+   *  - 优先保留最近 N 条（用户最在意的关联）
+   *  - 剥掉 iOS 端加的 [intent:X|risk:Y] 内部标签（仅服务端用，AI 看了无意义）
+   *  - 单轮 ≤ 500 字、总 ≤ 16000 字（与 iOS buildContext 上限对齐）
+   */
   private buildContextPrefix(
     context: Array<{ role: string; content: string }> | undefined,
     language: Language,
   ): string {
     if (!Array.isArray(context) || context.length === 0) return '';
     const isZh = language === 'zh';
-    // 限单轮 ≤ 500 字、总 ≤ 8000 字防爆 token
     let used = 0;
-    const lines: string[] = [];
-    for (const m of context) {
+    const linesReversed: string[] = [];
+    // 倒序遍历，优先保留最新的几轮（被裁也是裁最早的）
+    for (let i = context.length - 1; i >= 0; i--) {
+      const m = context[i];
       const tag = m.role === 'user' ? (isZh ? '用户：' : 'User: ') : (isZh ? '助手：' : 'Assistant: ');
-      const text = String(m.content ?? '').slice(0, 500);
-      if (used + tag.length + text.length > 8000) break;
-      used += tag.length + text.length;
-      lines.push(`${tag}${text}`);
+      // 剥掉 [intent:...] 服务端内部标签
+      const cleaned = String(m.content ?? '').replace(/^\s*\[intent:[^\]]*\]\s*/i, '');
+      const text = cleaned.slice(0, 500);
+      const cost = tag.length + text.length;
+      if (used + cost > 16000) break;
+      used += cost;
+      linesReversed.push(`${tag}${text}`);
     }
-    if (lines.length === 0) return '';
+    if (linesReversed.length === 0) return '';
+    // 反转回时间正序
+    const lines = linesReversed.reverse();
     return (isZh
       ? `【上下文：以上是用户最近的对话，请结合上下文回答下一句】\n`
       : `[Context: Recent conversation. Answer the next question accordingly]\n`

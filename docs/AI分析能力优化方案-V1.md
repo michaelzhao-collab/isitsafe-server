@@ -35,6 +35,167 @@ iOS → POST /api/ai/analyze
   └─ help_request   → IntentResponseService（小调用 → 应急步骤）
 ```
 
+### 1.1.1 Intent Classifier 7 层完整逻辑
+
+> 文件：`Server/src/modules/ai/intent/intent-classifier.service.ts`
+> 设计目标：本地规则覆盖 70%+ 流量，AI 兜底覆盖剩余 30%
+> 输出 `via` 字段记录命中层级，便于 admin 评测和优化
+
+```
+classify(content, ctx)
+   │
+   ▼
+[Layer 0] 附件检查 (ctx.hasAttachment)
+   │   图片 OCR / 语音转写 上传 → scam_detection (rule_strong)
+   │   理由：用户主动上传附件几乎不会是闲聊
+   │
+   ▼
+[Layer 1] 强信号正则 hasStrongSignal()       ← V3 F1 修复后提到 Layer 6 之前
+   │   任一命中 → scam_detection (rule_strong)
+   │   ┌─ URL  / 裸 www / 短链域名 (t.cn/bit.ly等) / 裸域名
+   │   ├─ 中国手机号 / 国际手机号 / 座机号
+   │   ├─ 银行卡（13-19 位数字 + Luhn 校验）
+   │   ├─ 身份证号（18 位）
+   │   ├─ 验证码 + 4-6 位数字
+   │   ├─ 二维码 / 扫码关键词
+   │   ├─ 金额 + 转账动作
+   │   └─ 社交账号 ID（微信/QQ/Skype/Telegram/WhatsApp/抖音/Instagram + ID 字符串）
+   │
+   ▼
+[Layer 6] 长度 / 字符兜底 isTooShortOrTrivial()
+   │   触发条件：≤2 字 / 纯 emoji / 纯标点 / 重复字符（"啊啊啊"）
+   │   ├─ 有 ctx.lastIntent 且 content<20 字 → 继承上一轮 intent (rule_ctx)
+   │   └─ 否则 → general_chat (rule_short)
+   │
+   ▼
+[Layer 2] help_request 关键词 matchesHelp()
+   │   30+ 中文 + 15+ 英文关键词
+   │   "被骗了 / 转账了 / 钱被转 / 怎么追回 / 96110 / 报警 /
+   │    账号被盗 / 救我 / 求救 / SOS / 急急急 / 我完了"
+   │   命中 → help_request (rule_help)
+   │
+   ▼
+[Layer 3] scam_detection 关键词 matchesScamKeywords()
+   │   ┌─ 3.1 直问真假：是不是骗子 / 真的吗 / 靠谱吗 / 可信吗 / 帮我看 / 帮我查 / 是 AI 吗
+   │   ├─ 3.3 冒充话术：涉嫌洗钱 / 我是公安 / 安全账户 / 退税 / 中奖 /
+   │   │              高息 / 高回报 / 保本 / 暴利 / 暴富 / 稳赚 / 躺赚 /
+   │   │              日入过万 / 跟单 / 老师带飞 / 私募内幕
+   │   ├─ 3.4 第三方指代：对方说 / 他说 / 让我转 / 老师让我 /
+   │   │              有人说 / 有人介绍 / 有人推荐 / 群里有人
+   │   └─ 3.5 平台异常：淘宝退款 / 银行短信 / 顺丰异常 / 风控
+   │   命中 → scam_detection (rule_scam)
+   │
+   ▼
+[Layer 4] knowledge_query 关键词 matchesKnowledge()
+   │   ┌─ 4.1 定义型：什么是 / 什么叫 / 是什么 / 指的是什么
+   │   ├─ 4.2 方法型：怎么识别 / 如何识别 / 怎么防 / 怎么举报 / 怎么报警 / 怎么追回
+   │   ├─ 4.3 信息型：反诈中心 / 96110 / 有哪些 / 有几种
+   │   ├─ 4.4 教育意图：教我 / 告诉我 / 想了解 / 学习 / 科普一下
+   │   ├─ 4.5 术语本身：杀猪盘 / 钓鱼网站 / AI 换脸 / 深伪 / 黑产 / 灰产
+   │   └─ 4.6 英文：what is / how to identify / explain / ponzi / phishing
+   │   命中 → knowledge_query (rule_knowledge)
+   │
+   ▼
+[Layer 5] general_chat 关键词 matchesGeneralChat()
+   │   ┌─ 寒暄：你好 / 在吗 / 再见 / 晚安
+   │   ├─ 感谢：谢谢 / 多谢 / 666 / 厉害
+   │   ├─ 情绪：哈哈 / 难受 / 累 / 开心
+   │   ├─ 问机器人：你是谁 / 你能干啥 / 怎么用
+   │   └─ 显式非检测：不是问真假 / 就闲聊 / 随便聊 / 陪我说话
+   │   命中 → general_chat (rule_chat)
+   │
+   ▼
+[Layer 6.5] 上下文继承（前 6 层都没命中）
+   │   有 ctx.lastIntent 且 content<30 字 → 继承上轮 intent (rule_ctx)
+   │   触发场景："那这个呢？" / "为什么？" / "继续" 类延续追问
+   │
+   ▼
+[Layer 7] AI 兜底 aiClassify()
+   │   调 DeepSeek 让 AI 直接判定（system + user prompt 见后）
+   │   返回 4 类之一 → (via: ai)
+   │   AI 失败 → general_chat (via: ai_fail)
+```
+
+**Layer 7 的 DeepSeek 调用**：
+
+System Prompt:
+```
+你是意图分类器。把用户消息归到 4 个类别中之一，只返回 1 个英文 key，
+禁止任何额外文字。类别：scam_detection (辨别真假) / general_chat (闲聊) /
+knowledge_query (问反诈知识) / help_request (紧急求助)
+```
+
+User Prompt:
+```
+用户消息：「{content.slice(0, 500)}」
+类别：
+```
+
+预期返回：`scam_detection` 等单词
+
+### 1.1.2 上下文继承机制（ctx.lastIntent 来源）
+
+> 文件：`Server/src/modules/ai/ai.service.ts.inferLastIntent()`
+
+iOS 把上轮 assistant 回复打 tag 后传给服务端：
+
+```
+[intent:scam_detection|risk:high] 20% 收益听起来很诱人...
+[intent:general_chat] 你好呀！我是星识安全助手...
+[intent:knowledge_query] 杀猪盘是...
+[intent:help_request] 立即拨打 96110...
+```
+
+服务端按以下顺序解析 `lastIntent`：
+
+| 优先级 | 检测方式 | 适用 |
+|---|---|---|
+| 0 | 正则 `^\s*\[intent:([a-z_]+)\]` 解析 tag | iOS 新格式（V4+）|
+| 1 | JSON.parse 看 `obj.intent` | 兼容老格式 |
+| 2 | 文本启发式（96110/止付 → help；什么是/杀猪盘 → knowledge；[high]/[medium]/风险/可疑/诈骗 → scam）| iOS 老版本兜底 |
+| 3 | 都没匹配 → general_chat | 默认 |
+
+解析出来的 `lastIntent` 喂给 Layer 6 和 Layer 6.5，让"需要"、"那这个呢"类短句续问能继承上一轮的意图。
+
+### 1.1.3 各层流量分布预估（实测可在 admin AI 评测页 via 字段统计）
+
+| Layer | 命中场景 | 预估占比 | 平均延迟 |
+|---|---|---|---|
+| 0 附件 | OCR/语音上传 | <5% | <10ms |
+| 1 强信号 | 含 URL/号码/卡号 | ~40% | <10ms |
+| 6 trivial | 1-2 字短句 | ~10% | <10ms |
+| 6.5 上下文继承 | "继续/为什么" | ~5% | <10ms |
+| 2 help | 已受害 | <5% | <10ms |
+| 3 scam 关键词 | 问"是不是骗子" | ~15% | <10ms |
+| 4 knowledge | 问"什么是 XX" | ~5% | <10ms |
+| 5 chat | 寒暄 | ~10% | <10ms |
+| 7 AI 兜底 | 其他 | ~5% | 200-500ms + 一次 DeepSeek 调用 |
+
+设计目标：90%+ 流量在本地规则解决（Layer 0-6.5），仅 ~10% 落到 AI 兜底。
+
+### 1.1.4 各 intent 进入后的处理路径
+
+```
+scam_detection → ai.service.analyze 完整流程
+  • inputParser 解析输入类型
+  • riskService 查精确风险库
+  • rag.searchKnowledgeCases 取相似案例（≤5 条）
+  • prompts.buildSystemPrompt + buildUserPrompt 组装
+  • DeepSeek 大调用（~1500 token in / ~500 token out）
+  • riskScoreService 综合评分
+  • ensureFullResult i18n 兜底
+  • Redis 缓存（high:365天/其他:90天）
+  • 写 query + ai_log + ai_evaluation_sample
+
+general_chat / knowledge_query / help_request → IntentResponseService.generate
+  • getPromptForIntent 选对应 intent 的 prompt 模板
+  • buildContextPrefix 注入历史对话（最多 50 轮 / 16000 字）
+  • DeepSeek 小调用（~500-1500 token in / ~200 token out）
+  • safeJsonParse 容错
+  • Redis 缓存 1h（help_request 不缓存）
+  • 写 ai_evaluation_sample
+```
+
 ### 1.2 真正的问题（按严重程度排）
 
 | # | 问题 | 严重 | 当前症状 |

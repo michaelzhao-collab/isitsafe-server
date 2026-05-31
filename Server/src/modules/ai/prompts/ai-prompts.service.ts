@@ -244,16 +244,18 @@ ${SCHEMA_DESC_EN}`;
       : (TYPE_GUIDANCE_EN[inputType] || '');
 
     // 上下文前缀（有上轮对话时注入）
+    // 剥掉 iOS 端 [intent:X|risk:Y] 内部标签，AI 看着干净
+    const stripTag = (s: string) => String(s ?? '').replace(/^\s*\[intent:[^\]]*\]\s*/i, '');
     let contextPrefix = '';
     if (Array.isArray(context) && context.length > 0) {
       if (language === 'zh') {
         const lines = context.map((m) =>
-          m.role === 'user' ? `用户：${m.content}` : `助手分析结果：${m.content}`,
+          m.role === 'user' ? `用户：${stripTag(m.content)}` : `助手分析结果：${stripTag(m.content)}`,
         ).join('\n');
         contextPrefix = `【上轮对话参考】\n${lines}\n\n【当前问题】\n`;
       } else {
         const lines = context.map((m) =>
-          m.role === 'user' ? `User: ${m.content}` : `Assistant result: ${m.content}`,
+          m.role === 'user' ? `User: ${stripTag(m.content)}` : `Assistant result: ${stripTag(m.content)}`,
         ).join('\n');
         contextPrefix = `[Previous conversation context]\n${lines}\n\n[Current question]\n`;
       }

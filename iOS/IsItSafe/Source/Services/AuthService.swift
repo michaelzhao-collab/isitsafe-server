@@ -45,9 +45,10 @@ public final class AuthService {
     }
 
     public func deleteAccount() async throws {
-        // 先清当前账号的默认聊天文件（仅删号才彻底删，登出不删）
-        LocalDefaultQAStore.shared.deleteForCurrentUser()
+        // 必须服务端先删成功，再删本地文件
+        // 否则 server 调用失败时本地已删 → 用户再登入会重新看到默认对话，状态串乱
         _ = try await repo.deleteAccount()
+        LocalDefaultQAStore.shared.deleteForCurrentUser()
         sessionStore.clearSession()
         AppSettingsStore.shared.resetFreeQueryCount()
         PushService.shared.clearOnLogout()

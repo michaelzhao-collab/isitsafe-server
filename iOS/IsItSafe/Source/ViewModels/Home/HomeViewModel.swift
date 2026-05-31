@@ -177,9 +177,9 @@ public final class HomeViewModel: ObservableObject {
         // 排除当前最后一轮（正在分析），从倒数第二轮向前取
         let history = turns.dropLast()
         // 上限：50 轮 user+assistant 对 = 最多 100 条 message
-        // 总字符 16000（GPT/DeepSeek 上下文都能装），单条裁到 800 字防止单轮膨胀
+        // 总字符 24000（DeepSeek 128K 上下文充足），单条裁到 800 字防单轮膨胀
         let maxTurns = 50
-        let maxChars = 16000
+        let maxChars = 24000
         var collected: [[String: String]] = []
         var charBudget = maxChars
         for t in history.reversed() {
@@ -191,7 +191,6 @@ public final class HomeViewModel: ObservableObject {
                 switch r {
                 case .analysis(let data):
                     if let free = data.freeText, !free.isEmpty {
-                        // chat 类自由文本
                         assistantText = "[intent:general_chat] \(free)"
                     } else if data.isNonDetection {
                         let body = data.steps.isEmpty ? data.summary : (data.summary + "\n" + data.steps.joined(separator: "\n"))
@@ -199,8 +198,8 @@ public final class HomeViewModel: ObservableObject {
                             let kind = data.intent ?? "general_chat"
                             assistantText = "[intent:\(kind)] \(body)"
                         }
-                    } else {
-                        // scam_detection 主路径：带 intent + risk_level + summary
+                    } else if !data.summary.isEmpty {
+                        // scam_detection：必有 summary 才记入上下文
                         assistantText = "[intent:scam_detection|risk:\(data.riskLevel)] \(data.summary)"
                     }
                 case .query(let resp):
