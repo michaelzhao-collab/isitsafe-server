@@ -36,9 +36,13 @@ export class IntentResponseService {
     content: string,
     intent: Exclude<Intent, 'scam_detection'>,
     language: Language = 'zh',
+    context?: Array<{ role: string; content: string }>,
   ): Promise<AiOutputSchema> {
     const prompt = getPromptForIntent(intent, language);
-    const userPrompt = prompt.user(content);
+    // 拼上下文：前 N 轮 user/assistant 用纯文本形式注入 user prompt 前
+    // 避免 "需要" 这种短句续问完全丢上下文
+    const contextPrefix = this.buildContextPrefix(context, language);
+    const userPrompt = contextPrefix + prompt.user(content);
 
     let parsed: IntentResponse;
     try {
@@ -50,6 +54,30 @@ export class IntentResponseService {
     }
 
     return this.toAiOutputSchema(parsed, intent, language);
+  }
+
+  /** 把上下文转成可读文本块，注入 user prompt 前 */
+  private buildContextPrefix(
+    context: Array<{ role: string; content: string }> | undefined,
+    language: Language,
+  ): string {
+    if (!Array.isArray(context) || context.length === 0) return '';
+    const isZh = language === 'zh';
+    // 限单轮 ≤ 500 字、总 ≤ 8000 字防爆 token
+    let used = 0;
+    const lines: string[] = [];
+    for (const m of context) {
+      const tag = m.role === 'user' ? (isZh ? '用户：' : 'User: ') : (isZh ? '助手：' : 'Assistant: ');
+      const text = String(m.content ?? '').slice(0, 500);
+      if (used + tag.length + text.length > 8000) break;
+      used += tag.length + text.length;
+      lines.push(`${tag}${text}`);
+    }
+    if (lines.length === 0) return '';
+    return (isZh
+      ? `【上下文：以上是用户最近的对话，请结合上下文回答下一句】\n`
+      : `[Context: Recent conversation. Answer the next question accordingly]\n`
+    ) + lines.join('\n') + '\n\n';
   }
 
   private safeJsonParse(text: string): IntentResponse {

@@ -176,44 +176,47 @@ public final class HomeViewModel: ObservableObject {
         guard turns.count > 1 else { return nil }
         // 排除当前最后一轮（正在分析），从倒数第二轮向前取
         let history = turns.dropLast()
-        let maxTurns = 10
-        let maxChars = 4000
+        // 上限：50 轮 user+assistant 对 = 最多 100 条 message
+        // 总字符 16000（GPT/DeepSeek 上下文都能装），单条裁到 800 字防止单轮膨胀
+        let maxTurns = 50
+        let maxChars = 16000
         var collected: [[String: String]] = []
         var charBudget = maxChars
-        // 倒序收集（最近优先），每轮包含 user + assistant
         for t in history.reversed() {
             guard collected.count < maxTurns * 2 else { break }
-            // assistant 一侧：根据结果类型挑最有信息量的文本
+            // assistant 一侧：在前缀加 [intent:X] 让服务端 inferLastIntent 可靠识别
+            // 之前只带 [risk_level]，服务端启发式没匹配到 → 误判为 general_chat → 短句续问失败
             var assistantText: String? = nil
             if case .done(let r) = t.status {
                 switch r {
                 case .analysis(let data):
                     if let free = data.freeText, !free.isEmpty {
-                        assistantText = free
+                        // chat 类自由文本
+                        assistantText = "[intent:general_chat] \(free)"
                     } else if data.isNonDetection {
-                        // chat / knowledge / help：summary + steps 拼接
                         let body = data.steps.isEmpty ? data.summary : (data.summary + "\n" + data.steps.joined(separator: "\n"))
-                        assistantText = body.isEmpty ? nil : body
+                        if !body.isEmpty {
+                            let kind = data.intent ?? "general_chat"
+                            assistantText = "[intent:\(kind)] \(body)"
+                        }
                     } else {
-                        // scam_detection：带 risk_level 标签 + summary，让模型知道之前的判断
-                        assistantText = "[\(data.riskLevel)] \(data.summary)"
+                        // scam_detection 主路径：带 intent + risk_level + summary
+                        assistantText = "[intent:scam_detection|risk:\(data.riskLevel)] \(data.summary)"
                     }
                 case .query(let resp):
                     let tagsStr = (resp.tags ?? []).joined(separator: "/")
-                    assistantText = "[\(resp.riskLevel ?? "unknown")] \(tagsStr.isEmpty ? "命中风险库" : tagsStr)"
+                    assistantText = "[intent:scam_detection|risk:\(resp.riskLevel ?? "unknown")] \(tagsStr.isEmpty ? "命中风险库" : tagsStr)"
                 case .failure:
                     assistantText = nil
                 }
             }
             let userText = t.userText ?? (t.userImage != nil || (t.imageUrl?.isEmpty == false) ? "（图片分析）" : nil)
             guard let u = userText, let a = assistantText else { continue }
-            // 单条裁剪到 800 字以内，避免单轮挤爆预算
             let uTrim = String(u.prefix(800))
             let aTrim = String(a.prefix(800))
             let cost = uTrim.count + aTrim.count
             if cost > charBudget { break }
             charBudget -= cost
-            // 倒序收集，最后再反转，保证按时间顺序：旧 → 新
             collected.insert(["role": "assistant", "content": aTrim], at: 0)
             collected.insert(["role": "user", "content": uTrim], at: 0)
         }

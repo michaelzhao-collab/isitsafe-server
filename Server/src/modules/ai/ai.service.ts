@@ -219,6 +219,7 @@ export class AiService {
             parsed.originalContent,
             nonScamIntent,
             language,
+            input.context,
           );
           // F7: 非 scam 不写 score / risk_db_hit，避免污染后台统计
           const intentFinal = ensureFullResult({
@@ -453,11 +454,20 @@ export class AiService {
    */
   private inferLastIntent(context?: Array<{ role: string; content: string }>): Intent | undefined {
     if (!Array.isArray(context) || context.length === 0) return undefined;
-    // 找最近一条 assistant 消息
     const lastAssistant = [...context].reverse().find((m) => m.role === 'assistant');
     if (!lastAssistant?.content) return undefined;
     const c = lastAssistant.content;
-    // 1) JSON 含 intent
+
+    // 0) iOS 新格式：assistant 内容以 [intent:X] 或 [intent:X|risk:Y] 开头（可靠）
+    const tagMatch = c.match(/^\[intent:([a-z_]+)(?:\|[^\]]*)?\]/i);
+    if (tagMatch) {
+      const i = tagMatch[1].toLowerCase() as Intent;
+      if (i === 'scam_detection' || i === 'general_chat' || i === 'knowledge_query' || i === 'help_request') {
+        return i;
+      }
+    }
+
+    // 1) JSON 含 intent（保留兼容老格式）
     try {
       const obj = JSON.parse(c);
       if (obj && typeof obj.intent === 'string') {
@@ -467,12 +477,15 @@ export class AiService {
         }
       }
     } catch {
-      /* not JSON, fall through */
+      /* not JSON */
     }
-    // 2) 文本启发式
+
+    // 2) 文本启发式（兜底；iOS 老版本无 tag 走这里）
     if (/96110|止付|报案|二次诈骗|银行止付/.test(c)) return 'help_request';
-    if (/什么是|杀猪盘|钓鱼|诈骗手段|要点|定义|常见手段/.test(c)) return 'knowledge_query';
-    if (/(scam|safe|verdict|风险等级|高风险|低风险)/i.test(c)) return 'scam_detection';
+    if (/什么是|杀猪盘|钓鱼网站|诈骗手段|要点|定义|常见手段/.test(c)) return 'knowledge_query';
+    // 扩充 scam_detection 关键词：iOS 老格式 [medium]/[high]/[low]/[unknown] 也算
+    if (/^\[(high|medium|low|unknown)\]/i.test(c)) return 'scam_detection';
+    if (/(scam|safe|verdict|风险等级|高风险|中风险|低风险|风险|可疑|诈骗|骗局|转账|不要轻易)/i.test(c)) return 'scam_detection';
     return 'general_chat';
   }
 

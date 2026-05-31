@@ -19,10 +19,10 @@ public final class AuthService {
         tokenStore.saveToken(access: res.accessToken, refresh: res.refreshToken)
         let user = try await repo.userInfo()
         sessionStore.updateUser(user)
-        // 登入新用户：清掉上个用户的本地状态
+        // 登入新用户：清掉上个用户的本地免费次数计数（没按 userId 隔离，会串号）
         AppSettingsStore.shared.resetFreeQueryCount()
-        LocalDefaultQAStore.shared.resetForNewUser()
-        // V3-S1-5：登录成功后强制重传 push token（设备换号场景下归属迁移）
+        // LocalDefaultQAStore 已经按 userId 隔离，登入不需要清；
+        // 新用户的 userId 对应文件不存在 → shouldShowDefaultQA 自然返回 true
         PushService.shared.reregisterIfTokenCached()
     }
 
@@ -33,7 +33,6 @@ public final class AuthService {
         let user = try await repo.userInfo()
         sessionStore.updateUser(user)
         AppSettingsStore.shared.resetFreeQueryCount()
-        LocalDefaultQAStore.shared.resetForNewUser()
         PushService.shared.reregisterIfTokenCached()
     }
 
@@ -41,16 +40,16 @@ public final class AuthService {
         _ = try? await repo.logout()
         sessionStore.clearSession()
         AppSettingsStore.shared.resetFreeQueryCount()
-        LocalDefaultQAStore.shared.resetForNewUser()
         // V3-S1-5：登出清理 push 缓存，下次登录会重新上报
         PushService.shared.clearOnLogout()
     }
 
     public func deleteAccount() async throws {
+        // 先清当前账号的默认聊天文件（仅删号才彻底删，登出不删）
+        LocalDefaultQAStore.shared.deleteForCurrentUser()
         _ = try await repo.deleteAccount()
         sessionStore.clearSession()
         AppSettingsStore.shared.resetFreeQueryCount()
-        LocalDefaultQAStore.shared.resetForNewUser()
         PushService.shared.clearOnLogout()
     }
 

@@ -3,7 +3,8 @@
 //  IsItSafe
 //
 //  冷启动默认 3 组问答：完全本地展示，不上传服务器。
-//  通过缓存文件判断：是否已展示过、是否用户已发过任何内容，以及默认会话的本地记录。
+//  V2：按 userId 隔离存储，新用户独立判断 / 老用户保持已有状态。
+//  匿名（未登录）用 "guest" 作为隔离 key。
 //
 
 import Foundation
@@ -24,20 +25,30 @@ private struct LocalDefaultQAFileState: Codable {
 public final class LocalDefaultQAStore {
     public static let shared = LocalDefaultQAStore()
 
-    private let fileName = "isitsafe.local_default_qa.json"
+    /// 当前 userId（登入态决定，未登录用 "guest"）
+    /// 通过 UserSessionStore 查询，避免环引
+    private var currentUserId: String {
+        UserSessionStore.shared.currentUser?.id ?? "guest"
+    }
+
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
     private init() {}
 
-    private var fileURL: URL {
+    /// 按 userId 隔离文件路径
+    /// 文件名格式：isitsafe.local_default_qa.{userId}.json
+    private func fileURL(for userId: String) -> URL {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        return caches.appendingPathComponent(fileName)
+        // userId 是 cuid 格式，安全字符，直接拼即可
+        let safe = userId.replacingOccurrences(of: "/", with: "_")
+        return caches.appendingPathComponent("isitsafe.local_default_qa.\(safe).json")
     }
 
     private func loadState() -> LocalDefaultQAFileState {
+        let url = fileURL(for: currentUserId)
         do {
-            let data = try Data(contentsOf: fileURL)
+            let data = try Data(contentsOf: url)
             return try decoder.decode(LocalDefaultQAFileState.self, from: data)
         } catch {
             return LocalDefaultQAFileState(
@@ -49,15 +60,17 @@ public final class LocalDefaultQAStore {
     }
 
     private func saveState(_ state: LocalDefaultQAFileState) {
+        let url = fileURL(for: currentUserId)
         do {
             let data = try encoder.encode(state)
-            // 原子写入，避免写一半导致 JSON 损坏
-            try data.write(to: fileURL, options: [.atomic])
+            try data.write(to: url, options: [.atomic])
         } catch {
-            // 写失败不影响主流程；下一次启动会回退为默认状态
+            // 写失败不影响主流程
         }
     }
 
+    /// 仅新用户（当前 userId 对应文件不存在 / hasShownDefaultQA=false）才显示
+    /// 老用户登入会读到自己的旧文件 → 已显示过 → 不重复
     public func shouldShowDefaultQA() -> Bool {
         let state = loadState()
         return state.hasShownDefaultQA == false && state.hasUserSentAnyContent == false
@@ -99,10 +112,9 @@ public final class LocalDefaultQAStore {
         saveState(state)
     }
 
-    /// 切账号时清空：登入新用户 / 登出 / 删号都要调
-    /// 否则老用户的"已展示"标记会让新用户看不到默认聊天
-    public func resetForNewUser() {
-        try? FileManager.default.removeItem(at: fileURL)
+    /// 删号时调用：直接物理删除该用户的本地文件
+    /// 登出 / 普通登入不应该调
+    public func deleteForCurrentUser() {
+        try? FileManager.default.removeItem(at: fileURL(for: currentUserId))
     }
 }
-
