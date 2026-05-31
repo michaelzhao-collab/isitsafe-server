@@ -29,37 +29,28 @@ public struct IntelCaseRootView: View {
     public init() {}
 
     public var body: some View {
-        ZStack {
-            AppTheme.background.ignoresSafeArea()
-            VStack(spacing: 0) {
-                // 详情页（.mainTabBarHidden）pushes TabBarVisibility → 同步隐藏 segment bar
-                if !tabBarVisibility.isHidden {
-                    segmentBar
-                    Divider().opacity(0.4)
-                }
-                ZStack {
-                    // 用 opacity 切换保持状态（避免每次重建子视图丢历史）
-                    // V3-B 改：删 navigationTitle，segment bar 已经显示"今日情报"，
-                    // 再加导航栏标题就重复了
-                    NavigationStack {
+        // 单一外层 NavigationStack：之前每个 segment 各自套一层会让 NavigationStack
+        // 预留隐藏的 nav bar 高度，segmentBar 与内容之间出现持续的空白
+        NavigationStack {
+            ZStack {
+                AppTheme.background.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    if !tabBarVisibility.isHidden {
+                        segmentBar
+                        Divider().opacity(0.4)
+                    }
+                    ZStack {
+                        // opacity 切换保持状态（避免每次重建子视图丢历史）
                         IntelListView()
-                            .navigationBarHidden(true)
-                    }
-                    .opacity(segment == .intel ? 1 : 0)
-                    .allowsHitTesting(segment == .intel)
-
-                    // 嵌入时隐藏 nav title，避免上方 segment 已有"案例库" tab 再叠一个"防诈案例"标题
-                    // 用外层 NavigationStack 提供导航能力（KnowledgeView 内部已剥掉以消除"案例库"与分类条之间的空白）
-                    NavigationStack {
+                            .opacity(segment == .intel ? 1 : 0)
+                            .allowsHitTesting(segment == .intel)
                         KnowledgeView(showsTitle: false)
-                            .navigationBarHidden(true)
+                            .opacity(segment == .knowledge ? 1 : 0)
+                            .allowsHitTesting(segment == .knowledge)
                     }
-                    .opacity(segment == .knowledge ? 1 : 0)
-                    .allowsHitTesting(segment == .knowledge)
                 }
             }
-            // 底部 tabBar 占位（MainTabView 占了 88pt）
-            .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: 0) }
+            .toolbar(.hidden, for: .navigationBar)
         }
         .sheet(isPresented: $showPreferences) {
             IntelPreferencesView()

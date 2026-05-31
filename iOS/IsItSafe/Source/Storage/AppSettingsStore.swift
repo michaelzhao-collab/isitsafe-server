@@ -71,4 +71,11 @@ public final class AppSettingsStore {
             UserDefaults.standard.set(count + 1, forKey: freeQueryCountKey)
         }
     }
+
+    /// 切账号时清空：登出 / 登入新账号都要调，避免上个用户的计数串到下个用户
+    /// 原 bug：UserDefaults 全局存计数没按 userId 隔离，新用户上来就显示 7/7
+    public func resetFreeQueryCount() {
+        UserDefaults.standard.removeObject(forKey: freeQueryDateKey)
+        UserDefaults.standard.removeObject(forKey: freeQueryCountKey)
+    }
 }

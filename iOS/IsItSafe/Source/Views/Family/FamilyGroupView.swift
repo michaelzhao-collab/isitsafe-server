@@ -28,6 +28,8 @@ public struct FamilyGroupView: View {
     @State private var showRedeemSheet = false
     /// S5-9 家庭官方消息（来自自己或其他成员的分享，AI 检测后官方匿名广播）
     @State private var recentBroadcasts: [FamilyBroadcast] = []
+    /// 用户主动关闭"最近家庭消息" section（仅本次会话；下次进入家庭页或新广播到达会重新出现）
+    @State private var hideRecentBroadcasts: Bool = false
     @State private var loadingBroadcasts = false
 
     public init(group: FamilyGroup, vm: FamilyViewModel) {
@@ -276,7 +278,7 @@ public struct FamilyGroupView: View {
 
     @ViewBuilder
     private var broadcastSection: some View {
-        if !recentBroadcasts.isEmpty {
+        if !recentBroadcasts.isEmpty && !hideRecentBroadcasts {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Image(systemName: "megaphone.fill")
@@ -295,6 +297,17 @@ public struct FamilyGroupView: View {
                                 .foregroundColor(AppTheme.primary)
                         }
                     }
+                    // 关闭按钮（仅本次会话隐藏）
+                    Button {
+                        withAnimation { hideRecentBroadcasts = true }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(AppTheme.textSecondary)
+                            .padding(4)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
                 VStack(spacing: 0) {
                     ForEach(Array(recentBroadcasts.prefix(3).enumerated()), id: \.element.id) { idx, bc in
