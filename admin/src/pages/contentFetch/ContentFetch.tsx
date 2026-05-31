@@ -171,44 +171,94 @@ export default function ContentFetchPage() {
   ];
 
   const expandedRowRender = (record: ContentFetchJob) => {
-    const items = record.resultJson ?? [];
-    if (items.length === 0) return <Empty description="暂无明细" />;
+    const items = record.resultJson?.items ?? [];
+    const sources = record.resultJson?.sources ?? [];
+
     return (
-      <Table
-        size="small"
-        rowKey={(r) => r.sourceUrl + r.title}
-        dataSource={items}
-        pagination={false}
-        columns={[
-          { title: '源', dataIndex: 'source', key: 'source', width: 200 },
-          {
-            title: '状态',
-            dataIndex: 'status',
-            key: 'status',
-            width: 80,
-            render: (s) =>
-              s === 'inserted' ? <Tag color="success">入库</Tag> : <Tag color="error">失败</Tag>,
-          },
-          { title: '标题', dataIndex: 'title', key: 'title', ellipsis: true },
-          {
-            title: '原链接',
-            dataIndex: 'sourceUrl',
-            key: 'sourceUrl',
-            width: 280,
-            render: (u: string) => (
-              <a href={u} target="_blank" rel="noopener noreferrer">
-                {u.slice(0, 60)}...
-              </a>
-            ),
-          },
-          {
-            title: '错误',
-            dataIndex: 'errorMessage',
-            key: 'errorMessage',
-            ellipsis: true,
-          },
-        ]}
-      />
+      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        {/* 各源诊断（为什么 0 条往这里看） */}
+        {sources.length > 0 && (
+          <div>
+            <div style={{ marginBottom: 6, color: '#666', fontSize: 13 }}>各源抓取状态</div>
+            <Table
+              size="small"
+              rowKey={(r) => r.sourceKey}
+              dataSource={sources}
+              pagination={false}
+              columns={[
+                { title: '源', dataIndex: 'sourceName', key: 'sourceName', width: 220 },
+                {
+                  title: '状态',
+                  dataIndex: 'status',
+                  key: 'status',
+                  width: 80,
+                  render: (s: string) => {
+                    if (s === 'ok') return <Tag color="success">ok</Tag>;
+                    if (s === 'empty') return <Tag color="warning">空（0 条）</Tag>;
+                    return <Tag color="error">失败</Tag>;
+                  },
+                },
+                { title: '抓到', dataIndex: 'found', key: 'found', width: 70, align: 'right' as const },
+                {
+                  title: '耗时',
+                  dataIndex: 'tookMs',
+                  key: 'tookMs',
+                  width: 70,
+                  align: 'right' as const,
+                  render: (n: number) => `${n}ms`,
+                },
+                {
+                  title: '错误',
+                  dataIndex: 'error',
+                  key: 'error',
+                  ellipsis: true,
+                  render: (e: string | undefined) =>
+                    e ? <Tooltip title={e}><span style={{ color: '#cf1322' }}>{e.slice(0, 80)}</span></Tooltip> : '-',
+                },
+              ]}
+            />
+          </div>
+        )}
+
+        {/* 候选条目处理结果 */}
+        {items.length > 0 && (
+          <div>
+            <div style={{ marginBottom: 6, color: '#666', fontSize: 13 }}>候选条目处理结果</div>
+            <Table
+              size="small"
+              rowKey={(r) => r.sourceUrl + r.title}
+              dataSource={items}
+              pagination={false}
+              columns={[
+                { title: '源', dataIndex: 'source', key: 'source', width: 180 },
+                {
+                  title: '状态',
+                  dataIndex: 'status',
+                  key: 'status',
+                  width: 80,
+                  render: (s) =>
+                    s === 'inserted' ? <Tag color="success">入库</Tag> : <Tag color="error">失败</Tag>,
+                },
+                { title: '标题', dataIndex: 'title', key: 'title', ellipsis: true },
+                {
+                  title: '原链接',
+                  dataIndex: 'sourceUrl',
+                  key: 'sourceUrl',
+                  width: 250,
+                  render: (u: string) => (
+                    <a href={u} target="_blank" rel="noopener noreferrer">
+                      {u.slice(0, 50)}...
+                    </a>
+                  ),
+                },
+                { title: '错误', dataIndex: 'errorMessage', key: 'errorMessage', ellipsis: true },
+              ]}
+            />
+          </div>
+        )}
+
+        {sources.length === 0 && items.length === 0 && <Empty description="暂无明细" />}
+      </Space>
     );
   };
 

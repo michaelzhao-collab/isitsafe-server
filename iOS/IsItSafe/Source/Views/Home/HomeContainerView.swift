@@ -45,6 +45,25 @@ public struct HomeContainerView: View {
 
     private let sidebarWidth = min(320, UIScreen.main.bounds.width * 0.85)
 
+    /// iOS 17+ 读 UIPasteboard.string 会强制弹"允许粘贴"权限框。
+    /// 改用 detectPatterns 只探测剪贴板里有没有 URL / 数字（不读内容、不弹框）。
+    /// 探测到了再弹我们自己的 alert，用户点"允许"再走 .string 拿真内容（此时系统才弹一次）。
+    /// 注意：detectPatterns 没有原生 async 版本，用 withCheckedContinuation 包装。
+    private func checkClipboardWithoutPrompt() async {
+        let patterns: Set<UIPasteboard.DetectionPattern> = [.probableWebURL, .number]
+        let detected: Set<UIPasteboard.DetectionPattern> = await withCheckedContinuation { cont in
+            UIPasteboard.general.detectPatterns(for: patterns) { result in
+                switch result {
+                case .success(let s): cont.resume(returning: s)
+                case .failure: cont.resume(returning: [])
+                }
+            }
+        }
+        if !detected.isEmpty {
+            await MainActor.run { showClipboardAlert = true }
+        }
+    }
+
     private func maybeInjectLocalDefaultQAIfNeeded() {
         // 只在当前页面没有消息时才注入，避免干扰用户正常会话
         guard homeVm.turns.isEmpty, homeVm.loadedHistoryId == nil else { return }
@@ -188,10 +207,8 @@ public struct HomeContainerView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
-            // 从后台回到前台不新开对话，仅检查剪贴板
-            if let str = UIPasteboard.general.string, !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                showClipboardAlert = true
-            }
+            // 从后台回到前台：用 detectPatterns 探测剪贴板里有没有 URL / 文本（不读内容、不弹粘贴权限框）
+            Task { await checkClipboardWithoutPrompt() }
         }
         // V3 #5：聊天里点"查个号码"动作 → 把焦点交给输入框
         .onReceive(NotificationCenter.default.publisher(for: .focusHomeInput)) { _ in
@@ -209,9 +226,8 @@ public struct HomeContainerView: View {
                 maybeInjectLocalDefaultQAIfNeeded()
                 if !Self.hasDoneColdStartClipboardCheck {
                     Self.hasDoneColdStartClipboardCheck = true
-                    if let str = UIPasteboard.general.string, !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        showClipboardAlert = true
-                    }
+                    // 改用 detectPatterns（无权限提示）；用户允许后再触发 alert
+                    Task { await checkClipboardWithoutPrompt() }
                 }
                 // V3-E 冷启即时上报心跳一次（关怀机制；服务端按今日 active_count 计数）
                 Task { await HeartbeatService.shared.reportActive(trigger: .coldLaunch) }

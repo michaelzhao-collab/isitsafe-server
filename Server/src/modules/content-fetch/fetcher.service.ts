@@ -28,6 +28,16 @@ import {
   sourcesByCategory,
 } from './sources.config';
 
+export interface SourceStat {
+  sourceKey: string;
+  sourceName: string;
+  /** 'ok' = 拉到内容；'empty' = 拉成功但 0 条（selector 不对或源本身空）；'failed' = 网络/解析异常 */
+  status: 'ok' | 'empty' | 'failed';
+  found: number;
+  tookMs: number;
+  error?: string;
+}
+
 export interface RawItem {
   /** 源配置 key */
   sourceKey: string;
@@ -58,20 +68,46 @@ export class FetcherService {
 
   constructor(private prisma: PrismaService) {}
 
-  async fetchAll(category: SourceCategory): Promise<RawItem[]> {
+  /**
+   * 返回标准化、已去重的候选 + 各源的诊断（admin UI 用于排查"为啥 0 条"）
+   */
+  async fetchAll(category: SourceCategory): Promise<{
+    items: RawItem[];
+    sourceStats: SourceStat[];
+    duplicatedInDb: number;
+  }> {
     const sources = sourcesByCategory(category);
     const all: RawItem[] = [];
+    const stats: SourceStat[] = [];
+
     // 并发抓取每个源，单源失败不影响整体
     await Promise.all(
       sources.map(async (s) => {
+        const startedAt = Date.now();
         try {
           const items = await this.fetchOne(s);
-          this.logger.log(`[FETCH] ${s.key} found=${items.length}`);
+          const tookMs = Date.now() - startedAt;
+          this.logger.log(`[FETCH] ${s.key} found=${items.length} in ${tookMs}ms`);
+          stats.push({
+            sourceKey: s.key,
+            sourceName: s.name,
+            status: items.length > 0 ? 'ok' : 'empty',
+            found: items.length,
+            tookMs,
+          });
           all.push(...items);
         } catch (err: any) {
-          this.logger.warn(
-            `[FETCH] ${s.key} failed: ${err?.message ?? err}`,
-          );
+          const tookMs = Date.now() - startedAt;
+          const msg = err?.message ?? String(err);
+          this.logger.warn(`[FETCH] ${s.key} failed: ${msg}`);
+          stats.push({
+            sourceKey: s.key,
+            sourceName: s.name,
+            status: 'failed',
+            found: 0,
+            tookMs,
+            error: msg.slice(0, 300),
+          });
         }
       }),
     );
@@ -85,8 +121,13 @@ export class FetcherService {
       uniqueInBatch.push(it);
     }
 
-    // 30 天滑窗去重：检查 sourceUrl 是否已在库中（无论 intel 还是 knowledge 都查）
-    return this.filterAlreadyInDb(uniqueInBatch);
+    // 30 天滑窗去重
+    const filtered = await this.filterAlreadyInDb(uniqueInBatch);
+    return {
+      items: filtered,
+      sourceStats: stats,
+      duplicatedInDb: uniqueInBatch.length - filtered.length,
+    };
   }
 
   /** 单源拉取 */

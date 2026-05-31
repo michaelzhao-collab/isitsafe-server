@@ -111,16 +111,17 @@ export class ContentFetchService {
     let totalInserted = 0;
 
     try {
-      // 1. fetch（fetchAll 内部已做 30 天去重）
-      let raws: RawItem[] = await this.fetcher.fetchAll(type);
-      // fetchAll 返回的是"未在库中"的候选，所以"已发现"包括了候选
-      // 但 totalDuplicated 我们改在 fetcher 之前没法算；这里粗略记 totalFound = raws.length（仅记 candidate）
+      // 1. fetch（fetchAll 内部已做 30 天去重；同时返回各源诊断 + 去重统计）
+      const fetchResult = await this.fetcher.fetchAll(type);
+      let raws: RawItem[] = fetchResult.items;
+      const sourceStats = fetchResult.sourceStats;
+      totalDuplicated = fetchResult.duplicatedInDb;
       const totalFound = raws.length;
 
       // 2. 截顶
       if (raws.length > MAX_ITEMS_PER_JOB) raws = raws.slice(0, MAX_ITEMS_PER_JOB);
 
-      // 3. 逐条 rewrite + insert（顺序执行避免 deepseek 限流；并发 2 也行，先稳）
+      // 3. 逐条 rewrite + insert
       for (const raw of raws) {
         try {
           const rewritten = await this.rewriter.rewrite(raw);
@@ -152,9 +153,10 @@ export class ContentFetchService {
           finishedAt: new Date(),
           totalFound,
           totalInserted,
-          totalDuplicated, // 当前实现里 fetchAll 已隐式去重，此处保持 0；后续可加返回值
+          totalDuplicated,
           totalFailed,
-          resultJson: results as any,
+          // resultJson 同时带：每条候选的处理结果 + 各源诊断（admin 看"为啥 0 条"）
+          resultJson: { items: results, sources: sourceStats } as any,
         },
       });
       this.logger.log(
@@ -172,7 +174,7 @@ export class ContentFetchService {
           totalInserted,
           totalDuplicated,
           totalFailed,
-          resultJson: results as any,
+          resultJson: { items: results, sources: [] } as any,
         },
       });
     }

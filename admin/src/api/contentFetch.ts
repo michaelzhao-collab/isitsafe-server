@@ -15,13 +15,23 @@ export interface ContentFetchJob {
   totalDuplicated: number;
   totalFailed: number;
   errorMessage?: string | null;
-  resultJson?: Array<{
-    source: string;
-    title: string;
-    sourceUrl: string;
-    status: 'inserted' | 'failed';
-    errorMessage?: string;
-  }> | null;
+  resultJson?: {
+    items?: Array<{
+      source: string;
+      title: string;
+      sourceUrl: string;
+      status: 'inserted' | 'failed';
+      errorMessage?: string;
+    }>;
+    sources?: Array<{
+      sourceKey: string;
+      sourceName: string;
+      status: 'ok' | 'empty' | 'failed';
+      found: number;
+      tookMs: number;
+      error?: string;
+    }>;
+  } | null;
   createdAt: string;
 }
 
