@@ -27,18 +27,19 @@ public struct InviteFamilySheet: View {
             ScrollView {
                 VStack(spacing: AppTheme.Spacing.lg) {
                     hero
-                    if loading {
-                        ProgressView().padding(.vertical, 40)
-                    } else if let invite = invite {
-                        codeCard(invite: invite)
-                        actionsCard(invite: invite)
-                    } else if let err = errorMessage {
+                    // 整页骨架式布局：code 卡 + actions 卡始终出现，loading 时仅在卡内显示占位/spinner
+                    // 这样不再"两边空白等待"，结构稳定
+                    if let err = errorMessage {
                         errorCard(message: err)
+                    } else {
+                        codeCard(invite: invite, loading: loading)
+                        actionsCard(invite: invite, loading: loading)
                     }
                     warningCard
                     Spacer(minLength: 24)
                 }
                 .padding(AppTheme.Spacing.lg)
+                .frame(maxWidth: .infinity)
             }
             .background(AppTheme.background)
             .navigationTitle(languageCode == "en" ? "Invite Family" : "邀请家人")
@@ -63,16 +64,24 @@ public struct InviteFamilySheet: View {
         }
     }
 
-    private func codeCard(invite: GenerateInviteResponse) -> some View {
+    /// 邀请码卡：loading 时显示占位 "----" + 内嵌小菊花，不留大段空白
+    private func codeCard(invite: GenerateInviteResponse?, loading: Bool) -> some View {
         VStack(spacing: 12) {
             Text(languageCode == "en" ? "Invite Code" : "邀请码")
                 .font(.caption)
                 .foregroundColor(AppTheme.textSecondary)
-            Text(invite.code)
-                .font(.system(size: 38, weight: .bold, design: .monospaced))
-                .tracking(6)
-                .foregroundColor(AppTheme.primary)
-            Text(expiryText(invite.expiresAt))
+            HStack(spacing: 10) {
+                Text(invite?.code ?? "————")
+                    .font(.system(size: 38, weight: .bold, design: .monospaced))
+                    .tracking(6)
+                    .foregroundColor(invite == nil ? AppTheme.textSecondary.opacity(0.5) : AppTheme.primary)
+                if loading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .tint(AppTheme.textSecondary)
+                }
+            }
+            Text(invite.map { expiryText($0.expiresAt) } ?? (languageCode == "en" ? "Generating…" : "生成中…"))
                 .font(.caption)
                 .foregroundColor(AppTheme.textSecondary)
         }
@@ -82,9 +91,11 @@ public struct InviteFamilySheet: View {
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
     }
 
-    private func actionsCard(invite: GenerateInviteResponse) -> some View {
+    /// 操作卡：按钮始终可见。loading / 失败时按钮 disabled 但样式不变（避免布局跳动）
+    private func actionsCard(invite: GenerateInviteResponse?, loading: Bool) -> some View {
         VStack(spacing: 10) {
             Button {
+                guard let invite else { return }
                 UIPasteboard.general.string = invite.code
                 copied = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
@@ -99,23 +110,35 @@ public struct InviteFamilySheet: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(AppTheme.primary)
+                .background(invite == nil ? AppTheme.primary.opacity(0.45) : AppTheme.primary)
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
             }
+            .disabled(invite == nil)
 
-            ShareLink(item: shareText(invite: invite)) {
-                HStack {
-                    Image(systemName: "square.and.arrow.up")
-                    Text(languageCode == "en" ? "Share Invite Link" : "分享邀请链接")
+            if let invite {
+                ShareLink(item: shareText(invite: invite)) {
+                    shareButtonLabel
                 }
-                .font(.body.weight(.semibold))
-                .foregroundColor(AppTheme.primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(AppTheme.primary.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
+            } else {
+                // 占位：保持版心，避免加载完瞬间页面抖动
+                shareButtonLabel
+                    .opacity(0.45)
+                    .allowsHitTesting(false)
             }
         }
+    }
+
+    private var shareButtonLabel: some View {
+        HStack {
+            Image(systemName: "square.and.arrow.up")
+            Text(languageCode == "en" ? "Share Invite Link" : "分享邀请链接")
+        }
+        .font(.body.weight(.semibold))
+        .foregroundColor(AppTheme.primary)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(AppTheme.primary.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
     }
 
     private var warningCard: some View {

@@ -470,6 +470,7 @@ public struct FamilyGroupView: View {
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 14)
+        .contentShape(Rectangle())  // 整行可点（包括 Spacer 透明区）
     }
 
     /// 当前登录用户的 user id（用于判定哪行是"我"）
@@ -528,6 +529,7 @@ public struct FamilyGroupView: View {
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 14)
+        .contentShape(Rectangle())  // 整行可点（包括 Spacer 透明区）
     }
 
     // MARK: - 主 action：分享信息（柔和样式）

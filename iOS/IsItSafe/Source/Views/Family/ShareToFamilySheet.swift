@@ -13,7 +13,7 @@ public struct ShareToFamilySheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var content: String = ""
-    @State private var contentType: String = "url"  // phone | url | sms | voice
+    @State private var contentType: String = "sms"  // sms | url | phone | voice — 默认"消息"，最常用
     @State private var submitting = false
     @State private var result: BroadcastResponse?
     @State private var quotaRemaining: Int = 1
@@ -82,9 +82,9 @@ public struct ShareToFamilySheet: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(AppTheme.textSecondary)
             Picker("", selection: $contentType) {
+                Text(languageCode == "en" ? "Message" : "消息").tag("sms")
                 Text(languageCode == "en" ? "Link" : "链接").tag("url")
                 Text(languageCode == "en" ? "Phone" : "号码").tag("phone")
-                Text(languageCode == "en" ? "Message" : "消息").tag("sms")
             }
             .pickerStyle(.segmented)
         }

@@ -375,6 +375,9 @@ public struct ProfileView: View {
                 .font(.caption)
                 .foregroundColor(vm.isPremium ? Color(hex: "7A4CC0") : AppTheme.secondaryText)
         }
+        // 整行可点：Spacer 透明区也参与 hit testing
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
     }
 
     private var languageSheet: some View {
