@@ -14,7 +14,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import Parser from 'rss-parser';
+// rss-parser 是 CJS（module.exports = Parser），不能用 default import
+// 不开 esModuleInterop 时 `import Parser from 'rss-parser'` 编译后是 .default，运行时报 not a constructor
+// 用 require 形式拿到真正的构造函数
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const Parser = require('rss-parser');
 import { createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -95,10 +99,10 @@ export class FetcherService {
   }
 
   private async fetchRss(s: SourceConfig, max: number): Promise<RawItem[]> {
-    const feed = await this.rssParser.parseURL(s.url);
-    const items = (feed.items ?? []).slice(0, max);
+    const feed = (await this.rssParser.parseURL(s.url)) as { items?: any[] };
+    const items: any[] = (feed.items ?? []).slice(0, max);
     return items
-      .map((i) => {
+      .map((i: any) => {
         const title = (i.title ?? '').trim();
         const link = (i.link ?? '').trim();
         if (!title || !link) return null;
@@ -117,7 +121,7 @@ export class FetcherService {
           fingerprint: this.fingerprint(link, title),
         } as RawItem;
       })
-      .filter((x): x is RawItem => !!x);
+      .filter((x: RawItem | null): x is RawItem => !!x);
   }
 
   private async fetchHtml(s: SourceConfig, max: number): Promise<RawItem[]> {
