@@ -28,8 +28,10 @@ interface JobResultRecord {
   errorMessage?: string;
 }
 
+// 24h 频次限流暂时关闭（值为 0 → 不检查）；保留"同类型 running 中禁止并发触发"
+// 排障阶段先放开，后续稳定再加回（如改 3 / 10 / 50）
 const RATE_LIMIT_WINDOW_HOURS = 24;
-const RATE_LIMIT_MAX_PER_WINDOW = 3;
+const RATE_LIMIT_MAX_PER_WINDOW = 0;
 const MAX_ITEMS_PER_JOB = 10;
 
 @Injectable()
@@ -46,15 +48,17 @@ export class ContentFetchService {
    * 触发抓取（admin 调）。立即返回 jobId，后台异步执行
    */
   async trigger(type: SourceCategory, adminUserId: string): Promise<{ jobId: string }> {
-    // 24h 限流
-    const since = new Date(Date.now() - RATE_LIMIT_WINDOW_HOURS * 3600 * 1000);
-    const recent = await this.prisma.contentFetchJob.count({
-      where: { type, triggeredBy: adminUserId, createdAt: { gte: since } },
-    });
-    if (recent >= RATE_LIMIT_MAX_PER_WINDOW) {
-      throw new BadRequestException(
-        `24h 内 ${type} 抓取已达上限 ${RATE_LIMIT_MAX_PER_WINDOW} 次，请稍后再试`,
-      );
+    // 24h 限流（RATE_LIMIT_MAX_PER_WINDOW=0 时跳过；排障阶段先关）
+    if (RATE_LIMIT_MAX_PER_WINDOW > 0) {
+      const since = new Date(Date.now() - RATE_LIMIT_WINDOW_HOURS * 3600 * 1000);
+      const recent = await this.prisma.contentFetchJob.count({
+        where: { type, triggeredBy: adminUserId, createdAt: { gte: since } },
+      });
+      if (recent >= RATE_LIMIT_MAX_PER_WINDOW) {
+        throw new BadRequestException(
+          `24h 内 ${type} 抓取已达上限 ${RATE_LIMIT_MAX_PER_WINDOW} 次，请稍后再试`,
+        );
+      }
     }
     // running 中也不重复触发
     const running = await this.prisma.contentFetchJob.findFirst({
