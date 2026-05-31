@@ -44,9 +44,10 @@ export default function ContentFetchPage() {
     setLoading(true);
     try {
       const list = await listContentFetchJobs({ limit: 10 });
-      setJobs(list);
-      // 找当前 running 的 job
-      const running = list.find((j) => j.status === 'running' || j.status === 'pending');
+      // 防御：服务端返回非 array 时（500 / 401 重定向 / 旧版本）兜底，避免 Table 内部 .some() 崩溃
+      const safe: ContentFetchJob[] = Array.isArray(list) ? list : [];
+      setJobs(safe);
+      const running = safe.find((j) => j.status === 'running' || j.status === 'pending');
       if (running) {
         setPollingJobId(running.id);
       } else if (pollingJobId) {
@@ -171,8 +172,12 @@ export default function ContentFetchPage() {
   ];
 
   const expandedRowRender = (record: ContentFetchJob) => {
-    const items = record.resultJson?.items ?? [];
-    const sources = record.resultJson?.sources ?? [];
+    // 兼容老格式 resultJson 是数组的情况（V1 老 job），新格式是 { items, sources }
+    const raw = record.resultJson;
+    const items = Array.isArray(raw)
+      ? (raw as unknown as Array<{ source: string; title: string; sourceUrl: string; status: 'inserted' | 'failed'; errorMessage?: string }>)
+      : Array.isArray(raw?.items) ? raw!.items : [];
+    const sources = !Array.isArray(raw) && Array.isArray(raw?.sources) ? raw!.sources : [];
 
     return (
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
