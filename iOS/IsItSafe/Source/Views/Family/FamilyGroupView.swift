@@ -220,10 +220,7 @@ public struct FamilyGroupView: View {
                 Spacer()
                 Image(systemName: "megaphone.fill")
                     .font(.caption2).opacity(0.9)
-                // TODO group 模型加 todayBroadcastUsed / Quota；当前显示与原版一致的占位
-                Text(languageCode == "en"
-                     ? "Today 0/1"
-                     : "今日 0/1 次")
+                Text(todayBroadcastText)
                     .font(.caption).opacity(0.9)
             }
         }
@@ -435,12 +432,7 @@ public struct FamilyGroupView: View {
             .background(AppTheme.cardBackground)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
             if group.isFull {
-                Text(languageCode == "en"
-                     ? "Group full (\(group.maxMembers)/\(group.maxMembers)). Upgrade to expand."
-                     : "家庭组已满 (\(group.maxMembers)/\(group.maxMembers))，升级 Pro 可扩容至 10 人")
-                    .font(.caption)
-                    .foregroundColor(AppTheme.textSecondary)
-                    .padding(.horizontal, 4)
+                fullGroupHintRow
             }
         }
     }
@@ -476,6 +468,69 @@ public struct FamilyGroupView: View {
     /// 当前登录用户的 user id（用于判定哪行是"我"）
     private var currentUserId: String? {
         UserSessionStore.shared.currentUser?.id
+    }
+
+    /// 家庭满员提示行：灰色文本 + "去升级 ›" 主色链接 → Premium 页
+    /// Pro 用户已是 10 人上限，不显示升级入口（只显示文案）
+    private var fullGroupHintRow: some View {
+        let isPro = appState.subscriptionActive
+        let text: String = languageCode == "en"
+            ? "Group full (\(group.maxMembers)/\(group.maxMembers))."
+            : "家庭组已满 (\(group.maxMembers)/\(group.maxMembers))。"
+        return HStack(spacing: 4) {
+            Text(text)
+                .font(.caption)
+                .foregroundColor(AppTheme.textSecondary)
+            if !isPro {
+                NavigationLink {
+                    PremiumSubscriptionView()
+                        .environmentObject(appState)
+                        .mainTabBarHidden()
+                } label: {
+                    HStack(spacing: 2) {
+                        Text(languageCode == "en" ? "Upgrade to expand to 10" : "去升级扩容至 10 人")
+                        Image(systemName: "chevron.right")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(AppTheme.primary)
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    /// 今日已广播次数（从 recentBroadcasts 数组里数 createdAt 是今日的条目）
+    /// 免费配额 1/天；Pro 不限（显示 ∞）
+    private var todayBroadcastText: String {
+        let isPro = appState.subscriptionActive
+        let cap = isPro ? "∞" : "1"
+        let used = countTodayBroadcasts()
+        if languageCode == "en" {
+            return "Today \(used)/\(cap)"
+        }
+        return "今日 \(used)/\(cap) 次"
+    }
+
+    /// 统计 recentBroadcasts 数组里 createdAt 落在本地"今天" 的条目数
+    private func countTodayBroadcasts() -> Int {
+        let cal = Calendar.current
+        let now = Date()
+        return recentBroadcasts.reduce(0) { acc, bc in
+            guard let s = bc.createdAt, let d = parseIsoDate(s) else { return acc }
+            return cal.isDate(d, inSameDayAs: now) ? acc + 1 : acc
+        }
+    }
+
+    private func parseIsoDate(_ s: String) -> Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f.date(from: s) { return d }
+        let f2 = ISO8601DateFormatter()
+        f2.formatOptions = [.withInternetDateTime]
+        return f2.date(from: s)
     }
 
     private func memberRow(member: FamilyMember) -> some View {
