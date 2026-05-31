@@ -211,8 +211,13 @@ public struct HomeContainerView: View {
             Task { await checkClipboardWithoutPrompt() }
         }
         // V3 #5：聊天里点"查个号码"动作 → 把焦点交给输入框
+        // iOS 17 SwiftUI 外部触发 FocusState 时单次赋值经常不生效，
+        // 用"先 false → 下一拍 true"双切换强制焦点更新
         .onReceive(NotificationCenter.default.publisher(for: .focusHomeInput)) { _ in
-            isInputFocused = true
+            isInputFocused = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                isInputFocused = true
+            }
         }
         .onChange(of: showSidebar) { _, isOpen in
             if isOpen { historyVm.refresh() }

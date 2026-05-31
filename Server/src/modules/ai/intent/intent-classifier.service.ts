@@ -73,6 +73,15 @@ export class IntentClassifierService {
   /** 金额 + 转账 动作 */
   private static readonly RE_TRANSFER_AMOUNT =
     /(转账|转钱|汇款|付款|打款|转给|transfer|send)[\s\S]{0,20}\d+/i;
+  /** 社交账号 ID：微信/QQ/Skype/Telegram/Line/WhatsApp/抖音/Instagram 等关键词 + ID 字符串
+   *  典型样本：
+   *    "微信号 ty20191215hy" / "vx: abc_123" / "QQ 12345678"
+   *    "我的微信 xyz123" / "wx号 hello"
+   *  ID 规则：首字符字母或数字，总长 4-30
+   *  注意：去掉 "ig" / "tw" 等过短关键词，否则会与正常英文 / 单词冲突
+   */
+  private static readonly RE_SOCIAL_HANDLE =
+    /(微信号?|微\s*信|vx|wx|qq号?|扣扣|skype|telegram|whatsapp|抖音号?|tiktok|instagram)[\s:：是的]*[a-zA-Z0-9][a-zA-Z0-9._\-]{3,29}/i;
 
   /** Luhn 算法（信用卡号校验）*/
   private luhnValid(num: string): boolean {
@@ -105,6 +114,7 @@ export class IntentClassifierService {
     if (IntentClassifierService.RE_CODE.test(content)) return true;
     if (IntentClassifierService.RE_QR.test(content)) return true;
     if (IntentClassifierService.RE_TRANSFER_AMOUNT.test(content)) return true;
+    if (IntentClassifierService.RE_SOCIAL_HANDLE.test(content)) return true;
     // 银行卡：候选 + Luhn
     const cardCandidates = content.match(IntentClassifierService.RE_CARD_CANDIDATE);
     if (cardCandidates) {

@@ -107,6 +107,10 @@ export class IntentResponseService {
       ? r.actions.map((a) => a.label || a.type || '').filter((s) => s.length > 0)
       : (isZh ? ['可继续追问'] : ['Ask me anything']);
 
+    // general_chat：默认清空 actions（避免每条都弹"查个号码"骚扰）
+    // 真要让用户查号码，他自己会发消息；不需要每条都贴入口
+    const finalActions = intent === 'general_chat' ? [] : (r.actions ?? []);
+
     return {
       risk_level: 'unknown',
       confidence: 70,
@@ -119,7 +123,7 @@ export class IntentResponseService {
       intent,
       // verdict 不设（仅 scam_detection 有）
       steps: r.steps,
-      actions: r.actions,
+      actions: finalActions,
       free_text: r.freeText,
     };
   }
