@@ -28,7 +28,8 @@ public struct FamilyGroupView: View {
     @State private var showRedeemSheet = false
     /// S5-9 家庭官方消息（来自自己或其他成员的分享，AI 检测后官方匿名广播）
     @State private var recentBroadcasts: [FamilyBroadcast] = []
-    /// 用户主动关闭"最近家庭消息" section（仅本次会话；下次进入家庭页或新广播到达会重新出现）
+    /// 用户主动关闭"最近家庭消息" section
+    /// 持久化策略：UserDefaults 存"当时最新一条 broadcast id"。下次新广播到达 id 变化 → 自动再现
     @State private var hideRecentBroadcasts: Bool = false
     @State private var loadingBroadcasts = false
 
@@ -276,32 +277,64 @@ public struct FamilyGroupView: View {
 
     // MARK: - Broadcasts（S5-9 家庭官方消息显示入口）
 
+    /// 按用户+家庭组维度持久化"关闭最新消息"的 broadcast id
+    /// 关闭后只要 newest broadcast id 还等于这个值，section 就不展示
+    /// 一旦有新广播到达，newest 变化 → 自动再次展示
+    private var dismissedLatestKey: String {
+        let uid = UserSessionStore.shared.currentUser?.id ?? "guest"
+        return "family.dismissedLatestBroadcast.\(uid).\(group.id)"
+    }
+    private func computeHideRecentBroadcasts() -> Bool {
+        guard let latest = recentBroadcasts.first else { return false }
+        let stored = UserDefaults.standard.string(forKey: dismissedLatestKey)
+        return stored == latest.id
+    }
+    private func dismissRecentBroadcasts() {
+        if let latest = recentBroadcasts.first {
+            UserDefaults.standard.set(latest.id, forKey: dismissedLatestKey)
+        }
+        withAnimation { hideRecentBroadcasts = true }
+    }
+
     @ViewBuilder
     private var broadcastSection: some View {
-        if !recentBroadcasts.isEmpty && !hideRecentBroadcasts {
+        // 入口常驻：只要有任意消息（历史 + 最近）都展示入口栏
+        // X 只折叠 3 条预览，"查看全部 →"始终可点进 FamilyBroadcastListView
+        if !recentBroadcasts.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Image(systemName: "megaphone.fill")
                         .font(.caption)
                         .foregroundColor(AppTheme.primary)
-                    Text(languageCode == "en" ? "Recent Messages" : "最近家庭消息")
+                    Text(languageCode == "en" ? "Family Messages" : "家庭消息")
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(AppTheme.textSecondary)
+                    Text("(\(recentBroadcasts.count))")
+                        .font(.caption)
+                        .foregroundColor(AppTheme.textSecondary)
                     Spacer()
-                    if recentBroadcasts.count > 3 {
-                        NavigationLink {
-                            FamilyBroadcastListView(broadcasts: recentBroadcasts)
-                        } label: {
-                            Text(languageCode == "en" ? "See all" : "查看全部")
-                                .font(.caption)
-                                .foregroundColor(AppTheme.primary)
-                        }
-                    }
-                    // 关闭按钮（仅本次会话隐藏）
-                    Button {
-                        withAnimation { hideRecentBroadcasts = true }
+                    // 入口常驻：去查看全部历史消息
+                    NavigationLink {
+                        FamilyBroadcastListView(broadcasts: recentBroadcasts)
                     } label: {
-                        Image(systemName: "xmark")
+                        HStack(spacing: 2) {
+                            Text(languageCode == "en" ? "View all" : "查看全部")
+                            Image(systemName: "chevron.right").font(.caption2)
+                        }
+                        .font(.caption)
+                        .foregroundColor(AppTheme.primary)
+                    }
+                    // 预览折叠按钮（不影响入口；可再次点击展开）
+                    Button {
+                        if hideRecentBroadcasts {
+                            // 重新展开 — 清掉持久化的隐藏标记
+                            UserDefaults.standard.removeObject(forKey: dismissedLatestKey)
+                            withAnimation { hideRecentBroadcasts = false }
+                        } else {
+                            dismissRecentBroadcasts()
+                        }
+                    } label: {
+                        Image(systemName: hideRecentBroadcasts ? "chevron.down" : "xmark")
                             .font(.caption2.weight(.semibold))
                             .foregroundColor(AppTheme.textSecondary)
                             .padding(4)
@@ -309,16 +342,18 @@ public struct FamilyGroupView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                VStack(spacing: 0) {
-                    ForEach(Array(recentBroadcasts.prefix(3).enumerated()), id: \.element.id) { idx, bc in
-                        broadcastRow(bc)
-                        if idx < min(2, recentBroadcasts.count - 1) {
-                            Divider().padding(.leading, 36)
+                if !hideRecentBroadcasts {
+                    VStack(spacing: 0) {
+                        ForEach(Array(recentBroadcasts.prefix(3).enumerated()), id: \.element.id) { idx, bc in
+                            broadcastRow(bc)
+                            if idx < min(2, recentBroadcasts.count - 1) {
+                                Divider().padding(.leading, 36)
+                            }
                         }
                     }
+                    .background(AppTheme.cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
                 }
-                .background(AppTheme.cardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
             }
         }
         // #4：去掉这里独立的 loading（之前用户反馈"家庭成员"下方出现的多余 loading）
@@ -400,6 +435,9 @@ public struct FamilyGroupView: View {
             let list = try await FamilyRepository.shared.getBroadcasts(limit: 20)
             await MainActor.run {
                 recentBroadcasts = list
+                // 加载完成后重新计算"是否被关闭"
+                // 若最新一条的 id 仍等于上次关闭时记录的 id → 保持隐藏；否则展示
+                hideRecentBroadcasts = computeHideRecentBroadcasts()
             }
         } catch {
             #if DEBUG

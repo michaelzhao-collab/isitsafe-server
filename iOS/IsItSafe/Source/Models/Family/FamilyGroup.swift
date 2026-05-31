@@ -93,22 +93,19 @@ public struct FamilyMember: Codable, Identifiable {
         if let nn = nickname?.trimmingCharacters(in: .whitespacesAndNewlines), !nn.isEmpty {
             return nn
         }
-        // —— 以下是 fallback，让没设昵称的成员也有辨识度 ——
-        let isEnglish: Bool = {
-            if let lang = language { return lang == "en" }
-            return Locale.preferredLanguages.first?.lowercased().hasPrefix("en") ?? false
-        }()
+        // 以下 fallback：用户没设任何昵称，给个识别符
+        // 不再加"家人/Member"前缀（用户反馈"默认显示对方用户的完整昵称"）
+        _ = language // 保留参数兼容老调用站
         // 1) 手机后 4 位（phoneDisplay 已脱敏为 "138****1234"，取尾部 4 位即可）
+        // 不加"家人/Member"前缀，直接展示后 4 位（用户反馈"默认昵称前面不要加家人二字"）
         if let pd = phoneDisplay {
             let digits = pd.filter { $0.isNumber }
             if digits.count >= 4 {
-                let last4 = String(digits.suffix(4))
-                return isEnglish ? "Member \(last4)" : "家人 \(last4)"
+                return String(digits.suffix(4))
             }
         }
-        // 2) member id 后 4 位（cuid 是 24-25 字符，取尾部足够区分）
-        let idTail = String(id.suffix(4))
-        return isEnglish ? "Member \(idTail)" : "成员 \(idTail)"
+        // 2) member id 后 4 位
+        return String(id.suffix(4))
     }
 
     /// 手写 init：对所有字段提供默认值，单个字段类型不匹配不再导致整体加载失败

@@ -45,18 +45,37 @@ public final class LocalDefaultQAStore {
         return caches.appendingPathComponent("isitsafe.local_default_qa.\(safe).json")
     }
 
+    /// V4 之前的全局文件路径（无 userId）。仅用于迁移
+    private func legacyGlobalFileURL() -> URL {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        return caches.appendingPathComponent("isitsafe.local_default_qa.json")
+    }
+
     private func loadState() -> LocalDefaultQAFileState {
         let url = fileURL(for: currentUserId)
-        do {
-            let data = try Data(contentsOf: url)
-            return try decoder.decode(LocalDefaultQAFileState.self, from: data)
-        } catch {
-            return LocalDefaultQAFileState(
-                hasShownDefaultQA: false,
-                hasUserSentAnyContent: false,
-                defaultConversation: nil
-            )
+        // Step 1: 优先读用户专属文件
+        if let data = try? Data(contentsOf: url),
+           let state = try? decoder.decode(LocalDefaultQAFileState.self, from: data) {
+            return state
         }
+        // Step 2: 迁移 — 读老 V3 全局文件，写到当前 userId 专属文件，并删老文件
+        // 语义："首个升级 V4 后登入的用户继承设备上残留的老状态"
+        // 后续登入的用户已无老文件 → 各自获得全新 state（新用户看默认聊天）
+        let legacyUrl = legacyGlobalFileURL()
+        if let data = try? Data(contentsOf: legacyUrl),
+           let state = try? decoder.decode(LocalDefaultQAFileState.self, from: data) {
+            if let encoded = try? encoder.encode(state) {
+                try? encoded.write(to: url, options: [.atomic])
+            }
+            try? FileManager.default.removeItem(at: legacyUrl)
+            return state
+        }
+        // Step 3: 全新状态（真正的新用户）
+        return LocalDefaultQAFileState(
+            hasShownDefaultQA: false,
+            hasUserSentAnyContent: false,
+            defaultConversation: nil
+        )
     }
 
     private func saveState(_ state: LocalDefaultQAFileState) {
