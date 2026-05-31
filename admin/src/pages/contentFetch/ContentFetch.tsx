@@ -7,12 +7,13 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { Card, Button, Space, Table, Tag, message, Tooltip, Divider, Empty } from 'antd';
-import { ReloadOutlined, ThunderboltOutlined, BookOutlined } from '@ant-design/icons';
+import { Card, Button, Space, Table, Tag, message, Tooltip, Divider, Empty, Popconfirm } from 'antd';
+import { ReloadOutlined, ThunderboltOutlined, BookOutlined, RocketOutlined } from '@ant-design/icons';
 import {
   triggerContentFetch,
   listContentFetchJobs,
   getContentFetchJob,
+  publishAllFromJob,
   type ContentFetchJob,
   type ContentFetchType,
 } from '../../api/contentFetch';
@@ -169,7 +170,42 @@ export default function ContentFetchPage() {
       render: (e: string | null) =>
         e ? <Tooltip title={e}><span style={{ color: '#cf1322' }}>{e.slice(0, 50)}...</span></Tooltip> : '-',
     },
+    {
+      title: '操作',
+      key: 'actions',
+      width: 130,
+      render: (_: unknown, r: ContentFetchJob) => {
+        // 只对已完成且有入库的 job 显示一键上架
+        if (r.status !== 'done' || r.totalInserted <= 0) return '-';
+        return (
+          <Popconfirm
+            title={`一键上架本批 ${r.totalInserted} 条 ${TYPE_LABEL[r.type]}？`}
+            description="上架后 iOS 客户端立即可见"
+            onConfirm={() => handlePublishAll(r.id)}
+            okText="确认上架"
+            cancelText="取消"
+          >
+            <Button type="link" icon={<RocketOutlined />} size="small">一键上架</Button>
+          </Popconfirm>
+        );
+      },
+    },
   ];
+
+  const handlePublishAll = async (jobId: string) => {
+    try {
+      const res = await publishAllFromJob(jobId);
+      const total = res.intelPublished + res.knowledgePublished;
+      if (total === 0) {
+        message.info('没有可上架的草稿（可能已全部上架）');
+      } else {
+        message.success(`已上架 ${total} 条（情报 ${res.intelPublished} / 案例 ${res.knowledgePublished}）`);
+      }
+      loadJobs();
+    } catch (e: any) {
+      message.error(e?.message ?? '上架失败');
+    }
+  };
 
   const expandedRowRender = (record: ContentFetchJob) => {
     // 兼容老格式 resultJson 是数组的情况（V1 老 job），新格式是 { items, sources }

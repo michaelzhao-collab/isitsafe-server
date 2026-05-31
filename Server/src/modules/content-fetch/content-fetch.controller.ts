@@ -58,6 +58,12 @@ export class ContentFetchController {
     return j;
   }
 
+  /** 一键上架本批 job 抓取的所有 draft 条目 */
+  @Post('jobs/:id/publish-all')
+  async publishAll(@Param('id') id: string) {
+    return this.cf.publishAllFromJob(id);
+  }
+
   private normalizeType(t: string): SourceCategory {
     if (t === 'intel' || t === 'knowledge') return t;
     throw new BadRequestException("type 必须是 'intel' 或 'knowledge'");

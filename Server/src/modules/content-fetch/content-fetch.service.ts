@@ -85,6 +85,29 @@ export class ContentFetchService {
     return this.prisma.contentFetchJob.findUnique({ where: { id: jobId } });
   }
 
+  /**
+   * 一键上架本批：把 job 抓取的所有 draft 条目改为 published
+   * - intel：status='published' + publishedAt=now()
+   * - knowledge：status='published'
+   * 返回上架数量
+   */
+  async publishAllFromJob(jobId: string): Promise<{ intelPublished: number; knowledgePublished: number }> {
+    const job = await this.prisma.contentFetchJob.findUnique({ where: { id: jobId } });
+    if (!job) throw new BadRequestException('job 不存在');
+    const now = new Date();
+    const [intelRes, knowRes] = await Promise.all([
+      this.prisma.intelAlert.updateMany({
+        where: { sourceFetchJobId: jobId, status: 'draft' },
+        data: { status: 'published', publishedAt: now },
+      }),
+      this.prisma.knowledgeCase.updateMany({
+        where: { sourceFetchJobId: jobId, status: 'draft' },
+        data: { status: 'published' },
+      }),
+    ]);
+    return { intelPublished: intelRes.count, knowledgePublished: knowRes.count };
+  }
+
   /** 列出最近 N 个 job（按 type 可选过滤） */
   async listJobs(opts: { type?: SourceCategory; limit?: number } = {}) {
     const limit = Math.min(opts.limit ?? 10, 50);

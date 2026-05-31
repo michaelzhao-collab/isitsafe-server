@@ -51,3 +51,8 @@ export const listContentFetchJobs = (params: { type?: ContentFetchType; limit?: 
 
 export const getContentFetchJob = (id: string) =>
   request.get<ContentFetchJob>(`/admin/content-fetch/jobs/${id}`) as unknown as Promise<ContentFetchJob>;
+
+export const publishAllFromJob = (id: string) =>
+  request.post<{ intelPublished: number; knowledgePublished: number }>(
+    `/admin/content-fetch/jobs/${id}/publish-all`,
+  ) as unknown as Promise<{ intelPublished: number; knowledgePublished: number }>;
