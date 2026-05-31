@@ -51,9 +51,9 @@ model User {
 
   // ====== V3-S3-3 COPPA / 未成年人 ======
   /// 是否标记为未成年（注册时按 birthday 自动推算 或 自报）
-  isMinor          Boolean   @default(false) @map("is_minor")
+  isMinor         Boolean   @default(false) @map("is_minor")
   /// 监护人同意时间戳；NULL = 未勾选；用于家庭组加入审计
-  parentConsentAt  DateTime? @map("parent_consent_at")
+  parentConsentAt DateTime? @map("parent_consent_at")
 
   queries        Query[]
   reports        Report[]
@@ -63,17 +63,17 @@ model User {
   devices        UserDevice[]
 
   // ====== V3 关联关系 ======
-  ownedFamilyGroups   FamilyGroup[]         @relation("FamilyGroupOwner")
-  familyMembers       FamilyMember[]
-  familyAliasesCreated FamilyMemberAlias[] @relation("FamilyAliasesCreated")
-  userActivities      UserActivity[]
-  triggeredBroadcasts FamilyBroadcast[]
-  intelSubmissions    IntelSubmission[]
-  intelDeliveries     IntelDelivery[]
-  intelPreferences    UserIntelPreferences?
-  deepfakeChecks      DeepfakeCheck[]
-  breachTargets       BreachTarget[]
-  breachAlerts        BreachAlert[]
+  ownedFamilyGroups    FamilyGroup[]         @relation("FamilyGroupOwner")
+  familyMembers        FamilyMember[]
+  familyAliasesCreated FamilyMemberAlias[]   @relation("FamilyAliasesCreated")
+  userActivities       UserActivity[]
+  triggeredBroadcasts  FamilyBroadcast[]
+  intelSubmissions     IntelSubmission[]
+  intelDeliveries      IntelDelivery[]
+  intelPreferences     UserIntelPreferences?
+  deepfakeChecks       DeepfakeCheck[]
+  breachTargets        BreachTarget[]
+  breachAlerts         BreachAlert[]
 
   @@index([familyGroupId])
   @@index([lastActiveAt(sort: Desc)])
@@ -123,7 +123,7 @@ model FamilyMember {
   joinedAt          DateTime    @default(now()) @map("joined_at")
 
   /// S5-12 别人给我打的私人备注（仅其他成员可见自己设的备注）
-  aliasesReceived   FamilyMemberAlias[] @relation("AliasesForMember")
+  aliasesReceived FamilyMemberAlias[] @relation("AliasesForMember")
 
   @@unique([groupId, userId])
   @@index([userId])
@@ -134,16 +134,16 @@ model FamilyMember {
 /// 任一成员可以给同家庭其他成员起备注；仅备注的创建者本人可见
 /// 不影响 APP 全局 user.nickname
 model FamilyMemberAlias {
-  id              String       @id @default(cuid())
+  id             String       @id @default(cuid())
   /// 被备注的目标 family_member
-  familyMemberId  String       @map("family_member_id")
-  familyMember    FamilyMember @relation("AliasesForMember", fields: [familyMemberId], references: [id], onDelete: Cascade)
+  familyMemberId String       @map("family_member_id")
+  familyMember   FamilyMember @relation("AliasesForMember", fields: [familyMemberId], references: [id], onDelete: Cascade)
   /// 备注创建者
-  creatorUserId   String       @map("creator_user_id")
-  creator         User         @relation("FamilyAliasesCreated", fields: [creatorUserId], references: [id], onDelete: Cascade)
-  alias           String       @db.VarChar(64)
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
+  creatorUserId  String       @map("creator_user_id")
+  creator        User         @relation("FamilyAliasesCreated", fields: [creatorUserId], references: [id], onDelete: Cascade)
+  alias          String       @db.VarChar(64)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
 
   @@unique([familyMemberId, creatorUserId])
   @@index([creatorUserId])
@@ -155,15 +155,15 @@ model FamilyMemberAlias {
 // 复合主键 (user_id, date)；服务端 cron 每日扫描找出连续未活跃成员
 // --------------------------------------------
 model UserActivity {
-  userId        String    @map("user_id")
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date          DateTime  @db.Date
-  activeCount   Int       @default(0) @map("active_count")
-  firstActiveAt DateTime? @map("first_active_at")
-  lastActiveAt  DateTime? @map("last_active_at")
+  userId         String    @map("user_id")
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime  @db.Date
+  activeCount    Int       @default(0) @map("active_count")
+  firstActiveAt  DateTime? @map("first_active_at")
+  lastActiveAt   DateTime? @map("last_active_at")
   /// V3-S2-1 启动来源去重数组：['cold_launch','foreground',...]
   /// PRD"真实主动"判定依据；push_tap 无对应客户端触发，不会出现在数组里
-  triggerSources Json     @default("[]") @map("trigger_sources")
+  triggerSources Json      @default("[]") @map("trigger_sources")
 
   @@id([userId, date])
   @@index([date])
@@ -198,31 +198,35 @@ model FamilyCareNotice {
 // 系统全网官方情报 + 用户上报 + 个人偏好 + 送达日志
 // --------------------------------------------
 model IntelAlert {
-  id              String    @id @default(cuid())
-  title           String    @db.VarChar(200)
-  summary         String    @db.Text
+  id               String           @id @default(cuid())
+  title            String           @db.VarChar(200)
+  summary          String           @db.Text
   /// TipTap JSON：套路 3 步图、配图等结构化内容
-  contentBlocks   Json?     @map("content_blocks")
+  contentBlocks    Json?            @map("content_blocks")
   /// 'impersonation' | 'phishing' | 'investment' | 'package' | ...
-  category        String    @db.VarChar(64)
+  category         String           @db.VarChar(64)
   /// 'normal' | 'high' | 'urgent'
-  severity        String    @db.VarChar(20)
+  severity         String           @db.VarChar(20)
   /// JSON 数组：['CN-11', 'US-CA', '*' 全球]
-  targetRegions   Json      @map("target_regions")
+  targetRegions    Json             @map("target_regions")
   /// JSON 数组：['elder', 'student', 'finance', '*' 全部]
-  targetAudiences Json      @map("target_audiences")
-  language        String    @default("zh") @db.VarChar(10)
-  sourceUrl       String?   @map("source_url") @db.VarChar(500)
+  targetAudiences  Json             @map("target_audiences")
+  language         String           @default("zh") @db.VarChar(10)
+  sourceUrl        String?          @map("source_url") @db.VarChar(500)
   /// 'draft' | 'pending' | 'published' | 'archived'
-  status          String    @default("draft") @db.VarChar(20)
-  publishedAt     DateTime? @map("published_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  status           String           @default("draft") @db.VarChar(20)
+  publishedAt      DateTime?        @map("published_at")
+  /// V3-K AI 抓取来源：哪个 ContentFetchJob 抓出来的
+  sourceFetchJobId String?          @map("source_fetch_job_id") @db.VarChar(64)
+  sourceFetchJob   ContentFetchJob? @relation(fields: [sourceFetchJobId], references: [id], onDelete: SetNull)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
   deliveries IntelDelivery[]
 
   @@index([status, publishedAt(sort: Desc)])
   @@index([language, status])
+  @@index([sourceFetchJobId])
   @@map("intel_alerts")
 }
 
@@ -499,24 +503,32 @@ model RiskData {
 // 4) knowledge_cases（RAG 关键词检索用）
 // --------------------------------------------
 model KnowledgeCase {
-  id            String   @id @default(cuid())
-  title         String
-  category      String
+  id               String           @id @default(cuid())
+  title            String
+  category         String
   // content 为纯文本（用于 RAG 关键词搜索 + 旧客户端兼容）；若 contentBlocks 存在则由其自动派生纯文本写入此字段
-  content       String   @db.Text
+  content          String           @db.Text
   // 文章结构化内容：TipTap JSON（type/content/attrs），iOS 端按 block 类型原生渲染
   // null 表示旧的纯文本案例；客户端遇 null 时降级展示 content 字段
-  contentBlocks Json?    @map("content_blocks")
+  contentBlocks    Json?            @map("content_blocks")
   // 封面图（可选）：列表页缩略图与详情页顶图，R2 URL
-  coverImage    String?  @map("cover_image")
-  tags          Json     @default("[]") // JSON 数组
-  language      String   @default("zh")
-  source        String?
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  coverImage       String?          @map("cover_image")
+  tags             Json             @default("[]") // JSON 数组
+  language         String           @default("zh")
+  source           String?
+  // V3-K：'published'（对外可见）| 'draft'（仅 admin 可见，AI 抓取入库默认 draft）| 'archived'
+  // 历史数据全部默认 'published' 不影响展示
+  status           String           @default("published") @db.VarChar(20)
+  /// V3-K AI 抓取来源：哪个 ContentFetchJob 抓出来的
+  sourceFetchJobId String?          @map("source_fetch_job_id") @db.VarChar(64)
+  sourceFetchJob   ContentFetchJob? @relation(fields: [sourceFetchJobId], references: [id], onDelete: SetNull)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
   @@index([category])
   @@index([language])
+  @@index([status, language])
+  @@index([sourceFetchJobId])
   @@map("knowledge_cases")
 }
 
@@ -730,4 +742,41 @@ model UserMessageRead {
   @@unique([userId, messageId])
   @@index([userId])
   @@map("user_message_read")
+}
+
+// --------------------------------------------
+// V3-K AI 内容抓取 job 表
+// 每点击一次 admin "抓情报/案例" 按钮 = 一条 job
+// 状态机：pending → running → done|failed
+// 与 IntelAlert.sourceFetchJobId / KnowledgeCase.sourceFetchJobId 关联
+// --------------------------------------------
+model ContentFetchJob {
+  id              String    @id @default(cuid())
+  /// 'intel' | 'knowledge'
+  type            String    @db.VarChar(20)
+  /// 'pending' | 'running' | 'done' | 'failed'
+  status          String    @default("pending") @db.VarChar(20)
+  /// 触发者 admin userId
+  triggeredBy     String    @map("triggered_by")
+  startedAt       DateTime? @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+  /// 各源抓到的候选总数
+  totalFound      Int       @default(0) @map("total_found")
+  /// 实际入库新增条数（每个 RawItem 入库 zh+en 两条）
+  totalInserted   Int       @default(0) @map("total_inserted")
+  /// 被 30 天去重过滤的条数
+  totalDuplicated Int       @default(0) @map("total_duplicated")
+  /// 改写/翻译失败的条数
+  totalFailed     Int       @default(0) @map("total_failed")
+  errorMessage    String?   @map("error_message") @db.Text
+  /// 结果摘要：[{source, title, sourceUrl, status: 'inserted'|'duplicated'|'failed'}]
+  resultJson      Json?     @map("result_json")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  alerts         IntelAlert[]
+  knowledgeCases KnowledgeCase[]
+
+  @@index([type, createdAt(sort: Desc)])
+  @@index([triggeredBy, createdAt(sort: Desc)])
+  @@map("content_fetch_jobs")
 }

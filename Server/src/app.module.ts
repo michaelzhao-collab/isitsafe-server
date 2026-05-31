@@ -23,6 +23,7 @@ import { WellKnownModule } from './modules/wellknown/wellknown.module';
 import { IntelModule } from './modules/intel/intel.module';
 import { DeepfakeModule } from './modules/deepfake/deepfake.module';
 import { BreachModule } from './modules/breach/breach.module';
+import { ContentFetchModule } from './modules/content-fetch/content-fetch.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 
@@ -65,6 +66,7 @@ class PublicConfigController {
     IntelModule,
     DeepfakeModule,
     BreachModule,
+    ContentFetchModule,
   ],
   controllers: [PublicConfigController],
 })
