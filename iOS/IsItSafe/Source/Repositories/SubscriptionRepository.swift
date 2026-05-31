@@ -32,11 +32,14 @@ public struct SubscriptionVerifyResponse: Codable {
 public struct SubscriptionRecord: Codable {
     public let id: String?
     public let productId: String?
+    /// 'active' | 'expired' | 'refunded' | 'revoked'
     public let status: String?
     public let expireTime: String?
     public let paymentMethod: String?
+    /// 'Sandbox' | 'Production'，用于区分测试 vs 生产
+    public let environment: String?
     enum CodingKeys: String, CodingKey {
-        case id, status, paymentMethod
+        case id, status, paymentMethod, environment
         case productId = "product_id"
         case expireTime = "expire_time"
     }

@@ -53,18 +53,35 @@ public final class SubscriptionViewModel: ObservableObject {
                 switch result {
                 case .success(let receipt):
                     do {
-                        let status = try await self?.subscriptionService.verifyReceipt(productId: productId, receipt: receipt)
-                        // 以服务器返回的订阅状态为准，防止误判
+                        let detailed = try await self?.subscriptionService.verifyReceiptDetailed(productId: productId, receipt: receipt)
+                        let status = detailed?.status
+                        let sub = detailed?.verify.subscription
                         let isActive = status?.isPremium == true || status?.active == true
                         if isActive {
-                            // 后端落库成功后才向 App Store 确认 finish，避免 verify 失败时丢失补救机会。
-                            // 失败路径不 finish，下次启动 currentEntitlements 会重新推送。
                             self?.iap.finishTransaction(forReceipt: receipt)
                             self?.purchaseState = .purchased
                             self?.appState.setSubscriptionActive(true)
                         } else {
                             self?.purchaseState = .failed
-                            self?.appState.showError(self?.localized(zh: "订阅验证失败，请稍后重试或联系客服", en: "Subscription verification failed. Please try again.") ?? "")
+                            // 细分失败原因：Sandbox 续费上限 vs 真过期 vs 退款 vs 撤销
+                            let isSandbox = (sub?.environment ?? "").lowercased() == "sandbox"
+                            let subStatus = (sub?.status ?? status?.status ?? "").lowercased()
+                            let msg: String
+                            if isSandbox && subStatus == "expired" {
+                                msg = self?.localized(
+                                    zh: "Sandbox 测试受限：当前 receipt 已过期。可能续费上限已达到。请用新 sandbox 账号或 TestFlight 真实购买重新测试。",
+                                    en: "Sandbox limit reached: receipt already expired. Try a new sandbox tester account or TestFlight."
+                                ) ?? ""
+                            } else if subStatus == "refunded" {
+                                msg = self?.localized(zh: "该笔订阅已退款", en: "This subscription has been refunded") ?? ""
+                            } else if subStatus == "revoked" {
+                                msg = self?.localized(zh: "该笔订阅已撤销", en: "This subscription has been revoked") ?? ""
+                            } else if subStatus == "expired" {
+                                msg = self?.localized(zh: "订阅已过期，请重新购买", en: "Subscription expired, please purchase again") ?? ""
+                            } else {
+                                msg = self?.localized(zh: "订阅验证失败，请稍后重试或联系客服", en: "Subscription verification failed. Please try again.") ?? ""
+                            }
+                            self?.appState.showError(msg)
                         }
                     } catch {
                         self?.purchaseState = .failed
