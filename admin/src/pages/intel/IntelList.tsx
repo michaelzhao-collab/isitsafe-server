@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Card, Table, Tag, Button, Space, Select, message, Popconfirm } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { PlusOutlined } from '@ant-design/icons';
+import { PlusOutlined, RocketOutlined, InboxOutlined } from '@ant-design/icons';
 import {
   listAlerts,
   deleteAlert,
+  updateAlert,
   type IntelAlert,
   type IntelAlertListResponse,
 } from '../../api/intel';
@@ -30,6 +31,8 @@ export default function IntelList() {
   const [pageSize, setPageSize] = useState(20);
   const [status, setStatus] = useState<string | undefined>();
   const [language, setLanguage] = useState<string>('zh');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -54,6 +57,34 @@ export default function IntelList() {
         load();
       })
       .catch((e) => message.error(e?.message ?? '删除失败'));
+  };
+
+  /** 批量切状态：published → 上架；draft → 下架 */
+  const handleBulkSetStatus = async (next: 'published' | 'draft') => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      // 串行：避免后端写冲突；条数 ≤ 100，体感秒级完成
+      let ok = 0;
+      let fail = 0;
+      for (const id of selectedIds) {
+        try {
+          await updateAlert(id, { status: next });
+          ok += 1;
+        } catch {
+          fail += 1;
+        }
+      }
+      if (fail > 0) {
+        message.warning(`成功 ${ok} 条，失败 ${fail} 条`);
+      } else {
+        message.success(`${next === 'published' ? '已上架' : '已下架'} ${ok} 条`);
+      }
+      setSelectedIds([]);
+      load();
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const columns = [
@@ -154,12 +185,38 @@ export default function IntelList() {
             新增情报
           </Button>
           <Button onClick={() => navigate('/intel/submissions')}>用户上报审批</Button>
+          {selectedIds.length > 0 && (
+            <>
+              <span style={{ color: '#666', marginLeft: 8 }}>已选 {selectedIds.length} 条</span>
+              <Popconfirm
+                title={`批量上架 ${selectedIds.length} 条？`}
+                description="上架后 iOS 客户端立即可见"
+                onConfirm={() => handleBulkSetStatus('published')}
+              >
+                <Button type="primary" icon={<RocketOutlined />} loading={bulkLoading} ghost>
+                  批量上架
+                </Button>
+              </Popconfirm>
+              <Popconfirm
+                title={`批量下架 ${selectedIds.length} 条？`}
+                onConfirm={() => handleBulkSetStatus('draft')}
+              >
+                <Button icon={<InboxOutlined />} loading={bulkLoading}>
+                  批量下架
+                </Button>
+              </Popconfirm>
+            </>
+          )}
         </Space>
         <Table
           rowKey="id"
           loading={loading}
           columns={columns}
           dataSource={data.items}
+          rowSelection={{
+            selectedRowKeys: selectedIds,
+            onChange: (keys) => setSelectedIds(keys as string[]),
+          }}
           pagination={{
             current: page,
             pageSize,

@@ -216,6 +216,7 @@ export class ContentFetchService {
     raw: RawItem,
     rewritten: RewrittenItem,
   ) {
+    const cover = raw.imageUrl?.slice(0, 500) ?? null;
     if (type === 'intel') {
       await this.prisma.intelAlert.createMany({
         data: [
@@ -231,6 +232,7 @@ export class ContentFetchService {
             sourceUrl: raw.sourceUrl.slice(0, 500),
             status: 'draft',
             sourceFetchJobId: jobId,
+            coverImage: cover,
           },
           {
             title: rewritten.en.title.slice(0, 200),
@@ -244,6 +246,7 @@ export class ContentFetchService {
             sourceUrl: raw.sourceUrl.slice(0, 500),
             status: 'draft',
             sourceFetchJobId: jobId,
+            coverImage: cover,
           },
         ],
       });
@@ -263,6 +266,7 @@ export class ContentFetchService {
             source: raw.sourceUrl,
             status: 'draft',
             sourceFetchJobId: jobId,
+            coverImage: cover,
           },
           {
             title: rewritten.en.title,
@@ -274,6 +278,7 @@ export class ContentFetchService {
             source: raw.sourceUrl,
             status: 'draft',
             sourceFetchJobId: jobId,
+            coverImage: cover,
           },
         ],
       });

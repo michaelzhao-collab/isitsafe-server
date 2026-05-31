@@ -219,6 +219,8 @@ model IntelAlert {
   /// V3-K AI 抓取来源：哪个 ContentFetchJob 抓出来的
   sourceFetchJobId String?          @map("source_fetch_job_id") @db.VarChar(64)
   sourceFetchJob   ContentFetchJob? @relation(fields: [sourceFetchJobId], references: [id], onDelete: SetNull)
+  /// V3-K 封面图（从 RSS 原文 HTML 抽出来）；iOS 列表 + 详情显示
+  coverImage       String?          @map("cover_image") @db.VarChar(500)
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 

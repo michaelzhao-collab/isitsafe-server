@@ -94,18 +94,20 @@ public struct IntelDetailView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    /// 底部来源行：只显示，不可点击（PRD 反馈：抓取内容的来源是提示性的，不应当作链接跳出）
     private func sourceLink(src: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(languageCode == "en" ? "Source" : "信息来源")
-                .font(.caption.weight(.semibold))
+        HStack(spacing: 4) {
+            Text(languageCode == "en" ? "Source:" : "来源：")
+                .font(.caption2)
                 .foregroundColor(AppTheme.textSecondary)
-            if let url = URL(string: src) {
-                Link(src, destination: url)
-                    .font(.caption)
-                    .foregroundColor(AppTheme.primary)
-            }
+            Text(src)
+                .font(.caption2)
+                .foregroundColor(AppTheme.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
         }
-        .padding(.top, 8)
+        .padding(.top, 12)
     }
 
     private func relativeTime(iso: String) -> String {

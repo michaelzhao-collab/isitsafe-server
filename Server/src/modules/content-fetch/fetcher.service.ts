@@ -51,6 +51,8 @@ export interface RawItem {
   sourceUrl: string;
   /** 发布日期（解析得到则填） */
   publishedAt?: Date;
+  /** 从 RSS content/description 抽出来的首张图 URL（用作 coverImage） */
+  imageUrl?: string;
   /** 给去重用的哈希 = sha1(sourceUrl + normalizedTitle) */
   fingerprint: string;
 }
@@ -151,6 +153,8 @@ export class FetcherService {
           .toString()
           .slice(0, 800);
         const publishedAt = i.isoDate ? new Date(i.isoDate) : undefined;
+        // 从多个候选字段抽首张图：enclosure / media:content / content HTML
+        const imageUrl = this.extractImageFromRssItem(i);
         return {
           sourceKey: s.key,
           sourceName: s.name,
@@ -159,10 +163,32 @@ export class FetcherService {
           summary,
           sourceUrl: link,
           publishedAt,
+          imageUrl,
           fingerprint: this.fingerprint(link, title),
         } as RawItem;
       })
       .filter((x: RawItem | null): x is RawItem => !!x);
+  }
+
+  /** 从 RSS item 抽首张图 URL（覆盖 enclosure / mediaContent / 正文 HTML <img>） */
+  private extractImageFromRssItem(i: any): string | undefined {
+    // 1) <enclosure type="image/..." url="...">
+    if (i.enclosure?.url && typeof i.enclosure.url === 'string') {
+      const t: string = i.enclosure.type ?? '';
+      if (!t || t.startsWith('image/')) return i.enclosure.url;
+    }
+    // 2) <media:content url="..."> 或 <media:thumbnail url="...">
+    const mc = i['media:content']?.['$']?.url ?? i.mediaContent?.[0]?.['$']?.url;
+    if (typeof mc === 'string' && mc) return mc;
+    const mt = i['media:thumbnail']?.['$']?.url ?? i.mediaThumbnail?.[0]?.['$']?.url;
+    if (typeof mt === 'string' && mt) return mt;
+    // 3) content / contentEncoded / description 里的 <img src="...">
+    const html = (i['content:encoded'] ?? i.content ?? i.description ?? '').toString();
+    if (html) {
+      const m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+      if (m?.[1]) return m[1];
+    }
+    return undefined;
   }
 
   private async fetchHtml(s: SourceConfig, max: number): Promise<RawItem[]> {

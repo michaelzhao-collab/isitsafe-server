@@ -72,6 +72,11 @@ public struct KnowledgeDetailView: View {
                         if !item.tags.isEmpty {
                             tagsSection(item.tags)
                         }
+
+                        // 底部"来源"提示行：不可点击；只在有 source 时出现
+                        if let src = item.source, !src.isEmpty {
+                            sourceFooter(src: src)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(20)
@@ -97,6 +102,22 @@ public struct KnowledgeDetailView: View {
         .background(color.opacity(0.13))
         .foregroundColor(color)
         .clipShape(Capsule())
+    }
+
+    /// 底部"来源"行：纯文本提示，不可点击
+    private func sourceFooter(src: String) -> some View {
+        HStack(spacing: 4) {
+            Text(languageCode == "en" ? "Source:" : "来源：")
+                .font(.caption2)
+                .foregroundColor(AppTheme.textSecondary)
+            Text(src)
+                .font(.caption2)
+                .foregroundColor(AppTheme.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 12)
     }
 
     private func metaRow(for item: KnowledgeItem) -> some View {

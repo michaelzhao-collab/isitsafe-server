@@ -20,13 +20,16 @@ export class AdminKnowledgeController {
     @Query('pageSize') pageSize?: string,
     @Query('search') search?: string,
     @Query('language') language?: string,
+    @Query('status') status?: string,
   ) {
+    // admin 默认看全部状态；传 status=draft|published|archived 可单选过滤
     return this.knowledge.list(
       category,
       parseInt(page || '1', 10),
       parseInt(pageSize || '20', 10),
       search,
       language || 'zh',
+      { includeAllStatuses: !status, status },
     );
   }
 
@@ -76,6 +79,7 @@ export class AdminKnowledgeController {
       source?: string;
       contentBlocks?: unknown | null;
       coverImage?: string | null;
+      status?: string;
     },
   ) {
     return this.knowledge.update(id, body);

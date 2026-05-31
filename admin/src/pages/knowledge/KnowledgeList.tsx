@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef, type Key } from 'react';
 import { Table, Card, Select, Input, Space, Button, message, Image, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import { PlusOutlined, UploadOutlined, RocketOutlined, InboxOutlined } from '@ant-design/icons';
+import { Popconfirm } from 'antd';
 // xlsx 包 ~500KB，改为动态 import（仅批量导入时才加载）
-import { getKnowledge, deleteKnowledge, bulkImportKnowledge, bulkDeleteKnowledge, type KnowledgeItem, type KnowledgeListRes } from '../../api/knowledge';
+import { getKnowledge, deleteKnowledge, bulkImportKnowledge, bulkDeleteKnowledge, updateKnowledge, type KnowledgeItem, type KnowledgeListRes } from '../../api/knowledge';
 import { api } from '../../api/client';
 
 export default function KnowledgeList() {
@@ -15,8 +16,10 @@ export default function KnowledgeList() {
   const [category, setCategory] = useState<string | undefined>();
   const [search, setSearch] = useState('');
   const [language, setLanguage] = useState<string>('zh');
+  const [status, setStatus] = useState<string | undefined>();
   const [importing, setImporting] = useState(false);
   const [deletingBatch, setDeletingBatch] = useState(false);
+  const [bulkPublishing, setBulkPublishing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([]);
@@ -33,7 +36,7 @@ export default function KnowledgeList() {
 
   const load = () => {
     setLoading(true);
-    getKnowledge({ page, pageSize, category, search: search || undefined, language })
+    getKnowledge({ page, pageSize, category, search: search || undefined, language, status })
       .then((res) => setData({ items: (res as unknown as KnowledgeListRes).items, total: (res as unknown as KnowledgeListRes).total }))
       .catch((e) => message.error(e?.message ?? '加载失败'))
       .finally(() => setLoading(false));
@@ -41,7 +44,7 @@ export default function KnowledgeList() {
 
   useEffect(() => {
     load();
-  }, [page, pageSize, category, language]);
+  }, [page, pageSize, category, language, status]);
 
   const handleSearch = () => {
     setPage(1);
@@ -56,6 +59,30 @@ export default function KnowledgeList() {
         load();
       })
       .catch((e) => message.error(e?.message ?? '删除失败'));
+  };
+
+  const handleBulkSetStatus = async (next: 'published' | 'draft') => {
+    const ids = selectedRowKeys.map((k) => String(k));
+    if (!ids.length) return;
+    setBulkPublishing(true);
+    let ok = 0;
+    let fail = 0;
+    for (const id of ids) {
+      try {
+        await updateKnowledge(id, { status: next });
+        ok += 1;
+      } catch {
+        fail += 1;
+      }
+    }
+    if (fail > 0) {
+      message.warning(`成功 ${ok} 条，失败 ${fail} 条`);
+    } else {
+      message.success(`${next === 'published' ? '已上架' : '已下架'} ${ok} 条`);
+    }
+    setSelectedRowKeys([]);
+    setBulkPublishing(false);
+    load();
   };
 
   const handleBulkDelete = () => {
@@ -165,6 +192,17 @@ export default function KnowledgeList() {
     { title: 'title', dataIndex: 'title', key: 'title', ellipsis: true },
     { title: 'category', dataIndex: 'category', key: 'category', width: 120 },
     {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 90,
+      render: (s: string | undefined) => {
+        if (s === 'published') return <Tag color="green">已上架</Tag>;
+        if (s === 'archived') return <Tag color="default">已归档</Tag>;
+        return <Tag color="orange">草稿</Tag>;
+      },
+    },
+    {
       title: '模式',
       key: 'mode',
       width: 90,
@@ -243,6 +281,21 @@ export default function KnowledgeList() {
               { label: 'English (en)', value: 'en' },
             ]}
           />
+          <Select
+            placeholder="状态全部"
+            allowClear
+            style={{ width: 120 }}
+            value={status}
+            onChange={(v) => {
+              setPage(1);
+              setStatus(v);
+            }}
+            options={[
+              { label: '草稿', value: 'draft' },
+              { label: '已上架', value: 'published' },
+              { label: '已归档', value: 'archived' },
+            ]}
+          />
           <Button type="primary" onClick={handleSearch}>
             查询
           </Button>
@@ -260,6 +313,28 @@ export default function KnowledgeList() {
           >
             批量导入
           </Button>
+          {selectedRowKeys.length > 0 && (
+            <>
+              <span style={{ color: '#666' }}>已选 {selectedRowKeys.length} 条</span>
+              <Popconfirm
+                title={`批量上架 ${selectedRowKeys.length} 条？`}
+                description="上架后 iOS 客户端立即可见"
+                onConfirm={() => handleBulkSetStatus('published')}
+              >
+                <Button type="primary" icon={<RocketOutlined />} loading={bulkPublishing} ghost>
+                  批量上架
+                </Button>
+              </Popconfirm>
+              <Popconfirm
+                title={`批量下架 ${selectedRowKeys.length} 条？`}
+                onConfirm={() => handleBulkSetStatus('draft')}
+              >
+                <Button icon={<InboxOutlined />} loading={bulkPublishing}>
+                  批量下架
+                </Button>
+              </Popconfirm>
+            </>
+          )}
           <Button
             danger
             loading={deletingBatch}

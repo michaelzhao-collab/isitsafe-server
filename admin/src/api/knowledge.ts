@@ -12,6 +12,8 @@ export interface KnowledgeItem {
   tags: string[];
   source: string | null;
   language: string;
+  /** 'published' | 'draft' | 'archived' */
+  status?: string;
   createdAt: string;
 }
 
@@ -28,6 +30,7 @@ export function getKnowledge(params?: {
   category?: string;
   search?: string;
   language?: string;
+  status?: string;
 }) {
   const q: Record<string, string> = {};
   if (params?.page != null) q.page = String(params.page);
@@ -35,6 +38,7 @@ export function getKnowledge(params?: {
   if (params?.category) q.category = params.category;
   if (params?.search) q.search = params.search;
   if (params?.language) q.language = params.language;
+  if (params?.status) q.status = params.status;
   return request.get<KnowledgeListRes>('/admin/knowledge', { params: q });
 }
 
@@ -61,6 +65,7 @@ export function updateKnowledge(
     source?: string;
     contentBlocks?: unknown | null;
     coverImage?: string | null;
+    status?: string;
   }
 ) {
   return request.put<KnowledgeItem>(`/admin/knowledge/${id}`, data);

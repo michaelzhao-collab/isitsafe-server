@@ -112,6 +112,7 @@ export class IntelService {
       severity: i.severity,
       language: i.language,
       sourceUrl: i.sourceUrl,
+      coverImage: (i as any).coverImage ?? null,
       publishedAt: i.publishedAt,
       isRead: readMap.has(i.id) ? readMap.get(i.id) != null : false,
     }));

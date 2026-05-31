@@ -76,7 +76,18 @@ export class KnowledgeService {
     return fallback;
   }
 
-  async list(category?: string, page = 1, pageSize = 20, search?: string, language = 'zh') {
+  /**
+   * 列表
+   * - includeAllStatuses=true 时 admin 看所有；否则只看 status='published'（iOS 默认）
+   */
+  async list(
+    category?: string,
+    page = 1,
+    pageSize = 20,
+    search?: string,
+    language = 'zh',
+    opts: { includeAllStatuses?: boolean; status?: string } = {},
+  ) {
     const skip = (page - 1) * pageSize;
     const where: any = { language };
     if (category) where.category = category;
@@ -85,6 +96,12 @@ export class KnowledgeService {
         { title: { contains: search, mode: 'insensitive' } },
         { content: { contains: search, mode: 'insensitive' } },
       ];
+    }
+    // 默认仅 published；admin 传 includeAllStatuses 或 status 自己控制
+    if (opts.status) {
+      where.status = opts.status;
+    } else if (!opts.includeAllStatuses) {
+      where.status = 'published';
     }
     const [items, total] = await Promise.all([
       this.prisma.knowledgeCase.findMany({
@@ -111,7 +128,8 @@ export class KnowledgeService {
    */
   async listV2(category?: string, page = 1, pageSize = 20, search?: string, language = 'zh') {
     const skip = (page - 1) * pageSize;
-    const where: any = { language };
+    // iOS V2 列表仅展示已上架内容（draft / archived 不可见）
+    const where: any = { language, status: 'published' };
     if (category) where.category = category;
     if (search) {
       where.OR = [
@@ -198,6 +216,8 @@ export class KnowledgeService {
       source?: string;
       contentBlocks?: unknown | null;
       coverImage?: string | null;
+      /** V3-K：'published' | 'draft' | 'archived' — 批量上架/下架用 */
+      status?: string;
     },
   ) {
     // 若同时传 content 和 contentBlocks，优先用 blocks 派生 content
@@ -216,6 +236,7 @@ export class KnowledgeService {
         ...(data.source !== undefined && { source: data.source }),
         ...(data.contentBlocks !== undefined && { contentBlocks: data.contentBlocks as any }),
         ...(data.coverImage !== undefined && { coverImage: data.coverImage }),
+        ...(data.status && { status: data.status }),
       } as any,
     });
   }
