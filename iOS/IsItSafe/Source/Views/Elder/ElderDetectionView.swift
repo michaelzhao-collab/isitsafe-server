@@ -352,4 +352,6 @@ public struct ElderDetectionView: View {
 
 public extension Notification.Name {
     static let elderRequestCallGuardian = Notification.Name("elder.requestCallGuardian")
+    /// V3 #5：聊天里点"查个号码"等触发 → 主页输入框获取焦点
+    static let focusHomeInput = Notification.Name("home.focusInput")
 }

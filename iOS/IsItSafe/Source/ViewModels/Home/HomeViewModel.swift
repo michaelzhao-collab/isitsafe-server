@@ -169,22 +169,55 @@ public final class HomeViewModel: ObservableObject {
         return true
     }
 
-    /// 取上一轮真实分析结果作为追问上下文（仅当上一轮是来自服务端的 is_conversational=false 结果时才注入）
+    /// 取本会话内所有历史轮次作为上下文。
+    /// 最近 10 轮（user+assistant 一对算一轮）、总字符 ≤ 4000，超过则按"最近优先"裁剪。
+    /// 同时把 chat / knowledge / help / scam 所有意图的结果都带进去，让追问能延续。
     private func buildContext() -> [[String: String]]? {
-        let prevIndex = turns.count - 2
-        guard prevIndex >= 0 else { return nil }
-        let prev = turns[prevIndex]
-        guard case .done(let chatResult) = prev.status,
-              case .analysis(let data) = chatResult,
-              !data.isConversational,
-              let cid = data.conversationId, !cid.isEmpty else { return nil }
-        let _ = cid
-        let userContent = prev.userText ?? "（图片分析）"
-        let assistantContent = "[\(data.riskLevel)] \(data.summary)"
-        return [
-            ["role": "user", "content": userContent],
-            ["role": "assistant", "content": assistantContent],
-        ]
+        guard turns.count > 1 else { return nil }
+        // 排除当前最后一轮（正在分析），从倒数第二轮向前取
+        let history = turns.dropLast()
+        let maxTurns = 10
+        let maxChars = 4000
+        var collected: [[String: String]] = []
+        var charBudget = maxChars
+        // 倒序收集（最近优先），每轮包含 user + assistant
+        for t in history.reversed() {
+            guard collected.count < maxTurns * 2 else { break }
+            // assistant 一侧：根据结果类型挑最有信息量的文本
+            var assistantText: String? = nil
+            if case .done(let r) = t.status {
+                switch r {
+                case .analysis(let data):
+                    if let free = data.freeText, !free.isEmpty {
+                        assistantText = free
+                    } else if data.isNonDetection {
+                        // chat / knowledge / help：summary + steps 拼接
+                        let body = data.steps.isEmpty ? data.summary : (data.summary + "\n" + data.steps.joined(separator: "\n"))
+                        assistantText = body.isEmpty ? nil : body
+                    } else {
+                        // scam_detection：带 risk_level 标签 + summary，让模型知道之前的判断
+                        assistantText = "[\(data.riskLevel)] \(data.summary)"
+                    }
+                case .query(let resp):
+                    let tagsStr = (resp.tags ?? []).joined(separator: "/")
+                    assistantText = "[\(resp.riskLevel ?? "unknown")] \(tagsStr.isEmpty ? "命中风险库" : tagsStr)"
+                case .failure:
+                    assistantText = nil
+                }
+            }
+            let userText = t.userText ?? (t.userImage != nil || (t.imageUrl?.isEmpty == false) ? "（图片分析）" : nil)
+            guard let u = userText, let a = assistantText else { continue }
+            // 单条裁剪到 800 字以内，避免单轮挤爆预算
+            let uTrim = String(u.prefix(800))
+            let aTrim = String(a.prefix(800))
+            let cost = uTrim.count + aTrim.count
+            if cost > charBudget { break }
+            charBudget -= cost
+            // 倒序收集，最后再反转，保证按时间顺序：旧 → 新
+            collected.insert(["role": "assistant", "content": aTrim], at: 0)
+            collected.insert(["role": "user", "content": uTrim], at: 0)
+        }
+        return collected.isEmpty ? nil : collected
     }
 
     private func updateLastTurn(_ result: ChatTurnResult) {

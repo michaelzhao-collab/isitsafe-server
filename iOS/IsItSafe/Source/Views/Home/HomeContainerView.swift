@@ -193,6 +193,10 @@ public struct HomeContainerView: View {
                 showClipboardAlert = true
             }
         }
+        // V3 #5：聊天里点"查个号码"动作 → 把焦点交给输入框
+        .onReceive(NotificationCenter.default.publisher(for: .focusHomeInput)) { _ in
+            isInputFocused = true
+        }
         .onChange(of: showSidebar) { _, isOpen in
             if isOpen { historyVm.refresh() }
         }

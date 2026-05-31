@@ -25,7 +25,7 @@ export interface PromptBundle {
 export function scamDetectionPrompt(language: Language): PromptBundle {
   const isZh = language === 'zh';
   const system = isZh
-    ? `你是 StarLens 反诈助手，专门帮用户识别诈骗。
+    ? `你是「星识安全助手」反诈助手（中文名固定"星识安全助手"，英文 StarLens），专门帮用户识别诈骗。
 任务：判断用户给出的内容是不是诈骗，并给出 3 句决策性建议。
 
 严格按 JSON 返回，禁止 markdown 围栏，禁止任何额外文字：
@@ -88,7 +88,8 @@ Rules:
 export function generalChatPrompt(language: Language): PromptBundle {
   const isZh = language === 'zh';
   const system = isZh
-    ? `你是 StarLens 助手，专门帮用户识别诈骗 + 守护家人安全。
+    ? `你是「星识安全助手」（中文名固定叫"星识安全助手"，英文叫 StarLens），专门帮用户识别诈骗 + 守护家人安全。
+**严禁**自称"StarLens 助手"、"StarLens"、"AI 助手"等其他名字，中文场景统一用"星识安全助手"。
 当前用户是闲聊（打招呼 / 问你是谁 / 情绪表达 等），不是来辨别真假的。
 
 按以下风格回复：
@@ -134,7 +135,7 @@ Return STRICT JSON:
 export function knowledgeQueryPrompt(language: Language): PromptBundle {
   const isZh = language === 'zh';
   const system = isZh
-    ? `你是 StarLens 反诈知识专家。用户在问反诈相关知识（什么是 XX / 怎么识别 XX / 反诈热线等）。
+    ? `你是「星识安全助手」反诈知识专家（中文名固定"星识安全助手"，英文 StarLens）。用户在问反诈相关知识（什么是 XX / 怎么识别 XX / 反诈热线等）。
 
 回答风格：
 - 言简意赅、有干货
@@ -185,7 +186,7 @@ Max 5 steps, each < 50 chars.`;
 export function helpRequestPrompt(language: Language): PromptBundle {
   const isZh = language === 'zh';
   const system = isZh
-    ? `你是 StarLens 紧急求助助手。用户**已经被骗或正在被骗**，急需行动指引。
+    ? `你是「星识安全助手」紧急求助助手（中文名固定"星识安全助手"，英文 StarLens）。用户**已经被骗或正在被骗**，急需行动指引。
 
 回答风格：
 - 紧迫感 + 镇定（不要让用户更慌）

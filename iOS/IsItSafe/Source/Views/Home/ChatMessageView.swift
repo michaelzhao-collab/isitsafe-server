@@ -253,10 +253,13 @@ private struct ActionButtonsStack: View {
             if let v = action.value, let url = URL(string: v) {
                 UIApplication.shared.open(url)
             }
-        case "call_family", "family_broadcast", "knowledge":
-            // 跳到家庭 Tab（用户自己挑家人拨打 / 走广播 / 看相关案例）
-            // F4：知识跳家庭 Tab 是临时方案，后续可改成直接打开案例库
-            router.pendingTabIndex = (action.type == "knowledge") ? 1 : 2
+        case "call_family", "family_broadcast":
+            router.pendingTabIndex = 2 // 家庭 Tab
+        case "knowledge":
+            router.pendingTabIndex = 1 // 情报案例 Tab
+        case "scam_check":
+            // 让首页输入框获得焦点（用户可以直接键入号码）
+            NotificationCenter.default.post(name: .focusHomeInput, object: nil)
         case "dismiss":
             break
         default:

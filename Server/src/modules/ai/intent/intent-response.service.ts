@@ -133,7 +133,7 @@ export class IntentResponseService {
       case 'general_chat':
         return {
           freeText: isZh
-            ? '你好！我是 StarLens 助手，专门帮你识别诈骗。有可疑链接 / 电话 / 消息发给我都能看。'
+            ? '你好！我是星识安全助手，专门帮你识别诈骗。有可疑链接 / 电话 / 消息发给我都能看。'
             : "Hi! I'm StarLens, your anti-scam helper. Send me any suspicious link, number or message.",
         };
       case 'knowledge_query':
