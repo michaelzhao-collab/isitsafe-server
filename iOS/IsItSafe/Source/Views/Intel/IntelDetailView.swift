@@ -94,17 +94,16 @@ public struct IntelDetailView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// 底部来源行：只显示，不可点击（PRD 反馈：抓取内容的来源是提示性的，不应当作链接跳出）
+    /// 底部来源行：只显示主域名，单行不可点击
     private func sourceLink(src: String) -> some View {
         HStack(spacing: 4) {
             Text(languageCode == "en" ? "Source:" : "来源：")
                 .font(.caption2)
                 .foregroundColor(AppTheme.textSecondary)
-            Text(src)
+            Text(SourceHostFormatter.host(from: src))
                 .font(.caption2)
                 .foregroundColor(AppTheme.textSecondary)
                 .lineLimit(1)
-                .truncationMode(.middle)
             Spacer(minLength: 0)
         }
         .padding(.top, 12)

@@ -104,17 +104,16 @@ public struct KnowledgeDetailView: View {
         .clipShape(Capsule())
     }
 
-    /// 底部"来源"行：纯文本提示，不可点击
+    /// 底部"来源"行：只显示主域名，单行不可点击
     private func sourceFooter(src: String) -> some View {
         HStack(spacing: 4) {
             Text(languageCode == "en" ? "Source:" : "来源：")
                 .font(.caption2)
                 .foregroundColor(AppTheme.textSecondary)
-            Text(src)
+            Text(SourceHostFormatter.host(from: src))
                 .font(.caption2)
                 .foregroundColor(AppTheme.textSecondary)
                 .lineLimit(1)
-                .truncationMode(.middle)
             Spacer(minLength: 0)
         }
         .padding(.top, 12)

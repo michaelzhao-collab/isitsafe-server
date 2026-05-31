@@ -113,7 +113,7 @@ public struct IntelListView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
-        .refreshable { vm.refresh() }
+        .refreshable { await vm.pullToRefresh() }
     }
 
     private func urgentBanner(_ item: IntelAlertSummary) -> some View {

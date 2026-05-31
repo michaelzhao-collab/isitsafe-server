@@ -35,24 +35,36 @@ public final class IntelViewModel: ObservableObject {
 
     public init() {}
 
+    /// 完整刷新（初次进入 / 显式按钮）：state→loading→重置
     public func refresh() {
         loadTask?.cancel()
         loadTask = Task { [weak self] in
-            guard let self else { return }
-            guard AuthInterceptor.token() != nil else {
-                self.state = .notLoggedIn
-                return
-            }
+            await self?.performRefresh(showLoading: true)
+        }
+    }
+
+    /// 下拉刷新专用：保持当前 ScrollView 不被卸下，让 .refreshable spinner 正常显示
+    /// .refreshable 需要 async 闭包；vm.refresh() 是 fire-and-forget，spinner 立刻消失，所以单独走这个
+    public func pullToRefresh() async {
+        await performRefresh(showLoading: false)
+    }
+
+    private func performRefresh(showLoading: Bool) async {
+        guard AuthInterceptor.token() != nil else {
+            self.state = .notLoggedIn
+            return
+        }
+        // 下拉刷新时不切 .loading，避免把 ScrollView 卸下来导致 spinner detach
+        if showLoading {
             self.state = .loading
-            do {
-                // 按 UI 语言拉对应语言情报（之前传 nil 会回落到 user.language，与 UI 不同步）
-                let feed = try await self.repo.getFeed(limit: 50, language: AppSettingsStore.shared.languageCode)
-                self.state = feed.isEmpty ? .empty : .loaded(feed)
-                self.unreadCount = feed.filter { !$0.isRead }.count
-            } catch is CancellationError {
-            } catch {
-                self.state = .error(error.localizedDescription)
-            }
+        }
+        do {
+            let feed = try await self.repo.getFeed(limit: 50, language: AppSettingsStore.shared.languageCode)
+            self.state = feed.isEmpty ? .empty : .loaded(feed)
+            self.unreadCount = feed.filter { !$0.isRead }.count
+        } catch is CancellationError {
+        } catch {
+            self.state = .error(error.localizedDescription)
         }
     }
 
