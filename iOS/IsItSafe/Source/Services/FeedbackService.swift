@@ -8,11 +8,9 @@ import Foundation
 public struct FeedbackSubmitRequest: Encodable {
     let content: String
     let imageUrl: String?
-
-    enum CodingKeys: String, CodingKey {
-        case content
-        case imageUrl = "image_url"
-    }
+    // 不映射 snake_case：服务端 DTO 用 camelCase，
+    // 且 class-validator 开了 whitelist 严格模式，多余字段会 400
+    // 之前 "image_url" 一直被服务端拒收，所以图片 admin 永远看不到
 }
 
 public final class FeedbackService {
