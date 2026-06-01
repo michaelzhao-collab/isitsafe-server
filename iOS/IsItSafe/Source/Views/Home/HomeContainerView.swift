@@ -33,6 +33,8 @@ public struct HomeContainerView: View {
     /// 录音浮层显示状态（由 AnalyzeInputBar onRecordingStateChange 驱动）
     @State private var voiceOverlayActive = false
     @State private var voiceOverlayCancelMode = false
+    /// V4-P1 冷启动引导 chips（admin 可配置，24h 缓存）
+    @State private var onboardingChips: [OnboardingChip] = []
     @EnvironmentObject private var appState: AppStateViewModel
     @EnvironmentObject private var router: AppRouter
     @Environment(\.scenePhase) private var scenePhase
@@ -47,6 +49,34 @@ public struct HomeContainerView: View {
     private static var hasDoneColdStartClipboardCheck = false
 
     private let sidebarWidth = min(320, UIScreen.main.bounds.width * 0.85)
+
+    /// V4-P1：tap chip 按 actionType 分发
+    private func handleOnboardingChip(_ chip: OnboardingChip) {
+        switch chip.actionType {
+        case "text":
+            if let payload = chip.actionPayload, !payload.isEmpty {
+                homeVm.inputText = payload
+                homeVm.analyze()
+            }
+        case "image":
+            showImagePicker = true
+        case "camera":
+            showCameraCapture = true
+        case "voice":
+            // 切到语音模式 + 提示按住
+            NotificationCenter.default.post(name: .focusHomeInput, object: nil)
+        case "url":
+            // 按 payload 跳转：family / intel / premium
+            switch chip.actionPayload {
+            case "family": router.pendingTabIndex = 2
+            case "intel": router.pendingTabIndex = 1
+            case "premium": showPremiumSheet = true
+            default: break
+            }
+        default:
+            break
+        }
+    }
 
     /// iOS 17+ 读 UIPasteboard.string 会强制弹"允许粘贴"权限框。
     /// 改用 detectPatterns 只探测剪贴板里有没有 URL / 数字（不读内容、不弹框）。
@@ -239,14 +269,23 @@ public struct HomeContainerView: View {
             if !wasIn && isIn {
                 // 让 SwiftUI 渲染稳定后再注入，避免被同步 reset 抹掉
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    maybeInjectLocalDefaultQAIfNeeded()
+                    // V4-P1：旧的 3 组预设 Q&A 已替换成 OnboardingHero 的欢迎气泡 + chips，不再注入
+                // maybeInjectLocalDefaultQAIfNeeded()
+                _ = ()
                 }
             }
         }
         .onAppear {
+            // V4-P1 拉冷启动 chips（24h 缓存）
+            Task {
+                let chips = await OnboardingRepository.shared.fetch(languageCode: languageCode)
+                await MainActor.run { onboardingChips = chips }
+            }
             if previousScenePhase == nil {
                 previousScenePhase = scenePhase
-                maybeInjectLocalDefaultQAIfNeeded()
+                // V4-P1：旧的 3 组预设 Q&A 已替换成 OnboardingHero 的欢迎气泡 + chips，不再注入
+                // maybeInjectLocalDefaultQAIfNeeded()
+                _ = ()
                 if !Self.hasDoneColdStartClipboardCheck {
                     Self.hasDoneColdStartClipboardCheck = true
                     // 改用 detectPatterns（无权限提示）；用户允许后再触发 alert
@@ -312,7 +351,10 @@ public struct HomeContainerView: View {
                             // V3-B 首页通知条：未读官方情报时显示
                             HomeIntelBanner()
                                 .padding(.horizontal, 16)
-                            HomeEmptyStateContent()
+                            // V4-P1 冷启动引导（替代老 HomeEmptyStateContent）
+                            OnboardingHero(chips: onboardingChips) { chip in
+                                handleOnboardingChip(chip)
+                            }
                         }
                         ForEach(homeVm.turns) { turn in
                             ChatMessageView(turn: turn)

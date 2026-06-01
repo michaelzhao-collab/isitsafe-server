@@ -30,6 +30,7 @@ import DeepfakeChecksList from '../pages/v3/DeepfakeChecksList';
 import BreachMonitorList from '../pages/v3/BreachMonitorList';
 import ContentFetch from '../pages/contentFetch/ContentFetch';
 import AiEvaluation from '../pages/aiEvaluation/AiEvaluation';
+import OnboardingChips from '../pages/onboarding/OnboardingChips';
 import Login from '../pages/Login';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -77,6 +78,7 @@ const router = createBrowserRouter([
       { path: 'intel/submissions', element: <IntelSubmissions /> },
       { path: 'content-fetch', element: <ContentFetch /> },
       { path: 'ai-evaluation', element: <AiEvaluation /> },
+      { path: 'onboarding-chips', element: <OnboardingChips /> },
       // V3 一期反诈模块
       { path: 'v3/family', element: <FamilyGroupsList /> },
       { path: 'v3/elder', element: <ElderUsersList /> },

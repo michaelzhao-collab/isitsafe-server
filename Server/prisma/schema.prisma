@@ -836,3 +836,32 @@ model AiEvaluationSample {
   @@index([intent, createdAt])
   @@map("ai_evaluation_samples")
 }
+
+
+// --------------------------------------------
+// V4-P1 冷启动引导 chips
+// admin 可热更，iOS 启动时拉取展示在首条 bot 欢迎气泡下
+// --------------------------------------------
+model OnboardingChip {
+  id          String   @id @default(cuid())
+  /// 排序，数字小的在前
+  orderIdx    Int      @default(0) @map("order_idx")
+  /// 中文文案（≤ 30 字最佳）
+  labelZh     String   @map("label_zh") @db.VarChar(80)
+  /// 英文文案
+  labelEn     String   @map("label_en") @db.VarChar(120)
+  /// SF Symbol 名（如 message.fill / camera.fill / mic.fill）
+  iconType    String   @default("message.fill") @map("icon_type") @db.VarChar(40)
+  /// 行为类型：'text' | 'image' | 'camera' | 'voice' | 'url'
+  actionType  String   @map("action_type") @db.VarChar(20)
+  /// text → 自动发送的文案；url → 跳转的内部路径；其他 → 空
+  actionPayloadZh String? @map("action_payload_zh") @db.Text
+  actionPayloadEn String? @map("action_payload_en") @db.Text
+  /// 'active' | 'archived'
+  status      String   @default("active") @db.VarChar(20)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([status, orderIdx])
+  @@map("onboarding_chips")
+}

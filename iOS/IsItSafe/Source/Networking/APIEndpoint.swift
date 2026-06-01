@@ -82,6 +82,9 @@ public enum APIEndpoint {
     /// V3-E S5-12 给某成员设私人备注（仅自己可见）
     case v3FamilySetAlias(memberId: String)
 
+    // V4-P1 冷启动引导 chips
+    case onboardingChips(language: String?)
+
     // V3-B 情报推送
     /// 情报 feed
     case v3IntelFeed(limit: Int, language: String?)
@@ -175,6 +178,8 @@ public enum APIEndpoint {
         case .v3FamilyMemberElderMode(let userId): return "/api/v3/family/members/\(userId)/elder-mode"
         case .v3FamilySetMyDisplayName(let groupId): return "/api/v3/family/groups/\(groupId)/members/me/display-name"
         case .v3FamilySetAlias(let memberId): return "/api/v3/family/members/\(memberId)/alias"
+        // V4-P1 冷启动 chips
+        case .onboardingChips: return "/api/onboarding/chips"
         // V3-B 情报
         case .v3IntelFeed: return "/api/v3/intel/feed"
         case .v3IntelDetail(let id): return "/api/v3/intel/\(id)"
@@ -204,6 +209,7 @@ public enum APIEndpoint {
     public var method: HTTPMethod {
         switch self {
         case .health, .authUserInfo, .authExportData, .authRegionHint, .queryHistory, .queryTags, .knowledgeList, .knowledgeCategories, .knowledgeDetail, .subscriptionStatus, .membershipPlans, .messagesList, .messageUnreadCount, .publicConfig,
+             .onboardingChips,
              .v3FamilyGetMyGroup, .v3FamilyGetMyGroups, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
              .v3IntelFeed, .v3IntelDetail, .v3IntelCategories, .v3IntelUnreadCount,
              .v3IntelMySubmissions, .v3IntelGetPreferences,
@@ -274,6 +280,8 @@ public enum APIEndpoint {
             return items
         case .knowledgeCategories(let language):
             return [URLQueryItem(name: "language", value: language)]
+        case .onboardingChips(let lang):
+            return lang.map { [URLQueryItem(name: "language", value: $0)] } ?? []
         case .messagesList(let page, let pageSize):
             return [
                 URLQueryItem(name: "page", value: "\(page)"),

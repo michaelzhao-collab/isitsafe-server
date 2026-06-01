@@ -50,6 +50,7 @@ const menuItems: MenuProps['items'] = [
       { key: '/intel', label: '情报中心（V3）' },
       { key: '/intel/submissions', label: '用户上报审批' },
       { key: '/content-fetch', label: 'AI 内容抓取' },
+      { key: '/onboarding-chips', label: '冷启动引导' },
     ],
   },
   {
@@ -107,6 +108,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   '/intel': { label: '情报中心', parent: '内容管理' },
   '/intel/submissions': { label: '用户上报审批', parent: '内容管理' },
   '/content-fetch': { label: 'AI 内容抓取', parent: '内容管理' },
+  '/onboarding-chips': { label: '冷启动引导', parent: '内容管理' },
   '/v3/family': { label: '家庭守护', parent: 'V3 反诈模块' },
   '/v3/elder': { label: '长辈模式', parent: 'V3 反诈模块' },
   '/v3/deepfake': { label: '语音深伪', parent: 'V3 反诈模块' },
