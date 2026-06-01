@@ -44,7 +44,16 @@ public struct ElderHomeView: View {
                 compactGreeting
                 quickButtons
                 chatResultsArea
-                inputBar
+            }
+            // 用 safeAreaInset 把 inputBar 固定在底部，跟 HomeContainerView 同
+            // pattern；之前直接放在 VStack 末尾会被 MainTabView 自定义 tabBar
+            // (~88pt) 完全挡住
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 0) {
+                    inputBar
+                    // 让 inputBar 浮在 tabBar 上方 ~88pt 高度位置
+                    Color.clear.frame(height: 88)
+                }
             }
             .background(AppTheme.background.ignoresSafeArea())
             .navigationBarHidden(true)

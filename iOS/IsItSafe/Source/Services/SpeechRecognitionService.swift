@@ -16,6 +16,8 @@ public final class SpeechRecognitionService {
     private var task: SFSpeechRecognitionTask?
     private let engine = AVAudioEngine()
     private var continuation: CheckedContinuation<String, Error>?
+    /// 累积 partial transcription，用于系统返 No speech detected 时兜底
+    private var lastPartialText: String = ""
 
     private init() {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
@@ -38,11 +40,13 @@ public final class SpeechRecognitionService {
             }
             // 关键：先配置 AVAudioSession，否则 inputNode 拿不到有效采样率
             // 导致 AVAudioEngine.start() 报 -10851 (kAudioUnitErr_InvalidPropertyValue)
+            // mode 改 .spokenAudio（之前 .measurement 关闭了 silence detection
+            // + echo cancellation，导致长辈说话慢 / 通话场景识别率差）
             do {
                 let session = AVAudioSession.sharedInstance()
                 try session.setCategory(
                     .playAndRecord,
-                    mode: .measurement,
+                    mode: .spokenAudio,
                     options: [.duckOthers, .defaultToSpeaker, .allowBluetooth]
                 )
                 try session.setActive(true, options: .notifyOthersOnDeactivation)
@@ -56,8 +60,19 @@ public final class SpeechRecognitionService {
                 cont.resume(throwing: NSError(domain: "Speech", code: -1, userInfo: [NSLocalizedDescriptionKey: "创建请求失败"]))
                 return
             }
-            request.shouldReportPartialResults = false
+            // 启用 partial：长辈说话慢、中间停顿可能让系统 finalize 时报 No speech，
+            // 我们手动收 partial 兜底
+            request.shouldReportPartialResults = true
             request.requiresOnDeviceRecognition = false
+            request.taskHint = .dictation
+            // 长辈反诈高频词加 contextualStrings 提升识别率（仅 zh-CN）
+            request.contextualStrings = [
+                "派出所", "公安局", "银行卡", "安全账户", "验证码",
+                "微信", "支付宝", "转账", "短信", "链接",
+                "客服", "中奖", "退款", "包裹", "快递",
+                "贷款", "理财", "投资", "诈骗", "可疑"
+            ]
+            lastPartialText = ""
             continuation = cont
 
             let inputNode = engine.inputNode
@@ -76,17 +91,41 @@ public final class SpeechRecognitionService {
 
             task = recognizer.recognitionTask(with: request) { [weak self] result, error in
                 guard let self = self else { return }
-                if let error = error {
-                    self.finishRecording()
-                    self.continuation?.resume(throwing: error)
-                    self.continuation = nil
-                    return
+                // 收集 partial：用户说一半被系统 finalize 时也能拿到部分文本
+                if let result = result {
+                    let text = result.bestTranscription.formattedString
+                    if !text.isEmpty {
+                        self.lastPartialText = text
+                    }
+                    if result.isFinal {
+                        self.finishRecording()
+                        self.continuation?.resume(returning: text)
+                        self.continuation = nil
+                        return
+                    }
                 }
-                guard let result = result, result.isFinal else { return }
-                let text = result.bestTranscription.formattedString
-                self.finishRecording()
-                self.continuation?.resume(returning: text)
-                self.continuation = nil
+                if let error = error as NSError? {
+                    // "No speech detected" (1110/203) → 如果已经有 partial，返回
+                    //   partial；否则才真的报错
+                    // 修业主反馈：长辈点了说一下后一直提示 No speech detected
+                    let isNoSpeech = error.code == 1110
+                        || error.code == 203
+                        || error.localizedDescription.lowercased().contains("no speech")
+                    self.finishRecording()
+                    if isNoSpeech, !self.lastPartialText.isEmpty {
+                        self.continuation?.resume(returning: self.lastPartialText)
+                    } else if isNoSpeech {
+                        // 友好提示替代英文系统错误
+                        self.continuation?.resume(throwing: NSError(
+                            domain: "Speech",
+                            code: 1110,
+                            userInfo: [NSLocalizedDescriptionKey: "没听清楚您说的话，请再试一次"]
+                        ))
+                    } else {
+                        self.continuation?.resume(throwing: error)
+                    }
+                    self.continuation = nil
+                }
             }
         }
     }
