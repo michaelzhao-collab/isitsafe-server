@@ -162,6 +162,10 @@
     color: var(--primary);
   }
   .nav-title { flex: 1; text-align: center; }
+  /* ==== Tab Bar：完整还原实际 App 样式 ==== */
+  /* 实际样式：未激活 灰色图标 / 激活 白色图标 + 蓝色 10px 圆角方块背景 */
+  /* 图标用 SVG 还原 SF Symbol：bubble.left.and.text.bubble.right /
+     newspaper / person.2.fill / person */
   .tab-bar {
     height: 56px;
     background: #fff;
@@ -174,33 +178,35 @@
   }
   .tab-item {
     flex: 1;
-    text-align: center;
-    font-size: 8px;
     color: #8E8E93;
-    font-weight: 600;
+    font-size: 8px;
+    font-weight: 500;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: 3px;
   }
-  .tab-item.active { color: var(--primary); }
-  .tab-icon {
-    font-size: 18px;
-    line-height: 1;
+  .tab-icon-wrap {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 22px;
+    background: transparent;
   }
-  /* 实际 iOS App 用的 SF Symbol 对应表情近似 */
-  .tab-icon-chat::before { content: '💬'; }
-  .tab-icon-intel::before { content: '📰'; }
-  .tab-icon-family::before { content: '👨‍👩‍👧'; }
-  .tab-icon-profile::before { content: '👤'; }
-  .tab-item.active .tab-icon {
-    transform: scale(1.05);
+  .tab-item.active .tab-icon-wrap {
+    background: var(--primary);
+  }
+  .tab-item.active { color: var(--primary); }
+  .tab-icon-wrap svg {
+    width: 18px;
+    height: 18px;
+    color: #8E8E93;  /* 通过 currentColor 同时控制 stroke 和 fill */
+  }
+  .tab-item.active .tab-icon-wrap svg {
+    color: #fff;
   }
 
   /* ==== UI 内通用组件 ==== */
@@ -285,41 +291,23 @@
   .risk-body {
     padding: 10px 12px;
   }
-  .risk-title-row {
-    font-weight: 700;
+  .risk-summary {
     font-size: 9px;
-    margin-bottom: 6px;
+    margin-bottom: 10px;
     color: #1F2D3D;
+    line-height: 1.5;
   }
   .risk-section-title {
-    font-size: 8px;
-    color: #8E8E93;
+    font-size: 9px;
+    color: #1F2D3D;
     font-weight: 700;
-    text-transform: uppercase;
-    margin: 6px 0 4px;
-    letter-spacing: 0.3px;
+    margin: 8px 0 5px;
   }
   .risk-row {
     margin-bottom: 4px;
     font-size: 8px;
-    line-height: 1.45;
-    display: flex;
-    gap: 5px;
-  }
-  .risk-row::before {
-    content: '•';
-    color: var(--primary);
-    font-weight: 900;
-  }
-  .risk-cta {
-    background: var(--primary);
-    color: #fff;
-    padding: 8px;
-    text-align: center;
-    border-radius: 10px;
-    margin-top: 8px;
-    font-size: 9px;
-    font-weight: 700;
+    line-height: 1.5;
+    color: #6E6E73;
   }
 
   /* ==== Screen 3 ==== */
@@ -418,71 +406,87 @@
     flex-shrink: 0;
   }
 
-  /* ==== Screen 5: Voice ==== */
+  /* ==== Screen 5: Voice Deepfake（实际 App 用圆环 gauge 200x200）==== */
   .voice-page {
     background: #F5F7FA;
     flex: 1;
-    padding: 10px;
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
-  .voice-card {
-    background: #fff;
-    border-radius: 14px;
-    padding: 14px;
-    text-align: center;
-    margin-bottom: 8px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  .voice-gauge {
+    width: 120px;
+    height: 120px;
+    position: relative;
+    margin: 6px 0 10px;
   }
-  .voice-avatar {
-    width: 56px; height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    color: #fff;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 22px;
-    margin: 0 auto 8px;
+  .voice-gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .voice-gauge-bg { fill: none; stroke: rgba(0,0,0,0.08); stroke-width: 10; }
+  .voice-gauge-fg { fill: none; stroke: var(--danger); stroke-width: 10; stroke-linecap: round; }
+  .voice-gauge-text {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
   }
-  .voice-caller {
-    font-weight: 700;
+  .voice-gauge-num {
+    font-size: 26px;
+    font-weight: 900;
+    color: var(--danger);
+    line-height: 1;
+  }
+  .voice-gauge-label {
+    font-size: 7px;
+    color: #8E8E93;
+    margin-top: 2px;
+  }
+  .voice-verdict-title {
     font-size: 11px;
+    font-weight: 700;
+    color: var(--danger);
     margin-bottom: 2px;
   }
-  .voice-meta {
+  .voice-meta-line {
     font-size: 8px;
     color: #8E8E93;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
-  .waveform {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    height: 32px;
-    margin: 6px 0;
+  .voice-section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 10px;
+    margin: 0 0 8px;
+    width: 100%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
   }
-  .wave-bar {
-    width: 3px;
-    background: var(--primary);
-    border-radius: 2px;
-  }
-  .verdict-banner {
-    background: #FFE5E0;
-    color: #B71C1C;
-    padding: 7px 10px;
-    border-radius: 8px;
+  .voice-section-title {
     font-size: 9px;
     font-weight: 700;
-    margin: 6px 0;
-  }
-  .voice-detail {
-    background: #F5F7FA;
-    border-radius: 8px;
-    padding: 8px;
-    font-size: 8px;
-    line-height: 1.5;
     color: #1F2D3D;
-    text-align: left;
+    margin-bottom: 6px;
   }
-  .voice-detail strong { color: var(--primary); }
+  .voice-feature-row {
+    display: flex;
+    align-items: center;
+    font-size: 8px;
+    color: #1F2D3D;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+  }
+  .voice-feature-row:last-child { border-bottom: none; }
+  .voice-feature-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--danger);
+    margin-right: 6px;
+    flex-shrink: 0;
+  }
+  .voice-advice-text {
+    font-size: 8px;
+    color: #1F2D3D;
+    line-height: 1.5;
+  }
 
   /* ==== Screen 6: Intel ==== */
   .intel-page {
@@ -563,6 +567,43 @@
 </head>
 <body>
 
+<!-- SVG SF Symbol 还原（4 个底导图标用 <symbol> 定义后全部 <use> 引用）-->
+<svg style="display:none" xmlns="http://www.w3.org/2000/svg">
+  <!-- bubble.left.and.text.bubble.right - 问助手 -->
+  <symbol id="ic-chat" viewBox="0 0 24 24">
+    <path d="M5 5h10a3 3 0 0 1 3 3v3.5a3 3 0 0 1-3 3h-3.5l-3.5 3v-3H5a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z"
+          fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+    <path d="M14 16.5h6a2 2 0 0 1 2 2v1.5a2 2 0 0 1-2 2h-1v2l-2.5-2H14a2 2 0 0 1-2-2"
+          fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" opacity="0.85"/>
+  </symbol>
+  <!-- newspaper - 情报案例 -->
+  <symbol id="ic-news" viewBox="0 0 24 24">
+    <rect x="3" y="4" width="18" height="16" rx="2" ry="2"
+          fill="none" stroke="currentColor" stroke-width="1.6"/>
+    <rect x="5.8" y="6.6" width="5.5" height="4.5"
+          fill="none" stroke="currentColor" stroke-width="1.4"/>
+    <line x1="13" y1="7" x2="18" y2="7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    <line x1="13" y1="9" x2="18" y2="9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    <line x1="13" y1="11" x2="17" y2="11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    <line x1="6" y1="14" x2="18" y2="14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+    <line x1="6" y1="16.5" x2="18" y2="16.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+  </symbol>
+  <!-- person.2.fill - 家庭（两人 实心）-->
+  <symbol id="ic-people" viewBox="0 0 24 24">
+    <circle cx="17" cy="9" r="2.5" fill="currentColor" opacity="0.75"/>
+    <path d="M17 12.5c-1.2 0-2.3.2-3.2.6 1.6.9 2.7 2.4 2.7 4.2v1.7H22V17c0-2.5-2.2-4.5-5-4.5z"
+          fill="currentColor" opacity="0.75"/>
+    <circle cx="9" cy="8" r="3.2" fill="currentColor"/>
+    <path d="M9 13c-3.5 0-7 1.6-7 4.4V20h14v-2.6c0-2.8-3.5-4.4-7-4.4z" fill="currentColor"/>
+  </symbol>
+  <!-- person - 我的 -->
+  <symbol id="ic-person" viewBox="0 0 24 24">
+    <circle cx="12" cy="7" r="3.6" fill="none" stroke="currentColor" stroke-width="1.7"/>
+    <path d="M4.5 19.5v-.7c0-3.3 3.6-5.8 7.5-5.8s7.5 2.5 7.5 5.8v.7"
+          fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  </symbol>
+</svg>
+
 <h1>StarLensAI · App Store Screenshots V2</h1>
 <p class="subtitle">统一深蓝主题 · 6 张 1290×2796 · 主角是 App UI · 中英文各 1 套</p>
 
@@ -609,10 +650,10 @@
         </div>
         <div class="input-bar">问我任何风险问题...</div>
         <div class="tab-bar">
-          <div class="tab-item active"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>情报案例</div>
-          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>问助手</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>情报案例</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>家庭</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>我的</div>
         </div>
       </div>
     </div>
@@ -642,28 +683,27 @@
         <div style="flex:1; background:#F5F7FA; overflow:hidden;">
           <div class="risk-card-full">
             <div class="risk-header">
-              <span>⚠️ 高风险</span>
-              <span class="risk-score">96 / 100</span>
+              <span>高风险</span>
+              <span class="risk-score">得分 96</span>
             </div>
             <div class="risk-body">
-              <div class="risk-title-row">疑似冒充银行钓鱼短信</div>
-              <div class="risk-section-title">3 大识别依据</div>
-              <div class="risk-row"><span>域名 hxxx.cn 不在 4 大行白名单</span></div>
-              <div class="risk-row"><span>含紧迫感关键词："立即"、"冻结"</span></div>
-              <div class="risk-row"><span>437 位用户上报相同模板</span></div>
-              <div class="risk-section-title">立刻这么做</div>
-              <div class="risk-row"><span>不要点击链接，已为你识别</span></div>
-              <div class="risk-row"><span>拨打卡背面客服核实账户状态</span></div>
-              <div class="risk-row"><span>截图举报到 12321 反诈中心</span></div>
-              <div class="risk-cta">📞 一键拨打官方客服</div>
+              <div class="risk-summary">这条短信疑似冒充银行的钓鱼诈骗，目的是诱导你点击虚假链接，盗取你的账户信息。</div>
+              <div class="risk-section-title">原因</div>
+              <div class="risk-row">1. 短链域名 hxxx.cn 不在任一主流银行的官方域名白名单内。</div>
+              <div class="risk-row">2. 使用"立即"、"否则冻结"等紧迫感话术，诱导用户跳过判断。</div>
+              <div class="risk-row">3. 437 位用户近 7 日上报过相同模板的诈骗短信。</div>
+              <div class="risk-section-title">建议</div>
+              <div class="risk-row">1. 不要点击短信中的任何链接。</div>
+              <div class="risk-row">2. 拨打银行卡背面的客服电话核实账户状态。</div>
+              <div class="risk-row">3. 截图后转发到 12321 反诈中心。</div>
             </div>
           </div>
         </div>
         <div class="tab-bar">
-          <div class="tab-item active"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>情报案例</div>
-          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>问助手</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>情报案例</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>家庭</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>我的</div>
         </div>
       </div>
     </div>
@@ -717,10 +757,10 @@
         </div>
         <div class="input-bar">📸 拍照 · 📁 相册 · 🎙️ 语音</div>
         <div class="tab-bar">
-          <div class="tab-item active"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>情报案例</div>
-          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>问助手</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>情报案例</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>家庭</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>我的</div>
         </div>
       </div>
     </div>
@@ -788,10 +828,10 @@
           </div>
         </div>
         <div class="tab-bar">
-          <div class="tab-item"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>情报案例</div>
-          <div class="tab-item active"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>问助手</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>情报案例</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>家庭</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>我的</div>
         </div>
       </div>
     </div>
@@ -819,48 +859,49 @@
           <div class="nav-icon">?</div>
         </div>
         <div class="voice-page">
-          <div class="voice-card">
-            <div class="voice-avatar">📞</div>
-            <div class="voice-caller">"儿子" 来电</div>
-            <div class="voice-meta">+86 138****8888 · 通话 0:42</div>
-            <div class="waveform">
-              <div class="wave-bar" style="height: 8px;"></div>
-              <div class="wave-bar" style="height: 18px;"></div>
-              <div class="wave-bar" style="height: 12px;"></div>
-              <div class="wave-bar" style="height: 24px;"></div>
-              <div class="wave-bar" style="height: 16px;"></div>
-              <div class="wave-bar" style="height: 22px;"></div>
-              <div class="wave-bar" style="height: 14px;"></div>
-              <div class="wave-bar" style="height: 20px;"></div>
-              <div class="wave-bar" style="height: 10px;"></div>
-              <div class="wave-bar" style="height: 18px;"></div>
-              <div class="wave-bar" style="height: 24px;"></div>
-              <div class="wave-bar" style="height: 16px;"></div>
-              <div class="wave-bar" style="height: 22px;"></div>
-              <div class="wave-bar" style="height: 14px;"></div>
-              <div class="wave-bar" style="height: 8px;"></div>
-              <div class="wave-bar" style="height: 18px;"></div>
+          <div class="voice-gauge">
+            <svg viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="50" class="voice-gauge-bg"/>
+              <circle cx="60" cy="60" r="50" class="voice-gauge-fg"
+                      stroke-dasharray="314" stroke-dashoffset="19"/>
+            </svg>
+            <div class="voice-gauge-text">
+              <div class="voice-gauge-num">94%</div>
+              <div class="voice-gauge-label">AI 合成概率</div>
             </div>
-            <div class="verdict-banner">
-              🚨 AI 合成语音 · 置信度 94%
+          </div>
+          <div class="voice-verdict-title">高风险 · AI 合成语音</div>
+          <div class="voice-meta-line">42 秒已分析</div>
+
+          <div class="voice-section">
+            <div class="voice-section-title">检测到的可疑特征</div>
+            <div class="voice-feature-row">
+              <div class="voice-feature-dot"></div>
+              非自然停顿模式（疑似拼接合成）
             </div>
-            <div class="voice-detail">
-              <strong>检测到以下异常：</strong><br>
-              • 非自然停顿模式（疑似拼接）<br>
-              • 高频谐波缺失（典型 TTS 特征）<br>
-              • 情感韵律与真人不一致<br>
-              <br>
-              <strong>建议：</strong><br>
-              立刻挂断 → 用通讯录里"儿子"的<br>
-              真实号码回拨核实
+            <div class="voice-feature-row">
+              <div class="voice-feature-dot"></div>
+              高频谐波缺失（典型 TTS 特征）
+            </div>
+            <div class="voice-feature-row">
+              <div class="voice-feature-dot"></div>
+              情感韵律与真人不一致
+            </div>
+          </div>
+
+          <div class="voice-section">
+            <div class="voice-section-title">建议</div>
+            <div class="voice-advice-text">
+              立刻挂断，用通讯录里"儿子"的真实号码回拨核实。<br>
+              不要按对方指引转账或提供验证码。
             </div>
           </div>
         </div>
         <div class="tab-bar">
-          <div class="tab-item"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>情报案例</div>
-          <div class="tab-item active"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>问助手</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>情报案例</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>家庭</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>我的</div>
         </div>
       </div>
     </div>
@@ -938,10 +979,10 @@
           </div>
         </div>
         <div class="tab-bar">
-          <div class="tab-item"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item active"><span class="tab-icon">📰</span>情报案例</div>
-          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>问助手</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>情报案例</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>家庭</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>我的</div>
         </div>
       </div>
     </div>
@@ -994,10 +1035,10 @@
         </div>
         <div class="input-bar">Ask me anything risky...</div>
         <div class="tab-bar">
-          <div class="tab-item active"><span class="tab-icon">💬</span>Chat</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>Intel</div>
-          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>Family</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>Me</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>Assistant</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>Intel</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>Family</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>Profile</div>
         </div>
       </div>
     </div>
@@ -1024,28 +1065,27 @@
         <div style="flex:1; background:#F5F7FA; overflow:hidden;">
           <div class="risk-card-full">
             <div class="risk-header">
-              <span>⚠️ HIGH RISK</span>
-              <span class="risk-score">96 / 100</span>
+              <span>High risk</span>
+              <span class="risk-score">Score 96</span>
             </div>
             <div class="risk-body">
-              <div class="risk-title-row">Likely bank impersonation phishing</div>
-              <div class="risk-section-title">3 reasons</div>
-              <div class="risk-row"><span>Domain hxxx.com not on bank allowlist</span></div>
-              <div class="risk-row"><span>Urgency words: "immediately", "frozen"</span></div>
-              <div class="risk-row"><span>Matches 437 fraud reports this month</span></div>
-              <div class="risk-section-title">Do this now</div>
-              <div class="risk-row"><span>Do NOT click the link (already flagged)</span></div>
-              <div class="risk-row"><span>Call bank using # on your card back</span></div>
-              <div class="risk-row"><span>Report at ReportFraud.ftc.gov</span></div>
-              <div class="risk-cta">📞 Call Official Support</div>
+              <div class="risk-summary">This SMS is likely a bank-impersonation phishing attempt, designed to trick you into entering credentials on a fake site.</div>
+              <div class="risk-section-title">Reasons</div>
+              <div class="risk-row">1. Domain hxxx.com is not on any major bank's official allowlist.</div>
+              <div class="risk-row">2. Uses urgency words like "immediately" and "frozen" to bypass judgment.</div>
+              <div class="risk-row">3. Matches 437 fraud reports of the same template in the past 7 days.</div>
+              <div class="risk-section-title">Advice</div>
+              <div class="risk-row">1. Do NOT click any link in this SMS.</div>
+              <div class="risk-row">2. Call the bank using the number printed on the back of your card.</div>
+              <div class="risk-row">3. Forward the screenshot to ReportFraud.ftc.gov.</div>
             </div>
           </div>
         </div>
         <div class="tab-bar">
-          <div class="tab-item active"><span class="tab-icon">💬</span>Chat</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>Intel</div>
-          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>Family</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>Me</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>Assistant</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>Intel</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>Family</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>Profile</div>
         </div>
       </div>
     </div>
@@ -1096,10 +1136,10 @@
         </div>
         <div class="input-bar">📸 Photo · 📁 Album · 🎙️ Voice</div>
         <div class="tab-bar">
-          <div class="tab-item active"><span class="tab-icon">💬</span>Chat</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>Intel</div>
-          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>Family</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>Me</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>Assistant</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>Intel</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>Family</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>Profile</div>
         </div>
       </div>
     </div>
@@ -1164,10 +1204,10 @@
           </div>
         </div>
         <div class="tab-bar">
-          <div class="tab-item"><span class="tab-icon">💬</span>Chat</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>Intel</div>
-          <div class="tab-item active"><span class="tab-icon">👨‍👩‍👧</span>Family</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>Me</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>Assistant</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>Intel</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>Family</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>Profile</div>
         </div>
       </div>
     </div>
@@ -1192,48 +1232,49 @@
           <div class="nav-icon">?</div>
         </div>
         <div class="voice-page">
-          <div class="voice-card">
-            <div class="voice-avatar">📞</div>
-            <div class="voice-caller">"Son" Calling</div>
-            <div class="voice-meta">+1 555-***-8888 · 0:42</div>
-            <div class="waveform">
-              <div class="wave-bar" style="height: 8px;"></div>
-              <div class="wave-bar" style="height: 18px;"></div>
-              <div class="wave-bar" style="height: 12px;"></div>
-              <div class="wave-bar" style="height: 24px;"></div>
-              <div class="wave-bar" style="height: 16px;"></div>
-              <div class="wave-bar" style="height: 22px;"></div>
-              <div class="wave-bar" style="height: 14px;"></div>
-              <div class="wave-bar" style="height: 20px;"></div>
-              <div class="wave-bar" style="height: 10px;"></div>
-              <div class="wave-bar" style="height: 18px;"></div>
-              <div class="wave-bar" style="height: 24px;"></div>
-              <div class="wave-bar" style="height: 16px;"></div>
-              <div class="wave-bar" style="height: 22px;"></div>
-              <div class="wave-bar" style="height: 14px;"></div>
-              <div class="wave-bar" style="height: 8px;"></div>
-              <div class="wave-bar" style="height: 18px;"></div>
+          <div class="voice-gauge">
+            <svg viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="50" class="voice-gauge-bg"/>
+              <circle cx="60" cy="60" r="50" class="voice-gauge-fg"
+                      stroke-dasharray="314" stroke-dashoffset="19"/>
+            </svg>
+            <div class="voice-gauge-text">
+              <div class="voice-gauge-num">94%</div>
+              <div class="voice-gauge-label">AI synthesis</div>
             </div>
-            <div class="verdict-banner">
-              🚨 AI-generated voice · 94% confidence
+          </div>
+          <div class="voice-verdict-title">High risk · AI-generated voice</div>
+          <div class="voice-meta-line">42s analyzed</div>
+
+          <div class="voice-section">
+            <div class="voice-section-title">Detected suspicious features</div>
+            <div class="voice-feature-row">
+              <div class="voice-feature-dot"></div>
+              Unnatural pause patterns (likely splicing)
             </div>
-            <div class="voice-detail">
-              <strong>Anomalies detected:</strong><br>
-              • Unnatural pause patterns<br>
-              • Missing high-freq harmonics (TTS)<br>
-              • Emotional rhythm mismatch<br>
-              <br>
-              <strong>Action:</strong><br>
-              Hang up → call the real "son"<br>
-              number from your contacts
+            <div class="voice-feature-row">
+              <div class="voice-feature-dot"></div>
+              Missing high-frequency harmonics (typical TTS)
+            </div>
+            <div class="voice-feature-row">
+              <div class="voice-feature-dot"></div>
+              Emotional rhythm mismatch with human speech
+            </div>
+          </div>
+
+          <div class="voice-section">
+            <div class="voice-section-title">Advice</div>
+            <div class="voice-advice-text">
+              Hang up. Call your real son's number from your contacts to verify.<br>
+              Do not transfer money or share codes.
             </div>
           </div>
         </div>
         <div class="tab-bar">
-          <div class="tab-item"><span class="tab-icon">💬</span>Chat</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>Intel</div>
-          <div class="tab-item active"><span class="tab-icon">👨‍👩‍👧</span>Family</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>Me</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>Assistant</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>Intel</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>Family</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>Profile</div>
         </div>
       </div>
     </div>
@@ -1308,10 +1349,10 @@
           </div>
         </div>
         <div class="tab-bar">
-          <div class="tab-item"><span class="tab-icon">💬</span>Chat</div>
-          <div class="tab-item active"><span class="tab-icon">📰</span>Intel</div>
-          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>Family</div>
-          <div class="tab-item"><span class="tab-icon">👤</span>Me</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-chat"/></svg></div>Assistant</div>
+          <div class="tab-item active"><div class="tab-icon-wrap"><svg><use href="#ic-news"/></svg></div>Intel</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-people"/></svg></div>Family</div>
+          <div class="tab-item"><div class="tab-icon-wrap"><svg><use href="#ic-person"/></svg></div>Profile</div>
         </div>
       </div>
     </div>
