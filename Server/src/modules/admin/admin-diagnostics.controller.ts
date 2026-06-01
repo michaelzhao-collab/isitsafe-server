@@ -227,6 +227,86 @@ export class AdminDiagnosticsController {
     };
   }
 
+  /**
+   * 暴露当前服务端生成的真实 APNs JWT 头/payload，方便比对 Apple 后台值
+   *
+   * JWT header/payload 都是 base64 编码的 JSON，本来就是公开的（任何
+   * 持有 JWT 的中间人都能解码）。这里只是替用户做了解码工作，没有泄漏机密。
+   * 签名部分不返回，避免给恶意用户假冒。
+   */
+  @Get('show-jwt')
+  showJwt() {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { createSign, createPrivateKey } = require('crypto');
+      const teamId = (process.env.APNS_TEAM_ID ?? '').trim();
+      const keyId = (process.env.APNS_KEY_ID ?? '').trim();
+      const rawKey = process.env.APNS_AUTH_KEY ?? '';
+      // 复用 normalize（与 service 同口径）
+      let k = rawKey.replace(/^﻿/, '').replace(/ /g, ' ');
+      if (k.includes('\\n')) k = k.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
+      k = k.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+      const begin = k.indexOf('BEGIN PRIVATE KEY-----');
+      const end = k.indexOf('-----END');
+      let body: string;
+      if (begin >= 0 && end > begin) {
+        const s = k.indexOf('-----', begin);
+        const nl = k.slice(s).indexOf('\n');
+        body = k.slice(nl >= 0 ? s + nl : begin, end);
+      } else {
+        body = k;
+      }
+      const b64 = body.replace(/[^A-Za-z0-9+/=]/g, '');
+      const wrapped = b64.match(/.{1,64}/g)?.join('\n') ?? b64;
+      const pem = `-----BEGIN PRIVATE KEY-----\n${wrapped}\n-----END PRIVATE KEY-----`;
+
+      // 生成 JWT
+      const header = { alg: 'ES256', kid: keyId };
+      const iat = Math.floor(Date.now() / 1000);
+      const payload = { iss: teamId, iat };
+      const headerB64 = Buffer.from(JSON.stringify(header))
+        .toString('base64')
+        .replace(/=+$/, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      const payloadB64 = Buffer.from(JSON.stringify(payload))
+        .toString('base64')
+        .replace(/=+$/, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      const signingInput = `${headerB64}.${payloadB64}`;
+      const pk = createPrivateKey({ key: pem, format: 'pem' });
+      const signer = createSign('SHA256');
+      signer.update(signingInput);
+      const signature = signer.sign({ key: pk, dsaEncoding: 'ieee-p1363' });
+      const sigB64 = signature
+        .toString('base64')
+        .replace(/=+$/, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+
+      return {
+        // 实际服务端发给 Apple 的 JWT 头（公开）
+        header,
+        headerBase64: headerB64,
+        // 实际 payload（公开）
+        payload,
+        payloadBase64: payloadB64,
+        // 签名前缀（不返回完整签名，但前缀足够确认有签出来）
+        signaturePrefix: sigB64.slice(0, 16) + '...',
+        signatureLength: sigB64.length,
+        // 直接给业主可以复制到 jwt.io 验证的提示
+        instructions: [
+          '将 header.kid 与 Apple Developer > Keys 页面里那个 Key 的 ID 字符对字符对比',
+          '将 payload.iss 与 Apple Developer 右上角 Team ID 字符对字符对比',
+          '任何一处不一致都会让 Apple 返 InvalidProviderToken',
+        ],
+      };
+    } catch (e: any) {
+      return { error: e?.message?.slice(0, 300) ?? String(e).slice(0, 300) };
+    }
+  }
+
   /** 用当前 env 的 key 试签一个空 JWT，只返回 ok/error，不返回签名内容 */
   private trySignWithCurrentKey(rawKey: string): { ok: boolean; error?: string } {
     try {
