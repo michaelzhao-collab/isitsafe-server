@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  StarLensAI · Logo #1-C 简化版（小尺寸专用）
+  - 蓝渐变背景
+  - 单圈粗描边（去掉外圈淡线，避免小尺寸糊一团）
+  - 中心星稍微放大
+  适用：16-60 像素（favicon / 通知中心）
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1F4FCC"/>
+      <stop offset="60%" stop-color="#2F6BFF"/>
+      <stop offset="100%" stop-color="#5B86FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g transform="scale(10.24)">
+    <!-- 单圈：r=34，stroke 8（替代原 r=32+38 双圈）-->
+    <circle cx="50" cy="50" r="34" fill="none" stroke="#FFFFFF" stroke-width="8"/>
+    <!-- 中心星：放大到顶 23 底 72 让小尺寸看得清 -->
+    <path d="M50 23 L57 42 L77 42 L61 55 L67 74 L50 63 L33 74 L39 55 L23 42 L43 42 Z" fill="#FFFFFF"/>
+  </g>
+</svg>

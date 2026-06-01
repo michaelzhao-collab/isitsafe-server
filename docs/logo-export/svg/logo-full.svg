@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  StarLensAI · Logo #1-C 星·镜 无柄居中
+  - 蓝色渐变背景（无圆角，iOS / App Store 自动加圆角）
+  - 双圈镜框：外圈细 + 内圈粗
+  - 中心 5 角星（上移 3 单位做光学居中）
+  适用：64×64 及以上（细节可见）
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1F4FCC"/>
+      <stop offset="60%" stop-color="#2F6BFF"/>
+      <stop offset="100%" stop-color="#5B86FF"/>
+    </linearGradient>
+  </defs>
+  <!-- 满铺渐变背景 -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <!-- viewBox 0-100 等比放大到 1024，乘 10.24 -->
+  <g transform="scale(10.24)">
+    <!-- 外圈细 -->
+    <circle cx="50" cy="50" r="38" fill="none" stroke="#FFFFFF" stroke-width="3" opacity="0.45"/>
+    <!-- 内圈粗 -->
+    <circle cx="50" cy="50" r="32" fill="none" stroke="#FFFFFF" stroke-width="6"/>
+    <!-- 中心星：path 已做光学居中（顶 25 / 底 70）-->
+    <path d="M50 25 L56 42 L74 42 L60 53 L66 70 L50 60 L34 70 L40 53 L26 42 L44 42 Z" fill="#FFFFFF"/>
+  </g>
+</svg>
