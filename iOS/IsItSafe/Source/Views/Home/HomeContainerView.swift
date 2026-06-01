@@ -282,6 +282,16 @@ public struct HomeContainerView: View {
                 refreshDisplayedChips()
             }
         }
+        // 切语言后立即重拉 chips（按新语言）
+        .onChange(of: languageCode) { _, newLang in
+            Task {
+                let chips = await OnboardingRepository.shared.fetch(languageCode: newLang)
+                await MainActor.run {
+                    onboardingChips = chips
+                    refreshDisplayedChips()
+                }
+            }
+        }
         // 登入新用户（含注册首次登入）后重新触发默认聊天注入
         // 之前只在 onAppear 跑一次，登入后无法补显示
         .onChange(of: appState.isLoggedIn) { wasIn, isIn in
