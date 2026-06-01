@@ -70,6 +70,8 @@ public final class FamilyViewModel: ObservableObject {
                 self.allGroups = groups
                 if groups.isEmpty {
                     self.state = .empty
+                    // ChatMessageView 用此 key 决定是否显示"一键拨打家人"等按钮
+                    UserDefaults.standard.removeObject(forKey: self.selectedGroupIdKey)
                     return
                 }
                 // 优先选 user 上次选中的；不在列表则 fallback 第一个（按 joinedAt 最早）

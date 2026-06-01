@@ -148,7 +148,18 @@ export class IntentClassifierService {
     'identity theft', 'account hacked', 'card stolen',
   ];
 
+  /**
+   * 出现明确"未发生 / 计划中 / 询问性"前提时不算 help_request
+   * 用户案例："那我现在准备转账了怎么办" 被 "转账了" 误判为 help_request → 给应急流程答非所问
+   * 这种场景应该走 scam_detection（预防性警告），而不是 help（事后补救）
+   */
+  private hasPlanningOrNegationMarker(content: string): boolean {
+    return /(还没|没转|没给|准备|打算|想要|想转|想给|即将|计划|要不要|该不该|要转|要给|要不|可不可以|能不能|可以转|该怎么办|怎么办呢)/i.test(content);
+  }
+
   private matchesHelp(lower: string, content: string): boolean {
+    // 优先排除"还没发生"场景，避免把预防性问题塞进 help_request
+    if (this.hasPlanningOrNegationMarker(content)) return false;
     for (const kw of IntentClassifierService.HELP_KEYWORDS_ZH) {
       if (content.includes(kw)) return true;
     }

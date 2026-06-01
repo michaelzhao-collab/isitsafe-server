@@ -208,9 +208,23 @@ private struct ActionButtonsStack: View {
     let actions: [RiskAnalysisResult.ResponseAction]
     @EnvironmentObject private var router: AppRouter
 
+    /// 没家庭的用户隐藏 call_family / family_broadcast 按钮
+    /// knowledge 暂时全局隐藏（跳转无法精准定位案例）
+    /// family 状态共用 FamilyViewModel 的持久化 key（empty 时被 removeObject 清掉）
+    private var filteredActions: [RiskAnalysisResult.ResponseAction] {
+        let groupId = UserDefaults.standard.string(forKey: "isitsafe.family.selectedGroupId") ?? ""
+        let hasFamily = !groupId.isEmpty
+        return actions.filter { a in
+            let t = a.type ?? ""
+            if t == "knowledge" { return false }
+            if (t == "call_family" || t == "family_broadcast") && !hasFamily { return false }
+            return true
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(actions, id: \.self) { action in
+            ForEach(filteredActions, id: \.self) { action in
                 Button {
                     handle(action: action)
                 } label: {

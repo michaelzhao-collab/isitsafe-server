@@ -192,12 +192,8 @@ export class IntentResponseService {
                 "Don't trust strangers, don't click links, don't transfer",
                 'Call fraud hotline 911',
               ],
-          actions: [
-            {
-              label: isZh ? '看案例库' : 'View cases',
-              type: 'knowledge',
-            },
-          ],
+          // knowledge action 暂时不下发：iOS 端跳转无法精准定位到对应案例，体验差
+          // 待后续把 knowledge action 带上 caseId 后再恢复
         };
       case 'help_request':
         return {
@@ -221,10 +217,7 @@ export class IntentResponseService {
               type: 'call',
               value: isZh ? '96110' : '911',
             },
-            {
-              label: isZh ? '一键拨打家人' : 'Call family',
-              type: 'call_family',
-            },
+            // call_family 由 iOS 端按用户家庭组状态过滤；fallback 不主动加，避免没家庭的用户看到迷惑
           ],
         };
     }

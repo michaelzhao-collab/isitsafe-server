@@ -39,8 +39,6 @@ export function scamDetectionPrompt(language: Language): PromptBundle {
     "第 3 步：建议动作"
   ],
   "actions": [
-    {"label": "看相关案例", "type": "knowledge"},
-    {"label": "告诉家人", "type": "family_broadcast"},
     {"label": "打 96110 反诈热线", "type": "call", "value": "96110"}
   ]
 }
@@ -49,8 +47,10 @@ export function scamDetectionPrompt(language: Language): PromptBundle {
 - 不许说"100% 准确"。最多 95% 置信度
 - summary 必须直接给出 verdict 的人话表达
 - steps 每条 < 40 字，三条都必须给
-- actions 按场景选 2-4 项
-- verdict='safe' 时 actions 简化为 [{"label": "知道了", "type": "dismiss"}]`
+- actions 默认只放"打 96110"（仅 verdict='scam' 且 confidence ≥ 70 时给）
+- verdict='safe' 时 actions = [] 不给按钮
+- "看相关案例" / "告诉家人" 暂禁用：knowledge 跳转无法精准定位，
+  family_broadcast 由 iOS 端按家庭组状态过滤`
     : `You are StarLens anti-scam assistant. Identify if user input is scam and give 3 decisive steps.
 
 Return STRICT JSON (no markdown fences, no extra text):
@@ -152,13 +152,13 @@ export function knowledgeQueryPrompt(language: Language): PromptBundle {
     "要点 3",
     "可选第 4-5 条"
   ],
-  "actions": [
-    {"label": "看相关案例", "type": "knowledge", "value": "杀猪盘"},
-    {"label": "拨打 96110", "type": "call", "value": "96110"}
-  ]
+  "actions": []
 }
 
-steps 不要超过 5 条，每条 < 50 字。`
+规则：
+- steps 不要超过 5 条，每条 < 50 字
+- actions 默认为空。除非用户消息里明确提到"打电话/打 96110"等具体动作，否则不要塞按钮
+  ("看相关案例" / "看案例库" 等暂时禁用：iOS 跳转无法精准定位)`
     : `You are StarLens anti-fraud knowledge expert. User is asking about anti-fraud concepts.
 
 Return STRICT JSON:
@@ -204,13 +204,13 @@ export function helpRequestPrompt(language: Language): PromptBundle {
     "后续：不要相信任何'包追回'的电话，那是二次诈骗"
   ],
   "actions": [
-    {"label": "一键拨打 96110", "type": "call", "value": "96110"},
-    {"label": "一键拨打家人", "type": "call_family"},
-    {"label": "看类似案例", "type": "knowledge"}
+    {"label": "一键拨打 96110", "type": "call", "value": "96110"}
   ]
 }
 
-4-5 个 steps 必给。`
+规则：
+- 4-5 个 steps 必给
+- actions 默认只放 96110，不要塞"拨打家人"（没家庭的用户看到迷惑）也不要塞"看类似案例"（无法精准定位，会让用户失望）`
     : `You are StarLens emergency assistant. User has been scammed and needs immediate action steps.
 
 Return STRICT JSON:
