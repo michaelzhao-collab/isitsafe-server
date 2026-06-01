@@ -161,19 +161,93 @@ export class AdminDiagnosticsController {
 
   /**
    * 检查推送相关 env 是否全配。
-   * 返回布尔，绝不返回 Key 内容（避免泄漏）。
+   * 返回布尔/形状信息，绝不返回 Key 真实内容。
    */
   @Get('push-config')
   pushConfig() {
+    const rawKey = process.env.APNS_AUTH_KEY || '';
+    // 关键诊断字段（不泄漏 key 主体）
+    const hasBomHead = rawKey.charCodeAt(0) === 0xFEFF;
+    const hasBeginHeader = rawKey.includes('BEGIN PRIVATE KEY');
+    const hasEndFooter = rawKey.includes('END PRIVATE KEY');
+    const hasLiteralBackslashN = rawKey.includes('\\n');
+    const hasRealNewline = rawKey.includes('\n');
+    const lineCount = rawKey.split(/\r?\n/).length;
+    const hasNonAsciiSpace = /[  -​  　]/.test(rawKey);
+    // 估算 base64 主体长度（去掉头尾、所有空白）
+    let base64Len = 0;
+    try {
+      const inner = rawKey
+        .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+        .replace(/-----END PRIVATE KEY-----/g, '')
+        .replace(/\\n/g, '')
+        .replace(/[^A-Za-z0-9+/=]/g, '');
+      base64Len = inner.length;
+    } catch {
+      // ignore
+    }
+    // Apple .p8 P-256 ES256 私钥 base64 体长度通常 220-260 之间
+    const base64LengthLooksRight = base64Len >= 180 && base64Len <= 320;
+
     return {
       APNS_TEAM_ID: !!process.env.APNS_TEAM_ID,
+      APNS_TEAM_ID_length: (process.env.APNS_TEAM_ID || '').length,
       APNS_KEY_ID: !!process.env.APNS_KEY_ID,
+      APNS_KEY_ID_length: (process.env.APNS_KEY_ID || '').length,
       APNS_AUTH_KEY: !!process.env.APNS_AUTH_KEY,
       APNS_BUNDLE_ID: process.env.APNS_BUNDLE_ID || null,
       APNS_ENV: process.env.APNS_ENV || 'production',
       APPLE_BUNDLE_ID: process.env.APPLE_BUNDLE_ID || null,
-      authKeyLength: process.env.APNS_AUTH_KEY?.length ?? 0,
-      authKeyStartsWith: process.env.APNS_AUTH_KEY?.slice(0, 30) || null,
+      // ↓ key 形状诊断
+      authKeyLength: rawKey.length,
+      authKeyStartsWith: rawKey.slice(0, 30),
+      authKeyEndsWith: rawKey.slice(-30),
+      hasBomHead,
+      hasBeginHeader,
+      hasEndFooter,
+      hasLiteralBackslashN,
+      hasRealNewline,
+      lineCount,
+      hasNonAsciiSpace,
+      base64Len,
+      base64LengthLooksRight,
+      // 直接告诉用户当前能不能 sign（最实用的判断）
+      signTestResult: this.trySignWithCurrentKey(rawKey),
     };
+  }
+
+  /** 用当前 env 的 key 试签一个空 JWT，只返回 ok/error，不返回签名内容 */
+  private trySignWithCurrentKey(rawKey: string): { ok: boolean; error?: string } {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { createPrivateKey, createSign } = require('crypto');
+      // 复用 service 端同一份 normalize 逻辑（避免对比口径不一致），简化版：
+      let key = rawKey;
+      key = key.replace(/^﻿/, '').replace(/ /g, ' ');
+      if (key.includes('\\n')) {
+        key = key.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
+      }
+      key = key.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+      const begin = key.indexOf('BEGIN PRIVATE KEY-----');
+      const end = key.indexOf('-----END');
+      let body: string;
+      if (begin >= 0 && end > begin) {
+        const s = key.indexOf('-----', begin);
+        const nl = key.slice(s).indexOf('\n');
+        body = key.slice(nl >= 0 ? s + nl : begin, end);
+      } else {
+        body = key;
+      }
+      const b64 = body.replace(/[^A-Za-z0-9+/=]/g, '');
+      const wrapped = b64.match(/.{1,64}/g)?.join('\n') ?? b64;
+      const pem = `-----BEGIN PRIVATE KEY-----\n${wrapped}\n-----END PRIVATE KEY-----`;
+      const pk = createPrivateKey({ key: pem, format: 'pem' });
+      const signer = createSign('SHA256');
+      signer.update('test');
+      signer.sign({ key: pk, dsaEncoding: 'ieee-p1363' });
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message?.slice(0, 200) ?? String(e).slice(0, 200) };
+    }
   }
 }

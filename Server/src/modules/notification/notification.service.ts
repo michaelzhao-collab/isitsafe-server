@@ -297,21 +297,44 @@ export class NotificationService implements OnModuleDestroy {
    */
   private normalizeApnsPrivateKey(raw: string): string {
     if (!raw) return raw;
-    let key = raw.trim();
-    // 字面量 \n → 真换行
+    let key = raw;
+    // 1. 去 BOM（﻿）—— 复制粘贴最常见的隐藏字符
+    key = key.replace(/^﻿/, '');
+    // 2. 非断行空格 → 普通空格（智能复制 PDF/Word 易混入）
+    key = key.replace(/ /g, ' ');
+    // 3. 字面量 \n → 真换行（Railway/Vercel UI 输入框常见）
     if (key.includes('\\n')) {
       key = key.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
     }
-    // CRLF → LF（Windows 剪贴板）
+    // 4. CRLF → LF
     key = key.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    // 用户漏贴 BEGIN/END，自动补
-    if (!key.includes('BEGIN')) {
-      // 假设是纯 base64 内容，每 64 字符一行
-      const base64 = key.replace(/\s+/g, '');
-      const wrapped = base64.match(/.{1,64}/g)?.join('\n') ?? base64;
-      key = `-----BEGIN PRIVATE KEY-----\n${wrapped}\n-----END PRIVATE KEY-----`;
+    // 5. trim
+    key = key.trim();
+
+    // 6. 终极重建：无论传进来是啥（有头尾/无头尾/全单行/有错乱空白），
+    //    只要能从中提取出 base64 主体，就用规范格式重新拼。
+    //    这样可以兜底 Railway UI 把多行折叠成单行、或塞进 tab/多余空格 等场景。
+    const beginIdx = key.indexOf('BEGIN PRIVATE KEY-----');
+    const endIdx = key.indexOf('-----END');
+    let base64Body: string;
+    if (beginIdx >= 0 && endIdx > beginIdx) {
+      // 从 BEGIN...---- 之后到 ---END 之前的所有字符里抽 base64
+      const start = key.indexOf('-----', beginIdx);
+      const after = key.slice(start).indexOf('\n');
+      const bodyStart = after >= 0 ? start + after : beginIdx;
+      base64Body = key.slice(bodyStart, endIdx);
+    } else {
+      // 没有头尾标识 → 整段当 base64 主体
+      base64Body = key;
     }
-    return key;
+    // 只留 base64 合法字符（A-Z a-z 0-9 + / =），过滤换行/空白/控制符
+    const base64Clean = base64Body.replace(/[^A-Za-z0-9+/=]/g, '');
+    if (!base64Clean) {
+      // 没拿到 base64 内容 → 让上层报错，比假装成功好
+      return key;
+    }
+    const wrapped = base64Clean.match(/.{1,64}/g)?.join('\n') ?? base64Clean;
+    return `-----BEGIN PRIVATE KEY-----\n${wrapped}\n-----END PRIVATE KEY-----`;
   }
 
   private getJwt(): string {
