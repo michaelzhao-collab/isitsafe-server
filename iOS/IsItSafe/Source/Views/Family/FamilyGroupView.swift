@@ -20,6 +20,7 @@ public struct FamilyGroupView: View {
     @EnvironmentObject private var appState: AppStateViewModel
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var showInviteSheet = false
+    @State private var showCreateSheet = false   // 新增：右上角"创建新家庭"
     @State private var showLeaveConfirm = false
     @State private var showDissolveConfirm = false
     @State private var showShareSheet = false
@@ -94,6 +95,21 @@ public struct FamilyGroupView: View {
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
+                    // 创建新家庭（业主反馈：加入别人家庭后右上角也要能创建）
+                    // 显示条件：免费 owned < 1 / Pro owned < 3（服务端硬限）
+                    if vm.canCreateMoreGroup(isPremium: appState.subscriptionActive) {
+                        Button {
+                            showCreateSheet = true
+                        } label: {
+                            Label(
+                                languageCode == "en"
+                                    ? (vm.ownedGroupCount == 0 ? "Create Family" : "Create Another Family")
+                                    : (vm.ownedGroupCount == 0 ? "创建家庭" : "再创建一个家庭"),
+                                systemImage: "plus.circle"
+                            )
+                        }
+                        Divider()
+                    }
                     // 多家庭场景：菜单里也有"切换家庭"
                     if vm.allGroups.count > 1 {
                         Button {
@@ -163,6 +179,9 @@ public struct FamilyGroupView: View {
         }
         .sheet(isPresented: $showInviteSheet) {
             InviteFamilySheet(group: group, vm: vm)
+        }
+        .sheet(isPresented: $showCreateSheet) {
+            CreateFamilyGroupSheet(vm: vm)
         }
         .sheet(isPresented: $showShareSheet) {
             ShareToFamilySheet(vm: vm)

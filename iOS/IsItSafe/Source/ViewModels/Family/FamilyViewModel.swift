@@ -42,6 +42,17 @@ public final class FamilyViewModel: ObservableObject {
     /// S5-10 多家庭：我加入的全部家庭组（含 owner / member）
     @Published public var allGroups: [FamilyGroup] = []
 
+    /// 当前用户作为 owner 创建的家庭组数量（vs 加入别人家庭的数量）
+    /// 服务端限制：免费 1 / Pro 3
+    public var ownedGroupCount: Int { allGroups.filter(\.isOwner).count }
+
+    /// 当前用户还能不能创建新家庭
+    /// 业主反馈：加入别人家庭后右上角也要能创建（之前只在 FamilyEmptyView 入口能创建）
+    public func canCreateMoreGroup(isPremium: Bool) -> Bool {
+        let limit = isPremium ? 3 : 1
+        return ownedGroupCount < limit
+    }
+
     /// S5-10 当前选中显示的家庭组 id（本地持久化，跨会话保留）
     /// 未选 / 选中 group 不在 allGroups 时 fallback 到第一个
     private let selectedGroupIdKey = "isitsafe.family.selectedGroupId"
