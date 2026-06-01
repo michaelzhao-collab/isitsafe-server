@@ -247,15 +247,22 @@ public struct AnalyzeInputBar: View {
         return Color(UIColor.tertiarySystemFill)
     }
 
-    /// 长按 0.25s 进入录音 → DragGesture 跟踪上滑距离 → 释放时根据 isCancellableMode 决定 cancel 或 end
+    /// 长按 0.08s 进入录音 → DragGesture 跟踪上滑距离 → 释放时根据 isCancellableMode 决定 cancel 或 end
+    /// V4 优化：minimumDuration 从 0.25 降到 0.08；case .first 也立刻启动录音
+    /// （之前必须等 DragGesture 第一次 drag 事件才 fire，长按不滑时有 100-200ms hand-off 延迟）
     private var voiceGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.25)
+        LongPressGesture(minimumDuration: 0.08)
             .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
             .onChanged { value in
                 switch value {
                 case .first:
-                    // 长按阶段——但 DragGesture 还未触发，等下个 changed 才进入第二阶段
-                    break
+                    // 长按达到 minimumDuration 即视为开始录音，不再等 drag
+                    // 修掉"长按不动→不录音"的体感延迟
+                    if !isRecording {
+                        isRecording = true
+                        onVoiceHoldStart?()
+                        onRecordingStateChange?(true, false)
+                    }
                 case .second(true, let drag):
                     if !isRecording {
                         isRecording = true
