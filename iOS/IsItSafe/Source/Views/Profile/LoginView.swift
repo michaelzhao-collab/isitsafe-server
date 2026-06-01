@@ -14,6 +14,12 @@ private enum AgreementWebSheet: Identifiable {
     var id: Self { self }
 }
 
+/// 手机号登录 sheet 内的可聚焦字段；用 enum 比 Bool 在 Form 里更稳，能正确处理"无焦点 → 手机号 → 密码"切换
+private enum PhoneLoginField: Hashable {
+    case phone
+    case password
+}
+
 public struct LoginView: View {
     @StateObject private var vm = LoginViewModel()
     @Environment(\.dismiss) private var dismiss
@@ -23,8 +29,7 @@ public struct LoginView: View {
     @State private var showCountryPicker = false
     @State private var agreementWebSheet: AgreementWebSheet?
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
-    @FocusState private var phoneFieldFocused: Bool
-    @FocusState private var passwordFieldFocused: Bool
+    @FocusState private var focusedField: PhoneLoginField?
     @State private var keyboardHeight: CGFloat = 0
     @State private var showPassword = false
 
@@ -72,6 +77,17 @@ public struct LoginView: View {
         }
         .onChange(of: appState.isLoggedIn) { _, loggedIn in
             if loggedIn { showPhoneLogin = false }
+        }
+        .onChange(of: showPhoneLogin) { _, presented in
+            // 触发组 B：cover 刚被请求展示时（在 sheet 内部 onAppear 之前）
+            // 多入口冗余触发是 SwiftUI Form focus 唯一可靠的方式
+            if presented {
+                scheduleFocusBurst(label: "coverPresent")
+            } else {
+                // sheet 关闭时主动 clear focus，下次重新进来 enum nil → .phone 是显式状态变化，
+                // SwiftUI 才会响应；如果上次留 .phone，再 set .phone SwiftUI 视为无变化
+                focusedField = nil
+            }
         }
     }
 
@@ -239,7 +255,7 @@ public struct LoginView: View {
                             text: $vm.nationalNumber
                         )
                         .keyboardType(.phonePad)
-                        .focused($phoneFieldFocused)
+                        .focused($focusedField, equals: .phone)
                         .onChange(of: vm.nationalNumber) { _, newValue in
                             // 按国家最大位数实时截断（CN=11、US=10 ...），输入纯数字
                             let digits = newValue.filter(\.isNumber)
@@ -271,7 +287,7 @@ public struct LoginView: View {
                                 SecureField(languageCode == "en" ? "Password (min. 8 characters)" : "密码（至少 8 位）", text: $vm.password)
                             }
                         }
-                        .focused($passwordFieldFocused)
+                        .focused($focusedField, equals: .password)
                         Button {
                             showPassword.toggle()
                         } label: {
@@ -343,19 +359,24 @@ public struct LoginView: View {
                 Task { await vm.refreshCountryHint() }
             }
             .onAppear {
-                // 关键修复：fullScreenCover 内 NavigationStack + Form 里的 @FocusState 在 task/onAppear
-                // 单次触发不可靠。这里用多档延时强制再触发 4 次，确保任何一档命中。
-                triggerPhoneFocus(after: 0.30)
-                triggerPhoneFocus(after: 0.60)
-                triggerPhoneFocus(after: 1.00)
-                triggerPhoneFocus(after: 1.50)
+                // 触发组 A：sheet 内部 onAppear
+                scheduleFocusBurst(label: "onAppear")
             }
         }
     }
 
-    private func triggerPhoneFocus(after seconds: Double) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
-            if !phoneFieldFocused { phoneFieldFocused = true }
+    /// 一次性安排多档延时去触发焦点。
+    /// 经验：iOS Form Section 内的 TextField 自动 focus 是出名的不稳，
+    /// 单次 set / await 经常被 SwiftUI 内部状态吞掉。这里 7 档轰炸，任一档生效即可，
+    /// `focused` 已聚焦时 set 同值是幂等的，不会闪烁。
+    private func scheduleFocusBurst(label: String) {
+        let delays: [Double] = [0.05, 0.15, 0.30, 0.50, 0.80, 1.20, 1.80]
+        for d in delays {
+            DispatchQueue.main.asyncAfter(deadline: .now() + d) {
+                if focusedField != .phone {
+                    focusedField = .phone
+                }
+            }
         }
     }
 
