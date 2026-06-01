@@ -339,9 +339,14 @@ public struct LoginView: View {
                 }
             }
             .task {
-                await vm.refreshCountryHint()
-                try? await Task.sleep(nanoseconds: 200_000_000)
+                // 国家提示在后台跑，不阻塞焦点设置（之前 await 阻塞导致键盘弹不出）
+                Task { await vm.refreshCountryHint() }
+                // 等 sheet 动画完成（iOS 17 sheet 动画 ~250ms）
+                try? await Task.sleep(nanoseconds: 350_000_000)
                 phoneFieldFocused = true
+                // 二次保险：再 200ms 后再 set 一次（防 SwiftUI focus 在 sheet 内部丢）
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                if !phoneFieldFocused { phoneFieldFocused = true }
             }
         }
     }
