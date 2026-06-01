@@ -339,15 +339,23 @@ public struct LoginView: View {
                 }
             }
             .task {
-                // 国家提示在后台跑，不阻塞焦点设置（之前 await 阻塞导致键盘弹不出）
+                // 国家提示在后台跑，不阻塞焦点设置
                 Task { await vm.refreshCountryHint() }
-                // 等 sheet 动画完成（iOS 17 sheet 动画 ~250ms）
-                try? await Task.sleep(nanoseconds: 350_000_000)
-                phoneFieldFocused = true
-                // 二次保险：再 200ms 后再 set 一次（防 SwiftUI focus 在 sheet 内部丢）
-                try? await Task.sleep(nanoseconds: 200_000_000)
-                if !phoneFieldFocused { phoneFieldFocused = true }
             }
+            .onAppear {
+                // 关键修复：fullScreenCover 内 NavigationStack + Form 里的 @FocusState 在 task/onAppear
+                // 单次触发不可靠。这里用多档延时强制再触发 4 次，确保任何一档命中。
+                triggerPhoneFocus(after: 0.30)
+                triggerPhoneFocus(after: 0.60)
+                triggerPhoneFocus(after: 1.00)
+                triggerPhoneFocus(after: 1.50)
+            }
+        }
+    }
+
+    private func triggerPhoneFocus(after seconds: Double) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+            if !phoneFieldFocused { phoneFieldFocused = true }
         }
     }
 
