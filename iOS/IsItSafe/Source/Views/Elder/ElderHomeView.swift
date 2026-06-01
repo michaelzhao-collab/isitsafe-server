@@ -29,9 +29,12 @@ public struct ElderHomeView: View {
     @State private var showDetection = false
     @State private var showSOS = false
     @State private var showCamera = false
+    @State private var showPremiumSheet = false
     @State private var voiceTask: Task<Void, Never>?
     @State private var isRecordingVoice = false
     @State private var errorMessage: String?
+    /// 看门狗：超过 45s 的 analyzing 状态强制失败，避免 UI 永远卡死
+    @State private var watchdogTask: Task<Void, Never>?
 
     public init() {}
 
@@ -70,11 +73,63 @@ public struct ElderHomeView: View {
                 actions: { Button(languageCode == "en" ? "OK" : "知道了") { errorMessage = nil } },
                 message: { Text(errorMessage ?? "") }
             )
+            // 今日免费次数用完
+            .alert(
+                languageCode == "en" ? "Daily Limit Reached" : "今日额度已用完",
+                isPresented: $vm.showDailyQuotaAlert
+            ) {
+                Button(languageCode == "en" ? "Subscribe Now" : "立即订阅") {
+                    showPremiumSheet = true
+                }
+                Button(languageCode == "en" ? "Later" : "稍后再说", role: .cancel) {}
+            } message: {
+                let limit = AppSettingsStore.maxFreeQueriesPerDay
+                Text(languageCode == "en"
+                     ? "You've used all \(limit) free analyses today. Subscribe to unlock unlimited."
+                     : "您今天的 \(limit) 次免费分析已用完，开通会员可不限次使用")
+            }
+            .sheet(isPresented: $showPremiumSheet) {
+                NavigationStack { PremiumSubscriptionView() }
+            }
+            // 看门狗：监听 turns 变化，超过 45s 还卡在 .analyzing 就强制结束
+            .onChange(of: vm.turns.count) { _, _ in
+                installWatchdogIfNeeded()
+            }
             // 检测页请求"立刻打孩子电话" → 弹 SOS 拨号
             .onReceive(NotificationCenter.default.publisher(for: .elderRequestCallGuardian)) { _ in
                 showDetection = false
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     showSOS = true
+                }
+            }
+        }
+    }
+
+    /// 看门狗：最后一个 turn 仍在 analyzing 状态超过 45s，认为请求挂死，
+    /// 强制把它替换成 failure 状态，让用户能继续操作并知道发生了什么
+    private func installWatchdogIfNeeded() {
+        guard let last = vm.turns.last, case .analyzing = last.status else {
+            watchdogTask?.cancel()
+            watchdogTask = nil
+            return
+        }
+        watchdogTask?.cancel()
+        let watchTurnId = last.id
+        watchdogTask = Task {
+            try? await Task.sleep(nanoseconds: 45_000_000_000)
+            if Task.isCancelled { return }
+            await MainActor.run {
+                guard let idx = vm.turns.firstIndex(where: { $0.id == watchTurnId }) else { return }
+                if case .analyzing = vm.turns[idx].status {
+                    let msg = languageCode == "en"
+                        ? "Network is slow. Please check your connection and try again."
+                        : "网络不太好，请检查后再试一次"
+                    let t = vm.turns[idx]
+                    vm.turns[idx] = ChatTurn(
+                        id: t.id, userText: t.userText, userImage: t.userImage,
+                        imageUrl: t.imageUrl, status: .done(.failure(msg))
+                    )
+                    print("[ElderHomeView] watchdog: forced .failure for stuck turn after 45s")
                 }
             }
         }

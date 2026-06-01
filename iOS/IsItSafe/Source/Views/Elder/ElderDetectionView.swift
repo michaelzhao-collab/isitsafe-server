@@ -38,6 +38,8 @@ public struct ElderDetectionView: View {
 
     // 监听 vm.lastResult 用
     @State private var cancellables: Set<AnyCancellable> = []
+    /// 看门狗：等结果 > 45s 自动 fail
+    @State private var watchdogTask: Task<Void, Never>?
 
     public init() {}
 
@@ -223,6 +225,7 @@ public struct ElderDetectionView: View {
             : "正在识别图片中的文字..."
         Task {
             let ocrText = await ImageOCR.recognize(from: image)
+            print("[ElderDetection] OCR text length = \(ocrText.count): \(ocrText.prefix(80))")
             await MainActor.run {
                 if ocrText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     isProcessing = false
@@ -235,7 +238,26 @@ public struct ElderDetectionView: View {
                 processingMessage = languageCode == "en"
                     ? "AI is checking..."
                     : "AI 正在帮您判断..."
+                installWatchdog()
                 vm.analyzeScreenshot(ocrText: ocrText)
+            }
+        }
+    }
+
+    /// 看门狗：45s 内 sink 没触发 applyAIResult 就强制结束
+    private func installWatchdog() {
+        watchdogTask?.cancel()
+        watchdogTask = Task {
+            try? await Task.sleep(nanoseconds: 45_000_000_000)
+            if Task.isCancelled { return }
+            await MainActor.run {
+                if isProcessing {
+                    print("[ElderDetection] watchdog: forced fail after 45s")
+                    isProcessing = false
+                    errorMessage = languageCode == "en"
+                        ? "Network is slow. Please check your connection and try again."
+                        : "网络不太好，请检查后再试一次"
+                }
             }
         }
     }
@@ -270,6 +292,8 @@ public struct ElderDetectionView: View {
                     processingMessage = languageCode == "en"
                         ? "AI is checking..."
                         : "AI 正在帮您判断..."
+                    print("[ElderDetection] voice text: \(trimmed)")
+                    installWatchdog()
                     vm.inputText = trimmed
                     vm.analyze()
                 }
@@ -304,7 +328,10 @@ public struct ElderDetectionView: View {
     }
 
     private func applyAIResult(_ result: ChatTurnResult) {
+        watchdogTask?.cancel()
+        watchdogTask = nil
         isProcessing = false
+        print("[ElderDetection] AI result received")
         switch result {
         case .analysis(let data):
             let label: ResultLabel = {
