@@ -34,7 +34,9 @@ public struct HomeContainerView: View {
     @State private var voiceOverlayActive = false
     @State private var voiceOverlayCancelMode = false
     /// V4-P1 冷启动引导 chips（admin 可配置，24h 缓存）
-    @State private var onboardingChips: [OnboardingChip] = []
+    @State private var onboardingChips: [OnboardingChip] = []   // 全量池
+    @State private var displayedChips: [OnboardingChip] = []     // 本次展示的 4 个（随机抽取）
+    private static let chipsDisplayCount = 4
     @EnvironmentObject private var appState: AppStateViewModel
     @EnvironmentObject private var router: AppRouter
     @Environment(\.scenePhase) private var scenePhase
@@ -51,6 +53,17 @@ public struct HomeContainerView: View {
     private let sidebarWidth = min(320, UIScreen.main.bounds.width * 0.85)
 
     /// V4-P1：tap chip 按 actionType 分发
+    /// 从全量 chips 池随机抽 4 个展示。每次新对话（turns 变空）+ 首次拉到 chips 时调用。
+    /// 池内不足 4 时全展示。
+    private func refreshDisplayedChips() {
+        let n = Self.chipsDisplayCount
+        if onboardingChips.count <= n {
+            displayedChips = onboardingChips
+        } else {
+            displayedChips = Array(onboardingChips.shuffled().prefix(n))
+        }
+    }
+
     private func handleOnboardingChip(_ chip: OnboardingChip) {
         switch chip.actionType {
         case "text":
@@ -263,6 +276,12 @@ public struct HomeContainerView: View {
         .onChange(of: homeVm.showDailyQuotaAlert) { _, isShowing in
             if isShowing { isInputFocused = false }
         }
+        // 新对话（turns 清空，比如点 + 新建 / 点侧边栏新对话）→ 重抽 4 个 chips
+        .onChange(of: homeVm.turns.isEmpty) { wasEmpty, isEmpty in
+            if !wasEmpty && isEmpty {
+                refreshDisplayedChips()
+            }
+        }
         // 登入新用户（含注册首次登入）后重新触发默认聊天注入
         // 之前只在 onAppear 跑一次，登入后无法补显示
         .onChange(of: appState.isLoggedIn) { wasIn, isIn in
@@ -279,7 +298,10 @@ public struct HomeContainerView: View {
             // V4-P1 拉冷启动 chips（24h 缓存）
             Task {
                 let chips = await OnboardingRepository.shared.fetch(languageCode: languageCode)
-                await MainActor.run { onboardingChips = chips }
+                await MainActor.run {
+                    onboardingChips = chips
+                    refreshDisplayedChips()
+                }
             }
             if previousScenePhase == nil {
                 previousScenePhase = scenePhase
@@ -352,7 +374,7 @@ public struct HomeContainerView: View {
                             HomeIntelBanner()
                                 .padding(.horizontal, 16)
                             // V4-P1 冷启动引导（替代老 HomeEmptyStateContent）
-                            OnboardingHero(chips: onboardingChips) { chip in
+                            OnboardingHero(chips: displayedChips) { chip in
                                 handleOnboardingChip(chip)
                             }
                         }
