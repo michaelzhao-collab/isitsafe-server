@@ -41,16 +41,28 @@
     <h2>Everything you need, at a glance</h2>
     <div class="carousel-track" id="carouselTrack">
       <div class="carousel-slide">
-        <div class="carousel-image-wrap"><img src="assets/slide1.png" alt="功能示意" /></div>
-        <div class="carousel-caption"><div class="slide-title">Smart Detection</div><div class="slide-desc">Analyze links, messages, and screenshots instantly</div></div>
+        <div class="carousel-image-wrap"><img src="assets/slide1.png" alt="Instant scam check" /></div>
+        <div class="carousel-caption"><div class="slide-title">Instant Scam Check</div><div class="slide-desc">Paste a text, link, or photo — AI judges in 3 seconds</div></div>
       </div>
       <div class="carousel-slide">
-        <div class="carousel-image-wrap"><img src="assets/slide2.png" alt="功能示意" /></div>
-        <div class="carousel-caption"><div class="slide-title">Powered by Risk Database</div><div class="slide-desc">More reliable results with real-world data support</div></div>
+        <div class="carousel-image-wrap"><img src="assets/slide2.png" alt="Clear verdict" /></div>
+        <div class="carousel-caption"><div class="slide-title">Clear Verdict + Next Steps</div><div class="slide-desc">Not just "risky" — AI tells you exactly what to do</div></div>
       </div>
       <div class="carousel-slide">
-        <div class="carousel-image-wrap"><img src="assets/slide3.png" alt="功能示意" /></div>
-        <div class="carousel-caption"><div class="slide-title">Scam Prevention First</div><div class="slide-desc">Protect every decision and stay ahead of fraud</div></div>
+        <div class="carousel-image-wrap"><img src="assets/slide3.png" alt="Screenshot analysis" /></div>
+        <div class="carousel-caption"><div class="slide-title">Screenshot Analysis</div><div class="slide-desc">WhatsApp, Messenger, websites — any screenshot works</div></div>
+      </div>
+      <div class="carousel-slide">
+        <div class="carousel-image-wrap"><img src="assets/slide4.png" alt="Family guardian" /></div>
+        <div class="carousel-caption"><div class="slide-title">Family Guardian</div><div class="slide-desc">Instant alerts when loved ones face risky content</div></div>
+      </div>
+      <div class="carousel-slide">
+        <div class="carousel-image-wrap"><img src="assets/slide5.png" alt="AI voice deepfake" /></div>
+        <div class="carousel-caption"><div class="slide-title">AI Voice Deepfake Detector</div><div class="slide-desc">Catch AI-cloned voice scams of family members</div></div>
+      </div>
+      <div class="carousel-slide">
+        <div class="carousel-image-wrap"><img src="assets/slide6.png" alt="Scam intel library" /></div>
+        <div class="carousel-caption"><div class="slide-title">Scam Intel Library</div><div class="slide-desc">Real cases updated daily — stay one step ahead</div></div>
       </div>
     </div>
   </section>
@@ -132,16 +144,20 @@
       }
 
       var defaultCarousel = [
-        { image: 'assets/slide1.png', title: 'Smart Detection', desc: 'Analyze links, messages, and screenshots instantly' },
-        { image: 'assets/slide2.png', title: 'Powered by Risk Database', desc: 'More reliable results with real-world data support' },
-        { image: 'assets/slide3.png', title: 'Scam Prevention First', desc: 'Protect every decision and stay ahead of fraud' },
+        { image: 'assets/slide1.png', title: 'Instant Scam Check', desc: 'Paste a text, link, or photo — AI judges in 3 seconds' },
+        { image: 'assets/slide2.png', title: 'Clear Verdict + Next Steps', desc: 'Not just "risky" — AI tells you exactly what to do' },
+        { image: 'assets/slide3.png', title: 'Screenshot Analysis', desc: 'WhatsApp, Messenger, websites — any screenshot works' },
+        { image: 'assets/slide4.png', title: 'Family Guardian', desc: 'Instant alerts when loved ones face risky content' },
+        { image: 'assets/slide5.png', title: 'AI Voice Deepfake Detector', desc: 'Catch AI-cloned voice scams of family members' },
+        { image: 'assets/slide6.png', title: 'Scam Intel Library', desc: 'Real cases updated daily — stay one step ahead' },
       ];
+      var TARGET_SLIDE_COUNT = 6;
       var slidesToShow = [];
       if (carousel && Array.isArray(carousel) && carousel.length > 0) {
-        slidesToShow = carousel.slice(0, 3);
+        slidesToShow = carousel.slice(0, TARGET_SLIDE_COUNT);
       }
-      while (slidesToShow.length < 3) {
-        slidesToShow.push(defaultCarousel[slidesToShow.length % 3]);
+      while (slidesToShow.length < TARGET_SLIDE_COUNT) {
+        slidesToShow.push(defaultCarousel[slidesToShow.length % defaultCarousel.length]);
       }
       if (carouselTrack) {
         carouselTrack.innerHTML = '';

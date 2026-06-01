@@ -59,139 +59,122 @@ function parseMockup(html) {
   return { style, svgDefs, screens };
 }
 
-/** 按目标尺寸构造单 screen 的 HTML */
+/** 按目标尺寸构造单 screen 的 HTML
+ *  关键修复：scale 改为按"高度"统一缩放（targetH / 700）
+ *  原代码用 targetW 算 phone-frame 宽度 → iPad 比例宽 → phone-frame 被拉宽 → 手机变形
+ *  现在 phone-frame 等比例放大，多出来的宽度变成左右背景，App Store iPad 截图标准做法
+ */
 function buildSingleScreenHtml({ style, svgDefs, screenHtml, targetW, targetH }) {
-  // 原 mockup 的 .screen 宽 322 高 700，等比放大到 targetW × targetH
-  // CSS 用绝对尺寸覆盖原变量
+  const S = targetH / 700;       // 统一缩放因子（基于原 mockup 的 700px 高）
+  const px = (v) => Math.round(v * S);
   const overrideCss = `
+    /* body 满铺背景渐变（避免左右多出来的空间是黑色）*/
     body {
-      background: #0A0E1F;
       margin: 0;
       padding: 0;
       width: ${targetW}px;
       height: ${targetH}px;
       overflow: hidden;
+      background:
+        radial-gradient(ellipse at 30% 0%, rgba(80, 110, 255, 0.5) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 100%, rgba(20, 30, 130, 0.6) 0%, transparent 50%),
+        linear-gradient(160deg, #0E1455 0%, #1830A8 50%, #1D3FE0 100%);
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    /* 覆盖 .screen 尺寸为目标 */
+    /* .screen 改为固定宽度（基于原 mockup 比例 322），多余的宽度变背景 */
     .screen {
-      width: ${targetW}px !important;
+      width: ${px(322)}px !important;
       height: ${targetH}px !important;
       border-radius: 0 !important;
       box-shadow: none !important;
-      padding-top: ${Math.round(targetH * 0.063)}px !important;
-      padding-bottom: ${Math.round(targetH * 0.005)}px !important;
-      padding-left: ${Math.round(targetW * 0.062)}px !important;
-      padding-right: ${Math.round(targetW * 0.062)}px !important;
+      background: transparent !important;   /* 让 body 渐变透过 */
+      padding: ${px(44)}px ${px(20)}px 0 !important;
     }
-    /* 顶部 hero 区域按比例放大 */
-    .hero-top {
-      height: ${Math.round(targetH * 0.157)}px !important;
-      margin-bottom: ${Math.round(targetH * 0.026)}px !important;
-    }
-    .hero-headline {
-      font-size: ${Math.round(targetH * 0.043)}px !important;
-      line-height: 1.1 !important;
-    }
-    .hero-sub {
-      font-size: ${Math.round(targetH * 0.019)}px !important;
-    }
-    /* iPhone Frame 按比例放大 */
+    /* hero / phone 全部基于 S 统一缩放 */
+    .hero-top { height: ${px(110)}px !important; margin-bottom: ${px(18)}px !important; }
+    .hero-headline { font-size: ${px(30)}px !important; line-height: 1.1 !important; }
+    .hero-sub { font-size: ${px(13)}px !important; }
     .phone-frame {
-      width: ${Math.round(targetW * 0.776)}px !important;
-      height: ${Math.round(targetH * 0.729)}px !important;
-      border-radius: ${Math.round(targetW * 0.112)}px !important;
-      padding: ${Math.round(targetW * 0.022)}px ${Math.round(targetW * 0.016)}px !important;
+      width: ${px(250)}px !important;
+      height: ${px(510)}px !important;
+      border-radius: ${px(36)}px !important;
+      padding: ${px(7)}px ${px(5)}px !important;
     }
-    .phone-notch {
-      top: ${Math.round(targetW * 0.025)}px !important;
-      width: ${Math.round(targetW * 0.248)}px !important;
-      height: ${Math.round(targetW * 0.056)}px !important;
-      border-radius: ${Math.round(targetW * 0.037)}px !important;
-    }
-    .phone-screen {
-      border-radius: ${Math.round(targetW * 0.087)}px !important;
-      font-size: ${Math.round(targetH * 0.0128)}px !important;
-    }
+    .phone-notch { top: ${px(8)}px !important; width: ${px(80)}px !important; height: ${px(18)}px !important; border-radius: ${px(12)}px !important; }
+    .phone-screen { border-radius: ${px(28)}px !important; font-size: ${px(9)}px !important; }
     .status-bar {
-      height: ${Math.round(targetH * 0.0314)}px !important;
-      padding: 0 ${Math.round(targetW * 0.05)}px 0 ${Math.round(targetW * 0.056)}px !important;
-      font-size: ${Math.round(targetH * 0.0143)}px !important;
-      border-top-left-radius: ${Math.round(targetW * 0.087)}px !important;
-      border-top-right-radius: ${Math.round(targetW * 0.087)}px !important;
+      height: ${px(22)}px !important;
+      padding: 0 ${px(16)}px 0 ${px(18)}px !important;
+      font-size: ${px(10)}px !important;
+      border-top-left-radius: ${px(28)}px !important;
+      border-top-right-radius: ${px(28)}px !important;
     }
-    .status-right { gap: ${Math.round(targetW * 0.016)}px !important; }
-    .sb-icon-signal { width: ${Math.round(targetH * 0.0186)}px !important; height: ${Math.round(targetH * 0.0129)}px !important; }
-    .sb-icon-battery { width: ${Math.round(targetH * 0.0314)}px !important; height: ${Math.round(targetH * 0.0143)}px !important; }
-    .sb-5g { font-size: ${Math.round(targetH * 0.0143)}px !important; }
-    .nav-bar {
-      height: ${Math.round(targetH * 0.0571)}px !important;
-      padding: 0 ${Math.round(targetW * 0.037)}px !important;
-      font-size: ${Math.round(targetH * 0.0157)}px !important;
-    }
-    .nav-icon { width: ${Math.round(targetH * 0.0314)}px !important; height: ${Math.round(targetH * 0.0314)}px !important; }
-    .nav-icon svg { width: ${Math.round(targetH * 0.0257)}px !important; height: ${Math.round(targetH * 0.0257)}px !important; }
-    .chat-area, .family-page, .voice-page, .intel-page { padding: ${Math.round(targetH * 0.0143)}px !important; }
+    .status-right { gap: ${px(5)}px !important; }
+    .sb-icon-signal { width: ${px(13)}px !important; height: ${px(9)}px !important; }
+    .sb-icon-battery { width: ${px(22)}px !important; height: ${px(10)}px !important; }
+    .sb-5g { font-size: ${px(10)}px !important; }
+    .nav-bar { height: ${px(40)}px !important; padding: 0 ${px(12)}px !important; font-size: ${px(11)}px !important; }
+    .nav-icon { width: ${px(22)}px !important; height: ${px(22)}px !important; }
+    .nav-icon svg { width: ${px(18)}px !important; height: ${px(18)}px !important; }
+    .chat-area, .family-page, .voice-page, .intel-page { padding: ${px(10)}px !important; }
     .bubble-user, .bubble-bot {
-      padding: ${Math.round(targetH * 0.0114)}px ${Math.round(targetW * 0.031)}px !important;
-      border-radius: ${Math.round(targetW * 0.044)}px !important;
-      font-size: ${Math.round(targetH * 0.0129)}px !important;
-      margin-bottom: ${Math.round(targetH * 0.0114)}px !important;
+      padding: ${px(8)}px ${px(10)}px !important;
+      border-radius: ${px(14)}px !important;
+      font-size: ${px(9)}px !important;
+      margin-bottom: ${px(8)}px !important;
     }
-    .input-bar { padding: ${Math.round(targetH * 0.0129)}px ${Math.round(targetW * 0.031)}px ${Math.round(targetH * 0.0143)}px !important; gap: ${Math.round(targetW * 0.025)}px !important; }
-    .input-bar-icon { width: ${Math.round(targetH * 0.0371)}px !important; height: ${Math.round(targetH * 0.0371)}px !important; }
-    .input-bar-icon svg { width: ${Math.round(targetH * 0.0371)}px !important; height: ${Math.round(targetH * 0.0371)}px !important; }
+    .input-bar { padding: ${px(9)}px ${px(10)}px ${px(10)}px !important; gap: ${px(8)}px !important; }
+    .input-bar-icon, .input-bar-icon svg { width: ${px(26)}px !important; height: ${px(26)}px !important; }
     .input-bar-field {
-      border-radius: ${Math.round(targetH * 0.0229)}px !important;
-      padding: ${Math.round(targetH * 0.01)}px ${Math.round(targetW * 0.031)}px !important;
-      font-size: ${Math.round(targetH * 0.0129)}px !important;
-      min-height: ${Math.round(targetH * 0.0429)}px !important;
-      gap: ${Math.round(targetW * 0.019)}px !important;
+      border-radius: ${px(16)}px !important;
+      padding: ${px(7)}px ${px(10)}px ${px(7)}px ${px(12)}px !important;
+      font-size: ${px(9)}px !important;
+      min-height: ${px(30)}px !important;
+      gap: ${px(6)}px !important;
     }
-    .input-bar-mic { width: ${Math.round(targetH * 0.0257)}px !important; height: ${Math.round(targetH * 0.0257)}px !important; }
-    .input-bar-mic svg { width: ${Math.round(targetH * 0.0257)}px !important; height: ${Math.round(targetH * 0.0257)}px !important; }
+    .input-bar-mic, .input-bar-mic svg { width: ${px(18)}px !important; height: ${px(18)}px !important; }
     .tab-bar {
-      height: ${Math.round(targetH * 0.08)}px !important;
-      padding: ${Math.round(targetH * 0.0086)}px 0 ${Math.round(targetH * 0.0171)}px !important;
-      border-bottom-left-radius: ${Math.round(targetW * 0.087)}px !important;
-      border-bottom-right-radius: ${Math.round(targetW * 0.087)}px !important;
+      height: ${px(56)}px !important;
+      padding: ${px(6)}px 0 ${px(12)}px !important;
+      border-bottom-left-radius: ${px(28)}px !important;
+      border-bottom-right-radius: ${px(28)}px !important;
     }
-    .tab-item { font-size: ${Math.round(targetH * 0.0114)}px !important; gap: ${Math.round(targetH * 0.0043)}px !important; }
-    .tab-icon-wrap { width: ${Math.round(targetH * 0.0457)}px !important; height: ${Math.round(targetH * 0.0457)}px !important; border-radius: ${Math.round(targetW * 0.031)}px !important; }
-    .tab-icon-wrap svg { width: ${Math.round(targetH * 0.0257)}px !important; height: ${Math.round(targetH * 0.0257)}px !important; }
+    .tab-item { font-size: ${px(8)}px !important; gap: ${px(3)}px !important; }
+    .tab-icon-wrap { width: ${px(32)}px !important; height: ${px(32)}px !important; border-radius: ${px(10)}px !important; }
+    .tab-icon-wrap svg { width: ${px(18)}px !important; height: ${px(18)}px !important; }
     /* 风险卡 */
-    .risk-card-full { margin: ${Math.round(targetW * 0.025)}px !important; border-radius: ${Math.round(targetW * 0.044)}px !important; }
-    .risk-header { padding: ${Math.round(targetH * 0.0114)}px ${Math.round(targetW * 0.037)}px !important; font-size: ${Math.round(targetH * 0.0143)}px !important; }
-    .risk-body { padding: ${Math.round(targetH * 0.0143)}px ${Math.round(targetW * 0.037)}px !important; }
-    .risk-summary { font-size: ${Math.round(targetH * 0.0129)}px !important; margin-bottom: ${Math.round(targetH * 0.0143)}px !important; }
-    .risk-section-title { font-size: ${Math.round(targetH * 0.0129)}px !important; margin: ${Math.round(targetH * 0.0114)}px 0 ${Math.round(targetH * 0.0071)}px !important; }
-    .risk-row { font-size: ${Math.round(targetH * 0.0114)}px !important; }
+    .risk-card-full { margin: ${px(8)}px !important; border-radius: ${px(14)}px !important; }
+    .risk-header { padding: ${px(8)}px ${px(12)}px !important; font-size: ${px(10)}px !important; }
+    .risk-body { padding: ${px(10)}px ${px(12)}px !important; }
+    .risk-summary { font-size: ${px(9)}px !important; margin-bottom: ${px(10)}px !important; }
+    .risk-section-title { font-size: ${px(9)}px !important; margin: ${px(8)}px 0 ${px(5)}px !important; }
+    .risk-row { font-size: ${px(8)}px !important; margin-bottom: ${px(4)}px !important; }
     /* Family */
-    .family-card { padding: ${Math.round(targetH * 0.0143)}px !important; border-radius: ${Math.round(targetW * 0.044)}px !important; }
-    .family-card-title { font-size: ${Math.round(targetH * 0.0143)}px !important; }
-    .family-member { padding: ${Math.round(targetH * 0.01)}px 0 !important; font-size: ${Math.round(targetH * 0.0129)}px !important; }
-    .family-avatar { width: ${Math.round(targetH * 0.04)}px !important; height: ${Math.round(targetH * 0.04)}px !important; font-size: ${Math.round(targetH * 0.0143)}px !important; }
-    .family-name { font-size: ${Math.round(targetH * 0.0143)}px !important; }
-    .family-status { font-size: ${Math.round(targetH * 0.01)}px !important; }
-    .alert-badge, .safe-badge { font-size: ${Math.round(targetH * 0.01)}px !important; padding: ${Math.round(targetH * 0.0029)}px ${Math.round(targetW * 0.019)}px !important; }
+    .family-card { padding: ${px(10)}px !important; border-radius: ${px(14)}px !important; margin-bottom: ${px(8)}px !important; }
+    .family-card-title { font-size: ${px(10)}px !important; margin-bottom: ${px(8)}px !important; }
+    .family-member { padding: ${px(7)}px 0 !important; font-size: ${px(9)}px !important; }
+    .family-avatar { width: ${px(28)}px !important; height: ${px(28)}px !important; font-size: ${px(10)}px !important; margin-right: ${px(9)}px !important; }
+    .family-name { font-size: ${px(10)}px !important; }
+    .family-status { font-size: ${px(8)}px !important; }
+    .alert-badge, .safe-badge { font-size: ${px(7)}px !important; padding: ${px(2)}px ${px(6)}px !important; border-radius: ${px(8)}px !important; }
     /* Voice gauge */
-    .voice-gauge { width: ${Math.round(targetW * 0.373)}px !important; height: ${Math.round(targetW * 0.373)}px !important; }
-    .voice-gauge-num { font-size: ${Math.round(targetH * 0.0371)}px !important; }
-    .voice-gauge-label { font-size: ${Math.round(targetH * 0.01)}px !important; }
-    .voice-verdict-title { font-size: ${Math.round(targetH * 0.0157)}px !important; }
-    .voice-meta-line { font-size: ${Math.round(targetH * 0.0114)}px !important; }
-    .voice-section { padding: ${Math.round(targetH * 0.0143)}px !important; border-radius: ${Math.round(targetW * 0.037)}px !important; }
-    .voice-section-title { font-size: ${Math.round(targetH * 0.0129)}px !important; }
-    .voice-feature-row { font-size: ${Math.round(targetH * 0.0114)}px !important; padding: ${Math.round(targetH * 0.0057)}px 0 !important; }
-    .voice-advice-text { font-size: ${Math.round(targetH * 0.0114)}px !important; }
+    .voice-gauge { width: ${px(120)}px !important; height: ${px(120)}px !important; }
+    .voice-gauge-num { font-size: ${px(26)}px !important; }
+    .voice-gauge-label { font-size: ${px(7)}px !important; }
+    .voice-verdict-title { font-size: ${px(11)}px !important; }
+    .voice-meta-line { font-size: ${px(8)}px !important; margin-bottom: ${px(10)}px !important; }
+    .voice-section { padding: ${px(10)}px !important; border-radius: ${px(12)}px !important; margin-bottom: ${px(8)}px !important; }
+    .voice-section-title { font-size: ${px(9)}px !important; margin-bottom: ${px(6)}px !important; }
+    .voice-feature-row { font-size: ${px(8)}px !important; padding: ${px(4)}px 0 !important; }
+    .voice-advice-text { font-size: ${px(8)}px !important; line-height: 1.5 !important; }
     /* Intel */
-    .filter-chip { font-size: ${Math.round(targetH * 0.0114)}px !important; padding: ${Math.round(targetH * 0.0057)}px ${Math.round(targetW * 0.025)}px !important; border-radius: ${Math.round(targetW * 0.037)}px !important; }
-    .intel-card { padding: ${Math.round(targetH * 0.0129)}px ${Math.round(targetW * 0.034)}px !important; border-radius: ${Math.round(targetW * 0.037)}px !important; margin-bottom: ${Math.round(targetH * 0.0086)}px !important; }
-    .intel-title { font-size: ${Math.round(targetH * 0.0143)}px !important; margin-bottom: ${Math.round(targetH * 0.0057)}px !important; }
-    .intel-tag { font-size: ${Math.round(targetH * 0.01)}px !important; padding: 1px ${Math.round(targetW * 0.016)}px !important; }
-    .intel-meta { font-size: ${Math.round(targetH * 0.01)}px !important; }
+    .filter-chip { font-size: ${px(8)}px !important; padding: ${px(4)}px ${px(8)}px !important; border-radius: ${px(12)}px !important; }
+    .intel-card { padding: ${px(9)}px ${px(11)}px !important; border-radius: ${px(12)}px !important; margin-bottom: ${px(6)}px !important; }
+    .intel-title { font-size: ${px(10)}px !important; margin-bottom: ${px(4)}px !important; }
+    .intel-tag { font-size: ${px(7)}px !important; padding: ${px(1)}px ${px(5)}px !important; }
+    .intel-meta { font-size: ${px(7)}px !important; }
   `;
 
   return `<!DOCTYPE html>

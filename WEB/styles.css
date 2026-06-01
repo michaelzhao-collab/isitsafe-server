@@ -230,7 +230,8 @@ h1 {
 }
 
 .carousel-image-wrap {
-  aspect-ratio: 9 / 16;
+  /* 新版 6.5" 截图的实际长宽比 1242:2688 = 9:19.49 */
+  aspect-ratio: 1242 / 2688;
   width: 100%;
   border-radius: 16px;
   overflow: hidden;
@@ -241,7 +242,8 @@ h1 {
 .carousel-image-wrap img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* contain 防止把手机底部 tab bar 裁掉 */
+  object-fit: contain;
   display: block;
 }
 
