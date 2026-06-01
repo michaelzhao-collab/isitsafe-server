@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct DeepfakeView: View {
     @Environment(\.dismiss) private var dismiss
@@ -15,6 +16,9 @@ public struct DeepfakeView: View {
     @State private var showRecord = false
     @State private var showResult: DeepfakeCheck?
     @State private var shareErrorMessage: String?
+    @State private var showAudioFilePicker = false
+    @State private var isUploadingFile = false
+    @State private var uploadErrorMessage: String?
 
     public init() {}
 
@@ -66,6 +70,90 @@ public struct DeepfakeView: View {
                 actions: { Button("OK") { shareErrorMessage = nil } },
                 message: { Text(shareErrorMessage ?? "") }
             )
+            .alert(
+                languageCode == "en" ? "Upload failed" : "上传失败",
+                isPresented: Binding(
+                    get: { uploadErrorMessage != nil },
+                    set: { if !$0 { uploadErrorMessage = nil } }
+                ),
+                actions: { Button("OK") { uploadErrorMessage = nil } },
+                message: { Text(uploadErrorMessage ?? "") }
+            )
+            // 上传音频文件：DocumentPicker 选 mp3/m4a/wav
+            .fileImporter(
+                isPresented: $showAudioFilePicker,
+                allowedContentTypes: [.audio, .mpeg4Audio, .mp3, .wav],
+                allowsMultipleSelection: false
+            ) { result in
+                handleAudioFileSelection(result)
+            }
+            // 上传中遮罩
+            .overlay {
+                if isUploadingFile {
+                    ZStack {
+                        Color.black.opacity(0.4).ignoresSafeArea()
+                        VStack(spacing: 12) {
+                            ProgressView().scaleEffect(1.4).tint(.white)
+                            Text(languageCode == "en" ? "Uploading audio..." : "正在上传语音...")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(.white)
+                        }
+                        .padding(24)
+                        .background(Color.black.opacity(0.55))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                    }
+                }
+            }
+        }
+    }
+
+    /// 上传音频文件：DocumentPicker 选 → 上传 R2 → 创建检测任务 → 展示结果
+    private func handleAudioFileSelection(_ result: Result<[URL], Error>) {
+        switch result {
+        case .failure(let err):
+            uploadErrorMessage = err.localizedDescription
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            uploadAndAnalyzeAudio(url: url)
+        }
+    }
+
+    private func uploadAndAnalyzeAudio(url: URL) {
+        isUploadingFile = true
+        Task {
+            do {
+                let needsAccess = url.startAccessingSecurityScopedResource()
+                defer { if needsAccess { url.stopAccessingSecurityScopedResource() } }
+                let audioData = try Data(contentsOf: url)
+                let mime: String = {
+                    switch url.pathExtension.lowercased() {
+                    case "mp3": return "audio/mpeg"
+                    case "wav": return "audio/wav"
+                    case "m4a", "aac", "mp4": return "audio/mp4"
+                    default: return "audio/mp4"
+                    }
+                }()
+                let fileUrl = try await NetworkManager.shared.uploadAudio(
+                    type: "deepfake",
+                    audioData: audioData,
+                    mimeType: mime,
+                    filename: url.lastPathComponent
+                )
+                let check = try await DeepfakeRepository.shared.create(
+                    sourceType: "upload",
+                    fileUrl: fileUrl,
+                    fileDurationSec: nil
+                )
+                await MainActor.run {
+                    isUploadingFile = false
+                    showResult = check
+                }
+            } catch {
+                await MainActor.run {
+                    isUploadingFile = false
+                    uploadErrorMessage = (error as? APIError)?.userMessage ?? error.localizedDescription
+                }
+            }
         }
     }
 
@@ -152,19 +240,11 @@ public struct DeepfakeView: View {
             entryCard(
                 icon: "doc.fill",
                 title: languageCode == "en" ? "Upload audio file" : "上传音频文件",
-                desc: languageCode == "en" ? "mp3 / m4a / aac / wav · ≤ 60s" : "支持 mp3 / m4a · 最长 60s",
+                desc: languageCode == "en" ? "mp3 / m4a / aac / wav · ≤ 60s" : "支持 mp3 / m4a / wav · 最长 60s",
                 primary: false,
-                action: { showRecord = true } // 一期共用 record sheet 即可
+                action: { showAudioFilePicker = true }     // 真正接通文件选择器
             )
-            entryCard(
-                icon: "square.and.arrow.up.fill",
-                title: languageCode == "en" ? "Share from WeChat / iMessage" : "从微信/iMessage 分享",
-                desc: languageCode == "en"
-                    ? "Long-press a voice → Share → StarLens"
-                    : "长按对方语音 → 分享 → StarLens",
-                primary: false,
-                action: {}
-            )
+            // 删除"从微信/iMessage 分享"入口（业主反馈：用户不熟悉，去掉）
         }
     }
 

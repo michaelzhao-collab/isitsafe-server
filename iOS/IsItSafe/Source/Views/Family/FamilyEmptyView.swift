@@ -25,26 +25,50 @@ public struct FamilyEmptyView: View {
                 createCard
                 joinCard
                 whatIsCard
+                // 防止底导（MainTabView 自定义 tabBar ~78pt + 安全区）遮挡最后一段
+                Color.clear.frame(height: 120)
             }
             .padding(AppTheme.Spacing.lg)
         }
         .background(AppTheme.background)
     }
 
+    /// hero：用蓝渐变 + SF Symbol 大图，替代之前的 emoji 👨‍👩‍👧‍👦
     private var heroSection: some View {
-        VStack(spacing: 8) {
-            Text("👨‍👩‍👧‍👦")
-                .font(.system(size: 64))
-                .padding(.top, 12)
+        VStack(spacing: 14) {
+            ZStack {
+                // 蓝色径向渐变光晕（呼应 App 主色）
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [AppTheme.primary.opacity(0.18), AppTheme.primary.opacity(0.04)],
+                        startPoint: .top, endPoint: .bottom
+                    ))
+                    .frame(width: 110, height: 110)
+                // 实心圆背景 + 白色 SF Symbol
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [AppTheme.primary, AppTheme.premiumHeader],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 84, height: 84)
+                    .shadow(color: AppTheme.primary.opacity(0.25), radius: 12, x: 0, y: 6)
+                Image(systemName: "shield.lefthalf.filled")
+                    .font(.system(size: 38, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            .padding(.top, 16)
+
             Text(languageCode == "en" ? "Family Guard" : "家庭守护")
-                .font(.title.weight(.bold))
+                .font(.system(size: 28, weight: .bold))
                 .foregroundColor(AppTheme.textPrimary)
             Text(languageCode == "en"
                  ? "Free to create. Look after each other."
                  : "免费创建，全家互相守护")
                 .font(.subheadline)
                 .foregroundColor(AppTheme.textSecondary)
+                .multilineTextAlignment(.center)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var createCard: some View {
@@ -116,44 +140,70 @@ public struct FamilyEmptyView: View {
     }
 
     private var whatIsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(languageCode == "en" ? "What is Family Guard?" : "家庭守护是什么？")
-                .font(.headline)
-                .foregroundColor(AppTheme.primary)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Image(systemName: "questionmark.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(AppTheme.primary)
+                Text(languageCode == "en" ? "What is Family Guard?" : "家庭守护是什么？")
+                    .font(.headline)
+                    .foregroundColor(AppTheme.textPrimary)
+            }
             featureRow(
-                icon: "📢",
-                title: languageCode == "en" ? "Official broadcast" : "官方匿名广播",
+                sfIcon: "megaphone.fill",
+                iconColor: AppTheme.primary,
+                title: languageCode == "en" ? "Anonymous family alerts" : "家庭匿名广播",
                 desc: languageCode == "en"
-                    ? "AI auto-checks family queries; scams broadcast officially"
-                    : "家人查询的诈骗信息，自动以官方名义通知全家"
+                    ? "When one family member checks a scam, the rest get an instant heads-up (anonymous)"
+                    : "家人查到诈骗时，其他人会立刻收到匿名提醒"
             )
             featureRow(
-                icon: "💚",
+                sfIcon: "heart.fill",
+                iconColor: AppTheme.riskHigh,
                 title: languageCode == "en" ? "Care reminders" : "关怀提醒",
                 desc: languageCode == "en"
-                    ? "Push & SMS if a member hasn't opened the app for days"
-                    : "家人连续未活跃时自动 push + 短信提醒你"
+                    ? "If a family member hasn't opened the app for days, push & SMS reminders"
+                    : "家人长时间没打开 App，会自动推送 + 短信提醒你"
             )
             featureRow(
-                icon: "👴",
+                sfIcon: "person.crop.circle.fill.badge.checkmark",
+                iconColor: AppTheme.riskMedium,
                 title: languageCode == "en" ? "Elder mode" : "长辈模式",
                 desc: languageCode == "en"
-                    ? "Big buttons + TTS + remote toggle for parents"
-                    : "大按钮 + TTS 朗读，子女可远程为父母开启"
+                    ? "Large buttons + voice reading + remote enable for parents from your phone"
+                    : "大按钮 + 语音朗读，你能在自己手机上远程为父母开启"
             )
         }
         .padding(AppTheme.Spacing.lg)
-        .background(AppTheme.premiumWhyCard.opacity(0.4))
+        .background(AppTheme.cardBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                .stroke(AppTheme.primary.opacity(0.1), lineWidth: 1)
+        )
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
     }
 
-    private func featureRow(icon: String, title: String, desc: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text(icon).font(.title3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.subheadline.weight(.semibold))
-                Text(desc).font(.caption).foregroundColor(AppTheme.textSecondary)
+    private func featureRow(sfIcon: String, iconColor: Color, title: String, desc: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(iconColor.opacity(0.12))
+                    .frame(width: 36, height: 36)
+                Image(systemName: sfIcon)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(iconColor)
             }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(AppTheme.textPrimary)
+                Text(desc)
+                    .font(.caption)
+                    .foregroundColor(AppTheme.textSecondary)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
         }
     }
 }

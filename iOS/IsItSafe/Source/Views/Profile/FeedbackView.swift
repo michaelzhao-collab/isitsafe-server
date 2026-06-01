@@ -16,6 +16,7 @@ public struct FeedbackView: View {
     @State private var showImagePicker = false
     @State private var submitting = false
     @State private var errorMessage: String?
+    @FocusState private var contentFocused: Bool
 
     public init() {}
 
@@ -24,6 +25,7 @@ public struct FeedbackView: View {
             Section {
                 TextField(languageCode == "en" ? "Enter your feedback or suggestions" : "请输入您的意见或建议", text: $content, axis: .vertical)
                     .lineLimit(5...10)
+                    .focused($contentFocused)
             } header: {
                 Text(languageCode == "en" ? "Feedback" : "反馈内容")
             }
@@ -92,6 +94,16 @@ public struct FeedbackView: View {
         }
         .listStyle(.insetGrouped)
         .background(AppTheme.background)
+        .scrollDismissesKeyboard(.interactively)   // 下拉/滚动可隐藏键盘
+        .toolbar {
+            // 键盘上方加"完成"按钮主动收键盘
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(languageCode == "en" ? "Done" : "完成") {
+                    contentFocused = false
+                }
+            }
+        }
         .navigationTitle(languageCode == "en" ? "Feedback" : "意见反馈")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showImagePicker) {
@@ -116,7 +128,9 @@ public struct FeedbackView: View {
             do {
                 var imageUrl: String?
                 if let img = pickedImage, let data = img.jpegData(compressionQuality: 0.8) {
-                    imageUrl = try? await NetworkManager.shared.uploadFile(
+                    // 之前用 try? 会吞掉 R2 上传错误，导致用户看不到为什么 admin 收不到图。
+                    // 改成 try：上传失败 → catch 弹错误（"R2 服务连接失败" 等）让业主能定位
+                    imageUrl = try await NetworkManager.shared.uploadFile(
                         type: "screenshot",
                         imageData: data,
                         mimeType: "image/jpeg",
