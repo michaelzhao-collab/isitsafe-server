@@ -7,11 +7,18 @@
   :root {
     --screen-w: 322px;       /* 1290 ÷ 4 缩放预览 */
     --screen-h: 700px;       /* 2796 ÷ 4 */
-    --primary: #0066FF;
-    --primary-dark: #0044CC;
-    --danger: #FF3B30;
-    --warning: #FF9500;
-    --success: #34C759;
+    /* 全部色值对齐 AppTheme.swift（浅色模式）*/
+    --primary: #2F6BFF;          /* AppTheme.primary */
+    --primary-dark: #1F4FCC;     /* 同色系深一档（按钮 hover/dark）*/
+    --danger: #DC2626;           /* AppTheme.riskHigh */
+    --warning: #F59E0B;          /* AppTheme.riskMedium */
+    --success: #10B981;          /* AppTheme.riskLow */
+    --bg: #ECEFF3;               /* AppTheme.background */
+    --card: #FFFFFF;             /* AppTheme.cardBackground */
+    --tab-bg: #FAFBFD;           /* AppTheme.tabBarBackground */
+    --border: #E5E7EB;           /* AppTheme.border */
+    --text: #1A1F2E;             /* AppTheme.textPrimary */
+    --text-2: #6B7280;           /* AppTheme.textSecondary */
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -27,12 +34,12 @@
   }
   .subtitle {
     text-align: center;
-    color: #8E8E93;
+    color: #6B7280;
     margin-bottom: 40px;
     font-size: 14px;
   }
   .row-title {
-    color: #8E8E93;
+    color: #6B7280;
     font-size: 13px;
     margin: 32px 0 12px;
     text-align: center;
@@ -64,17 +71,21 @@
   }
   .screen-label {
     text-align: center;
-    color: #8E8E93;
+    color: #6B7280;
     font-size: 12px;
     margin-top: 10px;
   }
 
-  /* ==== 顶部标题区（每张都有，只有标题，无其它装饰）==== */
+  /* ==== 顶部标题区：固定高度，让所有手机从同一 Y 位置开始 ==== */
   .hero-top {
     text-align: center;
     color: #fff;
-    margin-bottom: 22px;
     width: 100%;
+    height: 110px;            /* 固定高度 */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin-bottom: 18px;
   }
   .hero-headline {
     font-size: 30px;
@@ -119,10 +130,10 @@
   }
   .phone-screen {
     width: 100%; height: 100%;
-    background: #F5F7FA;
+    background: #ECEFF3;
     border-radius: 28px;
     overflow: hidden;
-    color: #1F2D3D;
+    color: #1A1F2E;
     font-size: 9px;
     display: flex;
     flex-direction: column;
@@ -155,10 +166,12 @@
   }
   .nav-icon {
     width: 22px; height: 22px;
-    background: rgba(0, 102, 255, 0.08);
-    border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    font-size: 10px;
+    color: var(--primary);
+  }
+  .nav-icon svg {
+    width: 18px;
+    height: 18px;
     color: var(--primary);
   }
   .nav-title { flex: 1; text-align: center; }
@@ -178,7 +191,7 @@
   }
   .tab-item {
     flex: 1;
-    color: #8E8E93;
+    color: #6B7280;
     font-size: 8px;
     font-weight: 500;
     display: flex;
@@ -203,7 +216,7 @@
   .tab-icon-wrap svg {
     width: 18px;
     height: 18px;
-    color: #8E8E93;  /* 通过 currentColor 同时控制 stroke 和 fill */
+    color: #6B7280;  /* 通过 currentColor 同时控制 stroke 和 fill */
   }
   .tab-item.active .tab-icon-wrap svg {
     color: #fff;
@@ -214,7 +227,7 @@
     flex: 1;
     padding: 10px;
     overflow: hidden;
-    background: #F5F7FA;
+    background: #ECEFF3;
   }
   .bubble-user {
     background: var(--primary);
@@ -228,7 +241,7 @@
   }
   .bubble-bot {
     background: #fff;
-    color: #1F2D3D;
+    color: #1A1F2E;
     padding: 10px;
     border-radius: 14px 14px 14px 4px;
     font-size: 9px;
@@ -245,7 +258,7 @@
     display: flex;
     align-items: center;
     font-size: 9px;
-    color: #8E8E93;
+    color: #6B7280;
     box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
   }
   .input-bar::before {
@@ -255,7 +268,7 @@
 
   /* ==== Screen 1: Hook ==== */
   .scr1-card {
-    background: #FFEFEC;
+    background: #FEE2E2;
     border-left: 3px solid var(--danger);
     padding: 7px 9px;
     margin-bottom: 6px;
@@ -273,7 +286,7 @@
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   }
   .risk-header {
-    background: linear-gradient(90deg, #FF3B30, #FF5C50);
+    background: linear-gradient(90deg, #DC2626, #EF4444);
     color: #fff;
     padding: 8px 12px;
     display: flex;
@@ -294,12 +307,12 @@
   .risk-summary {
     font-size: 9px;
     margin-bottom: 10px;
-    color: #1F2D3D;
+    color: #1A1F2E;
     line-height: 1.5;
   }
   .risk-section-title {
     font-size: 9px;
-    color: #1F2D3D;
+    color: #1A1F2E;
     font-weight: 700;
     margin: 8px 0 5px;
   }
@@ -320,7 +333,7 @@
   }
   .upload-preview {
     background: #E6F4EA;
-    border: 1px dashed #34C759;
+    border: 1px dashed #10B981;
     border-radius: 10px;
     padding: 8px;
     font-size: 8px;
@@ -328,7 +341,7 @@
     color: #1F4D2B;
     margin-bottom: 8px;
   }
-  .upload-preview strong { color: #1F2D3D; }
+  .upload-preview strong { color: #1A1F2E; }
   .ai-thinking {
     text-align: center;
     color: var(--primary);
@@ -337,7 +350,7 @@
     padding: 4px 0;
   }
   .ai-result {
-    background: #FFF3F2;
+    background: #FEE2E2;
     border-left: 3px solid var(--danger);
     padding: 8px 10px;
     border-radius: 8px;
@@ -348,7 +361,7 @@
 
   /* ==== Screen 4: Family ==== */
   .family-page {
-    background: #F5F7FA;
+    background: #ECEFF3;
     flex: 1;
     padding: 8px;
   }
@@ -378,7 +391,7 @@
   .family-avatar {
     width: 28px; height: 28px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #FF9500, #FF6B6B);
+    background: linear-gradient(135deg, #F59E0B, #DC2626);
     display: flex; align-items: center; justify-content: center;
     color: #fff; font-weight: 700; font-size: 10px;
     margin-right: 9px;
@@ -386,7 +399,7 @@
   }
   .family-info { flex: 1; }
   .family-name { font-weight: 600; font-size: 10px; }
-  .family-status { font-size: 8px; color: #8E8E93; margin-top: 1px; }
+  .family-status { font-size: 8px; color: #6B7280; margin-top: 1px; }
   .alert-badge {
     background: var(--danger);
     color: #fff;
@@ -408,7 +421,7 @@
 
   /* ==== Screen 5: Voice Deepfake（实际 App 用圆环 gauge 200x200）==== */
   .voice-page {
-    background: #F5F7FA;
+    background: #ECEFF3;
     flex: 1;
     padding: 14px 12px;
     display: flex;
@@ -438,7 +451,7 @@
   }
   .voice-gauge-label {
     font-size: 7px;
-    color: #8E8E93;
+    color: #6B7280;
     margin-top: 2px;
   }
   .voice-verdict-title {
@@ -449,7 +462,7 @@
   }
   .voice-meta-line {
     font-size: 8px;
-    color: #8E8E93;
+    color: #6B7280;
     margin-bottom: 10px;
   }
   .voice-section {
@@ -463,14 +476,14 @@
   .voice-section-title {
     font-size: 9px;
     font-weight: 700;
-    color: #1F2D3D;
+    color: #1A1F2E;
     margin-bottom: 6px;
   }
   .voice-feature-row {
     display: flex;
     align-items: center;
     font-size: 8px;
-    color: #1F2D3D;
+    color: #1A1F2E;
     padding: 4px 0;
     border-bottom: 1px solid rgba(0,0,0,0.04);
   }
@@ -484,13 +497,13 @@
   }
   .voice-advice-text {
     font-size: 8px;
-    color: #1F2D3D;
+    color: #1A1F2E;
     line-height: 1.5;
   }
 
   /* ==== Screen 6: Intel ==== */
   .intel-page {
-    background: #F5F7FA;
+    background: #ECEFF3;
     flex: 1;
     padding: 8px;
   }
@@ -502,7 +515,7 @@
   }
   .filter-chip {
     background: #fff;
-    color: #1F2D3D;
+    color: #1A1F2E;
     padding: 4px 8px;
     border-radius: 12px;
     font-size: 8px;
@@ -531,18 +544,18 @@
     margin-bottom: 4px;
   }
   .intel-tag {
-    background: #FFE5E0;
+    background: #FEE2E2;
     color: var(--danger);
     font-size: 7px;
     padding: 1px 5px;
     border-radius: 4px;
     font-weight: 700;
   }
-  .intel-tag.new { background: #E5F1FF; color: var(--primary); }
-  .intel-tag.trending { background: #FFF4E0; color: var(--warning); }
+  .intel-tag.new { background: #EBF1FF; color: var(--primary); }
+  .intel-tag.trending { background: #FEF3C7; color: var(--warning); }
   .intel-meta {
     font-size: 7px;
-    color: #8E8E93;
+    color: #6B7280;
     display: flex;
     justify-content: space-between;
   }
@@ -602,6 +615,46 @@
     <path d="M4.5 19.5v-.7c0-3.3 3.6-5.8 7.5-5.8s7.5 2.5 7.5 5.8v.7"
           fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
   </symbol>
+  <!-- 导航栏 SF Symbol -->
+  <!-- line.3.horizontal - 左侧菜单 (≡) -->
+  <symbol id="nav-menu" viewBox="0 0 24 24">
+    <line x1="4" y1="7" x2="20" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <line x1="4" y1="17" x2="20" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </symbol>
+  <!-- square.and.pencil - 右侧新建 -->
+  <symbol id="nav-edit" viewBox="0 0 24 24">
+    <path d="M3.5 6.5C3.5 5.4 4.4 4.5 5.5 4.5H12L10 6.5H5.5V18.5H17.5V14L19.5 12V18.5C19.5 19.6 18.6 20.5 17.5 20.5H5.5C4.4 20.5 3.5 19.6 3.5 18.5V6.5Z"
+          fill="currentColor"/>
+    <path d="M19.7 3.3C20.5 2.5 21.8 2.5 22.6 3.3L22.7 3.4C23.5 4.2 23.5 5.5 22.7 6.3L13.5 15.5L9 16.5L10 12L19.7 3.3Z"
+          fill="currentColor" transform="translate(-1.5 0)"/>
+  </symbol>
+  <!-- chevron.left - 返回 -->
+  <symbol id="nav-back" viewBox="0 0 24 24">
+    <path d="M15 18L9 12L15 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <!-- square.and.arrow.up - 分享 -->
+  <symbol id="nav-share" viewBox="0 0 24 24">
+    <path d="M12 4L12 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <path d="M8 8L12 4L16 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M5 14V19C5 19.6 5.4 20 6 20H18C18.6 20 19 19.6 19 19V14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+  <!-- plus - 加号 -->
+  <symbol id="nav-plus" viewBox="0 0 24 24">
+    <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+  </symbol>
+  <!-- magnifyingglass - 搜索 -->
+  <symbol id="nav-search" viewBox="0 0 24 24">
+    <circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="2"/>
+    <line x1="15.5" y1="15.5" x2="20" y2="20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </symbol>
+  <!-- info.circle - 信息 -->
+  <symbol id="nav-info" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    <line x1="12" y1="11" x2="12" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="12" cy="8.2" r="1.1" fill="currentColor"/>
+  </symbol>
 </svg>
 
 <h1>StarLensAI · App Store Screenshots V2</h1>
@@ -625,16 +678,16 @@
           <span class="status-right">📶 5G 🔋 100%</span>
         </div>
         <div class="nav-bar">
-          <div class="nav-icon">☰</div>
+          <div class="nav-icon"><svg><use href="#nav-menu"/></svg></div>
           <div class="nav-title">星识安全助手</div>
-          <div class="nav-icon">✎</div>
+          <div class="nav-icon"><svg><use href="#nav-edit"/></svg></div>
         </div>
         <div class="chat-area">
           <div class="bubble-user">这条短信是真的吗？<br>"【银行】您的账户异常，立即点击 hxxx.cn/auth 验证否则冻结"</div>
           <div class="bubble-bot">
             <div style="display:flex; align-items:center; gap:4px; margin-bottom:4px;">
               <span style="font-size:11px;">🚨</span>
-              <strong style="color:#FF3B30; font-size:10px;">高风险 · 96 分 · 钓鱼诈骗</strong>
+              <strong style="color:#DC2626; font-size:10px;">高风险 · 96 分 · 钓鱼诈骗</strong>
             </div>
             <div style="line-height:1.5;">
               <strong>识别原因：</strong><br>
@@ -676,11 +729,11 @@
           <span class="status-right">📶 5G 🔋 100%</span>
         </div>
         <div class="nav-bar">
-          <div class="nav-icon">←</div>
+          <div class="nav-icon"><svg><use href="#nav-back"/></svg></div>
           <div class="nav-title">风险分析详情</div>
-          <div class="nav-icon">⤴</div>
+          <div class="nav-icon"><svg><use href="#nav-share"/></svg></div>
         </div>
-        <div style="flex:1; background:#F5F7FA; overflow:hidden;">
+        <div style="flex:1; background:#ECEFF3; overflow:hidden;">
           <div class="risk-card-full">
             <div class="risk-header">
               <span>高风险</span>
@@ -726,12 +779,12 @@
           <span class="status-right">📶 5G 🔋 100%</span>
         </div>
         <div class="nav-bar">
-          <div class="nav-icon">☰</div>
+          <div class="nav-icon"><svg><use href="#nav-menu"/></svg></div>
           <div class="nav-title">星识安全助手</div>
-          <div class="nav-icon">✎</div>
+          <div class="nav-icon"><svg><use href="#nav-edit"/></svg></div>
         </div>
         <div class="chat-area">
-          <div class="bubble-user" style="background:#34C759; padding:6px;">
+          <div class="bubble-user" style="background:#10B981; padding:6px;">
             <div style="background:rgba(0,0,0,0.15); border-radius:6px; padding:6px; color:#fff;">
               <div style="font-size:7px; opacity:0.85; margin-bottom:2px;">📱 微信截图 · 已上传</div>
               <div style="font-size:8px; line-height:1.4;">"客服小李"：恭喜您中奖 50000 元！请添加我领取...</div>
@@ -740,7 +793,7 @@
           <div class="bubble-bot">
             <div style="display:flex; align-items:center; gap:4px; margin-bottom:4px;">
               <span style="font-size:11px;">🚨</span>
-              <strong style="color:#FF3B30; font-size:10px;">高风险 · 92 分 · 中奖诈骗</strong>
+              <strong style="color:#DC2626; font-size:10px;">高风险 · 92 分 · 中奖诈骗</strong>
             </div>
             <div style="line-height:1.5;">
               <strong>截图识别 3 个钓鱼信号：</strong><br>
@@ -787,9 +840,9 @@
           <span class="status-right">📶 5G 🔋 100%</span>
         </div>
         <div class="nav-bar">
-          <div class="nav-icon">☰</div>
+          <div class="nav-icon"><svg><use href="#nav-menu"/></svg></div>
           <div class="nav-title">家庭守护</div>
-          <div class="nav-icon">+</div>
+          <div class="nav-icon"><svg><use href="#nav-plus"/></svg></div>
         </div>
         <div class="family-page">
           <div class="family-card">
@@ -803,7 +856,7 @@
               <div class="alert-badge">已预警</div>
             </div>
             <div class="family-member">
-              <div class="family-avatar" style="background: linear-gradient(135deg,#0066FF,#0044CC);">爸</div>
+              <div class="family-avatar" style="background: linear-gradient(135deg,#2F6BFF,#1F4FCC);">爸</div>
               <div class="family-info">
                 <div class="family-name">爸爸</div>
                 <div class="family-status">今天 · 11 次扫描 · 全部安全</div>
@@ -811,15 +864,15 @@
               <div class="safe-badge">安全</div>
             </div>
             <div class="family-member">
-              <div class="family-avatar" style="background: linear-gradient(135deg,#34C759,#25A047);">奶</div>
+              <div class="family-avatar" style="background: linear-gradient(135deg,#10B981,#059669);">奶</div>
               <div class="family-info">
                 <div class="family-name">奶奶</div>
                 <div class="family-status">已开启长辈模式 · 大字体</div>
               </div>
             </div>
           </div>
-          <div class="family-card" style="background:#E5F1FF;">
-            <div style="font-size:9px; font-weight:600; color:#0044CC; line-height:1.5;">
+          <div class="family-card" style="background:#EBF1FF;">
+            <div style="font-size:9px; font-weight:600; color:#1F4FCC; line-height:1.5;">
               💡 妈妈刚才点击了你已为她预警的链接，已自动拦截。是否要打个电话提醒她？
             </div>
             <div style="background:var(--primary); color:#fff; text-align:center; padding:7px; border-radius:8px; margin-top:6px; font-size:9px; font-weight:700;">
@@ -854,9 +907,9 @@
           <span class="status-right">📶 5G 🔋 100%</span>
         </div>
         <div class="nav-bar">
-          <div class="nav-icon">←</div>
+          <div class="nav-icon"><svg><use href="#nav-back"/></svg></div>
           <div class="nav-title">语音深伪检测</div>
-          <div class="nav-icon">?</div>
+          <div class="nav-icon"><svg><use href="#nav-info"/></svg></div>
         </div>
         <div class="voice-page">
           <div class="voice-gauge">
@@ -924,9 +977,9 @@
           <span class="status-right">📶 5G 🔋 100%</span>
         </div>
         <div class="nav-bar">
-          <div class="nav-icon">☰</div>
+          <div class="nav-icon"><svg><use href="#nav-menu"/></svg></div>
           <div class="nav-title">反诈情报站</div>
-          <div class="nav-icon">🔍</div>
+          <div class="nav-icon"><svg><use href="#nav-search"/></svg></div>
         </div>
         <div class="intel-page">
           <div class="intel-filter">
@@ -1010,16 +1063,16 @@
       <div class="phone-screen">
         <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
         <div class="nav-bar">
-          <div class="nav-icon">☰</div>
+          <div class="nav-icon"><svg><use href="#nav-menu"/></svg></div>
           <div class="nav-title">StarLens</div>
-          <div class="nav-icon">✎</div>
+          <div class="nav-icon"><svg><use href="#nav-edit"/></svg></div>
         </div>
         <div class="chat-area">
           <div class="bubble-user">Is this real?<br>"[BANK] Unusual activity. Verify at hxxx.com/auth or your account will be frozen"</div>
           <div class="bubble-bot">
             <div style="display:flex; align-items:center; gap:4px; margin-bottom:4px;">
               <span style="font-size:11px;">🚨</span>
-              <strong style="color:#FF3B30; font-size:10px;">HIGH RISK · 96/100 · Phishing</strong>
+              <strong style="color:#DC2626; font-size:10px;">HIGH RISK · 96/100 · Phishing</strong>
             </div>
             <div style="line-height:1.5;">
               <strong>3 reasons:</strong><br>
@@ -1058,11 +1111,11 @@
       <div class="phone-screen">
         <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
         <div class="nav-bar">
-          <div class="nav-icon">←</div>
+          <div class="nav-icon"><svg><use href="#nav-back"/></svg></div>
           <div class="nav-title">Risk Analysis</div>
-          <div class="nav-icon">⤴</div>
+          <div class="nav-icon"><svg><use href="#nav-share"/></svg></div>
         </div>
-        <div style="flex:1; background:#F5F7FA; overflow:hidden;">
+        <div style="flex:1; background:#ECEFF3; overflow:hidden;">
           <div class="risk-card-full">
             <div class="risk-header">
               <span>High risk</span>
@@ -1105,12 +1158,12 @@
       <div class="phone-screen">
         <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
         <div class="nav-bar">
-          <div class="nav-icon">☰</div>
+          <div class="nav-icon"><svg><use href="#nav-menu"/></svg></div>
           <div class="nav-title">StarLens</div>
-          <div class="nav-icon">✎</div>
+          <div class="nav-icon"><svg><use href="#nav-edit"/></svg></div>
         </div>
         <div class="chat-area">
-          <div class="bubble-user" style="background:#34C759; padding:6px;">
+          <div class="bubble-user" style="background:#10B981; padding:6px;">
             <div style="background:rgba(0,0,0,0.15); border-radius:6px; padding:6px; color:#fff;">
               <div style="font-size:7px; opacity:0.85; margin-bottom:2px;">📱 WhatsApp Screenshot · Uploaded</div>
               <div style="font-size:8px; line-height:1.4;">"Support": Congrats! You won $50,000! Add me to claim...</div>
@@ -1119,7 +1172,7 @@
           <div class="bubble-bot">
             <div style="display:flex; align-items:center; gap:4px; margin-bottom:4px;">
               <span style="font-size:11px;">🚨</span>
-              <strong style="color:#FF3B30; font-size:10px;">HIGH RISK · 92/100 · Prize Scam</strong>
+              <strong style="color:#DC2626; font-size:10px;">HIGH RISK · 92/100 · Prize Scam</strong>
             </div>
             <div style="line-height:1.5;">
               <strong>3 phishing signals detected:</strong><br>
@@ -1163,9 +1216,9 @@
       <div class="phone-screen">
         <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
         <div class="nav-bar">
-          <div class="nav-icon">☰</div>
+          <div class="nav-icon"><svg><use href="#nav-menu"/></svg></div>
           <div class="nav-title">Family Guardian</div>
-          <div class="nav-icon">+</div>
+          <div class="nav-icon"><svg><use href="#nav-plus"/></svg></div>
         </div>
         <div class="family-page">
           <div class="family-card">
@@ -1179,7 +1232,7 @@
               <div class="alert-badge">ALERT</div>
             </div>
             <div class="family-member">
-              <div class="family-avatar" style="background: linear-gradient(135deg,#0066FF,#0044CC);">D</div>
+              <div class="family-avatar" style="background: linear-gradient(135deg,#2F6BFF,#1F4FCC);">D</div>
               <div class="family-info">
                 <div class="family-name">Dad</div>
                 <div class="family-status">Today · 11 scans · all safe</div>
@@ -1187,15 +1240,15 @@
               <div class="safe-badge">SAFE</div>
             </div>
             <div class="family-member">
-              <div class="family-avatar" style="background: linear-gradient(135deg,#34C759,#25A047);">G</div>
+              <div class="family-avatar" style="background: linear-gradient(135deg,#10B981,#059669);">G</div>
               <div class="family-info">
                 <div class="family-name">Grandma</div>
                 <div class="family-status">Elder Mode · Large text on</div>
               </div>
             </div>
           </div>
-          <div class="family-card" style="background:#E5F1FF;">
-            <div style="font-size:9px; font-weight:600; color:#0044CC; line-height:1.5;">
+          <div class="family-card" style="background:#EBF1FF;">
+            <div style="font-size:9px; font-weight:600; color:#1F4FCC; line-height:1.5;">
               💡 Mom just clicked a link you'd already flagged. Auto-blocked. Call her now?
             </div>
             <div style="background:var(--primary); color:#fff; text-align:center; padding:7px; border-radius:8px; margin-top:6px; font-size:9px; font-weight:700;">
@@ -1227,9 +1280,9 @@
       <div class="phone-screen">
         <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
         <div class="nav-bar">
-          <div class="nav-icon">←</div>
+          <div class="nav-icon"><svg><use href="#nav-back"/></svg></div>
           <div class="nav-title">Voice Deepfake Check</div>
-          <div class="nav-icon">?</div>
+          <div class="nav-icon"><svg><use href="#nav-info"/></svg></div>
         </div>
         <div class="voice-page">
           <div class="voice-gauge">
@@ -1294,9 +1347,9 @@
       <div class="phone-screen">
         <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
         <div class="nav-bar">
-          <div class="nav-icon">☰</div>
+          <div class="nav-icon"><svg><use href="#nav-menu"/></svg></div>
           <div class="nav-title">Scam Intel</div>
-          <div class="nav-icon">🔍</div>
+          <div class="nav-icon"><svg><use href="#nav-search"/></svg></div>
         </div>
         <div class="intel-page">
           <div class="intel-filter">
