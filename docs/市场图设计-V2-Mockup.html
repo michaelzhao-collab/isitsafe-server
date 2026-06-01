@@ -238,15 +238,17 @@
     overflow: hidden;
     background: #ECEFF3;
   }
+  /* 实际气泡：AppTheme.primary.opacity(0.12) 淡蓝底 + 深色文字 */
   .bubble-user {
-    background: var(--primary);
-    color: #fff;
+    background: rgba(47, 107, 255, 0.12);
+    color: var(--text);
     padding: 8px 10px;
-    border-radius: 14px 14px 4px 14px;
+    border-radius: 14px;
     font-size: 9px;
     max-width: 70%;
     margin: 0 0 8px auto;
     line-height: 1.4;
+    text-align: left;
   }
   .bubble-bot {
     background: #fff;
@@ -866,9 +868,9 @@
           <div class="nav-icon"><svg><use href="#nav-edit"/></svg></div>
         </div>
         <div class="chat-area">
-          <div class="bubble-user" style="background:#10B981; padding:6px;">
-            <div style="background:rgba(0,0,0,0.15); border-radius:6px; padding:6px; color:#fff;">
-              <div style="font-size:7px; opacity:0.85; margin-bottom:2px;">📱 微信截图 · 已上传</div>
+          <div class="bubble-user" style="padding:8px; max-width:78%;">
+            <div style="background:rgba(0,0,0,0.04); border:1px dashed rgba(0,0,0,0.12); border-radius:6px; padding:6px; color:var(--text);">
+              <div style="font-size:7px; color:var(--text-2); margin-bottom:2px;">📱 微信截图 · 已上传</div>
               <div style="font-size:8px; line-height:1.4;">"客服小李"：恭喜您中奖 50000 元！请添加我领取...</div>
             </div>
           </div>
@@ -1259,9 +1261,9 @@
           <div class="nav-icon"><svg><use href="#nav-edit"/></svg></div>
         </div>
         <div class="chat-area">
-          <div class="bubble-user" style="background:#10B981; padding:6px;">
-            <div style="background:rgba(0,0,0,0.15); border-radius:6px; padding:6px; color:#fff;">
-              <div style="font-size:7px; opacity:0.85; margin-bottom:2px;">📱 WhatsApp Screenshot · Uploaded</div>
+          <div class="bubble-user" style="padding:8px; max-width:78%;">
+            <div style="background:rgba(0,0,0,0.04); border:1px dashed rgba(0,0,0,0.12); border-radius:6px; padding:6px; color:var(--text);">
+              <div style="font-size:7px; color:var(--text-2); margin-bottom:2px;">📱 WhatsApp Screenshot · Uploaded</div>
               <div style="font-size:8px; line-height:1.4;">"Support": Congrats! You won $50,000! Add me to claim...</div>
             </div>
           </div>
