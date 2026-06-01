@@ -5,6 +5,7 @@ import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { SubscriptionModule } from '../subscription/subscription.module';
 import { SettingsModule } from '../settings/settings.module';
 import { RedisModule } from '../../redis/redis.module';
+import { NotificationModule } from '../notification/notification.module';
 import { AdminController } from './admin.controller';
 import { AdminAuthController } from './admin-auth.controller';
 import { AdminAuthService } from './admin-auth.service';
@@ -22,12 +23,13 @@ import { AdminFeedbackController } from './admin-feedback.controller';
 import { AdminMembershipController } from './admin-membership.controller';
 import { AdminRiskDataController } from './admin-risk-data.controller';
 import { AdminV3Controller } from './admin-v3.controller';
+import { AdminDiagnosticsController } from './admin-diagnostics.controller';
 import { TurnstileService } from './turnstile.service';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 import { AdminAuditLogService } from './audit/audit-log.service';
 
 @Module({
-  imports: [AuthModule, ReportModule, KnowledgeModule, SubscriptionModule, SettingsModule, RedisModule],
+  imports: [AuthModule, ReportModule, KnowledgeModule, SubscriptionModule, SettingsModule, RedisModule, NotificationModule],
   controllers: [
     AdminController,
     AdminAuthController,
@@ -45,6 +47,7 @@ import { AdminAuditLogService } from './audit/audit-log.service';
     AdminMembershipController,
     AdminRiskDataController,
     AdminV3Controller,
+    AdminDiagnosticsController,
   ],
   providers: [AdminRoleGuard, AdminAuthService, TurnstileService, AdminAuditLogService],
   exports: [AdminAuditLogService],

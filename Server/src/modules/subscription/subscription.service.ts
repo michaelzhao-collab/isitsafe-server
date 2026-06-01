@@ -425,6 +425,12 @@ export class SubscriptionService {
    */
   async handleAppleNotification(body: Record<string, unknown>): Promise<void> {
     const signedPayload = (body?.signedPayload as string) || (body?.signed_payload as string) || '';
+    // 入口日志：Apple 任何一次 POST 都会落 Railway，方便排查 webhook 是否生效
+    console.log('[APPLE_NOTIFICATION] received', {
+      hasSignedPayload: !!signedPayload,
+      signedPayloadLength: signedPayload.length,
+      bodyKeys: Object.keys(body || {}),
+    });
     if (!signedPayload) return;
 
     let payload: AppleNotificationPayload;
@@ -520,6 +526,13 @@ export class SubscriptionService {
       });
 
       await this.recomputeUserSubscription(existing.userId);
+      console.log('[APPLE_NOTIFICATION] processed', {
+        notificationType,
+        subtype,
+        userId: existing.userId,
+        status,
+        txId,
+      });
     } catch (err: any) {
       // 数据库异常 → 抛 5xx，让 Apple 按官方退避策略重试（共 5 次，最长 3 天）
       console.error('[APPLE_NOTIFICATION_PROCESS_FAILED]', {
