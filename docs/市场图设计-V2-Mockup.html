@@ -120,7 +120,7 @@
   .phone-screen {
     width: 100%; height: 100%;
     background: #F5F7FA;
-    border-radius: 30px;
+    border-radius: 28px;
     overflow: hidden;
     color: #1F2D3D;
     font-size: 9px;
@@ -137,8 +137,9 @@
     font-size: 9px;
     font-weight: 700;
     padding-bottom: 4px;
-    background: rgba(245, 247, 250, 0.95);
-    backdrop-filter: blur(20px);
+    background: #fff;
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
   }
   .status-right { display: flex; gap: 4px; align-items: center; font-size: 8px; }
   .nav-bar {
@@ -162,23 +163,45 @@
   }
   .nav-title { flex: 1; text-align: center; }
   .tab-bar {
-    height: 50px;
+    height: 56px;
     background: #fff;
     border-top: 1px solid rgba(0,0,0,0.06);
     display: flex;
     margin-top: auto;
-    padding-bottom: 8px;
+    padding: 6px 0 12px;
+    border-bottom-left-radius: 28px;
+    border-bottom-right-radius: 28px;
   }
   .tab-item {
     flex: 1;
     text-align: center;
-    font-size: 7px;
-    padding-top: 6px;
+    font-size: 8px;
     color: #8E8E93;
     font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
   }
   .tab-item.active { color: var(--primary); }
-  .tab-icon { font-size: 14px; display: block; margin-bottom: 2px; }
+  .tab-icon {
+    font-size: 18px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 22px;
+  }
+  /* 实际 iOS App 用的 SF Symbol 对应表情近似 */
+  .tab-icon-chat::before { content: '💬'; }
+  .tab-icon-intel::before { content: '📰'; }
+  .tab-icon-family::before { content: '👨‍👩‍👧'; }
+  .tab-icon-profile::before { content: '👤'; }
+  .tab-item.active .tab-icon {
+    transform: scale(1.05);
+  }
 
   /* ==== UI 内通用组件 ==== */
   .chat-area {
@@ -587,7 +610,7 @@
         <div class="input-bar">问我任何风险问题...</div>
         <div class="tab-bar">
           <div class="tab-item active"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>情报</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>情报案例</div>
           <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
           <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
         </div>
@@ -638,7 +661,7 @@
         </div>
         <div class="tab-bar">
           <div class="tab-item active"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>情报</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>情报案例</div>
           <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
           <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
         </div>
@@ -695,7 +718,7 @@
         <div class="input-bar">📸 拍照 · 📁 相册 · 🎙️ 语音</div>
         <div class="tab-bar">
           <div class="tab-item active"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>情报</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>情报案例</div>
           <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
           <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
         </div>
@@ -766,7 +789,7 @@
         </div>
         <div class="tab-bar">
           <div class="tab-item"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>情报</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>情报案例</div>
           <div class="tab-item active"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
           <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
         </div>
@@ -835,7 +858,7 @@
         </div>
         <div class="tab-bar">
           <div class="tab-item"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item"><span class="tab-icon">📰</span>情报</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>情报案例</div>
           <div class="tab-item active"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
           <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
         </div>
@@ -916,7 +939,7 @@
         </div>
         <div class="tab-bar">
           <div class="tab-item"><span class="tab-icon">💬</span>问助手</div>
-          <div class="tab-item active"><span class="tab-icon">📰</span>情报</div>
+          <div class="tab-item active"><span class="tab-icon">📰</span>情报案例</div>
           <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
           <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
         </div>
