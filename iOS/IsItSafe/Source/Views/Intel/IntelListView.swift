@@ -172,7 +172,9 @@ public struct IntelListView: View {
                         .background(Color(.systemGray6))
                         .clipShape(Capsule())
                     Spacer()
-                    if !item.isRead {
+                    // 蓝点只在 12h 内未读且新鲜的情报上显示
+                    // 超过 12h 即使没点过也不再"新"，蓝点自动消失避免堆积
+                    if !item.isRead && isWithin12h(item.publishedAt) {
                         Circle().fill(AppTheme.primary).frame(width: 6, height: 6)
                     }
                     Text(relativeTime(item.publishedAt))
@@ -223,6 +225,23 @@ public struct IntelListView: View {
         case .normal: return AppTheme.primary
         }
     }
+    /// 判断 publishedAt 是否在 12h 内（用于新情报蓝点显示）
+    private func isWithin12h(_ iso: String?) -> Bool {
+        guard let iso else { return false }
+        let opts: [ISO8601DateFormatter.Options] = [
+            [.withInternetDateTime, .withFractionalSeconds],
+            [.withInternetDateTime],
+        ]
+        for o in opts {
+            let f = ISO8601DateFormatter()
+            f.formatOptions = o
+            if let d = f.date(from: iso) {
+                return -d.timeIntervalSinceNow < 12 * 3600
+            }
+        }
+        return false
+    }
+
     private func relativeTime(_ iso: String?) -> String {
         guard let iso else { return "" }
         let fmts: [ISO8601DateFormatter.Options] = [
