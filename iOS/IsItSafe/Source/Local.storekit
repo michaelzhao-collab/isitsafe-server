@@ -49,8 +49,8 @@
           "billingPlans" : [
             {
               "billingPlanType" : "BILLED_UPFRONT",
-              "commitmentDisplayPrice" : "0.99",
-              "displayPrice" : "0.99",
+              "commitmentDisplayPrice" : "2.99",
+              "displayPrice" : "2.99",
               "internalID" : "FCF55ECB",
               "isEnabled" : true
             }
@@ -58,7 +58,7 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "0.99",
+          "displayPrice" : "2.99",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "6F058C9E",
@@ -88,8 +88,8 @@
           "billingPlans" : [
             {
               "billingPlanType" : "BILLED_UPFRONT",
-              "commitmentDisplayPrice" : "4.99",
-              "displayPrice" : "4.99",
+              "commitmentDisplayPrice" : "9.99",
+              "displayPrice" : "9.99",
               "internalID" : "B170F4AA",
               "isEnabled" : true
             }
@@ -97,12 +97,18 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "4.99",
+          "displayPrice" : "9.99",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "A666807D",
           "introductoryOffers" : [
-
+            {
+              "displayPrice" : "1.99",
+              "internalID" : "INTRO-MONTHLY-FIRST",
+              "numberOfPeriods" : 1,
+              "paymentMode" : "payAsYouGo",
+              "subscriptionPeriod" : "P1M"
+            }
           ],
           "localizations" : [
             {
@@ -127,8 +133,8 @@
           "billingPlans" : [
             {
               "billingPlanType" : "BILLED_UPFRONT",
-              "commitmentDisplayPrice" : "24.99",
-              "displayPrice" : "24.99",
+              "commitmentDisplayPrice" : "59.99",
+              "displayPrice" : "59.99",
               "internalID" : "220F0DE2",
               "isEnabled" : true
             }
@@ -136,12 +142,18 @@
           "codeOffers" : [
 
           ],
-          "displayPrice" : "24.99",
+          "displayPrice" : "59.99",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "D0B2DDE7",
           "introductoryOffers" : [
-
+            {
+              "displayPrice" : "29.99",
+              "internalID" : "INTRO-YEARLY-FIRST",
+              "numberOfPeriods" : 1,
+              "paymentMode" : "payAsYouGo",
+              "subscriptionPeriod" : "P1Y"
+            }
           ],
           "localizations" : [
             {

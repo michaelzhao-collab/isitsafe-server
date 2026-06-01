@@ -164,11 +164,15 @@ async function main() {
     sortOrder: number;
     isRecommended: boolean;
   }> = [
+    // 方案 B 定价（2026-06-02 调整）：
+    //   周 $2.99 / 月 $9.99 / 年 $59.99
+    //   年付 = 月付 $9.99 × 12 - 50% = $59.99，强烈引导年付
+    //   首购优惠在 App Store Connect 后台单独配（Introductory Offer）
     {
       id: 'seed-plan-weekly',
       name: '周会员',
       productId: 'starlens.weekly.subscription',
-      price: 0.99,
+      price: 2.99,
       currency: 'USD',
       period: 'weekly',
       tier: 'personal',
@@ -179,7 +183,7 @@ async function main() {
       id: 'seed-plan-monthly',
       name: '月会员',
       productId: 'starlens.monthly.subscription',
-      price: 4.99,
+      price: 9.99,
       currency: 'USD',
       period: 'monthly',
       tier: 'personal',
@@ -190,7 +194,7 @@ async function main() {
       id: 'seed-plan-yearly',
       name: '年会员',
       productId: 'starlens.yearly.subscription',
-      price: 24.99,
+      price: 59.99,
       currency: 'USD',
       period: 'yearly',
       tier: 'personal',
