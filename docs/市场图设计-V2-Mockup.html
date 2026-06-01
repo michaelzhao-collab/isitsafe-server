@@ -2,22 +2,21 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>StarLensAI App Store Screenshots V2 Mockup</title>
+<title>StarLensAI App Store Screenshots V2 - Unified</title>
 <style>
   :root {
     --screen-w: 322px;       /* 1290 ÷ 4 缩放预览 */
     --screen-h: 700px;       /* 2796 ÷ 4 */
     --primary: #0066FF;
+    --primary-dark: #0044CC;
     --danger: #FF3B30;
     --warning: #FF9500;
     --success: #34C759;
-    --purple: #AF52DE;
-    --teal: #30B0C7;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
-    background: #0E0E14;
+    background: #0A0E1F;
     color: #fff;
     padding: 48px 24px;
   }
@@ -45,7 +44,8 @@
     gap: 24px;
     justify-content: center;
   }
-  /* ==== 单张截图通用 ==== */
+
+  /* ==== 统一蓝色背景（所有截图共用）==== */
   .screen {
     width: var(--screen-w);
     height: var(--screen-h);
@@ -53,8 +53,14 @@
     overflow: hidden;
     position: relative;
     box-shadow: 0 24px 48px rgba(0,0,0,0.4);
+    background:
+      radial-gradient(ellipse at 30% 0%, rgba(80, 110, 255, 0.5) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 100%, rgba(20, 30, 130, 0.6) 0%, transparent 50%),
+      linear-gradient(160deg, #0E1455 0%, #1830A8 50%, #1D3FE0 100%);
     display: flex;
     flex-direction: column;
+    padding: 44px 20px 0;
+    align-items: center;
   }
   .screen-label {
     text-align: center;
@@ -62,79 +68,106 @@
     font-size: 12px;
     margin-top: 10px;
   }
-  /* ==== 顶部标题区（每张都有）==== */
+
+  /* ==== 顶部标题区（每张都有，只有标题，无其它装饰）==== */
   .hero-top {
-    padding: 48px 28px 24px;
+    text-align: center;
     color: #fff;
+    margin-bottom: 22px;
+    width: 100%;
   }
   .hero-headline {
     font-size: 30px;
-    font-weight: 800;
-    line-height: 1.15;
-    margin-bottom: 8px;
-    letter-spacing: -0.5px;
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -0.6px;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.2);
+  }
+  .hero-headline .accent {
+    background: linear-gradient(90deg, #FFD60A, #FFEC4D);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
   .hero-sub {
-    font-size: 14px;
-    opacity: 0.85;
+    font-size: 13px;
+    opacity: 0.9;
     line-height: 1.4;
+    margin-top: 8px;
+    font-weight: 500;
   }
-  /* ==== iPhone Frame mockup ==== */
+
+  /* ==== iPhone Frame（每张主角）==== */
   .phone-frame {
-    margin: 0 auto;
-    width: 230px;
-    height: 460px;
+    width: 250px;
+    height: 510px;
     background: #1C1C1E;
-    border-radius: 32px;
-    padding: 8px 6px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3),
-                inset 0 0 0 2px rgba(255,255,255,0.1);
+    border-radius: 36px;
+    padding: 7px 5px;
+    box-shadow:
+      0 20px 50px rgba(0,0,0,0.5),
+      inset 0 0 0 2px rgba(255,255,255,0.08);
     position: relative;
+    flex-shrink: 0;
   }
   .phone-notch {
     position: absolute;
     top: 8px; left: 50%; transform: translateX(-50%);
-    width: 80px; height: 16px;
+    width: 80px; height: 18px;
     background: #000;
-    border-radius: 10px;
+    border-radius: 12px;
     z-index: 10;
   }
   .phone-screen {
     width: 100%; height: 100%;
-    background: #F2F2F7;
-    border-radius: 28px;
+    background: #F5F7FA;
+    border-radius: 30px;
     overflow: hidden;
     color: #1F2D3D;
     font-size: 9px;
     display: flex;
     flex-direction: column;
+    position: relative;
   }
   .status-bar {
-    height: 16px;
-    padding: 0 12px;
+    height: 22px;
+    padding: 0 16px 0 18px;
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    font-size: 8px;
-    font-weight: 600;
-    padding-bottom: 2px;
+    font-size: 9px;
+    font-weight: 700;
+    padding-bottom: 4px;
+    background: rgba(245, 247, 250, 0.95);
+    backdrop-filter: blur(20px);
   }
+  .status-right { display: flex; gap: 4px; align-items: center; font-size: 8px; }
   .nav-bar {
-    height: 36px;
+    height: 40px;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    padding: 0 12px;
     font-size: 11px;
-    font-weight: 600;
-    border-bottom: 1px solid rgba(0,0,0,0.05);
-    position: relative;
+    font-weight: 700;
+    background: #fff;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
   }
+  .nav-icon {
+    width: 22px; height: 22px;
+    background: rgba(0, 102, 255, 0.08);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    color: var(--primary);
+  }
+  .nav-title { flex: 1; text-align: center; }
   .tab-bar {
-    height: 44px;
-    background: rgba(255,255,255,0.95);
-    border-top: 1px solid rgba(0,0,0,0.05);
+    height: 50px;
+    background: #fff;
+    border-top: 1px solid rgba(0,0,0,0.06);
     display: flex;
     margin-top: auto;
+    padding-bottom: 8px;
   }
   .tab-item {
     flex: 1;
@@ -142,59 +175,73 @@
     font-size: 7px;
     padding-top: 6px;
     color: #8E8E93;
+    font-weight: 600;
   }
   .tab-item.active { color: var(--primary); }
-  .tab-icon { font-size: 12px; display: block; margin-bottom: 1px; }
+  .tab-icon { font-size: 14px; display: block; margin-bottom: 2px; }
 
-  /* ==== Screen 1: Hook with suspicious message ==== */
-  .scr-1 {
-    background: linear-gradient(160deg, #0E2DAB 0%, #4444FF 50%, #6C2BCF 100%);
+  /* ==== UI 内通用组件 ==== */
+  .chat-area {
+    flex: 1;
+    padding: 10px;
+    overflow: hidden;
+    background: #F5F7FA;
   }
-  .susmsg {
-    background: #fff;
-    color: #1F2D3D;
-    padding: 12px;
-    border-radius: 16px;
-    margin: 18px 18px 14px;
-    font-size: 10px;
+  .bubble-user {
+    background: var(--primary);
+    color: #fff;
+    padding: 8px 10px;
+    border-radius: 14px 14px 4px 14px;
+    font-size: 9px;
+    max-width: 70%;
+    margin: 0 0 8px auto;
     line-height: 1.4;
-    position: relative;
   }
-  .susmsg-tag {
-    background: #FFD60A;
-    color: #1F2D3D;
-    font-size: 7px;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 4px;
-    display: inline-block;
-    margin-bottom: 4px;
-  }
-  .scan-cta {
+  .bubble-bot {
     background: #fff;
-    color: var(--primary);
-    font-weight: 700;
-    text-align: center;
-    padding: 14px;
-    border-radius: 16px;
-    margin: 8px 18px 0;
-    font-size: 11px;
-    box-shadow: 0 10px 24px rgba(0,0,0,0.2);
+    color: #1F2D3D;
+    padding: 10px;
+    border-radius: 14px 14px 14px 4px;
+    font-size: 9px;
+    max-width: 92%;
+    margin-bottom: 8px;
+    line-height: 1.45;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+  }
+  .input-bar {
+    background: #fff;
+    margin: 0 8px 6px;
+    padding: 7px 10px;
+    border-radius: 22px;
+    display: flex;
+    align-items: center;
+    font-size: 9px;
+    color: #8E8E93;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+  }
+  .input-bar::before {
+    content: '🛡️';
+    margin-right: 6px;
   }
 
-  /* ==== Screen 2: HIGH RISK Result ==== */
-  .scr-2 {
-    background: linear-gradient(180deg, #FFE5E0 0%, #FFD3CC 100%);
-    color: #2D0606;
+  /* ==== Screen 1: Hook ==== */
+  .scr1-card {
+    background: #FFEFEC;
+    border-left: 3px solid var(--danger);
+    padding: 7px 9px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    font-size: 8px;
   }
-  .scr-2 .hero-headline { color: #B71C1C; }
-  .scr-2 .hero-sub { color: #5A1010; }
-  .risk-card {
+  .scr1-card strong { color: var(--danger); }
+
+  /* ==== Risk Card（Screen 2 & elsewhere）==== */
+  .risk-card-full {
     background: #fff;
-    margin: 16px;
+    margin: 8px;
     border-radius: 14px;
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   }
   .risk-header {
     background: linear-gradient(90deg, #FF3B30, #FF5C50);
@@ -204,129 +251,190 @@
     justify-content: space-between;
     font-weight: 700;
     font-size: 10px;
+    align-items: center;
+  }
+  .risk-score {
+    background: rgba(255,255,255,0.25);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 9px;
   }
   .risk-body {
     padding: 10px 12px;
   }
-  .risk-row {
-    margin-bottom: 6px;
-    font-size: 8px;
-    line-height: 1.4;
-  }
-  .risk-bullet {
-    color: var(--primary);
+  .risk-title-row {
     font-weight: 700;
+    font-size: 9px;
+    margin-bottom: 6px;
+    color: #1F2D3D;
+  }
+  .risk-section-title {
+    font-size: 8px;
+    color: #8E8E93;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin: 6px 0 4px;
+    letter-spacing: 0.3px;
+  }
+  .risk-row {
+    margin-bottom: 4px;
+    font-size: 8px;
+    line-height: 1.45;
+    display: flex;
+    gap: 5px;
+  }
+  .risk-row::before {
+    content: '•';
+    color: var(--primary);
+    font-weight: 900;
   }
   .risk-cta {
     background: var(--primary);
     color: #fff;
     padding: 8px;
     text-align: center;
-    border-radius: 8px;
-    margin-top: 6px;
+    border-radius: 10px;
+    margin-top: 8px;
     font-size: 9px;
-    font-weight: 600;
+    font-weight: 700;
   }
 
-  /* ==== Screen 3: Screenshot analysis ==== */
-  .scr-3 {
-    background: linear-gradient(170deg, #003D80 0%, #0066FF 100%);
+  /* ==== Screen 3 ==== */
+  .upload-zone {
+    background: #fff;
+    margin: 8px;
+    border-radius: 14px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   }
-  .upload-card {
-    background: rgba(255,255,255,0.96);
-    margin: 18px;
-    border-radius: 16px;
-    padding: 14px;
-    color: #1F2D3D;
-  }
-  .mini-shot {
-    background: linear-gradient(135deg, #34C759 0%, #25A047 100%);
-    border-radius: 8px;
-    color: #fff;
+  .upload-preview {
+    background: #E6F4EA;
+    border: 1px dashed #34C759;
+    border-radius: 10px;
     padding: 8px;
-    font-size: 7px;
+    font-size: 8px;
+    line-height: 1.5;
+    color: #1F4D2B;
     margin-bottom: 8px;
   }
-  .arrow-down {
+  .upload-preview strong { color: #1F2D3D; }
+  .ai-thinking {
     text-align: center;
     color: var(--primary);
-    font-size: 14px;
-    margin: 4px 0;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 4px 0;
   }
-  .analysis-result {
-    background: #FFF3F3;
-    border-left: 3px solid #FF3B30;
-    padding: 6px 8px;
+  .ai-result {
+    background: #FFF3F2;
+    border-left: 3px solid var(--danger);
+    padding: 8px 10px;
+    border-radius: 8px;
     font-size: 8px;
-    border-radius: 4px;
+    line-height: 1.5;
   }
+  .ai-result strong { color: var(--danger); font-size: 9px; }
 
-  /* ==== Screen 4: Family Guardian ==== */
-  .scr-4 {
-    background: linear-gradient(165deg, #C2185B 0%, #FF6B6B 100%);
+  /* ==== Screen 4: Family ==== */
+  .family-page {
+    background: #F5F7FA;
+    flex: 1;
+    padding: 8px;
   }
   .family-card {
     background: #fff;
-    margin: 14px;
     border-radius: 14px;
-    padding: 12px;
-    color: #1F2D3D;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+    padding: 10px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
   }
-  .family-row {
+  .family-card-title {
+    font-weight: 700;
+    font-size: 10px;
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid rgba(0,0,0,0.06);
+    gap: 4px;
+  }
+  .family-member {
+    display: flex;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
     font-size: 9px;
   }
-  .family-row:last-child { border-bottom: 0; }
+  .family-member:last-child { border-bottom: 0; }
   .family-avatar {
-    width: 24px; height: 24px;
+    width: 28px; height: 28px;
     border-radius: 50%;
     background: linear-gradient(135deg, #FF9500, #FF6B6B);
     display: flex; align-items: center; justify-content: center;
     color: #fff; font-weight: 700; font-size: 10px;
-    margin-right: 8px;
+    margin-right: 9px;
+    flex-shrink: 0;
   }
+  .family-info { flex: 1; }
+  .family-name { font-weight: 600; font-size: 10px; }
+  .family-status { font-size: 8px; color: #8E8E93; margin-top: 1px; }
   .alert-badge {
-    background: #FF3B30;
+    background: var(--danger);
     color: #fff;
-    font-size: 6px;
-    padding: 2px 5px;
+    font-size: 7px;
+    padding: 2px 6px;
     border-radius: 8px;
-    margin-left: auto;
     font-weight: 700;
+    flex-shrink: 0;
+  }
+  .safe-badge {
+    background: var(--success);
+    color: #fff;
+    font-size: 7px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-weight: 700;
+    flex-shrink: 0;
   }
 
-  /* ==== Screen 5: Voice Deepfake ==== */
-  .scr-5 {
-    background: linear-gradient(170deg, #4527A0 0%, #7C4DFF 100%);
+  /* ==== Screen 5: Voice ==== */
+  .voice-page {
+    background: #F5F7FA;
+    flex: 1;
+    padding: 10px;
   }
-  .call-card {
+  .voice-card {
     background: #fff;
-    margin: 14px;
     border-radius: 14px;
     padding: 14px;
-    color: #1F2D3D;
     text-align: center;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
   }
-  .caller-avatar {
-    width: 50px; height: 50px;
+  .voice-avatar {
+    width: 56px; height: 56px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #34C759, #25A047);
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
     color: #fff;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 18px;
+    font-weight: 700; font-size: 22px;
     margin: 0 auto 8px;
+  }
+  .voice-caller {
+    font-weight: 700;
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+  .voice-meta {
+    font-size: 8px;
+    color: #8E8E93;
+    margin-bottom: 8px;
   }
   .waveform {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 2px;
-    height: 30px;
-    margin: 8px 0;
+    height: 32px;
+    margin: 6px 0;
   }
   .wave-bar {
     width: 3px;
@@ -336,54 +444,87 @@
   .verdict-banner {
     background: #FFE5E0;
     color: #B71C1C;
-    padding: 6px 8px;
-    border-radius: 6px;
+    padding: 7px 10px;
+    border-radius: 8px;
     font-size: 9px;
     font-weight: 700;
-    margin-top: 8px;
+    margin: 6px 0;
   }
-
-  /* ==== Screen 6: Intel Library ==== */
-  .scr-6 {
-    background: linear-gradient(170deg, #00838F 0%, #26C6DA 100%);
-  }
-  .intel-list {
-    background: #fff;
-    margin: 14px;
-    border-radius: 14px;
-    overflow: hidden;
+  .voice-detail {
+    background: #F5F7FA;
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 8px;
+    line-height: 1.5;
     color: #1F2D3D;
+    text-align: left;
   }
-  .intel-item {
-    padding: 8px 10px;
-    border-bottom: 1px solid rgba(0,0,0,0.05);
-    font-size: 9px;
+  .voice-detail strong { color: var(--primary); }
+
+  /* ==== Screen 6: Intel ==== */
+  .intel-page {
+    background: #F5F7FA;
+    flex: 1;
+    padding: 8px;
   }
-  .intel-item:last-child { border-bottom: 0; }
+  .intel-filter {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .filter-chip {
+    background: #fff;
+    color: #1F2D3D;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 8px;
+    font-weight: 600;
+  }
+  .filter-chip.active {
+    background: var(--primary);
+    color: #fff;
+  }
+  .intel-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 9px 11px;
+    margin-bottom: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+  }
   .intel-title {
     font-weight: 700;
-    margin-bottom: 2px;
+    font-size: 10px;
+    margin-bottom: 4px;
+    line-height: 1.3;
   }
+  .intel-tags {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+  .intel-tag {
+    background: #FFE5E0;
+    color: var(--danger);
+    font-size: 7px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-weight: 700;
+  }
+  .intel-tag.new { background: #E5F1FF; color: var(--primary); }
+  .intel-tag.trending { background: #FFF4E0; color: var(--warning); }
   .intel-meta {
     font-size: 7px;
     color: #8E8E93;
-  }
-  .intel-tag {
-    display: inline-block;
-    background: #FFE5E0;
-    color: #FF3B30;
-    font-size: 6px;
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-weight: 700;
-    margin-right: 4px;
+    display: flex;
+    justify-content: space-between;
   }
 
-  /* ==== Notes section ==== */
+  /* ==== Notes ==== */
   .notes {
     max-width: 900px;
     margin: 60px auto 0;
-    background: #1C1C1E;
+    background: #1C1C2E;
     padding: 24px;
     border-radius: 16px;
   }
@@ -399,35 +540,100 @@
 </head>
 <body>
 
-<h1>StarLensAI · App Store Screenshots V2 设计稿</h1>
-<p class="subtitle">6 张截图 · 1290×2796（iPhone 15 Pro Max）· 按比例预览</p>
+<h1>StarLensAI · App Store Screenshots V2</h1>
+<p class="subtitle">统一深蓝主题 · 6 张 1290×2796 · 主角是 App UI · 中英文各 1 套</p>
 
 <div class="row-title">— 中文版 —</div>
 <div class="grid">
 
-  <!-- ============ Screen 1: Hook ============ -->
+  <!-- ============ Screen 1: Hook（聊天首页 + 可疑短信 + AI 风险回复）============ -->
   <div>
-  <div class="screen scr-1">
+  <div class="screen">
     <div class="hero-top">
-      <div class="hero-headline">别猜，<br>扫一下。</div>
-      <div class="hero-sub">收到可疑短信、电话或链接？<br>3 秒 AI 帮你识破。</div>
+      <div class="hero-headline">别猜，<span class="accent">扫一下</span>。</div>
+      <div class="hero-sub">收到可疑短信、电话或链接？3 秒识破。</div>
     </div>
-    <div class="susmsg">
-      <span class="susmsg-tag">📲 可疑短信</span><br>
-      【银行】您的账户存在异常，请立即点击 hxxxxxxx.cn/auth 验证身份，否则将被冻结...
-    </div>
-    <div class="scan-cta">🛡️ 一键扫描风险 →</div>
-    <div class="phone-frame" style="margin-top: 14px; transform: scale(0.7); transform-origin: top center;">
+    <div class="phone-frame">
       <div class="phone-notch"></div>
       <div class="phone-screen">
-        <div class="status-bar"><span>9:41</span><span>📶 100%</span></div>
-        <div class="nav-bar">星识安全助手</div>
-        <div style="padding: 12px; flex: 1;">
-          <div style="background: #fff; padding: 8px; border-radius: 10px; font-size: 8px; margin-bottom: 6px;">
-            🛡️ 试试问我：<br>
-            • 这条短信是诈骗吗？<br>
-            • 这个号码可信吗？<br>
-            • 给我看类似案例
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-right">📶 5G 🔋 100%</span>
+        </div>
+        <div class="nav-bar">
+          <div class="nav-icon">☰</div>
+          <div class="nav-title">星识安全助手</div>
+          <div class="nav-icon">✎</div>
+        </div>
+        <div class="chat-area">
+          <div class="bubble-user">这条短信是真的吗？<br>"【银行】您的账户异常，立即点击 hxxx.cn/auth 验证否则冻结"</div>
+          <div class="bubble-bot">
+            <div style="display:flex; align-items:center; gap:4px; margin-bottom:4px;">
+              <span style="font-size:11px;">🚨</span>
+              <strong style="color:#FF3B30; font-size:10px;">高风险 · 96 分 · 钓鱼诈骗</strong>
+            </div>
+            <div style="line-height:1.5;">
+              <strong>识别原因：</strong><br>
+              • 短链域名非银行官方<br>
+              • 制造紧迫感"冻结"话术<br>
+              • 与近期 437 起举报模式吻合<br>
+              <br>
+              <strong>立刻这么做：</strong><br>
+              ✓ 不要点链接<br>
+              ✓ 拨打卡背面客服核实
+            </div>
+          </div>
+        </div>
+        <div class="input-bar">问我任何风险问题...</div>
+        <div class="tab-bar">
+          <div class="tab-item active"><span class="tab-icon">💬</span>问助手</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>情报</div>
+          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
+          <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">#1 钩子：粘贴 → AI 秒判</div>
+  </div>
+
+  <!-- ============ Screen 2: 详细风险报告（点开 AI 回复后的全屏卡片）============ -->
+  <div>
+  <div class="screen">
+    <div class="hero-top">
+      <div class="hero-headline">3 秒判定<br><span class="accent">清晰建议</span></div>
+      <div class="hero-sub">AI 不只说"有风险"，告诉你下一步怎么做。</div>
+    </div>
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-right">📶 5G 🔋 100%</span>
+        </div>
+        <div class="nav-bar">
+          <div class="nav-icon">←</div>
+          <div class="nav-title">风险分析详情</div>
+          <div class="nav-icon">⤴</div>
+        </div>
+        <div style="flex:1; background:#F5F7FA; overflow:hidden;">
+          <div class="risk-card-full">
+            <div class="risk-header">
+              <span>⚠️ 高风险</span>
+              <span class="risk-score">96 / 100</span>
+            </div>
+            <div class="risk-body">
+              <div class="risk-title-row">疑似冒充银行钓鱼短信</div>
+              <div class="risk-section-title">3 大识别依据</div>
+              <div class="risk-row"><span>域名 hxxx.cn 不在 4 大行白名单</span></div>
+              <div class="risk-row"><span>含紧迫感关键词："立即"、"冻结"</span></div>
+              <div class="risk-row"><span>437 位用户上报相同模板</span></div>
+              <div class="risk-section-title">立刻这么做</div>
+              <div class="risk-row"><span>不要点击链接，已为你识别</span></div>
+              <div class="risk-row"><span>拨打卡背面客服核实账户状态</span></div>
+              <div class="risk-row"><span>截图举报到 12321 反诈中心</span></div>
+              <div class="risk-cta">📞 一键拨打官方客服</div>
+            </div>
           </div>
         </div>
         <div class="tab-bar">
@@ -439,64 +645,64 @@
       </div>
     </div>
   </div>
-  <div class="screen-label">#1 钩子：痛点 + CTA</div>
+  <div class="screen-label">#2 风险详细报告</div>
   </div>
 
-  <!-- ============ Screen 2: HIGH RISK Result ============ -->
+  <!-- ============ Screen 3: 截图分析（上传截图 → AI 分析）============ -->
   <div>
-  <div class="screen scr-2">
+  <div class="screen">
     <div class="hero-top">
-      <div class="hero-headline">3 秒判定<br>清晰建议</div>
-      <div class="hero-sub">AI 不只告诉你"有风险"，<br>还告诉你下一步该怎么做。</div>
+      <div class="hero-headline">截图就能<br><span class="accent">识破</span></div>
+      <div class="hero-sub">微信 / WhatsApp / 网页，任何截图都行。</div>
     </div>
-    <div class="risk-card">
-      <div class="risk-header">
-        <span>⚠️ 高风险 · 96 分</span>
-        <span>诈骗</span>
-      </div>
-      <div class="risk-body">
-        <div style="font-weight: 700; font-size: 9px; margin-bottom: 4px;">疑似冒充银行钓鱼</div>
-        <div class="risk-row"><span class="risk-bullet">原因 1</span> 域名 hxxxxxxx.cn 非银行官方</div>
-        <div class="risk-row"><span class="risk-bullet">原因 2</span> 制造紧迫感（"立即"、"冻结"）</div>
-        <div class="risk-row"><span class="risk-bullet">原因 3</span> 与近期 437 起举报模式吻合</div>
-        <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid #eee; font-weight: 700; font-size: 9px;">下一步建议：</div>
-        <div class="risk-row">✓ 不要点链接</div>
-        <div class="risk-row">✓ 直接拨打 95588 卡背面客服核实</div>
-        <div class="risk-row">✓ 截图举报 12321</div>
-        <div class="risk-cta">📞 一键拨打官方客服</div>
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-right">📶 5G 🔋 100%</span>
+        </div>
+        <div class="nav-bar">
+          <div class="nav-icon">☰</div>
+          <div class="nav-title">星识安全助手</div>
+          <div class="nav-icon">✎</div>
+        </div>
+        <div class="chat-area">
+          <div class="bubble-user" style="background:#34C759; padding:6px;">
+            <div style="background:rgba(0,0,0,0.15); border-radius:6px; padding:6px; color:#fff;">
+              <div style="font-size:7px; opacity:0.85; margin-bottom:2px;">📱 微信截图 · 已上传</div>
+              <div style="font-size:8px; line-height:1.4;">"客服小李"：恭喜您中奖 50000 元！请添加我领取...</div>
+            </div>
+          </div>
+          <div class="bubble-bot">
+            <div style="display:flex; align-items:center; gap:4px; margin-bottom:4px;">
+              <span style="font-size:11px;">🚨</span>
+              <strong style="color:#FF3B30; font-size:10px;">高风险 · 92 分 · 中奖诈骗</strong>
+            </div>
+            <div style="line-height:1.5;">
+              <strong>截图识别 3 个钓鱼信号：</strong><br>
+              • 陌生人主动添加 + 奖金诱导<br>
+              • "客服" 身份完全无法核实<br>
+              • 中奖话术模板匹配度 94%<br>
+              <br>
+              <strong>下一步：</strong><br>
+              ✓ 不要添加该陌生人<br>
+              ✓ 不要按提示提供任何信息<br>
+              ✓ 微信内举报 → 安全中心
+            </div>
+          </div>
+        </div>
+        <div class="input-bar">📸 拍照 · 📁 相册 · 🎙️ 语音</div>
+        <div class="tab-bar">
+          <div class="tab-item active"><span class="tab-icon">💬</span>问助手</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>情报</div>
+          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
+          <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
+        </div>
       </div>
     </div>
   </div>
-  <div class="screen-label">#2 即时识别 + 可执行建议</div>
-  </div>
-
-  <!-- ============ Screen 3: Screenshot upload ============ -->
-  <div>
-  <div class="screen scr-3">
-    <div class="hero-top">
-      <div class="hero-headline">截图<br>就能识破</div>
-      <div class="hero-sub">微信、WhatsApp、网页 —— <br>任何截图，AI 都能识破。</div>
-    </div>
-    <div class="upload-card">
-      <div class="mini-shot">
-        <strong>📱 微信截图</strong><br>
-        "客服小李": 您中奖了！<br>
-        请添加我领取 50000 元...
-      </div>
-      <div class="arrow-down">⬇️ AI 分析中</div>
-      <div class="analysis-result">
-        <strong>🚨 检测结果：高风险</strong><br>
-        识别 3 个钓鱼信号：<br>
-        • 陌生添加 + 奖金诱导<br>
-        • "客服"身份无法验证<br>
-        • 与中奖诈骗模板高度匹配
-      </div>
-    </div>
-    <div style="text-align: center; color: #fff; font-size: 11px; margin-top: 14px; opacity: 0.9;">
-      📸 拍照 · 📁 相册 · 🔗 链接 都支持
-    </div>
-  </div>
-  <div class="screen-label">#3 多形态输入（截图/链接/语音）</div>
+  <div class="screen-label">#3 截图识别钓鱼内容</div>
   </div>
 
 </div>
@@ -505,78 +711,134 @@
 
   <!-- ============ Screen 4: Family Guardian ============ -->
   <div>
-  <div class="screen scr-4">
+  <div class="screen">
     <div class="hero-top">
-      <div class="hero-headline">守护爸妈<br>从远方</div>
-      <div class="hero-sub">长辈遇到可疑内容，<br>第一时间通知你。</div>
+      <div class="hero-headline">守护爸妈<br><span class="accent">从远方</span></div>
+      <div class="hero-sub">长辈遇到可疑内容，第一时间通知你。</div>
     </div>
-    <div class="family-card">
-      <div style="font-weight: 700; font-size: 10px; margin-bottom: 6px;">👨‍👩‍👧 我的家庭</div>
-      <div class="family-row">
-        <div class="family-avatar">妈</div>
-        <div>
-          <div style="font-weight: 600;">妈妈</div>
-          <div style="font-size: 7px; color: #8E8E93;">2 分钟前 收到"养老金"诈骗短信</div>
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-right">📶 5G 🔋 100%</span>
         </div>
-        <span class="alert-badge">已预警</span>
-      </div>
-      <div class="family-row">
-        <div class="family-avatar" style="background: linear-gradient(135deg,#AF52DE,#7C4DFF);">爸</div>
-        <div>
-          <div style="font-weight: 600;">爸爸</div>
-          <div style="font-size: 7px; color: #8E8E93;">今天上午 11 次扫描 · 全部安全</div>
+        <div class="nav-bar">
+          <div class="nav-icon">☰</div>
+          <div class="nav-title">家庭守护</div>
+          <div class="nav-icon">+</div>
+        </div>
+        <div class="family-page">
+          <div class="family-card">
+            <div class="family-card-title">👨‍👩‍👧 我的家庭 · 3 位成员</div>
+            <div class="family-member">
+              <div class="family-avatar">妈</div>
+              <div class="family-info">
+                <div class="family-name">妈妈</div>
+                <div class="family-status">2 分钟前 · 收到"养老金"诈骗短信</div>
+              </div>
+              <div class="alert-badge">已预警</div>
+            </div>
+            <div class="family-member">
+              <div class="family-avatar" style="background: linear-gradient(135deg,#0066FF,#0044CC);">爸</div>
+              <div class="family-info">
+                <div class="family-name">爸爸</div>
+                <div class="family-status">今天 · 11 次扫描 · 全部安全</div>
+              </div>
+              <div class="safe-badge">安全</div>
+            </div>
+            <div class="family-member">
+              <div class="family-avatar" style="background: linear-gradient(135deg,#34C759,#25A047);">奶</div>
+              <div class="family-info">
+                <div class="family-name">奶奶</div>
+                <div class="family-status">已开启长辈模式 · 大字体</div>
+              </div>
+            </div>
+          </div>
+          <div class="family-card" style="background:#E5F1FF;">
+            <div style="font-size:9px; font-weight:600; color:#0044CC; line-height:1.5;">
+              💡 妈妈刚才点击了你已为她预警的链接，已自动拦截。是否要打个电话提醒她？
+            </div>
+            <div style="background:var(--primary); color:#fff; text-align:center; padding:7px; border-radius:8px; margin-top:6px; font-size:9px; font-weight:700;">
+              📞 一键拨给妈妈
+            </div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">💬</span>问助手</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>情报</div>
+          <div class="tab-item active"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
+          <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
         </div>
       </div>
-      <div class="family-row">
-        <div class="family-avatar" style="background: linear-gradient(135deg,#34C759,#25A047);">奶</div>
-        <div>
-          <div style="font-weight: 600;">奶奶</div>
-          <div style="font-size: 7px; color: #8E8E93;">已开启长辈模式 · 大字体</div>
-        </div>
-      </div>
-    </div>
-    <div style="background: rgba(255,255,255,0.15); margin: 0 14px; padding: 8px 10px; border-radius: 10px; color: #fff; font-size: 9px;">
-      💡 会员专享：长辈遇险 → 你的手机立刻弹通知
     </div>
   </div>
-  <div class="screen-label">#4 家庭守护 + 长辈模式</div>
+  <div class="screen-label">#4 家庭守护 + 远程预警</div>
   </div>
 
   <!-- ============ Screen 5: Voice Deepfake ============ -->
   <div>
-  <div class="screen scr-5">
+  <div class="screen">
     <div class="hero-top">
-      <div class="hero-headline">是儿子<br>还是 AI？</div>
-      <div class="hero-sub">声纹分析识破 AI 合成<br>语音诈骗。</div>
+      <div class="hero-headline">是儿子<br><span class="accent">还是 AI</span>？</div>
+      <div class="hero-sub">声纹分析识破 AI 合成语音诈骗。</div>
     </div>
-    <div class="call-card">
-      <div class="caller-avatar">📞</div>
-      <div style="font-weight: 700; font-size: 11px;">"儿子" 来电</div>
-      <div style="font-size: 8px; color: #8E8E93; margin: 2px 0 8px;">+86 138****8888 · 通话 0:42</div>
-      <div class="waveform">
-        <div class="wave-bar" style="height: 8px;"></div>
-        <div class="wave-bar" style="height: 18px;"></div>
-        <div class="wave-bar" style="height: 12px;"></div>
-        <div class="wave-bar" style="height: 24px;"></div>
-        <div class="wave-bar" style="height: 16px;"></div>
-        <div class="wave-bar" style="height: 22px;"></div>
-        <div class="wave-bar" style="height: 14px;"></div>
-        <div class="wave-bar" style="height: 20px;"></div>
-        <div class="wave-bar" style="height: 10px;"></div>
-        <div class="wave-bar" style="height: 18px;"></div>
-        <div class="wave-bar" style="height: 24px;"></div>
-        <div class="wave-bar" style="height: 16px;"></div>
-        <div class="wave-bar" style="height: 22px;"></div>
-        <div class="wave-bar" style="height: 14px;"></div>
-        <div class="wave-bar" style="height: 8px;"></div>
-      </div>
-      <div class="verdict-banner">
-        🚨 AI 合成语音 · 置信度 94%
-      </div>
-      <div style="font-size: 8px; color: #1F2D3D; margin-top: 6px; line-height: 1.4;">
-        • 检测到非自然停顿模式<br>
-        • 高频谐波缺失<br>
-        建议：挂断后回拨真实号码核实
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-right">📶 5G 🔋 100%</span>
+        </div>
+        <div class="nav-bar">
+          <div class="nav-icon">←</div>
+          <div class="nav-title">语音深伪检测</div>
+          <div class="nav-icon">?</div>
+        </div>
+        <div class="voice-page">
+          <div class="voice-card">
+            <div class="voice-avatar">📞</div>
+            <div class="voice-caller">"儿子" 来电</div>
+            <div class="voice-meta">+86 138****8888 · 通话 0:42</div>
+            <div class="waveform">
+              <div class="wave-bar" style="height: 8px;"></div>
+              <div class="wave-bar" style="height: 18px;"></div>
+              <div class="wave-bar" style="height: 12px;"></div>
+              <div class="wave-bar" style="height: 24px;"></div>
+              <div class="wave-bar" style="height: 16px;"></div>
+              <div class="wave-bar" style="height: 22px;"></div>
+              <div class="wave-bar" style="height: 14px;"></div>
+              <div class="wave-bar" style="height: 20px;"></div>
+              <div class="wave-bar" style="height: 10px;"></div>
+              <div class="wave-bar" style="height: 18px;"></div>
+              <div class="wave-bar" style="height: 24px;"></div>
+              <div class="wave-bar" style="height: 16px;"></div>
+              <div class="wave-bar" style="height: 22px;"></div>
+              <div class="wave-bar" style="height: 14px;"></div>
+              <div class="wave-bar" style="height: 8px;"></div>
+              <div class="wave-bar" style="height: 18px;"></div>
+            </div>
+            <div class="verdict-banner">
+              🚨 AI 合成语音 · 置信度 94%
+            </div>
+            <div class="voice-detail">
+              <strong>检测到以下异常：</strong><br>
+              • 非自然停顿模式（疑似拼接）<br>
+              • 高频谐波缺失（典型 TTS 特征）<br>
+              • 情感韵律与真人不一致<br>
+              <br>
+              <strong>建议：</strong><br>
+              立刻挂断 → 用通讯录里"儿子"的<br>
+              真实号码回拨核实
+            </div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">💬</span>问助手</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>情报</div>
+          <div class="tab-item active"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
+          <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
+        </div>
       </div>
     </div>
   </div>
@@ -585,35 +847,80 @@
 
   <!-- ============ Screen 6: Intel Library ============ -->
   <div>
-  <div class="screen scr-6">
+  <div class="screen">
     <div class="hero-top">
-      <div class="hero-headline">昨天的诈骗<br>今天的防御</div>
-      <div class="hero-sub">每天更新真实案例，<br>抢先识别新型骗局。</div>
+      <div class="hero-headline">昨天的诈骗<br><span class="accent">今天的防御</span></div>
+      <div class="hero-sub">每天更新真实案例，新型骗局抢先识别。</div>
     </div>
-    <div class="intel-list">
-      <div class="intel-item">
-        <div class="intel-title">🔥 "ETC 即将失效" 短信</div>
-        <div><span class="intel-tag">高危</span> 钓鱼链接 · 437 人举报</div>
-        <div class="intel-meta">2026-05-30 更新</div>
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="status-bar">
+          <span>9:41</span>
+          <span class="status-right">📶 5G 🔋 100%</span>
+        </div>
+        <div class="nav-bar">
+          <div class="nav-icon">☰</div>
+          <div class="nav-title">反诈情报站</div>
+          <div class="nav-icon">🔍</div>
+        </div>
+        <div class="intel-page">
+          <div class="intel-filter">
+            <div class="filter-chip active">全部</div>
+            <div class="filter-chip">钓鱼</div>
+            <div class="filter-chip">投资</div>
+            <div class="filter-chip">仿冒</div>
+          </div>
+          <div class="intel-card">
+            <div class="intel-title">🔥 "ETC 即将失效" 短信骗局</div>
+            <div class="intel-tags">
+              <div class="intel-tag">高危</div>
+              <div class="intel-tag trending">飙升</div>
+            </div>
+            <div class="intel-meta">
+              <span>437 人举报</span>
+              <span>05-30 更新</span>
+            </div>
+          </div>
+          <div class="intel-card">
+            <div class="intel-title">虚假股票群"老师"</div>
+            <div class="intel-tags">
+              <div class="intel-tag">投资诈骗</div>
+            </div>
+            <div class="intel-meta">
+              <span>4 步话术全拆解</span>
+              <span>05-29 更新</span>
+            </div>
+          </div>
+          <div class="intel-card">
+            <div class="intel-title">AI 仿冒亲友视频通话</div>
+            <div class="intel-tags">
+              <div class="intel-tag new">新型</div>
+              <div class="intel-tag">深伪</div>
+            </div>
+            <div class="intel-meta">
+              <span>含 3 种鉴别方法</span>
+              <span>05-28 更新</span>
+            </div>
+          </div>
+          <div class="intel-card">
+            <div class="intel-title">"快递理赔" 刷单陷阱</div>
+            <div class="intel-tags">
+              <div class="intel-tag">高发</div>
+            </div>
+            <div class="intel-meta">
+              <span>282 人举报</span>
+              <span>05-27 更新</span>
+            </div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">💬</span>问助手</div>
+          <div class="tab-item active"><span class="tab-icon">📰</span>情报</div>
+          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>家庭</div>
+          <div class="tab-item"><span class="tab-icon">👤</span>我的</div>
+        </div>
       </div>
-      <div class="intel-item">
-        <div class="intel-title">虚假股票群导师</div>
-        <div><span class="intel-tag">投资诈骗</span> 4 步话术拆解</div>
-        <div class="intel-meta">2026-05-29 更新</div>
-      </div>
-      <div class="intel-item">
-        <div class="intel-title">AI 仿冒亲友视频通话</div>
-        <div><span class="intel-tag">新型</span> 深伪 · 鉴别方法</div>
-        <div class="intel-meta">2026-05-28 更新</div>
-      </div>
-      <div class="intel-item">
-        <div class="intel-title">"快递理赔"刷单陷阱</div>
-        <div><span class="intel-tag">高发</span> 282 人举报</div>
-        <div class="intel-meta">2026-05-27 更新</div>
-      </div>
-    </div>
-    <div style="text-align: center; color: #fff; font-size: 10px; margin-top: 10px; opacity: 0.9;">
-      🔄 每小时同步全国举报数据
     </div>
   </div>
   <div class="screen-label">#6 反诈情报站</div>
@@ -627,28 +934,88 @@
 <div class="row-title" style="margin-top: 80px;">— English Version —</div>
 <div class="grid">
 
+  <!-- EN Screen 1 -->
   <div>
-  <div class="screen scr-1">
+  <div class="screen">
     <div class="hero-top">
-      <div class="hero-headline">Scan it.<br>Don't guess it.</div>
-      <div class="hero-sub">Got a sketchy text, call, or link?<br>AI tells you in 3 seconds.</div>
+      <div class="hero-headline">Scan it.<br><span class="accent">Don't guess.</span></div>
+      <div class="hero-sub">Got a sketchy text, call, or link? AI tells you in 3 seconds.</div>
     </div>
-    <div class="susmsg">
-      <span class="susmsg-tag">📲 Suspicious SMS</span><br>
-      [BANK ALERT] Unusual activity detected. Verify your identity at hxxxxxxx.com/auth or your account will be frozen...
-    </div>
-    <div class="scan-cta">🛡️ Scan with AI →</div>
-    <div class="phone-frame" style="margin-top: 14px; transform: scale(0.7); transform-origin: top center;">
+    <div class="phone-frame">
       <div class="phone-notch"></div>
       <div class="phone-screen">
-        <div class="status-bar"><span>9:41</span><span>📶 100%</span></div>
-        <div class="nav-bar">StarLens</div>
-        <div style="padding: 12px; flex: 1;">
-          <div style="background: #fff; padding: 8px; border-radius: 10px; font-size: 8px;">
-            🛡️ Try asking me:<br>
-            • Is this SMS a scam?<br>
-            • Verify this phone number<br>
-            • Show me similar cases
+        <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
+        <div class="nav-bar">
+          <div class="nav-icon">☰</div>
+          <div class="nav-title">StarLens</div>
+          <div class="nav-icon">✎</div>
+        </div>
+        <div class="chat-area">
+          <div class="bubble-user">Is this real?<br>"[BANK] Unusual activity. Verify at hxxx.com/auth or your account will be frozen"</div>
+          <div class="bubble-bot">
+            <div style="display:flex; align-items:center; gap:4px; margin-bottom:4px;">
+              <span style="font-size:11px;">🚨</span>
+              <strong style="color:#FF3B30; font-size:10px;">HIGH RISK · 96/100 · Phishing</strong>
+            </div>
+            <div style="line-height:1.5;">
+              <strong>3 reasons:</strong><br>
+              • Domain not on bank's allowlist<br>
+              • Creates urgency ("frozen")<br>
+              • Matches 437 recent reports<br>
+              <br>
+              <strong>Do this now:</strong><br>
+              ✓ Do NOT click the link<br>
+              ✓ Call bank's # on your card back
+            </div>
+          </div>
+        </div>
+        <div class="input-bar">Ask me anything risky...</div>
+        <div class="tab-bar">
+          <div class="tab-item active"><span class="tab-icon">💬</span>Chat</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>Intel</div>
+          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>Family</div>
+          <div class="tab-item"><span class="tab-icon">👤</span>Me</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-label">#1 Hook: Paste → AI verdict</div>
+  </div>
+
+  <!-- EN Screen 2 -->
+  <div>
+  <div class="screen">
+    <div class="hero-top">
+      <div class="hero-headline">3 seconds.<br><span class="accent">Clear verdict.</span></div>
+      <div class="hero-sub">AI tells you exactly what to do next.</div>
+    </div>
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
+        <div class="nav-bar">
+          <div class="nav-icon">←</div>
+          <div class="nav-title">Risk Analysis</div>
+          <div class="nav-icon">⤴</div>
+        </div>
+        <div style="flex:1; background:#F5F7FA; overflow:hidden;">
+          <div class="risk-card-full">
+            <div class="risk-header">
+              <span>⚠️ HIGH RISK</span>
+              <span class="risk-score">96 / 100</span>
+            </div>
+            <div class="risk-body">
+              <div class="risk-title-row">Likely bank impersonation phishing</div>
+              <div class="risk-section-title">3 reasons</div>
+              <div class="risk-row"><span>Domain hxxx.com not on bank allowlist</span></div>
+              <div class="risk-row"><span>Urgency words: "immediately", "frozen"</span></div>
+              <div class="risk-row"><span>Matches 437 fraud reports this month</span></div>
+              <div class="risk-section-title">Do this now</div>
+              <div class="risk-row"><span>Do NOT click the link (already flagged)</span></div>
+              <div class="risk-row"><span>Call bank using # on your card back</span></div>
+              <div class="risk-row"><span>Report at ReportFraud.ftc.gov</span></div>
+              <div class="risk-cta">📞 Call Official Support</div>
+            </div>
           </div>
         </div>
         <div class="tab-bar">
@@ -660,204 +1027,304 @@
       </div>
     </div>
   </div>
-  <div class="screen-label">#1 Hook: Pain + CTA</div>
+  <div class="screen-label">#2 Detailed risk report</div>
   </div>
 
+  <!-- EN Screen 3 -->
   <div>
-  <div class="screen scr-2">
+  <div class="screen">
     <div class="hero-top">
-      <div class="hero-headline">3 seconds.<br>Clear verdict.</div>
-      <div class="hero-sub">AI doesn't just say "risky" —<br>it tells you exactly what to do next.</div>
+      <div class="hero-headline">Just send the<br><span class="accent">screenshot.</span></div>
+      <div class="hero-sub">WhatsApp, Messenger, web — anything works.</div>
     </div>
-    <div class="risk-card">
-      <div class="risk-header">
-        <span>⚠️ HIGH RISK · 96/100</span>
-        <span>SCAM</span>
-      </div>
-      <div class="risk-body">
-        <div style="font-weight: 700; font-size: 9px; margin-bottom: 4px;">Likely bank impersonation phishing</div>
-        <div class="risk-row"><span class="risk-bullet">Reason 1</span> Domain hxxxxxxx.com is NOT bank's official</div>
-        <div class="risk-row"><span class="risk-bullet">Reason 2</span> Creates urgency ("immediately", "frozen")</div>
-        <div class="risk-row"><span class="risk-bullet">Reason 3</span> Matches 437 recent fraud reports</div>
-        <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid #eee; font-weight: 700; font-size: 9px;">Next steps:</div>
-        <div class="risk-row">✓ Do NOT click the link</div>
-        <div class="risk-row">✓ Call bank's number on your card back</div>
-        <div class="risk-row">✓ Report to FTC at ReportFraud.ftc.gov</div>
-        <div class="risk-cta">📞 Call official support</div>
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
+        <div class="nav-bar">
+          <div class="nav-icon">☰</div>
+          <div class="nav-title">StarLens</div>
+          <div class="nav-icon">✎</div>
+        </div>
+        <div class="chat-area">
+          <div class="bubble-user" style="background:#34C759; padding:6px;">
+            <div style="background:rgba(0,0,0,0.15); border-radius:6px; padding:6px; color:#fff;">
+              <div style="font-size:7px; opacity:0.85; margin-bottom:2px;">📱 WhatsApp Screenshot · Uploaded</div>
+              <div style="font-size:8px; line-height:1.4;">"Support": Congrats! You won $50,000! Add me to claim...</div>
+            </div>
+          </div>
+          <div class="bubble-bot">
+            <div style="display:flex; align-items:center; gap:4px; margin-bottom:4px;">
+              <span style="font-size:11px;">🚨</span>
+              <strong style="color:#FF3B30; font-size:10px;">HIGH RISK · 92/100 · Prize Scam</strong>
+            </div>
+            <div style="line-height:1.5;">
+              <strong>3 phishing signals detected:</strong><br>
+              • Unsolicited contact + cash bait<br>
+              • "Support" identity unverifiable<br>
+              • 94% match to prize-scam template<br>
+              <br>
+              <strong>Do this:</strong><br>
+              ✓ Don't add this stranger<br>
+              ✓ Don't provide any info<br>
+              ✓ Report and block in WhatsApp
+            </div>
+          </div>
+        </div>
+        <div class="input-bar">📸 Photo · 📁 Album · 🎙️ Voice</div>
+        <div class="tab-bar">
+          <div class="tab-item active"><span class="tab-icon">💬</span>Chat</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>Intel</div>
+          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>Family</div>
+          <div class="tab-item"><span class="tab-icon">👤</span>Me</div>
+        </div>
       </div>
     </div>
   </div>
-  <div class="screen-label">#2 Instant verdict + Action steps</div>
-  </div>
-
-  <div>
-  <div class="screen scr-3">
-    <div class="hero-top">
-      <div class="hero-headline">Just send<br>the screenshot.</div>
-      <div class="hero-sub">WhatsApp, Messenger, websites —<br>any screenshot, AI catches it.</div>
-    </div>
-    <div class="upload-card">
-      <div class="mini-shot">
-        <strong>📱 WhatsApp</strong><br>
-        "Customer Service": You won!<br>
-        Add me to claim your $50,000 prize...
-      </div>
-      <div class="arrow-down">⬇️ AI analyzing</div>
-      <div class="analysis-result">
-        <strong>🚨 Verdict: HIGH RISK</strong><br>
-        3 phishing signals detected:<br>
-        • Unsolicited contact + cash bait<br>
-        • Unverifiable "support" identity<br>
-        • Matches prize-scam template
-      </div>
-    </div>
-    <div style="text-align: center; color: #fff; font-size: 11px; margin-top: 14px; opacity: 0.9;">
-      📸 Camera · 📁 Photos · 🔗 Links supported
-    </div>
-  </div>
-  <div class="screen-label">#3 Multi-input (screenshots / links / voice)</div>
+  <div class="screen-label">#3 Screenshot phishing detection</div>
   </div>
 
 </div>
 
 <div class="grid" style="margin-top: 28px;">
 
+  <!-- EN Screen 4 -->
   <div>
-  <div class="screen scr-4">
+  <div class="screen">
     <div class="hero-top">
-      <div class="hero-headline">Protect parents<br>from anywhere.</div>
-      <div class="hero-sub">Alert sent the moment<br>they face a scam.</div>
+      <div class="hero-headline">Protect parents<br><span class="accent">from anywhere.</span></div>
+      <div class="hero-sub">Alert sent the moment they face a scam.</div>
     </div>
-    <div class="family-card">
-      <div style="font-weight: 700; font-size: 10px; margin-bottom: 6px;">👨‍👩‍👧 My Family</div>
-      <div class="family-row">
-        <div class="family-avatar">Mom</div>
-        <div>
-          <div style="font-weight: 600;">Mom</div>
-          <div style="font-size: 7px; color: #8E8E93;">2 min ago · "Pension scam" SMS blocked</div>
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
+        <div class="nav-bar">
+          <div class="nav-icon">☰</div>
+          <div class="nav-title">Family Guardian</div>
+          <div class="nav-icon">+</div>
         </div>
-        <span class="alert-badge">ALERTED</span>
-      </div>
-      <div class="family-row">
-        <div class="family-avatar" style="background: linear-gradient(135deg,#AF52DE,#7C4DFF);">Dad</div>
-        <div>
-          <div style="font-weight: 600;">Dad</div>
-          <div style="font-size: 7px; color: #8E8E93;">Today · 11 scans · all safe</div>
+        <div class="family-page">
+          <div class="family-card">
+            <div class="family-card-title">👨‍👩‍👧 My Family · 3 members</div>
+            <div class="family-member">
+              <div class="family-avatar">M</div>
+              <div class="family-info">
+                <div class="family-name">Mom</div>
+                <div class="family-status">2 min ago · "Pension" scam blocked</div>
+              </div>
+              <div class="alert-badge">ALERT</div>
+            </div>
+            <div class="family-member">
+              <div class="family-avatar" style="background: linear-gradient(135deg,#0066FF,#0044CC);">D</div>
+              <div class="family-info">
+                <div class="family-name">Dad</div>
+                <div class="family-status">Today · 11 scans · all safe</div>
+              </div>
+              <div class="safe-badge">SAFE</div>
+            </div>
+            <div class="family-member">
+              <div class="family-avatar" style="background: linear-gradient(135deg,#34C759,#25A047);">G</div>
+              <div class="family-info">
+                <div class="family-name">Grandma</div>
+                <div class="family-status">Elder Mode · Large text on</div>
+              </div>
+            </div>
+          </div>
+          <div class="family-card" style="background:#E5F1FF;">
+            <div style="font-size:9px; font-weight:600; color:#0044CC; line-height:1.5;">
+              💡 Mom just clicked a link you'd already flagged. Auto-blocked. Call her now?
+            </div>
+            <div style="background:var(--primary); color:#fff; text-align:center; padding:7px; border-radius:8px; margin-top:6px; font-size:9px; font-weight:700;">
+              📞 Call Mom
+            </div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">💬</span>Chat</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>Intel</div>
+          <div class="tab-item active"><span class="tab-icon">👨‍👩‍👧</span>Family</div>
+          <div class="tab-item"><span class="tab-icon">👤</span>Me</div>
         </div>
       </div>
-      <div class="family-row">
-        <div class="family-avatar" style="background: linear-gradient(135deg,#34C759,#25A047);">Gma</div>
-        <div>
-          <div style="font-weight: 600;">Grandma</div>
-          <div style="font-size: 7px; color: #8E8E93;">Elder Mode active · Large text</div>
-        </div>
-      </div>
-    </div>
-    <div style="background: rgba(255,255,255,0.15); margin: 0 14px; padding: 8px 10px; border-radius: 10px; color: #fff; font-size: 9px;">
-      💡 Premium: When they're at risk → you get notified
     </div>
   </div>
-  <div class="screen-label">#4 Family Guardian + Elder Mode</div>
+  <div class="screen-label">#4 Family Guardian + Remote Alert</div>
   </div>
 
+  <!-- EN Screen 5 -->
   <div>
-  <div class="screen scr-5">
+  <div class="screen">
     <div class="hero-top">
-      <div class="hero-headline">Your son?<br>Or AI?</div>
-      <div class="hero-sub">Voice pattern analysis<br>catches AI-cloned voice scams.</div>
+      <div class="hero-headline">Your son?<br><span class="accent">Or AI?</span></div>
+      <div class="hero-sub">Voice pattern analysis catches AI-cloned voices.</div>
     </div>
-    <div class="call-card">
-      <div class="caller-avatar">📞</div>
-      <div style="font-weight: 700; font-size: 11px;">"Son" Calling</div>
-      <div style="font-size: 8px; color: #8E8E93; margin: 2px 0 8px;">+1 555-***-8888 · Duration 0:42</div>
-      <div class="waveform">
-        <div class="wave-bar" style="height: 8px;"></div>
-        <div class="wave-bar" style="height: 18px;"></div>
-        <div class="wave-bar" style="height: 12px;"></div>
-        <div class="wave-bar" style="height: 24px;"></div>
-        <div class="wave-bar" style="height: 16px;"></div>
-        <div class="wave-bar" style="height: 22px;"></div>
-        <div class="wave-bar" style="height: 14px;"></div>
-        <div class="wave-bar" style="height: 20px;"></div>
-        <div class="wave-bar" style="height: 10px;"></div>
-        <div class="wave-bar" style="height: 18px;"></div>
-        <div class="wave-bar" style="height: 24px;"></div>
-        <div class="wave-bar" style="height: 16px;"></div>
-        <div class="wave-bar" style="height: 22px;"></div>
-        <div class="wave-bar" style="height: 14px;"></div>
-        <div class="wave-bar" style="height: 8px;"></div>
-      </div>
-      <div class="verdict-banner">
-        🚨 AI-generated voice · 94% confidence
-      </div>
-      <div style="font-size: 8px; color: #1F2D3D; margin-top: 6px; line-height: 1.4;">
-        • Unnatural pause patterns<br>
-        • Missing high-frequency harmonics<br>
-        Action: Hang up and call back the real number
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
+        <div class="nav-bar">
+          <div class="nav-icon">←</div>
+          <div class="nav-title">Voice Deepfake Check</div>
+          <div class="nav-icon">?</div>
+        </div>
+        <div class="voice-page">
+          <div class="voice-card">
+            <div class="voice-avatar">📞</div>
+            <div class="voice-caller">"Son" Calling</div>
+            <div class="voice-meta">+1 555-***-8888 · 0:42</div>
+            <div class="waveform">
+              <div class="wave-bar" style="height: 8px;"></div>
+              <div class="wave-bar" style="height: 18px;"></div>
+              <div class="wave-bar" style="height: 12px;"></div>
+              <div class="wave-bar" style="height: 24px;"></div>
+              <div class="wave-bar" style="height: 16px;"></div>
+              <div class="wave-bar" style="height: 22px;"></div>
+              <div class="wave-bar" style="height: 14px;"></div>
+              <div class="wave-bar" style="height: 20px;"></div>
+              <div class="wave-bar" style="height: 10px;"></div>
+              <div class="wave-bar" style="height: 18px;"></div>
+              <div class="wave-bar" style="height: 24px;"></div>
+              <div class="wave-bar" style="height: 16px;"></div>
+              <div class="wave-bar" style="height: 22px;"></div>
+              <div class="wave-bar" style="height: 14px;"></div>
+              <div class="wave-bar" style="height: 8px;"></div>
+              <div class="wave-bar" style="height: 18px;"></div>
+            </div>
+            <div class="verdict-banner">
+              🚨 AI-generated voice · 94% confidence
+            </div>
+            <div class="voice-detail">
+              <strong>Anomalies detected:</strong><br>
+              • Unnatural pause patterns<br>
+              • Missing high-freq harmonics (TTS)<br>
+              • Emotional rhythm mismatch<br>
+              <br>
+              <strong>Action:</strong><br>
+              Hang up → call the real "son"<br>
+              number from your contacts
+            </div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">💬</span>Chat</div>
+          <div class="tab-item"><span class="tab-icon">📰</span>Intel</div>
+          <div class="tab-item active"><span class="tab-icon">👨‍👩‍👧</span>Family</div>
+          <div class="tab-item"><span class="tab-icon">👤</span>Me</div>
+        </div>
       </div>
     </div>
   </div>
-  <div class="screen-label">#5 AI Voice Deepfake Detector (Premium)</div>
+  <div class="screen-label">#5 Voice Deepfake (Premium)</div>
   </div>
 
+  <!-- EN Screen 6 -->
   <div>
-  <div class="screen scr-6">
+  <div class="screen">
     <div class="hero-top">
-      <div class="hero-headline">Yesterday's scams.<br>Today's defense.</div>
-      <div class="hero-sub">Real cases updated daily.<br>Stay one step ahead.</div>
+      <div class="hero-headline">Yesterday's scams.<br><span class="accent">Today's defense.</span></div>
+      <div class="hero-sub">Real cases daily. Stay one step ahead.</div>
     </div>
-    <div class="intel-list">
-      <div class="intel-item">
-        <div class="intel-title">🔥 "Toll Unpaid" SMS Scam</div>
-        <div><span class="intel-tag">HIGH</span> Phishing · 437 reports</div>
-        <div class="intel-meta">Updated May 30, 2026</div>
+    <div class="phone-frame">
+      <div class="phone-notch"></div>
+      <div class="phone-screen">
+        <div class="status-bar"><span>9:41</span><span class="status-right">📶 5G 🔋 100%</span></div>
+        <div class="nav-bar">
+          <div class="nav-icon">☰</div>
+          <div class="nav-title">Scam Intel</div>
+          <div class="nav-icon">🔍</div>
+        </div>
+        <div class="intel-page">
+          <div class="intel-filter">
+            <div class="filter-chip active">All</div>
+            <div class="filter-chip">Phishing</div>
+            <div class="filter-chip">Investment</div>
+            <div class="filter-chip">Impersonation</div>
+          </div>
+          <div class="intel-card">
+            <div class="intel-title">🔥 "Toll Unpaid" SMS Scam</div>
+            <div class="intel-tags">
+              <div class="intel-tag">HIGH</div>
+              <div class="intel-tag trending">TRENDING</div>
+            </div>
+            <div class="intel-meta">
+              <span>437 reports</span>
+              <span>May 30</span>
+            </div>
+          </div>
+          <div class="intel-card">
+            <div class="intel-title">Fake Stock Advisor Group</div>
+            <div class="intel-tags">
+              <div class="intel-tag">INVESTMENT</div>
+            </div>
+            <div class="intel-meta">
+              <span>4-step script breakdown</span>
+              <span>May 29</span>
+            </div>
+          </div>
+          <div class="intel-card">
+            <div class="intel-title">AI-Deepfake Family Video Call</div>
+            <div class="intel-tags">
+              <div class="intel-tag new">NEW</div>
+              <div class="intel-tag">DEEPFAKE</div>
+            </div>
+            <div class="intel-meta">
+              <span>3 detection tips</span>
+              <span>May 28</span>
+            </div>
+          </div>
+          <div class="intel-card">
+            <div class="intel-title">"Package Refund" Fake Job</div>
+            <div class="intel-tags">
+              <div class="intel-tag">TRENDING</div>
+            </div>
+            <div class="intel-meta">
+              <span>282 reports</span>
+              <span>May 27</span>
+            </div>
+          </div>
+        </div>
+        <div class="tab-bar">
+          <div class="tab-item"><span class="tab-icon">💬</span>Chat</div>
+          <div class="tab-item active"><span class="tab-icon">📰</span>Intel</div>
+          <div class="tab-item"><span class="tab-icon">👨‍👩‍👧</span>Family</div>
+          <div class="tab-item"><span class="tab-icon">👤</span>Me</div>
+        </div>
       </div>
-      <div class="intel-item">
-        <div class="intel-title">Fake Stock Advisor Group</div>
-        <div><span class="intel-tag">INVESTMENT</span> 4-step script breakdown</div>
-        <div class="intel-meta">Updated May 29, 2026</div>
-      </div>
-      <div class="intel-item">
-        <div class="intel-title">AI-Deepfake Family Video Calls</div>
-        <div><span class="intel-tag">NEW</span> Detection guide</div>
-        <div class="intel-meta">Updated May 28, 2026</div>
-      </div>
-      <div class="intel-item">
-        <div class="intel-title">"Package Refund" Fake Job</div>
-        <div><span class="intel-tag">TRENDING</span> 282 reports</div>
-        <div class="intel-meta">Updated May 27, 2026</div>
-      </div>
-    </div>
-    <div style="text-align: center; color: #fff; font-size: 10px; margin-top: 10px; opacity: 0.9;">
-      🔄 Updated hourly from global reports
     </div>
   </div>
-  <div class="screen-label">#6 Intel Library</div>
+  <div class="screen-label">#6 Scam Intel Library</div>
   </div>
 
 </div>
 
 <!-- ==================== Notes ==================== -->
 <div class="notes">
-<h2>📋 设计说明 & 落地步骤</h2>
+<h2>📋 设计说明 V2（统一蓝色版）</h2>
 <ul>
-  <li><strong>规格</strong>：每张 <code>1290 × 2796</code>（iPhone 15 Pro Max），中英文各 6 张，共 12 张</li>
-  <li><strong>顺序</strong>：1 钩子 → 2 即时识别 → 3 多形态输入 → 4 家庭守护 → 5 语音深伪 → 6 情报库</li>
-  <li><strong>前 3 张</strong>是搜索结果直接展示的，必须独立完成"痛点 + 价值 + CTA"闭环</li>
-  <li><strong>顶部标题</strong>占图 25% 高度，缩略图也能读清楚（App Store 列表小图）</li>
+  <li><strong>主要变化（vs 上版）</strong>：
+    <br>&nbsp;&nbsp;• 去掉 6 种不同颜色，统一深蓝渐变：<code>#0E1455 → #1830A8 → #1D3FE0</code>
+    <br>&nbsp;&nbsp;• 去掉浮空小卡片（susmsg、family-card 等顶部装饰）
+    <br>&nbsp;&nbsp;• 主要内容 100% 放进 iPhone UI 内（含状态栏、导航栏、底 tab 完整）
+    <br>&nbsp;&nbsp;• iPhone 尺寸放大，成为视觉中心
+  </li>
+  <li><strong>顶部仅有 2 行标题</strong>：主标题（关键词高亮黄色） + 副标题，无任何其它元素抢戏</li>
+  <li><strong>App UI 内容是真实可见的</strong>：6 张图分别展示问助手 / 风险详情 / 截图分析 / 家庭守护 / 语音深伪 / 情报站，每个都是 App 实际功能</li>
   <li><strong>颜色策略</strong>：
-    <br>&nbsp;&nbsp;• 1-3 张：信任蓝色系（建立专业感）
-    <br>&nbsp;&nbsp;• 4 张：家庭暖红粉（情感共鸣）
-    <br>&nbsp;&nbsp;• 5 张：深紫色（科技感 / 警示）
-    <br>&nbsp;&nbsp;• 6 张：青绿色（信息感 / 持续更新）
+    <br>&nbsp;&nbsp;• 蓝色主调 = 信任 / 科技 / 专业
+    <br>&nbsp;&nbsp;• 黄色 accent = 关键词高亮，强对比
+    <br>&nbsp;&nbsp;• App UI 内的红/绿/橙仅用于"风险等级 / 状态"标识，是功能必须色
   </li>
-  <li><strong>对比 V1</strong>：去掉"未来感盾牌 + 星光散射"那种空泛特效，改为<em>每张展示一个具体真实场景</em>（真实诈骗短信内容、风险报告卡片、家庭群成员状态等）</li>
   <li><strong>实际落地</strong>：
-    <br>&nbsp;&nbsp;1. 这份 HTML 浏览器打开即可预览，确认设计方向
-    <br>&nbsp;&nbsp;2. 设计师按本稿用 Figma/Sketch 出 12 张高清成图（每张 1290×2796 PNG）
-    <br>&nbsp;&nbsp;3. App Store Connect 上传，注意中英文分别本地化
+    <br>&nbsp;&nbsp;1. 本 HTML 浏览器预览，确认方向
+    <br>&nbsp;&nbsp;2. 设计师按本稿用真实 App 截图替换 mockup（保持深蓝背景 + 顶部标题不变）
+    <br>&nbsp;&nbsp;3. 每张导出 1290×2796 PNG，中英文 6+6 共 12 张
   </li>
-  <li><strong>App Preview 视频（可选）</strong>：30 秒，前 5 秒必须出现"3 秒识破诈骗"画面</li>
+  <li><strong>真实截图来源</strong>：
+    <br>&nbsp;&nbsp;• Xcode 模拟器跑 iPhone 15 Pro Max
+    <br>&nbsp;&nbsp;• 准备好对应内容（聊天对话、家庭群成员、语音分析结果等）
+    <br>&nbsp;&nbsp;• 截图导出后用 Figma 替换 mockup 内嵌内容即可
+  </li>
 </ul>
 </div>
 
