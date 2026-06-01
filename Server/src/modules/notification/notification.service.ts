@@ -257,6 +257,31 @@ export class NotificationService implements OnModuleDestroy {
   // ====================================================================
 
   /** 50 分钟 rotate；缓存命中直接返 */
+  /**
+   * 容错处理 APNS_AUTH_KEY 环境变量的常见 PaaS 坑：
+   *  1. Railway/Vercel UI 把真换行替换成字面量 "\n" → 还原成真换行
+   *  2. 用户只复制了 BEGIN/END 之间的 base64 内容 → 自动补 BEGIN/END 头尾
+   *  3. 行尾有多余空格 / CRLF → 清理
+   */
+  private normalizeApnsPrivateKey(raw: string): string {
+    if (!raw) return raw;
+    let key = raw.trim();
+    // 字面量 \n → 真换行
+    if (key.includes('\\n')) {
+      key = key.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n');
+    }
+    // CRLF → LF（Windows 剪贴板）
+    key = key.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // 用户漏贴 BEGIN/END，自动补
+    if (!key.includes('BEGIN')) {
+      // 假设是纯 base64 内容，每 64 字符一行
+      const base64 = key.replace(/\s+/g, '');
+      const wrapped = base64.match(/.{1,64}/g)?.join('\n') ?? base64;
+      key = `-----BEGIN PRIVATE KEY-----\n${wrapped}\n-----END PRIVATE KEY-----`;
+    }
+    return key;
+  }
+
   private getJwt(): string {
     const now = Date.now();
     if (this.jwtCache && this.jwtCache.expiresAt > now) {
@@ -264,7 +289,11 @@ export class NotificationService implements OnModuleDestroy {
     }
     const teamId = process.env.APNS_TEAM_ID as string;
     const keyId = process.env.APNS_KEY_ID as string;
-    const authKey = process.env.APNS_AUTH_KEY as string;
+    // Railway / Vercel 等 PaaS 把多行 PEM 存成字面量 '\n' 串，crypto 解析会 fail。
+    // 同时容忍：纯 base64（用户只贴了 BEGIN/END 之间内容）→ 自动补上头尾
+    const authKey = this.normalizeApnsPrivateKey(
+      process.env.APNS_AUTH_KEY as string,
+    );
 
     const header = { alg: 'ES256', kid: keyId };
     const iat = Math.floor(now / 1000);
