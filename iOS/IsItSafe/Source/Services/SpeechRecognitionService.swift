@@ -36,6 +36,20 @@ public final class SpeechRecognitionService {
                 cont.resume(throwing: NSError(domain: "Speech", code: -1, userInfo: [NSLocalizedDescriptionKey: "语音识别不可用"]))
                 return
             }
+            // 关键：先配置 AVAudioSession，否则 inputNode 拿不到有效采样率
+            // 导致 AVAudioEngine.start() 报 -10851 (kAudioUnitErr_InvalidPropertyValue)
+            do {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(
+                    .playAndRecord,
+                    mode: .measurement,
+                    options: [.duckOthers, .defaultToSpeaker, .allowBluetooth]
+                )
+                try session.setActive(true, options: .notifyOthersOnDeactivation)
+            } catch {
+                cont.resume(throwing: error)
+                return
+            }
             engine.stop()
             request = SFSpeechAudioBufferRecognitionRequest()
             guard let request = request else {
@@ -88,5 +102,7 @@ public final class SpeechRecognitionService {
         request = nil
         task?.cancel()
         task = nil
+        // 释放 AudioSession，避免长时间占麦克风影响 TTS / 通话 / 其它录音
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }

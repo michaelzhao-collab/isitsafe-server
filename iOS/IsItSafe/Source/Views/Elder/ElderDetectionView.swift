@@ -3,10 +3,10 @@
 //  IsItSafe
 //
 //  V3-J 长辈检测入口（J-P2 + J-P3 结果页合一）
-//  3 大输入方式（全部接通真实能力，不再 stub）：
+//  2 种输入方式（接通真实能力，不再 stub）：
 //   1. 拍照检测 → CameraCaptureView → Vision OCR → AI 分析
 //   2. 说一下   → SpeechRecognitionService 录音转文字 → AI 分析
-//   3. 录音上传 → DocumentPicker 选音频文件 → uploadAudio + DeepfakeRepository → 轮询结果
+//   （录音上传入口给长辈太复杂，已隐藏；如需可走"我的 → 语音深伪检测"）
 //  结果用大圆环 + TTS 自动朗读
 //
 //  长辈模式字体全部放大（24-32pt 范围）
@@ -15,7 +15,6 @@
 import Combine
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
 
 public struct ElderDetectionView: View {
     @Environment(\.dismiss) private var dismiss
@@ -25,7 +24,6 @@ public struct ElderDetectionView: View {
 
     // 输入相关
     @State private var showCamera = false
-    @State private var showAudioFilePicker = false
     @State private var isRecordingVoice = false
     @State private var voiceTask: Task<Void, Never>?
 
@@ -108,13 +106,6 @@ public struct ElderDetectionView: View {
                 )
                 .ignoresSafeArea()
             }
-            .fileImporter(
-                isPresented: $showAudioFilePicker,
-                allowedContentTypes: [.audio, .mpeg4Audio, .mp3, .wav],
-                allowsMultipleSelection: false
-            ) { result in
-                handleAudioFileSelection(result)
-            }
             .alert(
                 languageCode == "en" ? "Failed" : "失败",
                 isPresented: Binding(
@@ -171,17 +162,6 @@ public struct ElderDetectionView: View {
                     }
                 )
 
-                inputCard(
-                    icon: "🎧",
-                    title: languageCode == "en" ? "Upload recording" : "录音上传",
-                    desc: languageCode == "en"
-                        ? "Upload a voice message you received"
-                        : "上传对方发来的语音消息",
-                    primary: false,
-                    action: {
-                        showAudioFilePicker = true
-                    }
-                )
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 24)
@@ -305,94 +285,6 @@ public struct ElderDetectionView: View {
     private func stopVoiceCapture() {
         SpeechRecognitionService.shared.stopRecording()
         isRecordingVoice = false
-    }
-
-    // MARK: - 3. 录音上传：文件 → 上传 → DeepfakeCheck → 轮询结果
-
-    private func handleAudioFileSelection(_ result: Result<[URL], Error>) {
-        switch result {
-        case .failure(let err):
-            errorMessage = err.localizedDescription
-            return
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            uploadAndAnalyzeAudio(url: url)
-        }
-    }
-
-    private func uploadAndAnalyzeAudio(url: URL) {
-        isProcessing = true
-        processingMessage = languageCode == "en" ? "Uploading audio..." : "正在上传语音..."
-        Task {
-            do {
-                // 1) 拷贝到可读位置（fileImporter 给的 url 受安全沙箱限制）
-                let needsAccess = url.startAccessingSecurityScopedResource()
-                defer { if needsAccess { url.stopAccessingSecurityScopedResource() } }
-                let audioData = try Data(contentsOf: url)
-                let mime: String = {
-                    switch url.pathExtension.lowercased() {
-                    case "mp3": return "audio/mpeg"
-                    case "wav": return "audio/wav"
-                    case "m4a", "aac", "mp4": return "audio/mp4"
-                    default: return "audio/mp4"
-                    }
-                }()
-                let fileUrl = try await NetworkManager.shared.uploadAudio(
-                    type: "deepfake",
-                    audioData: audioData,
-                    mimeType: mime,
-                    filename: url.lastPathComponent
-                )
-
-                await MainActor.run {
-                    processingMessage = languageCode == "en"
-                        ? "AI is analyzing the voice..."
-                        : "AI 正在分析语音..."
-                }
-
-                let initial = try await DeepfakeRepository.shared.create(
-                    sourceType: "upload",
-                    fileUrl: fileUrl,
-                    fileDurationSec: nil
-                )
-
-                // 轮询 result：最多 30s
-                var current = initial
-                let deadline = Date().addingTimeInterval(30)
-                while current.status != "done" && current.status != "failed" && Date() < deadline {
-                    try await Task.sleep(nanoseconds: 1_500_000_000)
-                    current = try await DeepfakeRepository.shared.getResult(taskId: current.id)
-                }
-
-                await MainActor.run {
-                    isProcessing = false
-                    if current.status == "failed" {
-                        errorMessage = languageCode == "en"
-                            ? "Analysis failed. Please try again."
-                            : "分析失败，请稍后再试"
-                        return
-                    }
-                    // 即使 status 还是 processing/queued，超时也按当前值显示一份保底
-                    let label: ResultLabel = {
-                        switch current.resultLabel {
-                        case .high: return .high
-                        case .medium: return .medium
-                        case .low: return .low
-                        case .none: return .medium
-                        }
-                    }()
-                    resultText = languageCode == "en"
-                        ? "Voice file analyzed (\(current.scorePercent)% AI synthesis probability)"
-                        : "已分析这段语音（AI 合成概率 \(current.scorePercent)%）"
-                    resultLabel = label
-                }
-            } catch {
-                await MainActor.run {
-                    isProcessing = false
-                    errorMessage = error.localizedDescription
-                }
-            }
-        }
     }
 
     // MARK: - 监听 AI 分析结果
