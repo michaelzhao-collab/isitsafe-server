@@ -1,0 +1,21 @@
+{
+  "name": "StarLens AI",
+  "short_name": "StarLens",
+  "description": "Official AI Risk Detection, Protecting Your Safety",
+  "icons": [
+    {
+      "src": "/assets/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#2F6BFF",
+  "background_color": "#1F4FCC",
+  "display": "standalone",
+  "start_url": "/"
+}
