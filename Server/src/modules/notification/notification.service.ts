@@ -173,16 +173,37 @@ export class NotificationService implements OnModuleDestroy {
     collapseId?: string,
   ): Promise<{ delivered: boolean; messageId?: string; reason?: string }> {
     try {
+      // Preflight：4 个 env 必须存在；任何一个 undefined 都直接给出明确 reason，不进网络层
+      const teamId = process.env.APNS_TEAM_ID;
+      const keyId = process.env.APNS_KEY_ID;
+      const rawKey = process.env.APNS_AUTH_KEY;
+      const bundleId = process.env.APNS_BUNDLE_ID;
+      const missing: string[] = [];
+      if (!teamId) missing.push('APNS_TEAM_ID');
+      if (!keyId) missing.push('APNS_KEY_ID');
+      if (!rawKey) missing.push('APNS_AUTH_KEY');
+      if (!bundleId) missing.push('APNS_BUNDLE_ID');
+      if (missing.length > 0) {
+        return { delivered: false, reason: `env_missing:${missing.join(',')}` };
+      }
+      // JWT 单独 try，区分"密钥格式问题"与"网络/HTTP2 问题"
+      let jwt: string;
+      try {
+        jwt = this.getJwt();
+      } catch (jwtErr: any) {
+        const jm = jwtErr?.message ?? String(jwtErr);
+        this.logger.error(`[APNs] JWT signing failed: ${jm}`);
+        // 常见：密钥不是 P-256 / 内容损坏 / KEY_ID 与 .p8 文件不匹配（kid 错）
+        return { delivered: false, reason: `jwt_sign_failed: ${String(jm).slice(0, 120)}` };
+      }
       const session = await this.getHttp2Client(environment);
-      const jwt = this.getJwt();
-      const bundleId = process.env.APNS_BUNDLE_ID as string;
 
       const body = JSON.stringify(payload);
       const headers: Record<string, string> = {
         ':method': 'POST',
         ':path': `/3/device/${deviceToken}`,
         authorization: `bearer ${jwt}`,
-        'apns-topic': bundleId,
+        'apns-topic': bundleId as string,
         'apns-push-type': 'alert',
         'apns-priority': '10',
         'content-type': 'application/json',
@@ -227,8 +248,19 @@ export class NotificationService implements OnModuleDestroy {
         stream.end();
       });
     } catch (err: any) {
-      this.logger.error(`[APNs] deliver error: ${err?.message ?? err}`);
-      return { delivered: false, reason: 'apns_internal_error' };
+      const msg = err?.message ?? String(err);
+      const code = err?.code ?? '';
+      // 把真实原因暴露给上层（admin UI 的错误列），方便排查
+      // 常见：
+      //  - "crypto/keyformat" 或 "PEM_read_bio" → APNS_AUTH_KEY 内容损坏 / 不是 P-256 ES256 key
+      //  - "ENOTFOUND" / "ECONNREFUSED" → 网络/DNS 问题
+      //  - "ERR_HTTP2_SESSION_ERROR" → HTTP/2 会话挂了
+      //  - "Cannot read properties of undefined" → 4 个 env 有 undefined
+      this.logger.error(`[APNs] deliver internal error: code=${code} msg=${msg}`);
+      const shortReason = code
+        ? `apns_internal: ${code}`
+        : `apns_internal: ${String(msg).slice(0, 120)}`;
+      return { delivered: false, reason: shortReason };
     }
   }
 
