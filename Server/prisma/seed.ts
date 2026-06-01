@@ -201,7 +201,9 @@ async function main() {
       sortOrder: 3,
       isRecommended: false,
     },
-    // V3 一期新增：家庭套餐 — owner 付费 → 同家庭全员共享查询不限/天 + 官方提醒不限
+    // V3 一期家庭套餐 — 业主 2026-06-02 反馈：暂时不做家庭会员，下面 2 个
+    // seed 仍写入数据库以便后续启用，但 isActive 默认 false（admin 可见但
+    // 用户端 listActivePlans 不返回，订阅页看不到）
     {
       id: 'seed-plan-family-monthly',
       name: '家庭月会员',
@@ -225,10 +227,12 @@ async function main() {
       isRecommended: false,
     },
   ];
+  const inactiveIds = new Set(['seed-plan-family-monthly', 'seed-plan-family-annual']);
   for (const plan of planSeeds) {
+    const isActive = !inactiveIds.has(plan.id);
     await prisma.membershipPlan.upsert({
       where: { id: plan.id },
-      create: { ...plan, isActive: true },
+      create: { ...plan, isActive },
       update: {
         productId: plan.productId,
         price: plan.price,
@@ -237,7 +241,7 @@ async function main() {
         tier: plan.tier,
         sortOrder: plan.sortOrder,
         isRecommended: plan.isRecommended,
-        isActive: true,
+        isActive,
       },
     });
   }
