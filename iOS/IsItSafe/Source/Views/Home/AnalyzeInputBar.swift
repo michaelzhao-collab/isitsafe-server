@@ -26,6 +26,8 @@ public struct AnalyzeInputBar: View {
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     public var voiceHintText: String = "按住说话"
     @FocusState.Binding public var isFocused: Bool
+    /// 录音状态变化回调：HomeContainerView 用来弹/隐全屏录音浮层
+    public var onRecordingStateChange: ((_ active: Bool, _ cancelMode: Bool) -> Void)?
 
     // 录音手势状态
     @State private var isRecording = false
@@ -55,7 +57,8 @@ public struct AnalyzeInputBar: View {
         onVoiceHoldEnd: (() -> Void)? = nil,
         onVoiceCancel: (() -> Void)? = nil,
         voiceHintText: String = "按住说话",
-        isFocused: FocusState<Bool>.Binding
+        isFocused: FocusState<Bool>.Binding,
+        onRecordingStateChange: ((Bool, Bool) -> Void)? = nil
     ) {
         self._text = text
         self.pendingImage = pendingImage
@@ -71,6 +74,7 @@ public struct AnalyzeInputBar: View {
         self.onVoiceCancel = onVoiceCancel
         self.voiceHintText = voiceHintText
         self._isFocused = isFocused
+        self.onRecordingStateChange = onRecordingStateChange
     }
 
     /// 有输入内容（文字或待发图）时隐藏拍摄与语音入口
@@ -256,12 +260,14 @@ public struct AnalyzeInputBar: View {
                     if !isRecording {
                         isRecording = true
                         onVoiceHoldStart?()
+                        onRecordingStateChange?(true, false)
                     }
                     if let drag = drag {
                         let dy = -drag.translation.height  // 上滑为正
                         let shouldCancel = dy > cancelThreshold
                         if shouldCancel != isCancellableMode {
                             isCancellableMode = shouldCancel
+                            onRecordingStateChange?(true, shouldCancel)
                         }
                     }
                 default:
@@ -283,6 +289,7 @@ public struct AnalyzeInputBar: View {
                 }
                 isRecording = false
                 isCancellableMode = false
+                onRecordingStateChange?(false, false)
             }
     }
 

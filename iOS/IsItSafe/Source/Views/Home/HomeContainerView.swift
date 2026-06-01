@@ -30,6 +30,9 @@ public struct HomeContainerView: View {
     @State private var historyItemToDelete: QueryHistoryItem?
     @State private var voiceRecordingTask: Task<Void, Never>?
     @State private var voiceHintText = "按住说话"
+    /// 录音浮层显示状态（由 AnalyzeInputBar onRecordingStateChange 驱动）
+    @State private var voiceOverlayActive = false
+    @State private var voiceOverlayCancelMode = false
     @EnvironmentObject private var appState: AppStateViewModel
     @EnvironmentObject private var router: AppRouter
     @Environment(\.scenePhase) private var scenePhase
@@ -112,6 +115,11 @@ public struct HomeContainerView: View {
                     .onTapGesture { showSidebar = false }
                 sidebar
                     .transition(.move(edge: .leading))
+            }
+            // 录音浮层（按住说话）：最顶层全屏遮罩
+            if voiceOverlayActive {
+                VoiceRecordingOverlay(isCancellable: voiceOverlayCancelMode)
+                    .zIndex(9999)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: showSidebar)
@@ -401,7 +409,11 @@ public struct HomeContainerView: View {
                             voiceRecordingTask = nil
                         },
                         voiceHintText: voiceHintText,
-                        isFocused: $isInputFocused
+                        isFocused: $isInputFocused,
+                        onRecordingStateChange: { active, cancelMode in
+                            voiceOverlayActive = active
+                            voiceOverlayCancelMode = cancelMode
+                        }
                     )
                     Color.clear.frame(height: isInputFocused ? 12 : 56)
                 }
