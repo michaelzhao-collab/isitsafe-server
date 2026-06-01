@@ -123,6 +123,39 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
+  // V4-P2 推送通知
+  pushPreviewAudience: (params: { audience: 'all' | 'user'; targetUserId?: string }) =>
+    request<{ audience: string; usersCount: number; devicesCount: number; user?: { id: string; nickname: string | null; phone: string | null; email: string | null } | null }>(
+      '/admin/push/preview-audience',
+      { params: params as any }
+    ),
+  pushSend: (body: { audience: 'all' | 'user'; targetUserId?: string; title: string; body: string }) =>
+    request<{ ok: boolean; id: string; audience: string; devicesCount: number; deliveredCount: number; failedCount: number; errorMessage?: string | null; hint?: string }>(
+      '/admin/push/send',
+      { method: 'POST', body: JSON.stringify(body) }
+    ),
+  pushHistory: (params?: { page?: number; pageSize?: number }) =>
+    request<{
+      items: Array<{
+        id: string;
+        audience: string;
+        targetUserId: string | null;
+        title: string;
+        body: string;
+        devicesCount: number;
+        deliveredCount: number;
+        failedCount: number;
+        status: string;
+        errorMessage: string | null;
+        sentByAdminId: string;
+        createdAt: string;
+        targetUser: { id: string; nickname: string | null; phone: string | null; email: string | null } | null;
+        sentByAdmin: { id: string; nickname: string | null; phone: string | null; email: string | null } | null;
+      }>;
+      total: number;
+      page: number;
+      pageSize: number;
+    }>('/admin/push/history', { params: params as any }),
 };
 
 export interface MembershipPlanItem {

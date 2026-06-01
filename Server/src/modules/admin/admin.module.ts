@@ -24,6 +24,7 @@ import { AdminMembershipController } from './admin-membership.controller';
 import { AdminRiskDataController } from './admin-risk-data.controller';
 import { AdminV3Controller } from './admin-v3.controller';
 import { AdminDiagnosticsController } from './admin-diagnostics.controller';
+import { AdminPushController } from './admin-push.controller';
 import { TurnstileService } from './turnstile.service';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 import { AdminAuditLogService } from './audit/audit-log.service';
@@ -48,6 +49,7 @@ import { AdminAuditLogService } from './audit/audit-log.service';
     AdminRiskDataController,
     AdminV3Controller,
     AdminDiagnosticsController,
+    AdminPushController,
   ],
   providers: [AdminRoleGuard, AdminAuthService, TurnstileService, AdminAuditLogService],
   exports: [AdminAuditLogService],

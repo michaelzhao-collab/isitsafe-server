@@ -865,3 +865,35 @@ model OnboardingChip {
   @@index([status, orderIdx])
   @@map("onboarding_chips")
 }
+
+
+// --------------------------------------------
+// V4-P2 推送广播历史
+// admin 后台发起的 APNs 推送都落一条记录，方便审计与重试
+// --------------------------------------------
+model PushBroadcast {
+  id             String   @id @default(cuid())
+  /// 'all'（全用户广播）| 'user'（单点）
+  audience       String   @db.VarChar(20)
+  /// audience='user' 时填，否则为 null
+  targetUserId   String?  @map("target_user_id")
+  title          String   @db.VarChar(180)
+  body           String   @db.VarChar(800)
+  /// 命中的 iOS 设备数（不含 android）
+  devicesCount   Int      @default(0) @map("devices_count")
+  /// 至少投递成功 1 次的用户数（不是设备数）
+  deliveredCount Int      @default(0) @map("delivered_count")
+  /// 投递失败的设备数
+  failedCount    Int      @default(0) @map("failed_count")
+  /// 执行状态：'pending' | 'sending' | 'done' | 'failed'
+  status         String   @default("done") @db.VarChar(20)
+  /// 简短错误摘要（如有）
+  errorMessage   String?  @map("error_message") @db.VarChar(500)
+  /// 触发者 admin 的 userId
+  sentByAdminId  String   @map("sent_by_admin_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([audience, createdAt])
+  @@map("push_broadcasts")
+}

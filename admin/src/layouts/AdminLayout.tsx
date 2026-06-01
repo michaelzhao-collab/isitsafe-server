@@ -79,6 +79,7 @@ const menuItems: MenuProps['items'] = [
     label: '消息/数据',
     children: [
       { key: '/messages', label: '消息推送' },
+      { key: '/push', label: 'Push 通知' },
       { key: '/analytics', icon: <BarChartOutlined />, label: '数据分析' },
     ],
   },
@@ -116,6 +117,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   '/membership': { label: '会员套餐', parent: '会员体系' },
   '/subscription-orders': { label: '订阅订单', parent: '会员体系' },
   '/messages': { label: '消息推送', parent: '消息/数据' },
+  '/push': { label: 'Push 通知', parent: '消息/数据' },
   '/analytics': { label: '数据分析', parent: '消息/数据' },
   '/admin-users': { label: '管理员账号', parent: '系统设置' },
   '/ai-settings': { label: 'AI 配置', parent: '系统设置' },
