@@ -459,6 +459,12 @@ public struct HomeContainerView: View {
                         voiceHintText: voiceHintText,
                         isFocused: $isInputFocused,
                         onRecordingStateChange: { active, cancelMode in
+                            // 进入/退出录音态时同步隐藏/显示底 tab，让遮罩能盖住底栏
+                            if active && !voiceOverlayActive {
+                                TabBarVisibility.shared.pushHidden()
+                            } else if !active && voiceOverlayActive {
+                                TabBarVisibility.shared.popHidden()
+                            }
                             voiceOverlayActive = active
                             voiceOverlayCancelMode = cancelMode
                         }

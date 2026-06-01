@@ -29,6 +29,7 @@ public struct MemberCenterView: View {
                 userSection
                 statusCardSection
                 coreBenefitsSection
+                familyBenefitsSection
             }
         }
         .background(AppTheme.background)
@@ -109,35 +110,35 @@ public struct MemberCenterView: View {
         }
     }
 
-    // MARK: - 当前状态卡片（深灰）：计划名 [F]、到期日 [F]
+    // MARK: - 当前状态卡片：计划名、到期日，颜色按浅灰底面修正
     private var statusCardSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(languageCode == "en" ? "Current status" : "当前状态")
                     .font(.subheadline)
-                    .foregroundColor(Color.white.opacity(0.7))
+                    .foregroundColor(AppTheme.textSecondary)
                 Spacer()
                 Image(systemName: "crown.fill")
                     .font(.system(size: 22))
-                    .foregroundColor(.yellow)
+                    .foregroundColor(Color(hex: "D4AF37"))
             }
             Text(currentPlanTitle)
                 .font(.title2.bold())
-                .foregroundColor(.yellow)
+                .foregroundColor(AppTheme.textPrimary)
             Text(languageCode == "en" ? "Valid until" : "会员有效期至")
                 .font(.caption)
-                .foregroundColor(Color.white.opacity(0.7))
+                .foregroundColor(AppTheme.textSecondary)
             Text(formattedExpireDate)
                 .font(.subheadline.weight(.medium))
-                .foregroundColor(.white)
+                .foregroundColor(AppTheme.textPrimary)
             HStack {
                 Spacer()
                 Text(languageCode == "en" ? "Active" : "正常续费中")
-                    .font(.caption)
-                    .foregroundColor(AppTheme.textPrimary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.white)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color.white.opacity(0.25))
+                    .background(Color(hex: "34C759"))
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
@@ -206,7 +207,52 @@ public struct MemberCenterView: View {
         .padding(.bottom, 24)
     }
 
-    /// 会员页权益卡片（无「未开通」角标，标题与描述后带 [F]）
+    // MARK: - 家庭守护权益（V3-A 会员能开通的家庭功能）
+    private var familyBenefitsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Rectangle()
+                    .fill(Color(hex: "FF6B6B"))
+                    .frame(width: 4, height: 22)
+                Text(languageCode == "en" ? "Family guardian" : "家庭守护权益")
+                    .font(.headline)
+                    .foregroundColor(AppTheme.textPrimary)
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
+                memberBenefitCard(
+                    icon: "person.2.fill",
+                    iconColor: Color(hex: "FF6B6B"),
+                    title: languageCode == "en" ? "Family group" : "创建家庭群",
+                    subtitle: languageCode == "en" ? "Invite up to 6 members" : "最多邀请 6 位家人"
+                )
+                memberBenefitCard(
+                    icon: "bell.badge.fill",
+                    iconColor: Color(hex: "FF9500"),
+                    title: languageCode == "en" ? "Family alerts" : "家庭风险共享",
+                    subtitle: languageCode == "en" ? "Shared scam alerts" : "诈骗预警实时同步"
+                )
+                memberBenefitCard(
+                    icon: "person.crop.circle.badge.exclamationmark",
+                    iconColor: Color(hex: "AF52DE"),
+                    title: languageCode == "en" ? "Elder mode" : "长辈守护",
+                    subtitle: languageCode == "en" ? "Large UI + remote care" : "大字模式 + 远程关怀"
+                )
+                memberBenefitCard(
+                    icon: "waveform.path.ecg",
+                    iconColor: Color(hex: "30B0C7"),
+                    title: languageCode == "en" ? "Voice deepfake check" : "语音深伪检测",
+                    subtitle: languageCode == "en" ? "AI verifies suspicious calls" : "AI 鉴别可疑来电"
+                )
+            }
+        }
+        .padding(20)
+        .background(AppTheme.cardBackground)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 24)
+    }
+
+    /// 会员页权益卡片
     private func memberBenefitCard(icon: String, iconColor: Color, title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: icon)
@@ -215,22 +261,15 @@ public struct MemberCenterView: View {
                 .frame(width: 44, height: 44)
                 .background(iconColor)
                 .clipShape(Circle())
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(AppTheme.textPrimary)
-                Text("[F]")
-                    .font(.caption2)
-                    .foregroundColor(AppTheme.textSecondary)
-            }
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(AppTheme.textSecondary)
-                Text("[F]")
-                    .font(.caption2)
-                    .foregroundColor(AppTheme.textSecondary)
-            }
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(AppTheme.textPrimary)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundColor(AppTheme.textSecondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
