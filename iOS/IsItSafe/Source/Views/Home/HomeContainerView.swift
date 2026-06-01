@@ -390,8 +390,14 @@ public struct HomeContainerView: View {
                                 let text = try? await SpeechRecognitionService.shared.startRecording()
                                 await MainActor.run {
                                     if let t = text, !t.isEmpty {
-                                        homeVm.inputText = t
-                                        homeVm.analyze()
+                                        // 有待发图片时走"图+文"路径，否则纯文本
+                                        // 之前 bug：直接 analyze() 把图片丢了
+                                        if let img = homeVm.pendingImage {
+                                            homeVm.analyzeImageAndText(img, text: t)
+                                        } else {
+                                            homeVm.inputText = t
+                                            homeVm.analyze()
+                                        }
                                     }
                                     voiceRecordingTask = nil
                                 }
