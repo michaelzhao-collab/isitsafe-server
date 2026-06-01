@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>StarLensAI Logo 设计稿 V1 - 6 个候选方向</title>
+<style>
+  :root {
+    --primary: #2F6BFF;
+    --primary-dark: #1F4FCC;
+    --primary-deep: #0E2DAB;
+    --danger: #DC2626;
+    --bg: #0A0E1F;
+    --card: #1C1C2E;
+    --text: #fff;
+    --text-2: #8E8E93;
+    --accent: #FFD60A;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 48px 24px;
+  }
+  h1 { text-align: center; font-size: 28px; margin-bottom: 8px; }
+  .subtitle { text-align: center; color: var(--text-2); margin-bottom: 36px; font-size: 14px; }
+
+  .principles {
+    max-width: 880px;
+    margin: 0 auto 40px;
+    background: var(--card);
+    border-radius: 16px;
+    padding: 22px 26px;
+  }
+  .principles h2 { font-size: 18px; margin-bottom: 12px; }
+  .principles ul { margin-left: 20px; line-height: 1.7; font-size: 14px; color: #C7C7CC; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 28px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .concept {
+    background: var(--card);
+    border-radius: 18px;
+    padding: 24px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .concept-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .concept-title {
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .concept-tag {
+    background: rgba(47, 107, 255, 0.18);
+    color: var(--primary);
+    padding: 4px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* 大尺寸预览（256px，模拟 App 安装后的图标）*/
+  .preview-large {
+    width: 200px;
+    height: 200px;
+    border-radius: 44px; /* iOS 18 的图标圆角约 1024 / 4.4 */
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    position: relative;
+    overflow: hidden;
+  }
+  .preview-large svg { width: 80%; height: 80%; }
+
+  /* 缩放测试条 */
+  .sizes-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    align-items: flex-end;
+    margin-bottom: 18px;
+    padding: 14px;
+    background: #fff;
+    border-radius: 12px;
+  }
+  .size-item { text-align: center; }
+  .size-icon {
+    border-radius: 22%;
+    margin: 0 auto 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .size-icon svg { width: 80%; height: 80%; }
+  .size-label { font-size: 10px; color: #6B7280; }
+  .s120 { width: 120px; height: 120px; border-radius: 27px; }
+  .s60 { width: 60px; height: 60px; border-radius: 14px; }
+  .s40 { width: 40px; height: 40px; border-radius: 9px; }
+  .s24 { width: 24px; height: 24px; border-radius: 5px; }
+  .s16 { width: 16px; height: 16px; border-radius: 3.5px; }
+
+  /* 描述 */
+  .concept-desc {
+    font-size: 13px;
+    color: #C7C7CC;
+    line-height: 1.6;
+  }
+  .concept-desc strong { color: #fff; }
+  .concept-desc ul { margin: 6px 0 0 18px; }
+  .concept-desc li { margin-bottom: 2px; }
+
+  .footer-notes {
+    max-width: 880px;
+    margin: 50px auto 0;
+    background: var(--card);
+    border-radius: 16px;
+    padding: 22px 26px;
+  }
+  .footer-notes h2 { font-size: 18px; margin-bottom: 12px; }
+  .footer-notes ul { margin-left: 20px; line-height: 1.7; font-size: 13px; color: #C7C7CC; }
+
+  /* ==== 各方案专属背景与色 ==== */
+
+  /* #1 Star-in-Lens（星·镜）*/
+  .bg-1 { background: linear-gradient(135deg, #1F4FCC 0%, #2F6BFF 60%, #5B86FF 100%); }
+
+  /* #2 Shield-Star（盾·星）*/
+  .bg-2 { background: linear-gradient(160deg, #0E2DAB 0%, #2F6BFF 100%); }
+
+  /* #3 Geometric Eye-Scan（智眼）*/
+  .bg-3 { background: linear-gradient(180deg, #0F172A 0%, #1E40AF 100%); }
+
+  /* #4 Star + Radar（星雷达）*/
+  .bg-4 { background: linear-gradient(135deg, #1F4FCC 0%, #2F6BFF 100%); }
+
+  /* #5 Letter Mark "S"（极简 S 字标）*/
+  .bg-5 { background: #2F6BFF; }
+
+  /* #6 Stylized Eye + Star（科技眼）*/
+  .bg-6 { background: radial-gradient(circle at 30% 20%, #4A7BFF 0%, #0E2DAB 100%); }
+</style>
+</head>
+<body>
+
+<h1>StarLensAI · Logo 设计稿 V1</h1>
+<p class="subtitle">6 个方向 · SVG 矢量 · 每个含 1024/120/60/40/24/16px 缩放测试</p>
+
+<div class="principles">
+<h2>📐 设计原则</h2>
+<ul>
+  <li><strong>品牌名拆解</strong>：StarLens = <em>Star</em>（星）+ <em>Lens</em>（镜），AI 是后缀职业属性，logo 核心讲 Star + Lens</li>
+  <li><strong>核心信号</strong>：识别（lens / eye / scanner）+ 安全（shield / 盾感）+ 智能（star 锐角 / 高科技感）</li>
+  <li><strong>App Store 规范</strong>：1024×1024 圆角自动加，logo 内容不要带额外圆边或边框</li>
+  <li><strong>小尺寸可读</strong>：16×16（浏览器 tab）和 60×60（通知中心）必须立刻识别</li>
+  <li><strong>颜色克制</strong>：主色 #2F6BFF（AppTheme.primary）+ 适度白色，避免现有 logo 多元素混搭</li>
+  <li><strong>避免</strong>：3D 玻璃质感（已过时）/ AI 生成混合元素 / 字母词混搭中文字符</li>
+</ul>
+</div>
+
+<div class="grid">
+
+  <!-- ============ #1 Star-in-Lens 星·镜 ============ -->
+  <div class="concept">
+    <div class="concept-header">
+      <div class="concept-title">#1 星·镜（Star-in-Lens）</div>
+      <div class="concept-tag">⭐ 推荐</div>
+    </div>
+    <div class="preview-large bg-1">
+      <svg viewBox="0 0 100 100">
+        <!-- 圆环（lens body）-->
+        <circle cx="44" cy="44" r="32" fill="none" stroke="#fff" stroke-width="6"/>
+        <!-- 手柄 -->
+        <line x1="67" y1="67" x2="86" y2="86" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+        <!-- 中心星 -->
+        <path d="M44 24 L48 38 L62 38 L51 47 L55 60 L44 53 L33 60 L37 47 L26 38 L40 38 Z" fill="#fff"/>
+      </svg>
+    </div>
+    <div class="sizes-row">
+      <div class="size-item">
+        <div class="size-icon s120 bg-1">
+          <svg viewBox="0 0 100 100">
+            <circle cx="44" cy="44" r="32" fill="none" stroke="#fff" stroke-width="6"/>
+            <line x1="67" y1="67" x2="86" y2="86" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+            <path d="M44 24 L48 38 L62 38 L51 47 L55 60 L44 53 L33 60 L37 47 L26 38 L40 38 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">120 (Home)</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s60 bg-1">
+          <svg viewBox="0 0 100 100">
+            <circle cx="44" cy="44" r="32" fill="none" stroke="#fff" stroke-width="6"/>
+            <line x1="67" y1="67" x2="86" y2="86" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+            <path d="M44 24 L48 38 L62 38 L51 47 L55 60 L44 53 L33 60 L37 47 L26 38 L40 38 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">60</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s40 bg-1">
+          <svg viewBox="0 0 100 100">
+            <circle cx="44" cy="44" r="32" fill="none" stroke="#fff" stroke-width="6"/>
+            <line x1="67" y1="67" x2="86" y2="86" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+            <path d="M44 24 L48 38 L62 38 L51 47 L55 60 L44 53 L33 60 L37 47 L26 38 L40 38 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">40</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s24 bg-1">
+          <svg viewBox="0 0 100 100">
+            <circle cx="44" cy="44" r="32" fill="none" stroke="#fff" stroke-width="6"/>
+            <line x1="67" y1="67" x2="86" y2="86" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
+            <path d="M44 24 L48 38 L62 38 L51 47 L55 60 L44 53 L33 60 L37 47 L26 38 L40 38 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">24</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s16 bg-1">
+          <svg viewBox="0 0 100 100">
+            <circle cx="44" cy="44" r="32" fill="none" stroke="#fff" stroke-width="7"/>
+            <path d="M44 26 L48 38 L60 38 L51 46 L55 58 L44 51 L33 58 L37 46 L28 38 L40 38 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">16</div>
+      </div>
+    </div>
+    <div class="concept-desc">
+      <strong>设计理由：</strong>StarLens 字面直译 = 星 + 镜 / 放大镜。一眼讲明白品牌名。
+      <ul>
+        <li>放大镜外圈 + 短手柄 = "查、检测、识别"通用语言</li>
+        <li>星在镜中心 = 品牌名核心，也暗示"找到星标信号"</li>
+        <li>纯白图形 + 蓝渐变底 = 高对比，16px 缩到极小也认得出"圆 + 星"</li>
+        <li>跨语言通用，不依赖中文/英文字符</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ #2 Shield-Star 盾·星 ============ -->
+  <div class="concept">
+    <div class="concept-header">
+      <div class="concept-title">#2 盾·星（Shield-Star）</div>
+      <div class="concept-tag">🛡️ 安全感强</div>
+    </div>
+    <div class="preview-large bg-2">
+      <svg viewBox="0 0 100 100">
+        <!-- 盾形 -->
+        <path d="M50 12 L82 22 L82 50 C82 70 68 84 50 90 C32 84 18 70 18 50 L18 22 Z"
+              fill="#fff"/>
+        <!-- 中心星（蓝色镂空）-->
+        <path d="M50 32 L55 47 L71 47 L58 56 L63 71 L50 62 L37 71 L42 56 L29 47 L45 47 Z"
+              fill="#2F6BFF"/>
+      </svg>
+    </div>
+    <div class="sizes-row">
+      <div class="size-item">
+        <div class="size-icon s120 bg-2">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 12 L82 22 L82 50 C82 70 68 84 50 90 C32 84 18 70 18 50 L18 22 Z" fill="#fff"/>
+            <path d="M50 32 L55 47 L71 47 L58 56 L63 71 L50 62 L37 71 L42 56 L29 47 L45 47 Z" fill="#2F6BFF"/>
+          </svg>
+        </div>
+        <div class="size-label">120</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s60 bg-2">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 12 L82 22 L82 50 C82 70 68 84 50 90 C32 84 18 70 18 50 L18 22 Z" fill="#fff"/>
+            <path d="M50 32 L55 47 L71 47 L58 56 L63 71 L50 62 L37 71 L42 56 L29 47 L45 47 Z" fill="#2F6BFF"/>
+          </svg>
+        </div>
+        <div class="size-label">60</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s40 bg-2">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 12 L82 22 L82 50 C82 70 68 84 50 90 C32 84 18 70 18 50 L18 22 Z" fill="#fff"/>
+            <path d="M50 32 L55 47 L71 47 L58 56 L63 71 L50 62 L37 71 L42 56 L29 47 L45 47 Z" fill="#2F6BFF"/>
+          </svg>
+        </div>
+        <div class="size-label">40</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s24 bg-2">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 12 L82 22 L82 50 C82 70 68 84 50 90 C32 84 18 70 18 50 L18 22 Z" fill="#fff"/>
+            <path d="M50 32 L55 47 L71 47 L58 56 L63 71 L50 62 L37 71 L42 56 L29 47 L45 47 Z" fill="#2F6BFF"/>
+          </svg>
+        </div>
+        <div class="size-label">24</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s16 bg-2">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 12 L82 22 L82 50 C82 70 68 84 50 90 C32 84 18 70 18 50 L18 22 Z" fill="#fff"/>
+            <path d="M50 34 L55 48 L70 48 L58 56 L63 70 L50 61 L37 70 L42 56 L30 48 L45 48 Z" fill="#2F6BFF"/>
+          </svg>
+        </div>
+        <div class="size-label">16</div>
+      </div>
+    </div>
+    <div class="concept-desc">
+      <strong>设计理由：</strong>反诈 / 安全场景最直观的视觉语言。
+      <ul>
+        <li>盾 = 保护、防御，反诈赛道的母题视觉</li>
+        <li>星在盾中心 = 品牌名锁定，星的镂空让盾不沉闷</li>
+        <li>白盾蓝星 反相易识别，深色背景下高对比</li>
+        <li>缺点：盾 + 星组合在反诈类 App 略常见，差异性弱于 #1</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ #3 Geometric Eye-Scan 智眼 ============ -->
+  <div class="concept">
+    <div class="concept-header">
+      <div class="concept-title">#3 智眼（Eye-Scan）</div>
+      <div class="concept-tag">🤖 AI 感最强</div>
+    </div>
+    <div class="preview-large bg-3">
+      <svg viewBox="0 0 100 100">
+        <!-- 眼睛外轮廓 -->
+        <ellipse cx="50" cy="50" rx="38" ry="22" fill="none" stroke="#fff" stroke-width="5"/>
+        <!-- 虹膜外圈 -->
+        <circle cx="50" cy="50" r="14" fill="none" stroke="#fff" stroke-width="5"/>
+        <!-- 中心星形瞳孔 -->
+        <path d="M50 41 L52.5 48 L60 48 L54 53 L56 60 L50 56 L44 60 L46 53 L40 48 L47.5 48 Z" fill="#fff"/>
+        <!-- 扫描线（眼睛上下）-->
+        <line x1="8" y1="50" x2="14" y2="50" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+        <line x1="86" y1="50" x2="92" y2="50" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+      </svg>
+    </div>
+    <div class="sizes-row">
+      <div class="size-item">
+        <div class="size-icon s120 bg-3">
+          <svg viewBox="0 0 100 100">
+            <ellipse cx="50" cy="50" rx="38" ry="22" fill="none" stroke="#fff" stroke-width="5"/>
+            <circle cx="50" cy="50" r="14" fill="none" stroke="#fff" stroke-width="5"/>
+            <path d="M50 41 L52.5 48 L60 48 L54 53 L56 60 L50 56 L44 60 L46 53 L40 48 L47.5 48 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">120</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s60 bg-3">
+          <svg viewBox="0 0 100 100">
+            <ellipse cx="50" cy="50" rx="38" ry="22" fill="none" stroke="#fff" stroke-width="5"/>
+            <circle cx="50" cy="50" r="14" fill="none" stroke="#fff" stroke-width="5"/>
+            <path d="M50 41 L52.5 48 L60 48 L54 53 L56 60 L50 56 L44 60 L46 53 L40 48 L47.5 48 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">60</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s40 bg-3">
+          <svg viewBox="0 0 100 100">
+            <ellipse cx="50" cy="50" rx="38" ry="22" fill="none" stroke="#fff" stroke-width="6"/>
+            <circle cx="50" cy="50" r="14" fill="none" stroke="#fff" stroke-width="6"/>
+            <path d="M50 41 L53 48 L60 48 L54 53 L56 60 L50 56 L44 60 L46 53 L40 48 L47 48 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">40</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s24 bg-3">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="32" fill="#fff"/>
+            <circle cx="50" cy="50" r="16" fill="#0F172A"/>
+            <circle cx="50" cy="50" r="6" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">24</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s16 bg-3">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="36" fill="#fff"/>
+            <circle cx="50" cy="50" r="14" fill="#0F172A"/>
+          </svg>
+        </div>
+        <div class="size-label">16</div>
+      </div>
+    </div>
+    <div class="concept-desc">
+      <strong>设计理由：</strong>AI 视觉感最强，"看穿一切"的隐喻。
+      <ul>
+        <li>眼 + 星瞳 = AI 在看、识别、判断</li>
+        <li>横线 = 扫描感，呼应"3 秒扫一下"</li>
+        <li>深色底 + 白线 = 科技 / 未来感</li>
+        <li>缺点：小尺寸（16-24px）线条退化成抽象圆，识别度下降；眼睛 emoji 容易被误读为"监控感"</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ #4 Star + Radar 星雷达 ============ -->
+  <div class="concept">
+    <div class="concept-header">
+      <div class="concept-title">#4 星雷达（Star-Radar）</div>
+      <div class="concept-tag">📡 动感强</div>
+    </div>
+    <div class="preview-large bg-4">
+      <svg viewBox="0 0 100 100">
+        <!-- 雷达圆弧（3 层）-->
+        <path d="M50 78 A28 28 0 0 1 22 50" fill="none" stroke="#fff" stroke-width="3" opacity="0.35"/>
+        <path d="M50 84 A34 34 0 0 1 16 50" fill="none" stroke="#fff" stroke-width="3" opacity="0.2"/>
+        <path d="M50 90 A40 40 0 0 1 10 50" fill="none" stroke="#fff" stroke-width="3" opacity="0.1"/>
+        <!-- 中心星 -->
+        <path d="M50 28 L56 46 L74 46 L60 56 L66 74 L50 64 L34 74 L40 56 L26 46 L44 46 Z" fill="#fff"/>
+      </svg>
+    </div>
+    <div class="sizes-row">
+      <div class="size-item">
+        <div class="size-icon s120 bg-4">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 78 A28 28 0 0 1 22 50" fill="none" stroke="#fff" stroke-width="3" opacity="0.35"/>
+            <path d="M50 84 A34 34 0 0 1 16 50" fill="none" stroke="#fff" stroke-width="3" opacity="0.2"/>
+            <path d="M50 28 L56 46 L74 46 L60 56 L66 74 L50 64 L34 74 L40 56 L26 46 L44 46 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">120</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s60 bg-4">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 78 A28 28 0 0 1 22 50" fill="none" stroke="#fff" stroke-width="3" opacity="0.35"/>
+            <path d="M50 28 L56 46 L74 46 L60 56 L66 74 L50 64 L34 74 L40 56 L26 46 L44 46 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">60</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s40 bg-4">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 28 L56 46 L74 46 L60 56 L66 74 L50 64 L34 74 L40 56 L26 46 L44 46 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">40</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s24 bg-4">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 22 L58 44 L82 44 L62 58 L70 80 L50 66 L30 80 L38 58 L18 44 L42 44 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">24</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s16 bg-4">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 18 L60 42 L86 42 L64 58 L74 84 L50 68 L26 84 L36 58 L14 42 L40 42 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">16</div>
+      </div>
+    </div>
+    <div class="concept-desc">
+      <strong>设计理由：</strong>纯星 + 雷达圈，传递"识别、感知"。
+      <ul>
+        <li>大尺寸有雷达圈层，小尺寸退化成纯星，仍然识别度高</li>
+        <li>星 = 品牌名核心；雷达 = 检测动作</li>
+        <li>小尺寸时纯星形识别度极高（16px 完美）</li>
+        <li>缺点：跟 Tesla / 通用"星标"app 区分度需要靠雷达圈撑</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ #5 Letter Mark "S" 字标 ============ -->
+  <div class="concept">
+    <div class="concept-header">
+      <div class="concept-title">#5 极简 S 字标（Letter Mark）</div>
+      <div class="concept-tag">💎 极简风</div>
+    </div>
+    <div class="preview-large bg-5">
+      <svg viewBox="0 0 100 100">
+        <!-- 几何 S 形：用两段圆弧拼，避免字体感 -->
+        <path d="M70 28 C70 18 60 12 50 12 C36 12 26 22 26 36 C26 48 36 52 50 56 C64 60 74 64 74 76 C74 88 64 92 50 92 C40 92 30 86 30 76"
+              fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round"/>
+        <!-- 顶部小星 角标 -->
+        <circle cx="76" cy="20" r="6" fill="#FFD60A"/>
+      </svg>
+    </div>
+    <div class="sizes-row">
+      <div class="size-item">
+        <div class="size-icon s120 bg-5">
+          <svg viewBox="0 0 100 100">
+            <path d="M70 28 C70 18 60 12 50 12 C36 12 26 22 26 36 C26 48 36 52 50 56 C64 60 74 64 74 76 C74 88 64 92 50 92 C40 92 30 86 30 76"
+                  fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round"/>
+            <circle cx="76" cy="20" r="6" fill="#FFD60A"/>
+          </svg>
+        </div>
+        <div class="size-label">120</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s60 bg-5">
+          <svg viewBox="0 0 100 100">
+            <path d="M70 28 C70 18 60 12 50 12 C36 12 26 22 26 36 C26 48 36 52 50 56 C64 60 74 64 74 76 C74 88 64 92 50 92 C40 92 30 86 30 76"
+                  fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round"/>
+            <circle cx="76" cy="20" r="6" fill="#FFD60A"/>
+          </svg>
+        </div>
+        <div class="size-label">60</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s40 bg-5">
+          <svg viewBox="0 0 100 100">
+            <path d="M70 28 C70 18 60 12 50 12 C36 12 26 22 26 36 C26 48 36 52 50 56 C64 60 74 64 74 76 C74 88 64 92 50 92 C40 92 30 86 30 76"
+                  fill="none" stroke="#fff" stroke-width="13" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="size-label">40</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s24 bg-5">
+          <svg viewBox="0 0 100 100">
+            <path d="M70 28 C70 18 60 12 50 12 C36 12 26 22 26 36 C26 48 36 52 50 56 C64 60 74 64 74 76 C74 88 64 92 50 92 C40 92 30 86 30 76"
+                  fill="none" stroke="#fff" stroke-width="15" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="size-label">24</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s16 bg-5">
+          <svg viewBox="0 0 100 100">
+            <path d="M70 28 C70 18 60 12 50 12 C36 12 26 22 26 36 C26 48 36 52 50 56 C64 60 74 64 74 76 C74 88 64 92 50 92 C40 92 30 86 30 76"
+                  fill="none" stroke="#fff" stroke-width="18" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="size-label">16</div>
+      </div>
+    </div>
+    <div class="concept-desc">
+      <strong>设计理由：</strong>极简学派，Apple/Stripe 路线。
+      <ul>
+        <li>S = StarLens 首字母，黄色小圆点 = 星标的极简化</li>
+        <li>纯几何曲线，所有尺寸保真</li>
+        <li>缺点：脱离品牌名"星"和"识别"的视觉故事，靠认知关联</li>
+        <li>适合品牌已建立（用户知道你是谁）的场景</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ #6 Stylized Eye + Star 科技眼 ============ -->
+  <div class="concept">
+    <div class="concept-header">
+      <div class="concept-title">#6 科技眼·星瞳（Tech-Eye）</div>
+      <div class="concept-tag">🚀 未来感</div>
+    </div>
+    <div class="preview-large bg-6">
+      <svg viewBox="0 0 100 100">
+        <!-- 8 边形几何 -->
+        <polygon points="50,12 76,24 88,50 76,76 50,88 24,76 12,50 24,24"
+                 fill="none" stroke="#fff" stroke-width="4" opacity="0.5"/>
+        <!-- 内圈圆 -->
+        <circle cx="50" cy="50" r="26" fill="none" stroke="#fff" stroke-width="4"/>
+        <!-- 中心星 -->
+        <path d="M50 34 L54 46 L66 46 L56 54 L60 66 L50 58 L40 66 L44 54 L34 46 L46 46 Z" fill="#fff"/>
+        <!-- 顶部状态点（呼吸 LED）-->
+        <circle cx="50" cy="20" r="3" fill="#FFD60A"/>
+      </svg>
+    </div>
+    <div class="sizes-row">
+      <div class="size-item">
+        <div class="size-icon s120 bg-6">
+          <svg viewBox="0 0 100 100">
+            <polygon points="50,12 76,24 88,50 76,76 50,88 24,76 12,50 24,24" fill="none" stroke="#fff" stroke-width="4" opacity="0.5"/>
+            <circle cx="50" cy="50" r="26" fill="none" stroke="#fff" stroke-width="4"/>
+            <path d="M50 34 L54 46 L66 46 L56 54 L60 66 L50 58 L40 66 L44 54 L34 46 L46 46 Z" fill="#fff"/>
+            <circle cx="50" cy="20" r="3" fill="#FFD60A"/>
+          </svg>
+        </div>
+        <div class="size-label">120</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s60 bg-6">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="26" fill="none" stroke="#fff" stroke-width="5"/>
+            <path d="M50 34 L54 46 L66 46 L56 54 L60 66 L50 58 L40 66 L44 54 L34 46 L46 46 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">60</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s40 bg-6">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="32" fill="none" stroke="#fff" stroke-width="6"/>
+            <path d="M50 32 L54 46 L68 46 L56 55 L60 70 L50 60 L40 70 L44 55 L32 46 L46 46 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">40</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s24 bg-6">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="36" fill="none" stroke="#fff" stroke-width="8"/>
+            <path d="M50 28 L56 46 L74 46 L60 56 L66 74 L50 64 L34 74 L40 56 L26 46 L44 46 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">24</div>
+      </div>
+      <div class="size-item">
+        <div class="size-icon s16 bg-6">
+          <svg viewBox="0 0 100 100">
+            <path d="M50 22 L60 44 L84 44 L64 58 L72 82 L50 68 L28 82 L36 58 L16 44 L40 44 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="size-label">16</div>
+      </div>
+    </div>
+    <div class="concept-desc">
+      <strong>设计理由：</strong>多边形 + 星瞳，科技 / 未来感。
+      <ul>
+        <li>外 8 边形 = 数据 / 网格 / 算法的暗示</li>
+        <li>中心星瞳 = 品牌锁定 + 识别动作</li>
+        <li>状态 LED 点 = "实时检测中"的微视觉故事</li>
+        <li>缺点：元素稍多，小尺寸要逐级简化（24/16 退到纯星）</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer-notes">
+<h2>📌 我的推荐与下一步</h2>
+<ul>
+  <li><strong>推荐 #1 星·镜</strong>：跟品牌名 StarLens 的字面意思（星 + 镜）一对一映射，识别度高且 16px 仍清晰，跨语言通用。当用户说"星识 / StarLens"时脑海里直接是这个图。</li>
+  <li><strong>备选 #2 盾·星</strong>：如果你认为"反诈/安全"标签比"品牌名"更重要，盾 + 星方向更直接。</li>
+  <li><strong>备选 #4 星雷达</strong>：纯星形小尺寸最强，雷达圈撑大尺寸视觉，差异化路线。</li>
+  <li>选定方向后，下一步：
+    <ol>
+      <li>调色：是否用纯蓝渐变，还是加 5-10% 紫色调让品牌更年轻？</li>
+      <li>App Icon 1024×1024 PNG 出图（圆角 App Store 自动加，不要在 svg 里加 border-radius）</li>
+      <li>同步导出 svg / pdf 矢量、light + dark 版本，落到 iOS Assets.xcassets / 落地页 / 文档</li>
+      <li>替换现有 ChatGPT 生成的 logo，并在 App Store Connect 重新上传</li>
+    </ol>
+  </li>
+</ul>
+</div>
+
+</body>
+</html>
