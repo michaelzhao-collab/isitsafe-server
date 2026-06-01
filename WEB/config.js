@@ -24,13 +24,22 @@ window.APP_CONFIG = {
   bgImageUrl: '',
 
   /**
-   * 下方横向滑动区：9:16 竖图 + 文案
+   * 下方横向滑动区：1242:2688（iPhone 6.5" 真实截图比例）
+   * 6 张图按 6 个功能卖点排序
    * 每项：image 图片地址，title 标题，desc 描述
-   * 留空或不存在时使用页面内默认四张占位
    */
   carousel: [
-    { image: 'assets/slide1.png', title: 'Smart Detection', desc: 'Analyze links, messages, and screenshots instantly' },
-    { image: 'assets/slide2.png', title: 'Powered by Risk Database', desc: 'More reliable results with real-world data support' },
-    { image: 'assets/slide3.png', title: 'Scam Prevention First', desc: 'Protect every decision and stay ahead of fraud' },
+    { image: 'assets/slide1.png', title: 'Instant Scam Check',
+      desc: 'Paste a text, link, or photo — AI judges in 3 seconds' },
+    { image: 'assets/slide2.png', title: 'Clear Verdict + Next Steps',
+      desc: 'Not just "risky" — AI tells you exactly what to do' },
+    { image: 'assets/slide3.png', title: 'Screenshot Analysis',
+      desc: 'WhatsApp, Messenger, websites — any screenshot works' },
+    { image: 'assets/slide4.png', title: 'Family Guardian',
+      desc: 'Instant alerts when loved ones face risky content' },
+    { image: 'assets/slide5.png', title: 'AI Voice Deepfake Detector',
+      desc: 'Catch AI-cloned voice scams of family members' },
+    { image: 'assets/slide6.png', title: 'Scam Intel Library',
+      desc: 'Real cases updated daily — stay one step ahead' },
   ],
 };
