@@ -342,8 +342,10 @@ export class NotificationService implements OnModuleDestroy {
     if (this.jwtCache && this.jwtCache.expiresAt > now) {
       return this.jwtCache.token;
     }
-    const teamId = process.env.APNS_TEAM_ID as string;
-    const keyId = process.env.APNS_KEY_ID as string;
+    // trim：Railway 粘贴时末尾常带空格/换行，会让 JWT 的 kid/iss 多一个不可见字符
+    // 导致 Apple 返 InvalidProviderToken（最常见的"3 项都对但还是被拒"原因）
+    const teamId = (process.env.APNS_TEAM_ID ?? '').trim();
+    const keyId = (process.env.APNS_KEY_ID ?? '').trim();
     // Railway / Vercel 等 PaaS 把多行 PEM 存成字面量 '\n' 串，crypto 解析会 fail。
     // 同时容忍：纯 base64（用户只贴了 BEGIN/END 之间内容）→ 自动补上头尾
     const authKey = this.normalizeApnsPrivateKey(

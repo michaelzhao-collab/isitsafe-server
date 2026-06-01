@@ -189,11 +189,22 @@ export class AdminDiagnosticsController {
     // Apple .p8 P-256 ES256 私钥 base64 体长度通常 220-260 之间
     const base64LengthLooksRight = base64Len >= 180 && base64Len <= 320;
 
+    const rawTeam = process.env.APNS_TEAM_ID || '';
+    const rawKid = process.env.APNS_KEY_ID || '';
     return {
       APNS_TEAM_ID: !!process.env.APNS_TEAM_ID,
-      APNS_TEAM_ID_length: (process.env.APNS_TEAM_ID || '').length,
+      APNS_TEAM_ID_length: rawTeam.length,
+      APNS_TEAM_ID_trimmedLength: rawTeam.trim().length,
+      // 注意：TEAM_ID 和 KEY_ID 不是机密（Apple Developer 页面公开可见）
+      APNS_TEAM_ID_value: rawTeam,
+      APNS_TEAM_ID_trimmed: rawTeam.trim(),
+      APNS_TEAM_ID_hasTrailingWhitespace: rawTeam !== rawTeam.trim(),
       APNS_KEY_ID: !!process.env.APNS_KEY_ID,
-      APNS_KEY_ID_length: (process.env.APNS_KEY_ID || '').length,
+      APNS_KEY_ID_length: rawKid.length,
+      APNS_KEY_ID_trimmedLength: rawKid.trim().length,
+      APNS_KEY_ID_value: rawKid,
+      APNS_KEY_ID_trimmed: rawKid.trim(),
+      APNS_KEY_ID_hasTrailingWhitespace: rawKid !== rawKid.trim(),
       APNS_AUTH_KEY: !!process.env.APNS_AUTH_KEY,
       APNS_BUNDLE_ID: process.env.APNS_BUNDLE_ID || null,
       APNS_ENV: process.env.APNS_ENV || 'production',
