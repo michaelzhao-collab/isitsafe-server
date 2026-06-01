@@ -287,34 +287,48 @@ public struct ElderDetectionView: View {
         isRecordingVoice = false
     }
 
-    // MARK: - 监听 AI 分析结果
+    // MARK: - 监听 AI 分析结果（用 vm.$turns 比 vm.$lastResult 更可靠：
+    // 包含 .failure 错误也能展示，且每次 analyze 一定会触发新 turn）
 
     private func observeAIResult() {
         guard cancellables.isEmpty else { return }
-        vm.$lastResult
-            .compactMap { $0 }
+        vm.$turns
             .receive(on: DispatchQueue.main)
-            .sink { result in
-                applyAIResult(result)
+            .sink { turns in
+                guard let last = turns.last else { return }
+                if case .done(let result) = last.status {
+                    applyAIResult(result)
+                }
             }
             .store(in: &cancellables)
     }
 
-    private func applyAIResult(_ data: RiskAnalysisViewData) {
+    private func applyAIResult(_ result: ChatTurnResult) {
         isProcessing = false
-        // 映射 risk_level → ElderResultLabel
-        let label: ResultLabel = {
-            switch data.riskLevel.lowercased() {
-            case "high": return .high
-            case "medium": return .medium
-            case "low": return .low
-            default: return .medium
-            }
-        }()
-        resultText = data.summary.isEmpty
-            ? (languageCode == "en" ? "Check completed" : "已完成检测")
-            : data.summary
-        resultLabel = label
+        switch result {
+        case .analysis(let data):
+            let label: ResultLabel = {
+                switch data.riskLevel.lowercased() {
+                case "high": return .high
+                case "medium": return .medium
+                case "low": return .low
+                default: return .medium
+                }
+            }()
+            resultText = data.summary.isEmpty
+                ? (languageCode == "en" ? "Check completed" : "已完成检测")
+                : data.summary
+            resultLabel = label
+        case .query:
+            // 数字 query 等少见路径，按 medium 兜底
+            resultText = languageCode == "en" ? "Check completed" : "已完成检测"
+            resultLabel = .medium
+        case .failure(let msg):
+            // 给长辈看的失败原因要友好
+            errorMessage = msg.isEmpty
+                ? (languageCode == "en" ? "Sorry, we couldn't check it. Please try again." : "暂时没法判断，请稍后再试")
+                : msg
+        }
     }
 
     // MARK: - 取消所有进行中的操作

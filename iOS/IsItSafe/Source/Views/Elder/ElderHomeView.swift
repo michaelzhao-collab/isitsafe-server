@@ -172,20 +172,11 @@ public struct ElderHomeView: View {
                                 .id(turn.id)
                         }
                     }
-                    if vm.state.isLoading {
-                        HStack(spacing: 10) {
-                            ProgressView()
-                            Text(languageCode == "en" ? "AI is checking..." : "AI 正在帮您判断...")
-                                .font(.system(size: 18))
-                                .foregroundColor(AppTheme.textSecondary)
-                        }
-                        .padding(16)
-                        .id("loading")
-                    }
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(AppTheme.background)
             .dynamicTypeSize(.xLarge)
             .onChange(of: vm.turns.count) { _, _ in
