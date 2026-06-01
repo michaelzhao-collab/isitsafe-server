@@ -38,6 +38,9 @@ public struct RiskResultCard: View {
                 Text(data.summary)
                     .font(.body)
                     .multilineTextAlignment(.leading)
+                    .lineLimit(nil)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 if !data.reasons.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         Text(languageCode == "en" ? "Reasons" : "原因")
@@ -48,6 +51,10 @@ public struct RiskResultCard: View {
                             Text("\(i + 1). \(RiskResultCard.ensureEndsWithPeriod(r))")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
+                                .lineLimit(nil)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
@@ -61,6 +68,10 @@ public struct RiskResultCard: View {
                             Text("\(i + 1). \(RiskResultCard.ensureEndsWithPeriod(a))")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
+                                .lineLimit(nil)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
