@@ -35,7 +35,9 @@ public enum FamilyActivityStatus: String, Codable {
     public var displayName: String {
         switch self {
         case .activeToday: return "今日已活跃"
-        case .inactive1day: return "昨日未活跃"
+        // inactive_1day 语义：距上次活跃 ≥1 天且 <2 天 = 今天还没打开 App
+        // 之前文案"昨日未活跃"会让人误读为"昨天没活跃"，业主反馈应改为"今日未活跃"
+        case .inactive1day: return "今日未活跃"
         case .inactive2days: return "已 2 天未活跃"
         case .inactive3plus: return "已 3 天+ 未活跃"
         case .unknown: return "暂无记录"

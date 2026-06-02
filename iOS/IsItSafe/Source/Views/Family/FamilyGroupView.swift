@@ -603,6 +603,12 @@ public struct FamilyGroupView: View {
         return f2.date(from: s)
     }
 
+    /// 渲染活跃状态文案：自己永远显示 activeToday（乐观显示，能看到自己 = 一定活跃）
+    private func activityText(for member: FamilyMember, isSelf: Bool) -> String {
+        let s: FamilyActivityStatus = isSelf ? .activeToday : member.activityStatus
+        return "\(s.emoji) \(s.displayName)"
+    }
+
     private func memberRow(member: FamilyMember) -> some View {
         let name = member.effectiveName(language: languageCode)
         let isSelf = (member.userId == currentUserId)
@@ -643,7 +649,10 @@ public struct FamilyGroupView: View {
                         Text("👴").font(.caption)
                     }
                 }
-                Text("\(member.activityStatus.emoji) \(member.activityStatus.displayName)")
+                // 自己的活跃状态强制乐观显示为 activeToday：
+                // 服务端心跳节流 5 分钟 + 列表请求异步 → 业主反馈"我自己刚活跃了
+                // 状态还是未活跃"。iOS 端覆盖：能看到自己 = 一定是活跃的
+                Text(activityText(for: member, isSelf: isSelf))
                     .font(.caption)
                     .foregroundColor(AppTheme.textSecondary)
             }

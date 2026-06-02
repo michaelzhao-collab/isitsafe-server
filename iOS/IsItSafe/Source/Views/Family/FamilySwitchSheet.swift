@@ -15,6 +15,7 @@ import SwiftUI
 public struct FamilySwitchSheet: View {
     @ObservedObject var vm: FamilyViewModel
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appState: AppStateViewModel
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var showCreateSheet = false
 
@@ -42,15 +43,19 @@ public struct FamilySwitchSheet: View {
                         .buttonStyle(.plain)
                     }
                 }
-                Section {
-                    Button {
-                        showCreateSheet = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                                .foregroundColor(AppTheme.primary)
-                            Text(languageCode == "en" ? "Create new family" : "创建新家庭")
-                                .foregroundColor(AppTheme.primary)
+                // 已达 owned 上限（免费 1 / Pro 3）则隐藏创建入口，
+                // 跟 FamilyGroupView 右上角 Menu 同步逻辑
+                if vm.canCreateMoreGroup(isPremium: appState.subscriptionActive) {
+                    Section {
+                        Button {
+                            showCreateSheet = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                    .foregroundColor(AppTheme.primary)
+                                Text(languageCode == "en" ? "Create new family" : "创建新家庭")
+                                    .foregroundColor(AppTheme.primary)
+                            }
                         }
                     }
                 }

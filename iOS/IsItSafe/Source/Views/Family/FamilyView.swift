@@ -36,6 +36,14 @@ public struct FamilyView: View {
             if router.pendingInviteCode != nil {
                 showRedeemSheet = true
             }
+            // 进家庭页强制发一次心跳：业主反馈"我刚活跃了，自己看到的状态还是未活跃"
+            // 心跳服务有 5 分钟节流，进家庭页时重置节流让 server 立刻拿到最新 lastActiveAt
+            Task {
+                HeartbeatService.shared.resetThrottle()
+                await HeartbeatService.shared.reportActive(trigger: .foreground)
+                // 心跳到了后刷新一次成员列表，让其他家人也能立刻看到我的最新状态
+                await MainActor.run { vm.refresh() }
+            }
         }
         // Universal Link 拉起家庭 Tab + 携带邀请码 → 自动弹兑换 sheet
         .onChange(of: router.pendingInviteCode) { _, code in
