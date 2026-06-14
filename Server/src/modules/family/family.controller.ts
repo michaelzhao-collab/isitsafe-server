@@ -188,4 +188,35 @@ export class FamilyController {
     const enabled = !!body?.enabled;
     return this.family.setMemberElderMode(currentUserId, targetUserId, enabled);
   }
+
+  /**
+   * V4-P3 关怀提醒静音
+   *
+   * GET  /api/v3/family/groups/:groupId/care-mutes
+   *      → { mutedTargetUserIds: string[] }
+   * PUT  /api/v3/family/groups/:groupId/care-mutes/:targetUserId
+   *      body: { muted: boolean }
+   *      → { muted: boolean }
+   *
+   * 业主反馈："对方一直不活跃会一直发 push，需要按家人单独关掉"
+   * 关掉后：cron 不再把当前用户列入该 target 的 push 接收人；重新打开恢复
+   */
+  @Get('groups/:groupId/care-mutes')
+  async listCareMutes(
+    @CurrentUser('sub') userId: string,
+    @Param('groupId') groupId: string,
+  ) {
+    const ids = await this.family.listCareMutedTargets(userId, groupId);
+    return { mutedTargetUserIds: ids };
+  }
+
+  @Put('groups/:groupId/care-mutes/:targetUserId')
+  async setCareMute(
+    @CurrentUser('sub') userId: string,
+    @Param('groupId') groupId: string,
+    @Param('targetUserId') targetUserId: string,
+    @Body() body: { muted?: boolean },
+  ) {
+    return this.family.setCareMute(userId, groupId, targetUserId, !!body?.muted);
+  }
 }

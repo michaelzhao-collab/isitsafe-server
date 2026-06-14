@@ -81,6 +81,10 @@ public enum APIEndpoint {
     case v3FamilySetMyDisplayName(groupId: String)
     /// V3-E S5-12 给某成员设私人备注（仅自己可见）
     case v3FamilySetAlias(memberId: String)
+    /// V4-P3 关怀提醒静音：列出我（recipient）在该组里静音的 targetUserId
+    case v3FamilyListCareMutes(groupId: String)
+    /// V4-P3 关怀提醒静音：开/关对某 target 的不活跃 push
+    case v3FamilySetCareMute(groupId: String, targetUserId: String)
 
     // V4-P1 冷启动引导 chips
     case onboardingChips(language: String?)
@@ -178,6 +182,8 @@ public enum APIEndpoint {
         case .v3FamilyMemberElderMode(let userId): return "/api/v3/family/members/\(userId)/elder-mode"
         case .v3FamilySetMyDisplayName(let groupId): return "/api/v3/family/groups/\(groupId)/members/me/display-name"
         case .v3FamilySetAlias(let memberId): return "/api/v3/family/members/\(memberId)/alias"
+        case .v3FamilyListCareMutes(let groupId): return "/api/v3/family/groups/\(groupId)/care-mutes"
+        case .v3FamilySetCareMute(let groupId, let targetUserId): return "/api/v3/family/groups/\(groupId)/care-mutes/\(targetUserId)"
         // V4-P1 冷启动 chips
         case .onboardingChips: return "/api/onboarding/chips"
         // V3-B 情报
@@ -211,6 +217,7 @@ public enum APIEndpoint {
         case .health, .authUserInfo, .authExportData, .authRegionHint, .queryHistory, .queryTags, .knowledgeList, .knowledgeCategories, .knowledgeDetail, .subscriptionStatus, .membershipPlans, .messagesList, .messageUnreadCount, .publicConfig,
              .onboardingChips,
              .v3FamilyGetMyGroup, .v3FamilyGetMyGroups, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
+             .v3FamilyListCareMutes,
              .v3IntelFeed, .v3IntelDetail, .v3IntelCategories, .v3IntelUnreadCount,
              .v3IntelMySubmissions, .v3IntelGetPreferences,
              .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeStream,
@@ -232,7 +239,7 @@ public enum APIEndpoint {
         case .uploadAvatar, .uploadFile:
             return .POST
         case .updateProfile, .v3UserElderMode, .v3FamilyUpdatePreferences, .v3FamilyMemberElderMode,
-             .v3FamilySetMyDisplayName, .v3FamilySetAlias,
+             .v3FamilySetMyDisplayName, .v3FamilySetAlias, .v3FamilySetCareMute,
              .v3IntelPutPreferences,
              .v3BreachDismissAlert:
             return .PUT
@@ -248,6 +255,7 @@ public enum APIEndpoint {
              .v3FamilyLeaveGroup, .v3FamilyDissolveGroup, .v3FamilyRemoveMember, .v3FamilyUpdatePreferences,
              .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus, .v3FamilyMemberElderMode,
              .v3FamilySetMyDisplayName, .v3FamilySetAlias,
+             .v3FamilyListCareMutes, .v3FamilySetCareMute,
              .v3IntelFeed, .v3IntelDetail, .v3IntelUnreadCount, .v3IntelSubmit,
              .v3IntelMySubmissions, .v3IntelGetPreferences, .v3IntelPutPreferences,
              .v3DeepfakeCreate, .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeDelete, .v3DeepfakeFeedback, .v3DeepfakeBroadcast, .v3DeepfakeStream,

@@ -194,6 +194,24 @@ model FamilyCareNotice {
 }
 
 // --------------------------------------------
+// V4-P3 关怀提醒静音：接收人不想收到某个被监控人的不活跃 push
+// 业主反馈：对方一直不活跃会一直发 push，需要按对象关闭
+// --------------------------------------------
+model FamilyCareMute {
+  id              String   @id @default(cuid())
+  groupId         String   @map("group_id")
+  /// 接收 push 的用户（我）
+  recipientUserId String   @map("recipient_user_id")
+  /// 被监控的用户（我不想再收到 ta 的不活跃 push）
+  targetUserId    String   @map("target_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([groupId, recipientUserId, targetUserId])
+  @@index([recipientUserId])
+  @@map("family_care_mutes")
+}
+
+// --------------------------------------------
 // V3-B 情报推送（intel）
 // 系统全网官方情报 + 用户上报 + 个人偏好 + 送达日志
 // --------------------------------------------

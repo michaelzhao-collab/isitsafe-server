@@ -236,6 +236,28 @@ public final class FamilyViewModel: ObservableObject {
         }
     }
 
+    // MARK: - V4-P3 关怀提醒静音
+
+    /// 拉取我在该家庭组里静音了哪些 targetUserId（业主反馈：对方一直不活跃会一直发 push）
+    public func listCareMutedTargets(groupId: String) async -> [String] {
+        do {
+            return try await repo.listCareMutedTargets(groupId: groupId)
+        } catch {
+            // 失败静默；UI 默认 unmuted 渲染即可（最坏情况收到 push 而已）
+            return []
+        }
+    }
+
+    /// 切换对某 target 的不活跃 push 静音；不刷新整个 group（避免抖动）
+    public func setCareMute(groupId: String, targetUserId: String, muted: Bool) async -> Bool {
+        do {
+            try await repo.setCareMute(groupId: groupId, targetUserId: targetUserId, muted: muted)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     // MARK: - 生成邀请码
 
     public func generateInvite(groupId: String) async -> GenerateInviteResponse? {

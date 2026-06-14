@@ -833,10 +833,26 @@ export class FamilyService {
       if (daysInactive < 2) continue;
 
       // 同家庭其他成员（不含本人）
-      const otherMembers = candidate.group.members.filter(
+      let otherMembers = candidate.group.members.filter(
         (m) => m.userId !== candidate.userId,
       );
       if (otherMembers.length === 0) continue;
+
+      // V4-P3 关怀提醒静音：业主反馈"对方一直不活跃会一直收到 push"
+      // 接收人可在 MemberDetailView 关掉「ta 的不活跃提醒」，这里按 (group, target) 过滤掉
+      const mutes = await this.prisma.familyCareMute.findMany({
+        where: {
+          groupId: candidate.groupId,
+          targetUserId: candidate.userId,
+          recipientUserId: { in: otherMembers.map((m) => m.userId) },
+        },
+        select: { recipientUserId: true },
+      });
+      if (mutes.length > 0) {
+        const mutedRecipients = new Set(mutes.map((m) => m.recipientUserId));
+        otherMembers = otherMembers.filter((m) => !mutedRecipients.has(m.userId));
+        if (otherMembers.length === 0) continue;
+      }
 
       // 本地今天已发过 notice？查最近 20 小时（覆盖时区切换 + DST 边界，绝不重复轰炸）
       const recentWindow = new Date(now.getTime() - 20 * 3600 * 1000);
@@ -992,6 +1008,68 @@ export class FamilyService {
       smsSent,
       skippedOffHours,
     };
+  }
+
+  // ====================================================================
+  // V4-P3 关怀提醒静音：按 (recipient, target) 关掉特定家人的不活跃 push
+  // ====================================================================
+
+  /// 列出我（recipient）在某组里静音的目标 userId
+  async listCareMutedTargets(recipientUserId: string, groupId: string): Promise<string[]> {
+    await this.assertMemberOf(groupId, recipientUserId);
+    const rows = await this.prisma.familyCareMute.findMany({
+      where: { groupId, recipientUserId },
+      select: { targetUserId: true },
+    });
+    return rows.map((r) => r.targetUserId);
+  }
+
+  /// 切换静音：muted=true → 不再收到 target 的不活跃 push；false → 恢复
+  async setCareMute(
+    recipientUserId: string,
+    groupId: string,
+    targetUserId: string,
+    muted: boolean,
+  ): Promise<{ muted: boolean }> {
+    await this.assertMemberOf(groupId, recipientUserId);
+    if (targetUserId === recipientUserId) {
+      throw new BadRequestException('不能静音自己');
+    }
+    // target 必须也是同组成员（不然没意义）
+    const targetMember = await this.prisma.familyMember.findFirst({
+      where: { groupId, userId: targetUserId },
+      select: { id: true },
+    });
+    if (!targetMember) {
+      throw new NotFoundException('目标家人不在该家庭');
+    }
+
+    if (muted) {
+      await this.prisma.familyCareMute.upsert({
+        where: {
+          groupId_recipientUserId_targetUserId: {
+            groupId,
+            recipientUserId,
+            targetUserId,
+          },
+        },
+        create: { groupId, recipientUserId, targetUserId },
+        update: {},
+      });
+    } else {
+      await this.prisma.familyCareMute.deleteMany({
+        where: { groupId, recipientUserId, targetUserId },
+      });
+    }
+    return { muted };
+  }
+
+  private async assertMemberOf(groupId: string, userId: string): Promise<void> {
+    const m = await this.prisma.familyMember.findFirst({
+      where: { groupId, userId },
+      select: { id: true },
+    });
+    if (!m) throw new ForbiddenException('你不在该家庭');
   }
 
   // ====================================================================

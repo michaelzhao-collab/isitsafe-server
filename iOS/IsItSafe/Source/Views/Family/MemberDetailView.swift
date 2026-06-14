@@ -26,6 +26,12 @@ public struct MemberDetailView: View {
     @State private var feedback: String?
     @State private var showRenameSheet = false
 
+    // V4-P3 关怀提醒静音：true=接收（默认）/ false=已静音
+    @State private var carePushOn: Bool = true
+    @State private var togglingCarePush = false
+    @State private var carePushFeedback: String?
+    @State private var carePushLoaded = false
+
     public init(
         vm: FamilyViewModel,
         member: FamilyMember,
@@ -48,6 +54,9 @@ public struct MemberDetailView: View {
                 if shouldShowElderToggle {
                     elderToggleCard
                 }
+                if !isSelf {
+                    carePushToggleCard
+                }
                 if let phone = member.phone, !phone.isEmpty {
                     callButton(phone: phone)
                 }
@@ -66,6 +75,15 @@ public struct MemberDetailView: View {
                 groupId: groupId,
                 isSelf: isSelf
             )
+        }
+        .task {
+            // 拉一次静音状态：只在第一次出现时拉，避免下拉刷新打架
+            guard !carePushLoaded, !isSelf else { return }
+            let muted = await vm.listCareMutedTargets(groupId: groupId)
+            await MainActor.run {
+                carePushOn = !muted.contains(member.userId)
+                carePushLoaded = true
+            }
         }
     }
 
@@ -226,6 +244,56 @@ public struct MemberDetailView: View {
                 }
             }
             if let f = feedback {
+                Text(f).font(.caption).foregroundColor(AppTheme.textSecondary)
+            }
+        }
+        .padding(14)
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// V4-P3 关怀提醒静音开关
+    /// 业主反馈："对方一直不活跃会一直收到 push，要能按人关掉"
+    /// 默认 ON = 收到 ta 的不活跃 push；关掉 = 服务端 cron 跳过把我列入接收人
+    private var carePushToggleCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: $carePushOn) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(languageCode == "en"
+                         ? "Inactivity reminders for \(member.effectiveName(language: languageCode))"
+                         : "接收 \(member.effectiveName(language: languageCode)) 的不活跃提醒")
+                        .font(.subheadline.weight(.semibold))
+                    Text(languageCode == "en"
+                         ? "Push when this person hasn't opened the app for 2+ days."
+                         : "ta 连续 2 天没打开 App 时推送提醒，关掉则不再收到")
+                        .font(.caption)
+                        .foregroundColor(AppTheme.textSecondary)
+                }
+            }
+            .disabled(togglingCarePush || !carePushLoaded)
+            .onChange(of: carePushOn) { _, newValue in
+                // 初始化拉数据时也会触发 onChange，用 carePushLoaded 屏蔽
+                guard carePushLoaded else { return }
+                togglingCarePush = true
+                carePushFeedback = nil
+                Task {
+                    let ok = await vm.setCareMute(
+                        groupId: groupId,
+                        targetUserId: member.userId,
+                        muted: !newValue
+                    )
+                    await MainActor.run {
+                        togglingCarePush = false
+                        if !ok {
+                            carePushOn = !newValue   // 回滚
+                            carePushFeedback = languageCode == "en" ? "Failed" : "更新失败"
+                        } else {
+                            carePushFeedback = languageCode == "en" ? "Updated ✓" : "已更新 ✓"
+                        }
+                    }
+                }
+            }
+            if let f = carePushFeedback {
                 Text(f).font(.caption).foregroundColor(AppTheme.textSecondary)
             }
         }

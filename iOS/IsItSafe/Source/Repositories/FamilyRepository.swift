@@ -137,6 +137,24 @@ public final class FamilyRepository {
         )
     }
 
+    // MARK: - V4-P3 关怀提醒静音
+
+    /// 列出我在该组里静音的 targetUserId
+    public func listCareMutedTargets(groupId: String) async throws -> [String] {
+        struct Resp: Decodable { let mutedTargetUserIds: [String] }
+        let r: Resp = try await network.request(endpoint: .v3FamilyListCareMutes(groupId: groupId))
+        return r.mutedTargetUserIds
+    }
+
+    /// 开/关对某 target 的不活跃 push（muted=true → 不再收到）
+    public func setCareMute(groupId: String, targetUserId: String, muted: Bool) async throws {
+        struct Body: Codable { let muted: Bool }
+        try await network.requestVoid(
+            endpoint: .v3FamilySetCareMute(groupId: groupId, targetUserId: targetUserId),
+            body: Body(muted: muted)
+        )
+    }
+
     // MARK: - 官方广播
 
     /// 拉取家庭官方消息列表
