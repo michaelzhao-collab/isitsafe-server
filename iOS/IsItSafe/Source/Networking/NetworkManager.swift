@@ -108,7 +108,12 @@ public final class NetworkManager {
     ) async throws -> T {
         // 已登录场景：access token 临近过期主动刷新，避免被动 401
         // 没 token / 没 exp 字段时 no-op（详见 AuthService.ensureFreshTokenIfNearExpiry）
-        await AuthService.shared.ensureFreshTokenIfNearExpiry()
+        //
+        // ⚠️ refresh-token 自身不能触发 ensureFresh —— 否则 inFlightRefresh 等自己 = 死锁
+        // 症状：access token 临近过期时所有 tab 同时卡 loading（首页 AI 思考、情报、家庭）
+        if !endpoint.isTokenRefreshFlow {
+            await AuthService.shared.ensureFreshTokenIfNearExpiry()
+        }
         let token = AuthInterceptor.token()
         let req = try RequestBuilder.build(endpoint: endpoint, baseURL: AppConfiguration.shared.baseURL, body: body, authToken: token)
         printRequest(req, endpoint: endpoint, body: body)
@@ -150,7 +155,9 @@ public final class NetworkManager {
     /// S5-4 拉任意 JSON 当字典返回，免去为完整结构定义 Decodable
     /// 适用于：导出数据这种 schema 比较大但客户端只是透传的场景
     public func requestRawDictionary(endpoint: APIEndpoint) async throws -> [String: Any] {
-        await AuthService.shared.ensureFreshTokenIfNearExpiry()
+        if !endpoint.isTokenRefreshFlow {
+            await AuthService.shared.ensureFreshTokenIfNearExpiry()
+        }
         let token = AuthInterceptor.token()
         let req = try RequestBuilder.build(
             endpoint: endpoint,

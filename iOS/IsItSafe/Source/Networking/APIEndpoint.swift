@@ -267,6 +267,13 @@ public enum APIEndpoint {
         }
     }
 
+    /// refresh-token 自己流转的请求：NetworkManager 跳过 ensureFresh
+    /// 否则触发自死锁——所有 tab 同时卡 loading（access token 临近过期窗口）
+    public var isTokenRefreshFlow: Bool {
+        if case .authRefreshToken = self { return true }
+        return false
+    }
+
     public var queryItems: [URLQueryItem]? {
         switch self {
         case .queryHistory(let page, let pageSize, let riskLevel, let conversationId):
