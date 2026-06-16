@@ -90,9 +90,12 @@ public final class FamilyViewModel: ObservableObject {
                 let current = groups.first { $0.id == saved } ?? groups[0]
                 UserDefaults.standard.set(current.id, forKey: self.selectedGroupIdKey)
                 self.state = .loaded(current)
-            } catch is CancellationError {
-                // ignore
             } catch {
+                // refreshTask.cancel() 串联取消 URLSession → 抛出的 URLError.cancelled
+                // 被 mapError 包成 APIError.networkError，模式匹配捕不到，
+                // 改用 Task.isCancelled 一并兜住「swift Task 取消 + URLSession 取消」
+                if Task.isCancelled { return }
+                if error is CancellationError { return }
                 self.state = .error(error.localizedDescription)
             }
         }

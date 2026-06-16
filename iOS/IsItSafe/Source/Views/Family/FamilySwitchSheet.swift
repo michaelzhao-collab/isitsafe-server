@@ -100,6 +100,9 @@ public struct FamilySwitchSheet: View {
             }
         }
         .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // 业主反馈：整行都要可点（之前只有头像+文字处响应，右侧空白不响应）
+        .contentShape(Rectangle())
     }
 
     private func roleText(for group: FamilyGroup) -> String {
