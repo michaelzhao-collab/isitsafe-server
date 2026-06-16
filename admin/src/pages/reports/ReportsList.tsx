@@ -35,8 +35,8 @@ export default function ReportsList() {
     load();
   }, [page, pageSize, status]);
 
-  const handleStatus = (id: string, newStatus: ReportStatus, remark?: string) => {
-    updateReportStatus(id, newStatus, remark)
+  const handleStatus = (id: string, newStatus: ReportStatus) => {
+    updateReportStatus(id, newStatus)
       .then(() => {
         message.success('操作成功');
         load();

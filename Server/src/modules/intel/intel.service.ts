@@ -44,17 +44,22 @@ export class IntelService {
     const lang = params.language || 'zh';
     const region = params.region || '';
 
-    // 加载已发布情报；region/audience 过滤在 service 层（Prisma JSON 操作有限）
+    // V4-P5：不再按 language 强过滤——抓到中文翻成英文 / 抓到英文翻成中文
+    // 这样英语用户也能看到中文源的情报，反之亦然。原文 lang≠target 时
+    // 联表 intelAlertI18n 取翻译，缺翻译则回退原文（不影响用户阅读）
     const candidates = await this.prisma.intelAlert.findMany({
-      where: {
-        status: 'published',
-        language: lang,
-      },
+      where: { status: 'published' },
       orderBy: [
-        { severity: 'desc' }, // urgent > high > normal（字符串顺序：urgent > normal > high 不对，service 层修正）
+        { severity: 'desc' },
         { publishedAt: 'desc' },
       ],
-      take: limit * 2, // 多拉一些供过滤
+      take: limit * 2,
+      include: {
+        translations: {
+          where: { language: lang },
+          select: { title: true, summary: true, contentBlocks: true },
+        },
+      },
     });
 
     // 用户偏好（用于人群匹配）
@@ -105,23 +110,41 @@ export class IntelService {
       }
     }
 
-    return items.map((i) => ({
-      id: i.id,
-      title: i.title,
-      summary: i.summary,
-      category: i.category,
-      severity: i.severity,
-      language: i.language,
-      sourceUrl: i.sourceUrl,
-      coverImage: (i as any).coverImage ?? null,
-      publishedAt: i.publishedAt,
-      isRead: readMap.has(i.id) ? readMap.get(i.id) != null : false,
-    }));
+    return items.map((i) => {
+      // V4-P5：用户语言跟原文不同 → 用翻译；翻译还没填好则回退原文
+      const t = (i as any).translations?.[0];
+      const useTranslation = i.language !== lang && t;
+      return {
+        id: i.id,
+        title: useTranslation ? t.title : i.title,
+        summary: useTranslation ? t.summary : i.summary,
+        category: i.category,
+        severity: i.severity,
+        language: lang, // 告诉客户端"这是按你要的语言返回的"
+        sourceUrl: i.sourceUrl,
+        coverImage: (i as any).coverImage ?? null,
+        publishedAt: i.publishedAt,
+        isRead: readMap.has(i.id) ? readMap.get(i.id) != null : false,
+      };
+    });
   }
 
   async getDetail(userId: string, intelId: string) {
+    // V4-P5：拉用户语言决定要不要翻译
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { language: true },
+    });
+    const targetLang = (user?.language || 'zh').startsWith('en') ? 'en' : 'zh';
+
     const intel = await this.prisma.intelAlert.findUnique({
       where: { id: intelId },
+      include: {
+        translations: {
+          where: { language: targetLang },
+          select: { title: true, summary: true, contentBlocks: true },
+        },
+      },
     });
     if (!intel || intel.status !== 'published') {
       throw new NotFoundException('Intel not found');
@@ -139,7 +162,18 @@ export class IntelService {
       update: { readAt: new Date() },
     });
 
-    return intel;
+    // 用户语言跟原文不同 → 用翻译；缺翻译则原文（避免空白详情页）
+    const t = (intel as any).translations?.[0];
+    const useTranslation = intel.language !== targetLang && t;
+    return {
+      ...intel,
+      title: useTranslation ? t.title : intel.title,
+      summary: useTranslation ? t.summary : intel.summary,
+      contentBlocks: useTranslation ? t.contentBlocks : intel.contentBlocks,
+      language: targetLang,
+      // 不返回 translations 数组，前端用不到
+      translations: undefined,
+    };
   }
 
   async getUnreadCount(userId: string, region?: string, language?: string): Promise<number> {

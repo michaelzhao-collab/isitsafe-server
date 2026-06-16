@@ -34,8 +34,8 @@ export function getReports(params?: { page?: number; pageSize?: number; status?:
   return request.get<ReportsRes>('/admin/reports', { params: q });
 }
 
-export function updateReportStatus(id: string, status: ReportStatus, remark?: string) {
-  return request.put(`/admin/reports/${id}/status`, { status, remark });
+export function updateReportStatus(id: string, status: ReportStatus) {
+  return request.put(`/admin/reports/${id}/status`, { status });
 }
 
 export function getReportStats() {

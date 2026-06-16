@@ -32,6 +32,7 @@ import ContentFetch from '../pages/contentFetch/ContentFetch';
 import AiEvaluation from '../pages/aiEvaluation/AiEvaluation';
 import OnboardingChips from '../pages/onboarding/OnboardingChips';
 import PushNotifications from '../pages/push/PushNotifications';
+import DiagnosticsPage from '../pages/diagnostics/DiagnosticsPage';
 import Login from '../pages/Login';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -81,6 +82,7 @@ const router = createBrowserRouter([
       { path: 'ai-evaluation', element: <AiEvaluation /> },
       { path: 'onboarding-chips', element: <OnboardingChips /> },
       { path: 'push', element: <PushNotifications /> },
+      { path: 'diagnostics', element: <DiagnosticsPage /> },
       // V3 一期反诈模块
       { path: 'v3/family', element: <FamilyGroupsList /> },
       { path: 'v3/elder', element: <ElderUsersList /> },

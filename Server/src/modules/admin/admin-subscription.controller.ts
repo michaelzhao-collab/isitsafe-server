@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { SubscriptionService } from '../subscription/subscription.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -72,6 +72,95 @@ export class AdminSubscriptionController {
       hint: orphanPremium.length > 0
         ? '⚠️ 有 premium 用户但 subscriptions 表无记录 — verify 接口可能没被调用过，或 webhook 配置错误'
         : '✓ premium 用户都有 subscriptions 记录',
+    };
+  }
+
+  /**
+   * 手动触发"过期订阅 + user.subscriptionStatus" reconcile
+   * 平时由 cron 每小时跑；admin 看到 stale 订单后可立刻执行不用等
+   */
+  @Post('reconcile-stale')
+  async reconcileStale() {
+    const before = await this.prisma.subscription.count({
+      where: { status: 'active', expireTime: { lte: new Date() } },
+    });
+    await this.sub.markExpiredSubscriptions();
+    return { ok: true, staleBeforeRun: before };
+  }
+
+  /**
+   * Dashboard 用：订阅聚合统计
+   * 今日 / 本月 / 累计 + GMV（按 MembershipPlan.price + currency 聚合，混合币种分组）
+   */
+  @Get('summary')
+  async summary() {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [
+      activeCount,
+      todayNewCount,
+      monthNewCount,
+      todayRefunds,
+      monthRefunds,
+      autoRenewActive,
+      activeWithAutoRenew,
+    ] = await Promise.all([
+      // 活跃订阅：status=active 且 expireTime > now（cron 兜底后的真实数）
+      this.prisma.subscription.count({
+        where: { status: 'active', expireTime: { gt: now } },
+      }),
+      this.prisma.subscription.count({ where: { createdAt: { gte: todayStart } } }),
+      this.prisma.subscription.count({ where: { createdAt: { gte: monthStart } } }),
+      this.prisma.subscription.count({
+        where: { status: 'refunded', refundedAt: { gte: todayStart } },
+      }),
+      this.prisma.subscription.count({
+        where: { status: 'refunded', refundedAt: { gte: monthStart } },
+      }),
+      // 续费率 ≈ 当前活跃订阅中开了自动续费的占比
+      this.prisma.subscription.count({
+        where: { status: 'active', expireTime: { gt: now }, autoRenewStatus: true },
+      }),
+      this.prisma.subscription.count({
+        where: { status: 'active', expireTime: { gt: now }, autoRenewStatus: { not: null } },
+      }),
+    ]);
+
+    // GMV：联 plan 拿单价，按币种分组（USD / CNY 不能简单相加）
+    const todayOrdersWithPlan = await this.prisma.$queryRawUnsafe<
+      Array<{ currency: string; total: number }>
+    >(`
+      SELECT mp.currency, SUM(mp.price)::float AS total
+      FROM subscriptions s
+      LEFT JOIN membership_plans mp ON mp.product_id = s.product_id
+      WHERE s.created_at >= $1 AND s.status != 'refunded' AND mp.price IS NOT NULL
+      GROUP BY mp.currency
+    `, todayStart);
+    const monthOrdersWithPlan = await this.prisma.$queryRawUnsafe<
+      Array<{ currency: string; total: number }>
+    >(`
+      SELECT mp.currency, SUM(mp.price)::float AS total
+      FROM subscriptions s
+      LEFT JOIN membership_plans mp ON mp.product_id = s.product_id
+      WHERE s.created_at >= $1 AND s.status != 'refunded' AND mp.price IS NOT NULL
+      GROUP BY mp.currency
+    `, monthStart);
+
+    const renewalRate = activeWithAutoRenew > 0
+      ? Math.round((autoRenewActive / activeWithAutoRenew) * 100)
+      : null;
+
+    return {
+      activeSubscriptions: activeCount,
+      todayNewOrders: todayNewCount,
+      monthNewOrders: monthNewCount,
+      todayRefunds,
+      monthRefunds,
+      renewalRatePercent: renewalRate,
+      todayGmvByCurrency: todayOrdersWithPlan,
+      monthGmvByCurrency: monthOrdersWithPlan,
     };
   }
 }

@@ -31,7 +31,11 @@ export default function RiskList() {
     setLoading(true);
     getRiskData({ page, pageSize, type: typeFilter, riskLevel: riskLevelFilter })
       .then((res) => setData({ items: (res as unknown as RiskListRes).items ?? [], total: (res as unknown as RiskListRes).total ?? 0 }))
-      .catch(() => setData({ items: [], total: 0 }))
+      .catch((e: any) => {
+        // 失败要让用户知道，不要静默 setData=[] 假装"空数据"
+        message.error(e?.message ?? '加载失败');
+        setData({ items: [], total: 0 });
+      })
       .finally(() => setLoading(false));
   };
 

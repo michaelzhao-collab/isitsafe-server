@@ -246,13 +246,32 @@ model IntelAlert {
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
-  deliveries IntelDelivery[]
-  reports    IntelReport[]
+  deliveries   IntelDelivery[]
+  reports      IntelReport[]
+  translations IntelAlertI18n[]
 
   @@index([status, publishedAt(sort: Desc)])
   @@index([language, status])
   @@index([sourceFetchJobId])
   @@map("intel_alerts")
+}
+
+/// V4-P5 情报翻译：抓中文翻成英文 / 抓英文翻成中文，让两端用户都能看完整 feed
+/// 翻译由 cron worker 异步填表，缺翻译时 getFeed 回退原文
+model IntelAlertI18n {
+  id            String     @id @default(cuid())
+  intelId       String     @map("intel_id")
+  intel         IntelAlert @relation(fields: [intelId], references: [id], onDelete: Cascade)
+  language      String     @db.VarChar(10) // 'zh' | 'en'
+  title         String     @db.Text
+  summary       String     @db.Text
+  contentBlocks Json?      @map("content_blocks")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  @@unique([intelId, language])
+  @@index([language])
+  @@map("intel_alert_i18n")
 }
 
 /// 用户上报情报（审核后可合并到 IntelAlert）

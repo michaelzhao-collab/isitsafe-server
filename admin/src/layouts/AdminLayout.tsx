@@ -80,6 +80,7 @@ const menuItems: MenuProps['items'] = [
     children: [
       { key: '/messages', label: '消息推送' },
       { key: '/push', label: 'Push 通知' },
+      { key: '/diagnostics', label: '推送诊断' },
       { key: '/analytics', icon: <BarChartOutlined />, label: '数据分析' },
     ],
   },
@@ -110,6 +111,7 @@ const BREADCRUMB_MAP: Record<string, { label: string; parent?: string }> = {
   '/intel/submissions': { label: '用户上报审批', parent: '内容管理' },
   '/content-fetch': { label: 'AI 内容抓取', parent: '内容管理' },
   '/onboarding-chips': { label: '冷启动引导', parent: '内容管理' },
+  '/diagnostics': { label: '推送诊断', parent: '消息/数据' },
   '/v3/family': { label: '家庭守护', parent: 'V3 反诈模块' },
   '/v3/elder': { label: '长辈模式', parent: 'V3 反诈模块' },
   '/v3/deepfake': { label: '语音深伪', parent: 'V3 反诈模块' },

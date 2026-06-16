@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Card, Tag } from 'antd';
+import { Table, Card, Tag, message } from 'antd';
 import { getAdminUsers, type AdminUserItem, type AdminUsersRes } from '../../api/adminUsers';
 
 export default function AdminUsersList() {
@@ -12,7 +12,10 @@ export default function AdminUsersList() {
     setLoading(true);
     getAdminUsers({ page, pageSize })
       .then((res) => setData({ items: (res as unknown as AdminUsersRes).items ?? [], total: (res as unknown as AdminUsersRes).total ?? 0 }))
-      .catch(() => setData({ items: [], total: 0 }))
+      .catch((e: any) => {
+        message.error(e?.message ?? '加载失败');
+        setData({ items: [], total: 0 });
+      })
       .finally(() => setLoading(false));
   };
 

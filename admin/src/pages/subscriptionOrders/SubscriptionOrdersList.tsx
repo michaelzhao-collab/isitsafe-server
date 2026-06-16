@@ -32,6 +32,7 @@ export default function SubscriptionOrdersList() {
   const [userKeyword, setUserKeyword] = useState('');
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -156,7 +157,31 @@ export default function SubscriptionOrdersList() {
         <Card
           size="small"
           title={<><BugOutlined /> 订阅数据诊断</>}
-          extra={<Button size="small" icon={<ReloadOutlined />} loading={diagLoading} onClick={loadDiagnostics}>刷新</Button>}
+          extra={
+            <Space>
+              <Button
+                size="small"
+                danger
+                loading={reconciling}
+                onClick={async () => {
+                  setReconciling(true);
+                  try {
+                    const res = await request.post('/admin/subscription/reconcile-stale') as unknown as { ok: boolean; staleBeforeRun: number };
+                    message.success(`已修复 ${res?.staleBeforeRun ?? 0} 条 stale 订阅`);
+                    loadDiagnostics();
+                    load();
+                  } catch (e: any) {
+                    message.error(e?.message ?? '修复失败');
+                  } finally {
+                    setReconciling(false);
+                  }
+                }}
+              >
+                一键修复 stale
+              </Button>
+              <Button size="small" icon={<ReloadOutlined />} loading={diagLoading} onClick={loadDiagnostics}>刷新</Button>
+            </Space>
+          }
           style={{ marginBottom: 16 }}
         >
           {orphanCount > 0 && (
