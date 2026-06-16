@@ -33,14 +33,17 @@ public enum FamilyActivityStatus: String, Codable {
     }
 
     public var displayName: String {
+        // 走 UserDefaults 而非 @AppStorage：enum 属性无法持有 SwiftUI 状态
+        // 同一 key 是 AppStorage("isitsafe.language") 用的那个，全 App 一致
+        let isEN = (UserDefaults.standard.string(forKey: "isitsafe.language") ?? "zh") == "en"
         switch self {
-        case .activeToday: return "今日已活跃"
+        case .activeToday: return isEN ? "Active today" : "今日已活跃"
         // inactive_1day 语义：距上次活跃 ≥1 天且 <2 天 = 今天还没打开 App
         // 之前文案"昨日未活跃"会让人误读为"昨天没活跃"，业主反馈应改为"今日未活跃"
-        case .inactive1day: return "今日未活跃"
-        case .inactive2days: return "已 2 天未活跃"
-        case .inactive3plus: return "已 3 天+ 未活跃"
-        case .unknown: return "暂无记录"
+        case .inactive1day: return isEN ? "Inactive today" : "今日未活跃"
+        case .inactive2days: return isEN ? "Inactive for 2 days" : "已 2 天未活跃"
+        case .inactive3plus: return isEN ? "Inactive for 3+ days" : "已 3 天+ 未活跃"
+        case .unknown: return isEN ? "No data" : "暂无记录"
         }
     }
 }
