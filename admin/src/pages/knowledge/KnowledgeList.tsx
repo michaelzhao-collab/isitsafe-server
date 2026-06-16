@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, type Key } from 'react';
-import { Table, Card, Select, Input, Space, Button, message, Image, Tag } from 'antd';
+import { Table, Card, Select, Input, Space, Button, message, Image, Tag, Tooltip } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { PlusOutlined, UploadOutlined, RocketOutlined, InboxOutlined } from '@ant-design/icons';
 import { Popconfirm } from 'antd';
@@ -227,7 +227,31 @@ export default function KnowledgeList() {
       width: 150,
       render: (tags: string[]) => (Array.isArray(tags) ? tags.join(', ') : '-'),
     },
-    { title: 'source', dataIndex: 'source', key: 'source', width: 100 },
+    {
+      // 业主反馈：source 经常填 URL，全显示会把整张表撑歪
+      // 缩略到 ≤ 20 字符 + Tooltip 鼠标悬停看全
+      title: 'source',
+      dataIndex: 'source',
+      key: 'source',
+      width: 140,
+      ellipsis: true,
+      render: (v: string | null | undefined) => {
+        if (!v) return <span style={{ color: '#bfbfbf' }}>—</span>;
+        const isLink = /^https?:\/\//i.test(v);
+        const short = v.length > 20 ? v.slice(0, 20) + '…' : v;
+        return (
+          <Tooltip title={v}>
+            {isLink ? (
+              <a href={v} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+                {short}
+              </a>
+            ) : (
+              <span style={{ fontSize: 12 }}>{short}</span>
+            )}
+          </Tooltip>
+        );
+      },
+    },
     { title: 'language', dataIndex: 'language', key: 'language', width: 80 },
     { title: 'created_at', dataIndex: 'createdAt', key: 'createdAt', width: 180, render: (v: string) => v?.slice(0, 19) },
     {
