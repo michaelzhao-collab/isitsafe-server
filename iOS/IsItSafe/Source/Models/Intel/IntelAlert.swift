@@ -11,10 +11,13 @@ public enum IntelSeverity: String, Codable {
     case normal, high, urgent
 
     public var displayName: String {
+        // 跟 FamilyActivityStatus.displayName 同套路：enum 属性不能持 @AppStorage
+        // 直接读 UserDefaults 同 key 决定中英文
+        let isEN = (UserDefaults.standard.string(forKey: "isitsafe.language") ?? "zh") == "en"
         switch self {
-        case .urgent: return "紧急"
-        case .high: return "高风险"
-        case .normal: return "提示"
+        case .urgent: return isEN ? "Urgent" : "紧急"
+        case .high:   return isEN ? "High risk" : "高风险"
+        case .normal: return isEN ? "Notice" : "提示"
         }
     }
 }
