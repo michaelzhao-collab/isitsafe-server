@@ -98,6 +98,7 @@ model FamilyGroup {
 
   members     FamilyMember[]
   careNotices FamilyCareNotice[]
+  careMutes   FamilyCareMute[]
   broadcasts  FamilyBroadcast[]
 
   @@index([ownerUserId])
@@ -198,13 +199,15 @@ model FamilyCareNotice {
 // 业主反馈：对方一直不活跃会一直发 push，需要按对象关闭
 // --------------------------------------------
 model FamilyCareMute {
-  id              String   @id @default(cuid())
-  groupId         String   @map("group_id")
+  id              String      @id @default(cuid())
+  groupId         String      @map("group_id")
+  /// group 解散时 cascade 清空 mute（不留孤儿）
+  group           FamilyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   /// 接收 push 的用户（我）
-  recipientUserId String   @map("recipient_user_id")
+  recipientUserId String      @map("recipient_user_id")
   /// 被监控的用户（我不想再收到 ta 的不活跃 push）
-  targetUserId    String   @map("target_user_id")
-  createdAt       DateTime @default(now()) @map("created_at")
+  targetUserId    String      @map("target_user_id")
+  createdAt       DateTime    @default(now()) @map("created_at")
 
   @@unique([groupId, recipientUserId, targetUserId])
   @@index([recipientUserId])

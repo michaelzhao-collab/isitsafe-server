@@ -232,6 +232,16 @@ export class FamilyService {
     }
     await this.prisma.$transaction(async (tx) => {
       await tx.familyMember.delete({ where: { id: member.id } });
+      // V4-P3 主动离群也清掉自己跟此组里所有人的 mute 关系
+      await tx.familyCareMute.deleteMany({
+        where: {
+          groupId: member.groupId,
+          OR: [
+            { recipientUserId: userId },
+            { targetUserId: userId },
+          ],
+        },
+      });
       await tx.user.update({
         where: { id: userId },
         data: { familyGroupId: null, userLevel: 'personal' },
@@ -266,6 +276,17 @@ export class FamilyService {
     await this.prisma.$transaction(async (tx) => {
       await tx.familyMember.deleteMany({
         where: { groupId, userId: targetUserId },
+      });
+      // V4-P3 清掉跟此人相关的所有静音记录（无论作为 recipient 还是 target）
+      // 不然踢出去后留的孤儿数据：本人重新被加进来时仍按老 mute 配置发 / 不发
+      await tx.familyCareMute.deleteMany({
+        where: {
+          groupId,
+          OR: [
+            { recipientUserId: targetUserId },
+            { targetUserId: targetUserId },
+          ],
+        },
       });
       await tx.user.update({
         where: { id: targetUserId },

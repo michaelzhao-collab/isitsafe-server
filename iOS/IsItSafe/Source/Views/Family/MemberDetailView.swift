@@ -255,9 +255,19 @@ public struct MemberDetailView: View {
     /// V4-P3 关怀提醒静音开关
     /// 业主反馈："对方一直不活跃会一直收到 push，要能按人关掉"
     /// 默认 ON = 收到 ta 的不活跃 push；关掉 = 服务端 cron 跳过把我列入接收人
+    ///
+    /// 用自定义 Binding 而不是 .onChange：避免 .task 拉数据写入 carePushOn
+    /// 时 SwiftUI runloop 误触发一次冗余 PUT（已静音用户每次开详情都会撞）
     private var carePushToggleCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Toggle(isOn: $carePushOn) {
+        let bind = Binding<Bool>(
+            get: { carePushOn },
+            set: { newValue in
+                carePushOn = newValue
+                applyCarePushChange(newValue: newValue)
+            }
+        )
+        return VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: bind) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(languageCode == "en"
                          ? "Inactivity reminders for \(member.effectiveName(language: languageCode))"
@@ -271,28 +281,6 @@ public struct MemberDetailView: View {
                 }
             }
             .disabled(togglingCarePush || !carePushLoaded)
-            .onChange(of: carePushOn) { _, newValue in
-                // 初始化拉数据时也会触发 onChange，用 carePushLoaded 屏蔽
-                guard carePushLoaded else { return }
-                togglingCarePush = true
-                carePushFeedback = nil
-                Task {
-                    let ok = await vm.setCareMute(
-                        groupId: groupId,
-                        targetUserId: member.userId,
-                        muted: !newValue
-                    )
-                    await MainActor.run {
-                        togglingCarePush = false
-                        if !ok {
-                            carePushOn = !newValue   // 回滚
-                            carePushFeedback = languageCode == "en" ? "Failed" : "更新失败"
-                        } else {
-                            carePushFeedback = languageCode == "en" ? "Updated ✓" : "已更新 ✓"
-                        }
-                    }
-                }
-            }
             if let f = carePushFeedback {
                 Text(f).font(.caption).foregroundColor(AppTheme.textSecondary)
             }
@@ -300,6 +288,29 @@ public struct MemberDetailView: View {
         .padding(14)
         .background(AppTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// Toggle 用户操作 → 发 PUT；失败回滚
+    private func applyCarePushChange(newValue: Bool) {
+        guard carePushLoaded else { return }
+        togglingCarePush = true
+        carePushFeedback = nil
+        Task {
+            let ok = await vm.setCareMute(
+                groupId: groupId,
+                targetUserId: member.userId,
+                muted: !newValue
+            )
+            await MainActor.run {
+                togglingCarePush = false
+                if !ok {
+                    carePushOn = !newValue   // 回滚
+                    carePushFeedback = languageCode == "en" ? "Failed" : "更新失败"
+                } else {
+                    carePushFeedback = languageCode == "en" ? "Updated ✓" : "已更新 ✓"
+                }
+            }
+        }
     }
 
     private func callButton(phone: String) -> some View {
