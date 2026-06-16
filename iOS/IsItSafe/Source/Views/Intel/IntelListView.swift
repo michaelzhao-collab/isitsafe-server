@@ -156,41 +156,65 @@ public struct IntelListView: View {
 
     private func intelCard(_ item: IntelAlertSummary) -> some View {
         Button { selectedDetail = item } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Text(severityLabel(item.severity))
-                        .font(.caption2.weight(.bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(severityColor(item.severity).opacity(0.15))
-                        .foregroundColor(severityColor(item.severity))
-                        .clipShape(Capsule())
-                    Text(item.category)
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color(.systemGray6))
-                        .clipShape(Capsule())
-                    Spacer()
-                    // 蓝点只在 12h 内未读且新鲜的情报上显示
-                    // 超过 12h 即使没点过也不再"新"，蓝点自动消失避免堆积
-                    if !item.isRead && isWithin12h(item.publishedAt) {
-                        Circle().fill(AppTheme.primary).frame(width: 6, height: 6)
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text(severityLabel(item.severity))
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(severityColor(item.severity).opacity(0.15))
+                            .foregroundColor(severityColor(item.severity))
+                            .clipShape(Capsule())
+                        Text(item.category)
+                            .font(.caption2)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color(.systemGray6))
+                            .clipShape(Capsule())
+                        Spacer()
+                        // 蓝点只在 12h 内未读且新鲜的情报上显示
+                        // 超过 12h 即使没点过也不再"新"，蓝点自动消失避免堆积
+                        if !item.isRead && isWithin12h(item.publishedAt) {
+                            Circle().fill(AppTheme.primary).frame(width: 6, height: 6)
+                        }
+                        Text(relativeTime(item.publishedAt))
+                            .font(.caption2)
+                            .foregroundColor(AppTheme.textSecondary)
                     }
-                    Text(relativeTime(item.publishedAt))
-                        .font(.caption2)
+                    Text(item.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(AppTheme.textPrimary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Text(item.summary)
+                        .font(.caption)
                         .foregroundColor(AppTheme.textSecondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
                 }
-                Text(item.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(AppTheme.textPrimary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                Text(item.summary)
-                    .font(.caption)
-                    .foregroundColor(AppTheme.textSecondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                // V3-K 缩略图：抓取时如果取到封面图就显示，没有则不占位
+                if let cover = item.coverImage, let url = URL(string: cover) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let img):
+                            img.resizable()
+                                .scaledToFill()
+                                .frame(width: 72, height: 72)
+                                .clipped()
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        case .empty:
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(.systemGray6))
+                                .frame(width: 72, height: 72)
+                                .overlay(ProgressView().scaleEffect(0.7))
+                        case .failure:
+                            EmptyView()    // 加载失败不留占位框
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -252,13 +276,40 @@ public struct IntelListView: View {
             let f = ISO8601DateFormatter()
             f.formatOptions = opts
             if let d = f.date(from: iso) {
-                let interval = -d.timeIntervalSinceNow
-                if interval < 3600 { return "\(Int(interval / 60))m" }
-                if interval < 86400 { return "\(Int(interval / 3600))h" }
-                let days = Int(interval / 86400)
-                return "\(days)d"
+                return formatRelative(date: d, languageCode: languageCode)
             }
         }
         return ""
     }
+}
+
+/// 业主：超 1 天不要再显示「N 天前」，直接显示日期
+/// - 1 小时内：刚刚 / N 分钟前
+/// - 1-24 小时：N 小时前
+/// - 跨年：YYYY/M/d
+/// - 同年：M/d
+func formatRelative(date: Date, languageCode: String) -> String {
+    let interval = -date.timeIntervalSinceNow
+    let isEN = languageCode == "en"
+    if interval < 60 {
+        return isEN ? "Just now" : "刚刚"
+    }
+    if interval < 3600 {
+        let m = Int(interval / 60)
+        return isEN ? "\(m)m ago" : "\(m) 分钟前"
+    }
+    if interval < 86400 {
+        let h = Int(interval / 3600)
+        return isEN ? "\(h)h ago" : "\(h) 小时前"
+    }
+    let cal = Calendar.current
+    let now = Date()
+    let f = DateFormatter()
+    f.locale = Locale(identifier: isEN ? "en_US_POSIX" : "zh_CN")
+    if cal.component(.year, from: date) == cal.component(.year, from: now) {
+        f.dateFormat = isEN ? "MMM d" : "M月d日"
+    } else {
+        f.dateFormat = isEN ? "yyyy/M/d" : "yyyy年M月d日"
+    }
+    return f.string(from: date)
 }

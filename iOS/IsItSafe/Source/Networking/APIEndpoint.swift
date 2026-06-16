@@ -102,6 +102,8 @@ public enum APIEndpoint {
     case v3IntelSubmit
     /// 我的上报
     case v3IntelMySubmissions
+    /// V4-P4 用户举报某条情报（App Store UGC 合规）
+    case v3IntelReport(intelId: String)
     /// 获取偏好
     case v3IntelGetPreferences
     /// 更新偏好
@@ -193,6 +195,7 @@ public enum APIEndpoint {
         case .v3IntelUnreadCount: return "/api/v3/intel/unread-count"
         case .v3IntelSubmit: return "/api/v3/intel/submit"
         case .v3IntelMySubmissions: return "/api/v3/intel/me/submissions"
+        case .v3IntelReport(let intelId): return "/api/v3/intel/\(intelId)/report"
         case .v3IntelGetPreferences: return "/api/v3/intel/preferences"
         case .v3IntelPutPreferences: return "/api/v3/intel/preferences"
         // V3-A1
@@ -228,7 +231,7 @@ public enum APIEndpoint {
              .v3UserHeartbeat, .v3UserRegisterDevice,
              .v3FamilyCreateGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyCreateBroadcast,
-             .v3IntelSubmit,
+             .v3IntelSubmit, .v3IntelReport,
              .v3DeepfakeCreate, .v3DeepfakeFeedback, .v3DeepfakeBroadcast,
              .v3BreachAddTarget:
             return .POST
@@ -257,7 +260,7 @@ public enum APIEndpoint {
              .v3FamilySetMyDisplayName, .v3FamilySetAlias,
              .v3FamilyListCareMutes, .v3FamilySetCareMute,
              .v3IntelFeed, .v3IntelDetail, .v3IntelUnreadCount, .v3IntelSubmit,
-             .v3IntelMySubmissions, .v3IntelGetPreferences, .v3IntelPutPreferences,
+             .v3IntelMySubmissions, .v3IntelGetPreferences, .v3IntelPutPreferences, .v3IntelReport,
              .v3DeepfakeCreate, .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeDelete, .v3DeepfakeFeedback, .v3DeepfakeBroadcast, .v3DeepfakeStream,
              .v3BreachAddTarget, .v3BreachListTargets, .v3BreachDeleteTarget,
              .v3BreachListAlerts, .v3BreachDismissAlert:

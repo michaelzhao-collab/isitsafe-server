@@ -89,6 +89,19 @@ export class IntelController {
   async detail(@CurrentUser('sub') userId: string, @Param('id') id: string) {
     return this.intel.getDetail(userId, id);
   }
+
+  /// V4-P4 用户举报某条情报（App Store 1.2 UGC 合规：举报入口）
+  /// body: { reason: 'spam'|'inaccurate'|'illegal'|'offensive'|'other', note?: string }
+  /// 一人一条情报最多一次
+  @Post(':id/report')
+  @UseGuards(JwtAuthGuard)
+  async reportIntel(
+    @CurrentUser('sub') userId: string,
+    @Param('id') intelId: string,
+    @Body() body: { reason?: string; note?: string },
+  ) {
+    return this.intel.submitReport(userId, intelId, body?.reason, body?.note);
+  }
 }
 
 /**

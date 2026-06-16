@@ -41,4 +41,13 @@ public final class IntelRepository {
     public func updatePreferences(_ request: IntelPreferencesUpdateRequest) async throws -> IntelPreferences {
         try await network.request(endpoint: .v3IntelPutPreferences, body: request)
     }
+
+    /// V4-P4 举报某条情报；reason: spam/inaccurate/illegal/offensive/other
+    public func report(intelId: String, reason: String, note: String?) async throws {
+        struct Body: Codable { let reason: String; let note: String? }
+        try await network.requestVoid(
+            endpoint: .v3IntelReport(intelId: intelId),
+            body: Body(reason: reason, note: note?.isEmpty == true ? nil : note)
+        )
+    }
 }

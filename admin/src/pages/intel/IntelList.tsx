@@ -120,6 +120,18 @@ export default function IntelList() {
     },
     { title: '语言', dataIndex: 'language', key: 'language', width: 80 },
     {
+      // V4-P4 举报：列表按举报数倒序，admin 一眼看到争议条目
+      title: '举报',
+      dataIndex: 'reportCount',
+      key: 'reportCount',
+      width: 80,
+      render: (n: number | undefined) => {
+        const count = n ?? 0;
+        if (count === 0) return <span style={{ color: '#bbb' }}>0</span>;
+        return <Tag color={count >= 3 ? 'red' : 'orange'}>{count}</Tag>;
+      },
+    },
+    {
       title: '发布于',
       dataIndex: 'publishedAt',
       key: 'publishedAt',
@@ -129,7 +141,7 @@ export default function IntelList() {
     {
       title: '操作',
       key: 'action',
-      width: 160,
+      width: 220,
       fixed: 'right' as const,
       render: (_: unknown, row: IntelAlert) => (
         <Space>
@@ -140,6 +152,33 @@ export default function IntelList() {
           >
             编辑
           </Button>
+          {/* V4-P4 一键隐藏/恢复：复用 updateAlert 的 status 字段（App Store 24h 处理要求） */}
+          {row.status === 'published' ? (
+            <Popconfirm
+              title="隐藏后用户端不可见，确定？"
+              onConfirm={async () => {
+                await updateAlert(row.id, { status: 'archived' });
+                message.success('已隐藏');
+                load();
+              }}
+            >
+              <Button type="link" size="small" danger>
+                隐藏
+              </Button>
+            </Popconfirm>
+          ) : row.status === 'archived' ? (
+            <Button
+              type="link"
+              size="small"
+              onClick={async () => {
+                await updateAlert(row.id, { status: 'published' });
+                message.success('已恢复');
+                load();
+              }}
+            >
+              恢复
+            </Button>
+          ) : null}
           <Popconfirm title="确定删除？" onConfirm={() => handleDelete(row.id)}>
             <Button type="link" size="small" danger>
               删除

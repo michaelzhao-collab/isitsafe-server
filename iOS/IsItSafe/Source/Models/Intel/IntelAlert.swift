@@ -29,6 +29,8 @@ public struct IntelAlertSummary: Codable, Identifiable, Hashable {
     public let sourceUrl: String?
     public let publishedAt: String?
     public let isRead: Bool
+    /// V3-K AI 抓 RSS 时一起拿的封面图（enclosure / media:content / 正文 <img>）
+    public let coverImage: String?
 
     public func hash(into hasher: inout Hasher) { hasher.combine(id) }
     public static func == (l: IntelAlertSummary, r: IntelAlertSummary) -> Bool { l.id == r.id }
@@ -47,6 +49,7 @@ public struct IntelAlertDetail: Codable, Identifiable {
     public let sourceUrl: String?
     public let status: String
     public let publishedAt: String?
+    public let coverImage: String?
 }
 
 public struct IntelCategory: Codable, Identifiable {

@@ -14,12 +14,18 @@ public struct IntelDetailView: View {
     @State private var detail: IntelAlertDetail?
     @State private var loading = true
     @State private var errorMessage: String?
+    @State private var showReportSheet = false   // V4-P4 举报入口
 
     public init(summary: IntelAlertSummary) { self.summary = summary }
 
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                // V3-K 顶部封面图：优先从详情拿，详情没回来就先用 summary 列表带的
+                if let cover = (detail?.coverImage ?? summary.coverImage),
+                   let url = URL(string: cover) {
+                    heroImage(url: url)
+                }
                 severityBadge
                 titleSection
                 if let d = detail {
@@ -44,6 +50,23 @@ public struct IntelDetailView: View {
         .background(AppTheme.background.ignoresSafeArea())
         .navigationTitle(languageCode == "en" ? "Intel" : "情报详情")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // V4-P4 App Store 1.2 UGC 合规：内容详情需提供举报入口
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    Button(role: .destructive) {
+                        showReportSheet = true
+                    } label: {
+                        Label(languageCode == "en" ? "Report" : "举报", systemImage: "flag")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
+        .sheet(isPresented: $showReportSheet) {
+            IntelReportSheet(intelId: summary.id)
+        }
         .task { await load() }
     }
 
@@ -118,14 +141,34 @@ public struct IntelDetailView: View {
             let f = ISO8601DateFormatter()
             f.formatOptions = opts
             if let d = f.date(from: iso) {
-                let interval = -d.timeIntervalSinceNow
-                if interval < 3600 { return "\(Int(interval / 60)) 分钟前" }
-                if interval < 86400 { return "\(Int(interval / 3600)) 小时前" }
-                let days = Int(interval / 86400)
-                return "\(days) 天前"
+                return formatRelative(date: d, languageCode: languageCode)
             }
         }
         return iso
+    }
+
+    /// V3-K 详情页顶部 hero 图：固定 16:9 比例，加载失败不留白
+    private func heroImage(url: URL) -> some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case .success(let img):
+                img.resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 200)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            case .empty:
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(.systemGray6))
+                    .frame(height: 200)
+                    .overlay(ProgressView())
+            case .failure:
+                EmptyView()
+            @unknown default:
+                EmptyView()
+            }
+        }
     }
 
     private func load() async {

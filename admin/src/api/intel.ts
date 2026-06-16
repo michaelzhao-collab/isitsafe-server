@@ -14,10 +14,13 @@ export interface IntelAlert {
   targetAudiences: string[];
   language: string;
   sourceUrl?: string | null;
+  coverImage?: string | null;
   status: IntelStatus;
   publishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  /// V4-P4 列表带的用户举报计数（admin 优先看举报多的）
+  reportCount?: number;
 }
 
 export interface IntelAlertListResponse {

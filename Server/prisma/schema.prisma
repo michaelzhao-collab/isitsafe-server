@@ -70,6 +70,7 @@ model User {
   triggeredBroadcasts  FamilyBroadcast[]
   intelSubmissions     IntelSubmission[]
   intelDeliveries      IntelDelivery[]
+  intelReports         IntelReport[]
   intelPreferences     UserIntelPreferences?
   deepfakeChecks       DeepfakeCheck[]
   breachTargets        BreachTarget[]
@@ -246,6 +247,7 @@ model IntelAlert {
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
   deliveries IntelDelivery[]
+  reports    IntelReport[]
 
   @@index([status, publishedAt(sort: Desc)])
   @@index([language, status])
@@ -270,6 +272,24 @@ model IntelSubmission {
   @@index([userId, createdAt(sort: Desc)])
   @@index([status, createdAt])
   @@map("intel_submissions")
+}
+
+/// V4-P4 用户对已发布情报的举报（App Store 1.2 UGC 合规：举报 + 24h 内处理）
+/// 一人一情报最多一条举报；admin 看到后人工决定是否 archived
+model IntelReport {
+  id        String     @id @default(cuid())
+  intelId   String     @map("intel_id")
+  intel     IntelAlert @relation(fields: [intelId], references: [id], onDelete: Cascade)
+  userId    String     @map("user_id")
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'spam' | 'inaccurate' | 'illegal' | 'offensive' | 'other'
+  reason    String     @db.VarChar(32)
+  note      String?    @db.Text
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@unique([intelId, userId])
+  @@index([intelId])
+  @@map("intel_reports")
 }
 
 /// 情报送达日志（用于未读数 + 防重复推送 + CTR 统计）

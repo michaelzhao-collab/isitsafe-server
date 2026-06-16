@@ -1,6 +1,7 @@
 import {
   Injectable,
   NotFoundException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -242,13 +243,45 @@ export class IntelService {
     const [items, total] = await Promise.all([
       this.prisma.intelAlert.findMany({
         where,
-        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        // V4-P4 举报多的优先看到，便于审核
+        orderBy: [{ reports: { _count: 'desc' } }, { status: 'asc' }, { createdAt: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: { _count: { select: { reports: true } } },
       }),
       this.prisma.intelAlert.count({ where }),
     ]);
-    return { items, total, page, pageSize };
+    // 展平 _count.reports → reportCount，admin 列表更直观
+    const mapped = items.map((i: any) => ({
+      ...i,
+      reportCount: i._count?.reports ?? 0,
+      _count: undefined,
+    }));
+    return { items: mapped, total, page, pageSize };
+  }
+
+  /// V4-P4 用户举报一条情报
+  async submitReport(userId: string, intelId: string, reason?: string, note?: string) {
+    const allowed = ['spam', 'inaccurate', 'illegal', 'offensive', 'other'];
+    const r = (reason ?? '').trim();
+    if (!allowed.includes(r)) {
+      throw new BadRequestException('Invalid reason');
+    }
+    // 必须是已发布的情报才能举报（防刷草稿）
+    const intel = await this.prisma.intelAlert.findUnique({
+      where: { id: intelId },
+      select: { id: true, status: true },
+    });
+    if (!intel || intel.status !== 'published') {
+      throw new NotFoundException('Intel not found');
+    }
+    const cleanNote = note?.trim().slice(0, 500) || null;
+    await this.prisma.intelReport.upsert({
+      where: { intelId_userId: { intelId, userId } },
+      create: { intelId, userId, reason: r, note: cleanNote },
+      update: { reason: r, note: cleanNote },
+    });
+    return { ok: true };
   }
 
   async adminCreateAlert(data: {
