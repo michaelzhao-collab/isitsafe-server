@@ -16,6 +16,10 @@ import { AiProviderService } from '../ai/providers/ai-provider.service';
 export class IntelTranslationService {
   private readonly logger = new Logger(IntelTranslationService.name);
   private readonly BATCH = 5;
+  // V4 复核 #7：避免 cron 重入。AI provider 偶尔慢（限流重试 / 单条 ≥30s × 5 条 > 5min），
+  // 没有锁的话下一 tick 会抓同一批 pending（NOT EXISTS 在上一轮 upsert 落库前依然成立），
+  // 双倍计费 + 偶发 P2002 抛进 catch 误报 INTEL_TRANSLATION_FAILED
+  private isRunning = false;
 
   constructor(
     private prisma: PrismaService,
@@ -25,6 +29,11 @@ export class IntelTranslationService {
   /// 每 5 分钟扫一次；首次部署后让翻译尽快铺开
   @Cron(CronExpression.EVERY_5_MINUTES, { name: 'intel-translation' })
   async translatePending(): Promise<void> {
+    if (this.isRunning) {
+      this.logger.warn('[INTEL_TRANSLATION] skip: previous run still in flight');
+      return;
+    }
+    this.isRunning = true;
     try {
       const pending = await this.findPending(this.BATCH);
       if (pending.length === 0) return;
@@ -42,6 +51,8 @@ export class IntelTranslationService {
       }
     } catch (err: any) {
       this.logger.error('[INTEL_TRANSLATION_CRON_FATAL]', err?.message ?? err);
+    } finally {
+      this.isRunning = false;
     }
   }
 

@@ -304,6 +304,11 @@ public struct BroadcastResponse: Codable {
         case duplicate
         case quotaExceeded = "quota_exceeded"
         case noGroup = "no_group"
+        // V4 复核 #8：server family.service createBroadcast 还会返回这两个
+        // - inProgress：Redis 抢锁失败（同秒并发）
+        // - disabledByUser：用户在设置里关掉了「分享我的查询结果」
+        case inProgress = "in_progress"
+        case disabledByUser = "disabled_by_user"
     }
 }
 

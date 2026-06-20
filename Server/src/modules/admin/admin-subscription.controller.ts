@@ -129,23 +129,29 @@ export class AdminSubscriptionController {
     ]);
 
     // GMV：联 plan 拿单价，按币种分组（USD / CNY 不能简单相加）
+    // V4 复核 #10：LEFT JOIN 后再 `WHERE mp.price IS NOT NULL` 实质退化为 INNER JOIN，
+    // product_id 在 membership_plans 找不到匹配的旧/下架 SKU 会被默默排除掉，
+    // 导致换包后真实 GMV 一直被低报。改用 COALESCE 把无 plan 的归到 unknown 桶里
+    // 同时给运营留一个能感知的线索（unknown 桶 > 0 表示有掉单未匹配）
     const todayOrdersWithPlan = await this.prisma.$queryRawUnsafe<
       Array<{ currency: string; total: number }>
     >(`
-      SELECT mp.currency, SUM(mp.price)::float AS total
+      SELECT COALESCE(mp.currency, 'unknown') AS currency,
+             SUM(COALESCE(mp.price, 0))::float AS total
       FROM subscriptions s
       LEFT JOIN membership_plans mp ON mp.product_id = s.product_id
-      WHERE s.created_at >= $1 AND s.status != 'refunded' AND mp.price IS NOT NULL
-      GROUP BY mp.currency
+      WHERE s.created_at >= $1 AND s.status != 'refunded'
+      GROUP BY COALESCE(mp.currency, 'unknown')
     `, todayStart);
     const monthOrdersWithPlan = await this.prisma.$queryRawUnsafe<
       Array<{ currency: string; total: number }>
     >(`
-      SELECT mp.currency, SUM(mp.price)::float AS total
+      SELECT COALESCE(mp.currency, 'unknown') AS currency,
+             SUM(COALESCE(mp.price, 0))::float AS total
       FROM subscriptions s
       LEFT JOIN membership_plans mp ON mp.product_id = s.product_id
-      WHERE s.created_at >= $1 AND s.status != 'refunded' AND mp.price IS NOT NULL
-      GROUP BY mp.currency
+      WHERE s.created_at >= $1 AND s.status != 'refunded'
+      GROUP BY COALESCE(mp.currency, 'unknown')
     `, monthStart);
 
     const renewalRate = activeWithAutoRenew > 0

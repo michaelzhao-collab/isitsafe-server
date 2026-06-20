@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Row, Col, Statistic, Spin, Divider, Tag, Space } from 'antd';
+import { Card, Row, Col, Statistic, Spin, Divider, Tag, Space, Alert } from 'antd';
 import { getAnalyticsOverview } from '../../api/analytics';
 import request from '../../api/request';
 
@@ -41,6 +41,9 @@ export default function Dashboard() {
     riskDistribution?: Record<string, number>;
   }>({});
   const [sub, setSub] = useState<SubscriptionSummary | null>(null);
+  // V4 复核 #9：/admin/subscription/summary 受 AdminRoleGuard 保护，
+  // 非超管视角会 403；之前沉默渲染 0 让运营误以为线上挂了
+  const [subError, setSubError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.allSettled([
@@ -61,6 +64,13 @@ export default function Dashboard() {
         }
         if (sRes.status === 'fulfilled') {
           setSub(sRes.value as unknown as SubscriptionSummary);
+        } else {
+          const status = sRes.reason?.response?.status;
+          if (status === 403 || status === 401) {
+            setSubError('当前账号无「订阅 / 营收」查看权限');
+          } else {
+            setSubError(`订阅 / 营收数据加载失败${status ? `（${status}）` : ''}`);
+          }
         }
       })
       .finally(() => setLoading(false));
@@ -137,6 +147,15 @@ export default function Dashboard() {
       <Divider orientation="left" plain style={{ margin: '24px 0 16px' }}>
         <Space size={6}><Tag color="gold">订阅 / 营收</Tag></Space>
       </Divider>
+      {subError && (
+        <Alert
+          type="warning"
+          showIcon
+          message={subError}
+          description="下方数字仅为占位 0，不代表线上真实业绩。"
+          style={{ marginBottom: 16 }}
+        />
+      )}
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}>
           <Card>

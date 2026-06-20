@@ -10,6 +10,8 @@ import SwiftUI
 
 public struct IntelReportSheet: View {
     public let intelId: String
+    /// V4 复核扩展：举报成功后回调，让上层（IntelDetailView/IntelListView）立刻把本条从 feed 移除
+    public let onSubmitted: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var selectedReason: ReportReason = .inaccurate
@@ -18,7 +20,10 @@ public struct IntelReportSheet: View {
     @State private var submitted = false
     @State private var errorMessage: String?
 
-    public init(intelId: String) { self.intelId = intelId }
+    public init(intelId: String, onSubmitted: (() -> Void)? = nil) {
+        self.intelId = intelId
+        self.onSubmitted = onSubmitted
+    }
 
     public enum ReportReason: String, CaseIterable, Identifiable {
         case spam, inaccurate, illegal, offensive, other
@@ -111,6 +116,9 @@ public struct IntelReportSheet: View {
                 note: note.trimmingCharacters(in: .whitespacesAndNewlines)
             )
             submitted = true
+            // V4 复核扩展：通知上层把这条 splice 掉；放在 dismiss 之前，
+            //              这样 List 在 sheet 收起的瞬间就已经少了一条，体验上"立刻消失"
+            onSubmitted?()
             try? await Task.sleep(nanoseconds: 800_000_000)
             dismiss()
         } catch {

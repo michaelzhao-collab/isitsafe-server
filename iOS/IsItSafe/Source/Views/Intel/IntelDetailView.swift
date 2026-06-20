@@ -9,6 +9,8 @@ import SwiftUI
 
 public struct IntelDetailView: View {
     public let summary: IntelAlertSummary
+    /// V4 复核扩展：举报成功 → 由 IntelListView 把这条 splice 掉；详情页随后自动 pop
+    public let onReported: ((String) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var detail: IntelAlertDetail?
@@ -16,7 +18,10 @@ public struct IntelDetailView: View {
     @State private var errorMessage: String?
     @State private var showReportSheet = false   // V4-P4 举报入口
 
-    public init(summary: IntelAlertSummary) { self.summary = summary }
+    public init(summary: IntelAlertSummary, onReported: ((String) -> Void)? = nil) {
+        self.summary = summary
+        self.onReported = onReported
+    }
 
     public var body: some View {
         ScrollView {
@@ -65,7 +70,11 @@ public struct IntelDetailView: View {
             }
         }
         .sheet(isPresented: $showReportSheet) {
-            IntelReportSheet(intelId: summary.id)
+            IntelReportSheet(intelId: summary.id) {
+                // 提交成功 → 通知列表移除 → 退出详情页
+                onReported?(summary.id)
+                dismiss()
+            }
         }
         .task { await load() }
     }

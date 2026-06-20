@@ -31,17 +31,18 @@ public struct FamilyView: View {
                 .toolbarBackground(AppTheme.background, for: .navigationBar)
         }
         .onAppear {
-            vm.refresh()
             // 启动时已经携带 pending 邀请码 → 立即打开兑换 sheet
             if router.pendingInviteCode != nil {
                 showRedeemSheet = true
             }
-            // 进家庭页强制发一次心跳：业主反馈"我刚活跃了，自己看到的状态还是未活跃"
-            // 心跳服务有 5 分钟节流，进家庭页时重置节流让 server 立刻拿到最新 lastActiveAt
+            // V4 复核 #11：之前 onAppear 同步 refresh() + Task 内 await 心跳后又 refresh() 一次
+            //                两个请求并发，URLSession 可能取消其中一次抛 CancellationError；
+            //                同时 access_token 接近过期还会让两次都触发 refresh_token。
+            //                现在改为一次性流程：先心跳（让 server 拿到最新 lastActiveAt），
+            //                再刷新成员列表 → 用户看到的活跃状态既最新又没有竞态。
             Task {
                 HeartbeatService.shared.resetThrottle()
                 await HeartbeatService.shared.reportActive(trigger: .foreground)
-                // 心跳到了后刷新一次成员列表，让其他家人也能立刻看到我的最新状态
                 await MainActor.run { vm.refresh() }
             }
         }

@@ -47,13 +47,18 @@ export class IntelService {
     // V4-P5：不再按 language 强过滤——抓到中文翻成英文 / 抓到英文翻成中文
     // 这样英语用户也能看到中文源的情报，反之亦然。原文 lang≠target 时
     // 联表 intelAlertI18n 取翻译，缺翻译则回退原文（不影响用户阅读）
+    // V4 复核扩展：本人举报过的情报全屏蔽（举报即终态，feed/详情/未读数都不出现）
+    //              take 从 *2 提到 *3，给"已举报扣除"留余地，防止重度举报用户拿不满 limit
     const candidates = await this.prisma.intelAlert.findMany({
-      where: { status: 'published' },
+      where: {
+        status: 'published',
+        reports: { none: { userId: params.userId } },
+      },
       orderBy: [
         { severity: 'desc' },
         { publishedAt: 'desc' },
       ],
-      take: limit * 2,
+      take: limit * 3,
       include: {
         translations: {
           where: { language: lang },
@@ -112,15 +117,17 @@ export class IntelService {
 
     return items.map((i) => {
       // V4-P5：用户语言跟原文不同 → 用翻译；翻译还没填好则回退原文
+      // 注意：language 字段必须反映实际返回的文本语言，不能撒谎成 lang，
+      // 否则未翻译时英语用户收到的中文会被客户端按英语处理（locale / 语音 / 埋点全错）
       const t = (i as any).translations?.[0];
-      const useTranslation = i.language !== lang && t;
+      const useTranslation = i.language !== lang && t && t.title && t.summary;
       return {
         id: i.id,
         title: useTranslation ? t.title : i.title,
         summary: useTranslation ? t.summary : i.summary,
         category: i.category,
         severity: i.severity,
-        language: lang, // 告诉客户端"这是按你要的语言返回的"
+        language: useTranslation ? lang : i.language,
         sourceUrl: i.sourceUrl,
         coverImage: (i as any).coverImage ?? null,
         publishedAt: i.publishedAt,
@@ -144,9 +151,15 @@ export class IntelService {
           where: { language: targetLang },
           select: { title: true, summary: true, contentBlocks: true },
         },
+        // V4 复核扩展：拉本人对这条情报的举报记录（最多一条），命中即视为不存在
+        reports: { where: { userId }, take: 1, select: { id: true } },
       },
     });
     if (!intel || intel.status !== 'published') {
+      throw new NotFoundException('Intel not found');
+    }
+    // 本人已举报 → 该用户视角下当作不存在（含推送/分享直链入口）
+    if ((intel as any).reports && (intel as any).reports.length > 0) {
       throw new NotFoundException('Intel not found');
     }
 
@@ -163,14 +176,20 @@ export class IntelService {
     });
 
     // 用户语言跟原文不同 → 用翻译；缺翻译则原文（避免空白详情页）
+    // 注意：当前译文表（intel_alert_i18n）只翻 title/summary，contentBlocks 永远 null
+    // 因此 contentBlocks 必须独立回退到原文，不能跟 useTranslation 走同一分支
     const t = (intel as any).translations?.[0];
     const useTranslation = intel.language !== targetLang && t;
+    const translatedTitle = useTranslation ? t.title : null;
+    const translatedSummary = useTranslation ? t.summary : null;
+    const translatedBlocks = useTranslation ? t.contentBlocks : null;
     return {
       ...intel,
-      title: useTranslation ? t.title : intel.title,
-      summary: useTranslation ? t.summary : intel.summary,
-      contentBlocks: useTranslation ? t.contentBlocks : intel.contentBlocks,
-      language: targetLang,
+      title: translatedTitle ?? intel.title,
+      summary: translatedSummary ?? intel.summary,
+      contentBlocks: translatedBlocks ?? intel.contentBlocks,
+      // 真实使用了译文才标 targetLang，否则照原文语言返回，避免客户端被骗
+      language: translatedTitle && translatedSummary ? targetLang : intel.language,
       // 不返回 translations 数组，前端用不到
       translations: undefined,
     };
@@ -274,11 +293,14 @@ export class IntelService {
     const where: any = {};
     if (params.status) where.status = params.status;
     if (params.language) where.language = params.language;
+    // V4 复核 #14：之前 orderBy 用 `status: 'asc'` 让字母序把 archived(0)/draft(1)
+    // 排到 pending/published 之前，admin 默认看到一堆历史归档。改成：
+    // 举报数 desc → createdAt desc，让"最近 + 有人举报"自然冒泡；admin 想看其它
+    // 状态可以用 status 筛选下拉
     const [items, total] = await Promise.all([
       this.prisma.intelAlert.findMany({
         where,
-        // V4-P4 举报多的优先看到，便于审核
-        orderBy: [{ reports: { _count: 'desc' } }, { status: 'asc' }, { createdAt: 'desc' }],
+        orderBy: [{ reports: { _count: 'desc' } }, { createdAt: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: { _count: { select: { reports: true } } },
@@ -295,6 +317,8 @@ export class IntelService {
   }
 
   /// V4-P4 用户举报一条情报
+  /// V4 复核 #13：加每用户每日举报上限，防止小号刷举报把目标推到 admin 排序首页
+  private readonly REPORT_DAILY_CAP = 20;
   async submitReport(userId: string, intelId: string, reason?: string, note?: string) {
     const allowed = ['spam', 'inaccurate', 'illegal', 'offensive', 'other'];
     const r = (reason ?? '').trim();
@@ -309,11 +333,28 @@ export class IntelService {
     if (!intel || intel.status !== 'published') {
       throw new NotFoundException('Intel not found');
     }
-    const cleanNote = note?.trim().slice(0, 500) || null;
-    await this.prisma.intelReport.upsert({
+
+    // V4 复核扩展：举报即终态——已举报过直接幂等返回，不允许改 reason / 重复计数
+    const existing = await this.prisma.intelReport.findUnique({
       where: { intelId_userId: { intelId, userId } },
-      create: { intelId, userId, reason: r, note: cleanNote },
-      update: { reason: r, note: cleanNote },
+      select: { id: true },
+    });
+    if (existing) {
+      return { ok: true, alreadyReported: true };
+    }
+
+    // 频控：每用户 24h 新举报上限
+    const dayAgo = new Date(Date.now() - 24 * 3600 * 1000);
+    const recentCount = await this.prisma.intelReport.count({
+      where: { userId, createdAt: { gte: dayAgo } },
+    });
+    if (recentCount >= this.REPORT_DAILY_CAP) {
+      throw new BadRequestException('Daily report limit reached');
+    }
+
+    const cleanNote = note?.trim().slice(0, 500) || null;
+    await this.prisma.intelReport.create({
+      data: { intelId, userId, reason: r, note: cleanNote },
     });
     return { ok: true };
   }
@@ -370,7 +411,21 @@ export class IntelService {
     } else if (data.status && data.status !== 'published') {
       data2.publishedAt = null;
     }
-    return this.prisma.intelAlert.update({ where: { id }, data: data2 });
+
+    // 若改动了影响翻译的字段（title/summary/language），失效已有 i18n 行，
+    // 让 IntelTranslationService 下次 cron 重译；否则编辑后英文译文一直是旧的
+    const translationInvalidated =
+      (data.title !== undefined && data.title !== current.title) ||
+      (data.summary !== undefined && data.summary !== current.summary) ||
+      (data.language !== undefined && data.language !== current.language);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.intelAlert.update({ where: { id }, data: data2 });
+      if (translationInvalidated) {
+        await tx.intelAlertI18n.deleteMany({ where: { intelId: id } });
+      }
+      return updated;
+    });
   }
 
   async adminDeleteAlert(id: string) {
@@ -447,8 +502,8 @@ Do not add any extra commentary.`
 
     try {
       const result = await this.aiProvider.analyze(user, sys);
-      // analyze 返回的 content 是字符串；尝试 JSON 解析
-      const text = (result as any)?.content ?? (result as any)?.text ?? '';
+      // AiCallResult 只有 raw 字段（参见 ai-provider.service.ts），不是 content/text
+      const text = result?.raw ?? '';
       const parsed = this.safeJsonExtract(text);
       if (parsed && typeof parsed.summary === 'string' && Array.isArray(parsed.contentBlocks)) {
         const blocks = (parsed.contentBlocks as any[])
@@ -458,14 +513,14 @@ Do not add any extra commentary.`
         return {
           summary: String(parsed.summary).slice(0, 200),
           contentBlocks: blocks,
-          provider: (result as any)?.provider,
+          provider: result?.provider,
         };
       }
       this.logger.warn(`[Intel.aiRewrite] AI 返回无法解析为 JSON, 原文: ${text.slice(0, 200)}`);
       return {
         summary: input.summary ?? '',
         contentBlocks: [],
-        provider: (result as any)?.provider,
+        provider: result?.provider,
       };
     } catch (err: any) {
       this.logger.error(`[Intel.aiRewrite] failed: ${err?.message ?? err}`);

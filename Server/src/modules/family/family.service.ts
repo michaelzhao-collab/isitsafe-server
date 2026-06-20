@@ -875,6 +875,14 @@ export class FamilyService {
         if (otherMembers.length === 0) continue;
       }
 
+      // V4 复核扩展：全局通知偏好——接收人关掉「家人不活跃提醒」或「所有通知」时不发 push
+      // 注意只过滤 push 通道；SMS 升级路径仍按现状走（手机号是兜底渠道，开关在 iOS 系统设置里）
+      otherMembers = otherMembers.filter(
+        (m) => (m.user as any).pushAllEnabled !== false
+          && (m.user as any).pushFamilyCareEnabled !== false,
+      );
+      if (otherMembers.length === 0) continue;
+
       // 本地今天已发过 notice？查最近 20 小时（覆盖时区切换 + DST 边界，绝不重复轰炸）
       const recentWindow = new Date(now.getTime() - 20 * 3600 * 1000);
       const alreadySent = await this.prisma.familyCareNotice.findFirst({
@@ -907,15 +915,7 @@ export class FamilyService {
       const inactiveDisplayName =
         candidate.user.nickname || candidate.user.wechatNickname || '家人';
 
-      // S4-4 投递状态聚合
-      const stats = {
-        pushDelivered: 0,
-        pushFailed: 0,
-        smsDelivered: 0,
-        smsFailed: 0,
-        escalatedToSms: false,
-      };
-
+      // S4-4 投递状态：每条 notice 独立 stats，避免不同 channel 的计数交叉污染
       for (const channel of finalChannels) {
         const notice = await this.prisma.familyCareNotice.create({
           data: {
@@ -928,6 +928,7 @@ export class FamilyService {
         });
 
         if (channel === 'push') {
+          const pushStats = { pushDelivered: 0, pushFailed: 0, escalatedToSms: false };
           const result = await this.notification.sendPushBatch(
             otherMembers.map((m) => ({
               userId: m.userId,
@@ -943,8 +944,8 @@ export class FamilyService {
               collapseId: `care:${candidate.userId}`,
             })),
           );
-          stats.pushDelivered += result.delivered;
-          stats.pushFailed += result.failed;
+          pushStats.pushDelivered += result.delivered;
+          pushStats.pushFailed += result.failed;
 
           // S4-4：第 2 天 push 全失败 → 提前升级 SMS（绕过常规 daysInactive>=3 阈值）
           const pushAllFailed = result.delivered === 0 && result.failed > 0;
@@ -954,8 +955,9 @@ export class FamilyService {
             !finalChannels.includes('sms') &&
             !smsAlreadySent;
           if (canEscalate) {
-            stats.escalatedToSms = true;
+            pushStats.escalatedToSms = true;
             smsSent += 1;
+            const escalatedStats = { smsDelivered: 0, smsFailed: 0, escalatedToSms: true };
             const escalatedNotice = await this.prisma.familyCareNotice.create({
               data: {
                 groupId: candidate.groupId,
@@ -980,16 +982,20 @@ export class FamilyService {
                 },
                 region,
               });
-              if (r.delivered) stats.smsDelivered += 1;
-              else stats.smsFailed += 1;
+              if (r.delivered) escalatedStats.smsDelivered += 1;
+              else escalatedStats.smsFailed += 1;
             }
-            // 单独保存升级 notice 的 deliveryStatus
             await this.prisma.familyCareNotice.update({
               where: { id: escalatedNotice.id },
-              data: { deliveryStatus: { ...stats, escalatedToSms: true } as any },
+              data: { deliveryStatus: escalatedStats as any },
             });
           }
+          await this.prisma.familyCareNotice.update({
+            where: { id: notice.id },
+            data: { deliveryStatus: pushStats as any },
+          });
         } else if (channel === 'sms') {
+          const smsStats = { smsDelivered: 0, smsFailed: 0, escalatedToSms: false };
           smsSent += 1;
           for (const m of otherMembers) {
             const phone = m.user.phone;
@@ -1006,16 +1012,14 @@ export class FamilyService {
               },
               region,
             });
-            if (r.delivered) stats.smsDelivered += 1;
-            else stats.smsFailed += 1;
+            if (r.delivered) smsStats.smsDelivered += 1;
+            else smsStats.smsFailed += 1;
           }
+          await this.prisma.familyCareNotice.update({
+            where: { id: notice.id },
+            data: { deliveryStatus: smsStats as any },
+          });
         }
-
-        // 把投递状态写回本条 notice（覆盖 escalated 的部分由其自身覆盖）
-        await this.prisma.familyCareNotice.update({
-          where: { id: notice.id },
-          data: { deliveryStatus: stats as any },
-        });
       }
 
       if (daysInactive === 2) notified2days += 1;
@@ -1137,7 +1141,9 @@ export class FamilyService {
 
     const members = group.members.map((m: any) => {
       const lastActive = m.user.lastActiveAt as Date | null;
-      const activityStatus = this.computeActivityStatus(lastActive);
+      // V4 复核 #6：与 scanInactiveMembers 用同一份 tz 日历日口径，避免 cron
+      // 不推送但 UI 仍显示 "inactive_2days" 的对外矛盾
+      const activityStatus = this.computeActivityStatus(lastActive, m.user.regionCode);
       // V3-J SOS 拨号需要真号码；家庭内成员手机号互可见（毕竟是家人）
       // 但隐私上 phone_display 做轻度脱敏，phone（完整号码）仅用于客户端 tel:// 拨号
       const phone = m.user.phone as string | undefined;
@@ -1247,18 +1253,14 @@ export class FamilyService {
     return phone.slice(0, 3) + '****' + phone.slice(-4);
   }
 
-  private computeActivityStatus(lastActive: Date | null): string {
+  private computeActivityStatus(lastActive: Date | null, regionCode?: string | null): string {
     if (!lastActive) return 'unknown';
-    const now = Date.now();
-    const last = lastActive.getTime();
-    const dayMs = 24 * 3600 * 1000;
-    const today0 = new Date();
-    today0.setHours(0, 0, 0, 0);
-    const todayStart = today0.getTime();
-
-    if (last >= todayStart) return 'active_today';
-    const daysAgo = Math.floor((now - last) / dayMs);
-    if (daysAgo <= 1) return 'inactive_1day';
+    // 与 scanInactiveMembers 一致：按本人 region 的本地日历日计差
+    // （之前 UI 用 24h 滚动 + 服务器本地零点，跟 cron 时区日历不一致）
+    const tz = regionToTimezone(regionCode);
+    const daysAgo = daysDiffInTz(lastActive, new Date(), tz);
+    if (daysAgo <= 0) return 'active_today';
+    if (daysAgo === 1) return 'inactive_1day';
     if (daysAgo === 2) return 'inactive_2days';
     return 'inactive_3plus';
   }

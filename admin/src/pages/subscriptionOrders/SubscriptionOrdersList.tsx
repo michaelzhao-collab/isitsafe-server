@@ -61,9 +61,15 @@ export default function SubscriptionOrdersList() {
 
   useEffect(() => {
     load();
-    loadDiagnostics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, status]);
+
+  // V4 复核 #15：之前 diagnostics 跟 load 绑同 deps，每次翻页/换状态都重拉一遍
+  //              诊断接口；现在拆出来只在挂载时拉一次（用户想刷新可加按钮）
+  useEffect(() => {
+    loadDiagnostics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSearch = () => {
     setPage(1);

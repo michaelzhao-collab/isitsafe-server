@@ -32,8 +32,11 @@ public struct IntelListView: View {
             }
         }
         .navigationDestination(item: $selectedDetail) { item in
-            IntelDetailView(summary: item)
-                .mainTabBarHidden()
+            IntelDetailView(summary: item) { reportedId in
+                // V4 复核扩展：举报后立刻从列表移除（服务端下次刷新也会过滤掉）
+                vm.removeReportedItem(id: reportedId)
+            }
+            .mainTabBarHidden()
         }
         .sheet(isPresented: $showSubmit) {
             IntelSubmitSheet()

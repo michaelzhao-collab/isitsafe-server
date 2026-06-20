@@ -230,6 +230,8 @@ public struct BroadcastResultSheet: View {
         if result.skipReasonEnum == .duplicate { return "🔁" }
         if result.skipReasonEnum == .quotaExceeded { return "📊" }
         if result.skipReasonEnum == .noGroup { return "👥" }
+        if result.skipReasonEnum == .inProgress { return "⏳" }
+        if result.skipReasonEnum == .disabledByUser { return "🙈" }
         switch result.resultLabel {
         case .scam: return "🚨"
         case .safe: return "✅"
@@ -253,6 +255,16 @@ public struct BroadcastResultSheet: View {
                 ? "Not in a family group"
                 : "你还没加入家庭组"
         }
+        if result.skipReasonEnum == .inProgress {
+            return languageCode == "en"
+                ? "Broadcast in progress"
+                : "正在广播中"
+        }
+        if result.skipReasonEnum == .disabledByUser {
+            return languageCode == "en"
+                ? "Family sharing turned off"
+                : "已关闭家庭分享"
+        }
         switch result.resultLabel {
         case .scam: return languageCode == "en" ? "Identified as scam" : "已识别为诈骗"
         case .safe: return languageCode == "en" ? "Verified safe" : "经核实暂未发现风险"
@@ -275,6 +287,16 @@ public struct BroadcastResultSheet: View {
             return languageCode == "en"
                 ? "Create or join a family group first"
                 : "请先创建或加入家庭组"
+        }
+        if result.skipReasonEnum == .inProgress {
+            return languageCode == "en"
+                ? "Another broadcast for this content just kicked off. Please wait a moment."
+                : "刚刚已经触发了一次广播，请稍候再试"
+        }
+        if result.skipReasonEnum == .disabledByUser {
+            return languageCode == "en"
+                ? "You turned off family broadcast in Settings. Enable it to share."
+                : "你在设置里关掉了「分享我的查询结果」，开启后才会广播给家人"
         }
         switch result.resultLabel {
         case .scam:

@@ -49,6 +49,12 @@ model User {
   /// 最后活跃时间（用户真实主动打开 App），关怀机制核心依赖
   lastActiveAt     DateTime? @map("last_active_at")
 
+  // ====== V4 通知偏好（业主反馈：家人长期不活跃会一直收到关怀 push） ======
+  /// 总开关：关闭后服务端任何非交易类业务 push 都跳过该用户
+  pushAllEnabled         Boolean @default(true) @map("push_all_enabled")
+  /// 家人不活跃提醒：默认开；关掉只屏蔽 family_care category，其它 push 不受影响
+  pushFamilyCareEnabled  Boolean @default(true) @map("push_family_care_enabled")
+
   // ====== V3-S3-3 COPPA / 未成年人 ======
   /// 是否标记为未成年（注册时按 birthday 自动推算 或 自报）
   isMinor         Boolean   @default(false) @map("is_minor")
@@ -71,6 +77,7 @@ model User {
   intelSubmissions     IntelSubmission[]
   intelDeliveries      IntelDelivery[]
   intelReports         IntelReport[]
+  knowledgeReports     KnowledgeReport[]
   intelPreferences     UserIntelPreferences?
   deepfakeChecks       DeepfakeCheck[]
   breachTargets        BreachTarget[]
@@ -308,6 +315,8 @@ model IntelReport {
 
   @@unique([intelId, userId])
   @@index([intelId])
+  /// V4 复核 #12：admin 反查用户全部举报、合规封号场景需要按 user_id 索引
+  @@index([userId])
   @@map("intel_reports")
 }
 
@@ -587,11 +596,33 @@ model KnowledgeCase {
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
+  // V4 复核扩展：与 IntelReport 对称的 UGC 举报关系
+  reports KnowledgeReport[]
+
   @@index([category])
   @@index([language])
   @@index([status, language])
   @@index([sourceFetchJobId])
   @@map("knowledge_cases")
+}
+
+/// V4 案例库举报（App Store 1.2 UGC 合规：举报 + 24h 内处理）
+/// 一人一案例最多一条；上报后该案例对该用户视角直接隐藏，与 IntelReport 同语义
+model KnowledgeReport {
+  id          String        @id @default(cuid())
+  knowledgeId String        @map("knowledge_id")
+  knowledge   KnowledgeCase @relation(fields: [knowledgeId], references: [id], onDelete: Cascade)
+  userId      String        @map("user_id")
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'spam' | 'inaccurate' | 'illegal' | 'offensive' | 'other'
+  reason      String        @db.VarChar(32)
+  note        String?       @db.Text
+  createdAt   DateTime      @default(now()) @map("created_at")
+
+  @@unique([knowledgeId, userId])
+  @@index([knowledgeId])
+  @@index([userId])
+  @@map("knowledge_reports")
 }
 
 // --------------------------------------------
@@ -843,7 +874,6 @@ model ContentFetchJob {
   @@map("content_fetch_jobs")
 }
 
-
 // --------------------------------------------
 // V4-P0 AI 分析评测样本表
 // 每次 /api/ai/analyze 调用（含 scam_detection 完整流程 + intent 非 scam 分支）
@@ -851,44 +881,44 @@ model ContentFetchJob {
 // 用途：建立 baseline → 灰度新 prompt → 影子模式对比 → 数据驱动决策
 // --------------------------------------------
 model AiEvaluationSample {
-  id                 String   @id @default(cuid())
-  conversationId     String?  @map("conversation_id")
-  userId             String?  @map("user_id")
+  id                 String    @id @default(cuid())
+  conversationId     String?   @map("conversation_id")
+  userId             String?   @map("user_id")
   /// 输入快照
-  inputContent       String   @map("input_content") @db.Text
+  inputContent       String    @map("input_content") @db.Text
   /// text / phone / url / company / screenshot
-  inputType          String   @map("input_type") @db.VarChar(20)
+  inputType          String    @map("input_type") @db.VarChar(20)
   /// zh / en
-  language           String   @db.VarChar(10)
+  language           String    @db.VarChar(10)
   /// 实际发给 AI 的 prompt 完整副本 { system, user }
-  promptSnapshot     Json     @map("prompt_snapshot")
+  promptSnapshot     Json      @map("prompt_snapshot")
   /// AI 原始 raw 响应（未经 parse）
-  aiRawResponse      String   @map("ai_raw_response") @db.Text
+  aiRawResponse      String    @map("ai_raw_response") @db.Text
   /// 经 parseAndValidateAiOutput 后的结构化结果
-  parsedResult       Json     @map("parsed_result")
+  parsedResult       Json      @map("parsed_result")
   /// scam_detection / general_chat / knowledge_query / help_request
-  intent             String?  @db.VarChar(30)
+  intent             String?   @db.VarChar(30)
   /// rule_strong / rule_help / rule_scam / rule_knowledge / rule_chat / rule_short / rule_ctx / ai / ai_fail
-  intentVia          String?  @map("intent_via") @db.VarChar(20)
+  intentVia          String?   @map("intent_via") @db.VarChar(20)
   /// prompt 版本号："baseline" / "v1_cot_2026q2" / "shadow_*"
   /// 用于灰度 / 影子模式区分
-  promptVersion      String   @default("baseline") @map("prompt_version") @db.VarChar(40)
+  promptVersion      String    @default("baseline") @map("prompt_version") @db.VarChar(40)
   /// 后续行为（事后填）
-  userSharedToFamily Boolean? @map("user_shared_to_family")
-  userDismissed      Boolean? @map("user_dismissed")
+  userSharedToFamily Boolean?  @map("user_shared_to_family")
+  userDismissed      Boolean?  @map("user_dismissed")
   /// admin 评分（1-5 ⭐），事后填
-  adminScore         Int?     @map("admin_score")
+  adminScore         Int?      @map("admin_score")
   /// 综合标签 "准确" / "具体" / "安全" 多选用逗号分隔
-  adminLabel         String?  @map("admin_label") @db.VarChar(200)
-  adminNotes         String?  @map("admin_notes") @db.Text
+  adminLabel         String?   @map("admin_label") @db.VarChar(200)
+  adminNotes         String?   @map("admin_notes") @db.Text
   /// 评分者 admin userId
-  scoredByUserId     String?  @map("scored_by_user_id")
+  scoredByUserId     String?   @map("scored_by_user_id")
   scoredAt           DateTime? @map("scored_at")
   /// 元信息
-  modelProvider      String   @map("model_provider") @db.VarChar(30)
-  latencyMs          Int      @map("latency_ms")
-  tokensUsed         Int?     @map("tokens_used")
-  createdAt          DateTime @default(now()) @map("created_at")
+  modelProvider      String    @map("model_provider") @db.VarChar(30)
+  latencyMs          Int       @map("latency_ms")
+  tokensUsed         Int?      @map("tokens_used")
+  createdAt          DateTime  @default(now()) @map("created_at")
 
   @@index([createdAt(sort: Desc)])
   @@index([promptVersion, createdAt])
@@ -897,35 +927,33 @@ model AiEvaluationSample {
   @@map("ai_evaluation_samples")
 }
 
-
 // --------------------------------------------
 // V4-P1 冷启动引导 chips
 // admin 可热更，iOS 启动时拉取展示在首条 bot 欢迎气泡下
 // --------------------------------------------
 model OnboardingChip {
-  id          String   @id @default(cuid())
+  id              String   @id @default(cuid())
   /// 排序，数字小的在前
-  orderIdx    Int      @default(0) @map("order_idx")
+  orderIdx        Int      @default(0) @map("order_idx")
   /// 中文文案（≤ 30 字最佳）
-  labelZh     String   @map("label_zh") @db.VarChar(80)
+  labelZh         String   @map("label_zh") @db.VarChar(80)
   /// 英文文案
-  labelEn     String   @map("label_en") @db.VarChar(120)
+  labelEn         String   @map("label_en") @db.VarChar(120)
   /// SF Symbol 名（如 message.fill / camera.fill / mic.fill）
-  iconType    String   @default("message.fill") @map("icon_type") @db.VarChar(40)
+  iconType        String   @default("message.fill") @map("icon_type") @db.VarChar(40)
   /// 行为类型：'text' | 'image' | 'camera' | 'voice' | 'url'
-  actionType  String   @map("action_type") @db.VarChar(20)
+  actionType      String   @map("action_type") @db.VarChar(20)
   /// text → 自动发送的文案；url → 跳转的内部路径；其他 → 空
-  actionPayloadZh String? @map("action_payload_zh") @db.Text
-  actionPayloadEn String? @map("action_payload_en") @db.Text
+  actionPayloadZh String?  @map("action_payload_zh") @db.Text
+  actionPayloadEn String?  @map("action_payload_en") @db.Text
   /// 'active' | 'archived'
-  status      String   @default("active") @db.VarChar(20)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  status          String   @default("active") @db.VarChar(20)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@index([status, orderIdx])
   @@map("onboarding_chips")
 }
-
 
 // --------------------------------------------
 // V4-P2 推送广播历史

@@ -77,4 +77,13 @@ public final class IntelViewModel: ObservableObject {
             // 静默
         }
     }
+
+    /// V4 复核扩展：用户举报后立刻把这条从当前 feed 移除
+    /// （服务端 getFeed 下次也会过滤，但这里乐观更新让 UI 立刻消失）
+    public func removeReportedItem(id: String) {
+        guard case .loaded(let items) = state else { return }
+        let remaining = items.filter { $0.id != id }
+        state = remaining.isEmpty ? .empty : .loaded(remaining)
+        unreadCount = remaining.filter { !$0.isRead }.count
+    }
 }
