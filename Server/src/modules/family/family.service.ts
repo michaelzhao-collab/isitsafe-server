@@ -250,9 +250,28 @@ export class FamilyService {
   }
 
   async dissolveGroup(userId: string, groupId: string) {
-    const group = await this.prisma.familyGroup.findUnique({ where: { id: groupId } });
+    // 解散前先把通知所需信息一次性取出：组名、owner 显示名、其它成员 (userId + language)
+    // —— 事务里删完组就拿不到这些信息了
+    const group = await this.prisma.familyGroup.findUnique({
+      where: { id: groupId },
+      include: {
+        owner: { select: { nickname: true, wechatNickname: true } },
+        members: {
+          include: { user: { select: { id: true, language: true } } },
+        },
+      },
+    });
     if (!group) throw new NotFoundException('Group not found');
     if (group.ownerUserId !== userId) throw new ForbiddenException('Only owner can dissolve');
+
+    const ownerDisplayName =
+      group.owner.nickname?.trim() ||
+      group.owner.wechatNickname?.trim() ||
+      (group.members.some((m) => (m.user.language || 'zh') === 'en') ? 'A family member' : '家人');
+    const groupName = (group.name || '').trim();
+    const recipients = group.members
+      .filter((m) => m.userId !== userId)
+      .map((m) => ({ userId: m.userId, language: (m.user.language || 'zh') as string }));
 
     await this.prisma.$transaction(async (tx) => {
       // 所有成员降回 personal
@@ -263,6 +282,74 @@ export class FamilyService {
       // 删除组（级联删除成员、care_notices、broadcasts）
       await tx.familyGroup.delete({ where: { id: groupId } });
     });
+
+    // 解散完成后：给其余成员发 push + 写一条本人专属的系统消息
+    // 失败不阻塞主流程返回；任何一条挂掉都只是这位成员收不到，业主已经看到解散成功
+    if (recipients.length > 0) {
+      void this.notifyFamilyDissolved({ recipients, ownerDisplayName, groupName });
+    }
+  }
+
+  /// V4 复核扩展：解散家庭后通知其余成员
+  /// 文案区分语言；push category 用 'family_dissolved' 便于客户端区分埋点
+  private async notifyFamilyDissolved(params: {
+    recipients: Array<{ userId: string; language: string }>;
+    ownerDisplayName: string;
+    groupName: string;
+  }) {
+    const { recipients, ownerDisplayName, groupName } = params;
+
+    const buildCopy = (lang: string) => {
+      const isEN = lang === 'en';
+      const label = groupName || (isEN ? 'your family' : '家庭');
+      const quotedLabel = isEN ? `"${label}"` : `「${label}」`;
+      return {
+        pushTitle: isEN ? 'Family disbanded' : '家庭已解散',
+        pushBody: isEN
+          ? `${ownerDisplayName} disbanded ${quotedLabel}.`
+          : `${ownerDisplayName} 解散了 ${quotedLabel}。`,
+        msgTitle: isEN ? 'Family disbanded' : '家庭已解散',
+        msgContent: isEN
+          ? `${ownerDisplayName} disbanded ${quotedLabel}. You've been removed automatically — feel free to create or join another one.`
+          : `${ownerDisplayName} 解散了 ${quotedLabel}。你已自动退出，可重新创建或加入其它家庭。`,
+      };
+    };
+
+    try {
+      await this.notification.sendPushBatch(
+        recipients.map(({ userId, language }) => {
+          const copy = buildCopy(language);
+          return {
+            userId,
+            title: copy.pushTitle,
+            body: copy.pushBody,
+            category: 'family_dissolved',
+            // 同一用户最多保留一条解散通知（避免多次解散叠加）
+            collapseId: `family_dissolved:${userId}`,
+          };
+        }),
+      );
+    } catch (err: any) {
+      // 兜底：push 投递失败不阻塞写消息中心
+      console.warn('[FAMILY_DISSOLVE_PUSH_FAILED]', err?.message ?? err);
+    }
+
+    try {
+      await this.prisma.appMessage.createMany({
+        data: recipients.map(({ userId, language }) => {
+          const copy = buildCopy(language);
+          return {
+            targetUserId: userId,
+            language,
+            status: 'active',
+            title: copy.msgTitle,
+            content: copy.msgContent,
+          };
+        }),
+      });
+    } catch (err: any) {
+      console.warn('[FAMILY_DISSOLVE_MSG_FAILED]', err?.message ?? err);
+    }
   }
 
   async removeMember(ownerUserId: string, groupId: string, targetUserId: string) {

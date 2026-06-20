@@ -78,6 +78,7 @@ model User {
   intelDeliveries      IntelDelivery[]
   intelReports         IntelReport[]
   knowledgeReports     KnowledgeReport[]
+  targetedMessages     AppMessage[]      @relation("AppMessageTarget")
   intelPreferences     UserIntelPreferences?
   deepfakeChecks       DeepfakeCheck[]
   breachTargets        BreachTarget[]
@@ -801,11 +802,16 @@ model AppMessage {
   link      String?  @db.VarChar(500)
   language  String   @default("zh") @db.VarChar(10) // zh | en
   status    String   @default("active") @db.VarChar(20) // active | offline
+  /// V4 复核扩展：null = 全员可见的全局公告（默认旧行为）；非 null = 仅这位用户可见的系统消息
+  /// 用于"家庭已解散""家人加入了你的家庭"这类一对一通知，避免新建 UserNotice 表
+  targetUserId String? @map("target_user_id")
+  targetUser   User?   @relation("AppMessageTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @map("created_at")
 
   readBy UserMessageRead[]
 
   @@index([language])
+  @@index([targetUserId, createdAt(sort: Desc)])
   @@map("app_messages")
 }
 

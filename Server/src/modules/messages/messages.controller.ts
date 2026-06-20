@@ -26,8 +26,17 @@ export class MessagesController {
   ) {
     const skip = (parseInt(page, 10) - 1) * parseInt(pageSize, 10);
     const lang = resolveLanguageFromHeader(langHeader);
+    // V4 复核扩展：消息可见性
+    //   - targetUserId IS NULL → 全员公告（保留旧行为）
+    //   - targetUserId = 当前用户 → 私人系统通知（如"家庭已解散"）
+    //   - 其它用户的私人通知不出现在我的列表
+    const where = {
+      status: 'active',
+      language: lang,
+      OR: [{ targetUserId: null }, { targetUserId: userId }],
+    };
     const messages = await this.prisma.appMessage.findMany({
-      where: { status: 'active', language: lang },
+      where,
       orderBy: { createdAt: 'desc' },
       skip,
       take: parseInt(pageSize, 10),
@@ -35,7 +44,7 @@ export class MessagesController {
         readBy: { where: { userId }, take: 1 },
       },
     });
-    const total = await this.prisma.appMessage.count({ where: { status: 'active', language: lang } });
+    const total = await this.prisma.appMessage.count({ where });
     const items = messages.map((m) => ({
       id: m.id,
       title: m.title,
@@ -50,8 +59,13 @@ export class MessagesController {
   @Get('unread-count')
   async unreadCount(@CurrentUser('sub') userId: string, @Headers('x-app-language') langHeader?: string) {
     const lang = resolveLanguageFromHeader(langHeader);
+    // 同上：只算我能看到的消息（全员公告 + 我的私人通知）
     const allIds = await this.prisma.appMessage.findMany({
-      where: { status: 'active', language: lang },
+      where: {
+        status: 'active',
+        language: lang,
+        OR: [{ targetUserId: null }, { targetUserId: userId }],
+      },
       select: { id: true },
     });
     const readIds = await this.prisma.userMessageRead.findMany({

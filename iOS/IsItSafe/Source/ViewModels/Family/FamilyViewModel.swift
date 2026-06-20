@@ -179,6 +179,10 @@ public final class FamilyViewModel: ObservableObject {
         defer { inflightAction = nil }
         do {
             try await repo.leaveGroup(groupId: groupId)
+            // V4 业主诉求：退出后页面内容立刻重置——把 state 切到 loading，
+            // FamilyView 自动卸下 FamilyGroupView，避免残留已退出家庭的成员/广播数据
+            // refresh() 拉到新数据后落到 .empty 或 .loaded（如果还有别的家庭）
+            state = .loading
             refresh()
             return true
         } catch {
@@ -192,6 +196,9 @@ public final class FamilyViewModel: ObservableObject {
         defer { inflightAction = nil }
         do {
             try await repo.dissolveGroup(groupId: groupId)
+            // V4 业主诉求：解散后页面内容立刻重置——把 state 切到 loading，
+            // FamilyView 自动卸下 FamilyGroupView，避免短暂残留"已解散家庭"的渲染
+            state = .loading
             refresh()
             return true
         } catch {

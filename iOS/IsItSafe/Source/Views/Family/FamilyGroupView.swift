@@ -185,27 +185,28 @@ public struct FamilyGroupView: View {
         .sheet(isPresented: $showRedeemSheet) {
             RedeemInviteSheet(vm: vm)
         }
-        .confirmationDialog(
-            languageCode == "en" ? "Leave family group?" : "退出家庭组？",
-            isPresented: $showLeaveConfirm
+        // V4 业主诉求：两个危险确认改成居中弹框
+        .centerConfirmDialog(
+            isPresented: $showLeaveConfirm,
+            title: languageCode == "en" ? "Leave family?" : "退出家庭？",
+            message: languageCode == "en"
+                ? "You will lose access to this family. You can rejoin later with a new invite."
+                : "退出后将无法继续看到这个家庭的活动，可凭新邀请码再次加入。",
+            confirmText: languageCode == "en" ? "Leave" : "确认退出",
+            cancelText: languageCode == "en" ? "Cancel" : "取消"
         ) {
-            Button(languageCode == "en" ? "Leave" : "确认退出", role: .destructive) {
-                Task { await vm.leaveGroup(groupId: group.id) }
-            }
-            Button(languageCode == "en" ? "Cancel" : "取消", role: .cancel) {}
+            Task { await vm.leaveGroup(groupId: group.id) }
         }
-        .confirmationDialog(
-            languageCode == "en" ? "Dissolve this group?" : "解散家庭组？",
-            isPresented: $showDissolveConfirm
+        .centerConfirmDialog(
+            isPresented: $showDissolveConfirm,
+            title: languageCode == "en" ? "Dissolve this family?" : "解散家庭？",
+            message: languageCode == "en"
+                ? "All members will be removed and notified. This cannot be undone."
+                : "所有成员将自动退出并收到解散通知，操作不可撤销。",
+            confirmText: languageCode == "en" ? "Dissolve" : "确认解散",
+            cancelText: languageCode == "en" ? "Cancel" : "取消"
         ) {
-            Button(languageCode == "en" ? "Dissolve" : "确认解散", role: .destructive) {
-                Task { await vm.dissolveGroup(groupId: group.id) }
-            }
-            Button(languageCode == "en" ? "Cancel" : "取消", role: .cancel) {}
-        } message: {
-            Text(languageCode == "en"
-                 ? "All members will leave; cannot be undone."
-                 : "所有成员将退出，操作不可撤销")
+            Task { await vm.dissolveGroup(groupId: group.id) }
         }
     }
 
