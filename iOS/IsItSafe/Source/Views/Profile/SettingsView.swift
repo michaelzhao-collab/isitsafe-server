@@ -50,6 +50,24 @@ public struct SettingsView: View {
                     elderModeToggleRow
                 }
 
+                if appState.isLoggedIn {
+                    // V4 通知偏好：业主反馈"家人不活跃一直收 push 想关掉"，独立放一栏
+                    Section(languageCode == "en" ? "Notifications" : "通知") {
+                        NavigationLink {
+                            NotificationSettingsView()
+                                .mainTabBarHidden()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "bell.badge")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(AppTheme.primary)
+                                    .frame(width: 24, alignment: .center)
+                                Text(languageCode == "en" ? "Notification settings" : "通知设置")
+                            }
+                        }
+                    }
+                }
+
                 Section(languageCode == "en" ? "Settings" : "系统设置") {
                     NavigationLink {
                         InAppWebView(url: AppTheme.termsURL, title: languageCode == "en" ? "User Agreement" : "用户协议")

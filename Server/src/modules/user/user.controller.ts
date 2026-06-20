@@ -1,6 +1,7 @@
 import {
   Controller,
   Put,
+  Get,
   Post,
   Body,
   UseGuards,
@@ -154,5 +155,46 @@ export class UserController {
     });
 
     return { success: true };
+  }
+
+  /**
+   * V4 通知偏好
+   *   - pushAllEnabled：总开关，false 时业务 push 全跳过
+   *   - pushFamilyCareEnabled：家人不活跃提醒（family_care category）
+   * 后续新增分类按需扩展，先这两个覆盖业主反馈
+   */
+  @Get('v3/notification-prefs')
+  async getNotificationPrefs(@CurrentUser('sub') userId: string) {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { pushAllEnabled: true, pushFamilyCareEnabled: true },
+    });
+    return {
+      pushAllEnabled: u?.pushAllEnabled ?? true,
+      pushFamilyCareEnabled: u?.pushFamilyCareEnabled ?? true,
+    };
+  }
+
+  @Put('v3/notification-prefs')
+  async updateNotificationPrefs(
+    @CurrentUser('sub') userId: string,
+    @Body() body: { pushAllEnabled?: boolean; pushFamilyCareEnabled?: boolean } = {},
+  ) {
+    const data: Record<string, boolean> = {};
+    if (typeof body?.pushAllEnabled === 'boolean') {
+      data.pushAllEnabled = body.pushAllEnabled;
+    }
+    if (typeof body?.pushFamilyCareEnabled === 'boolean') {
+      data.pushFamilyCareEnabled = body.pushFamilyCareEnabled;
+    }
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('At least one field required');
+    }
+    const u = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+      select: { pushAllEnabled: true, pushFamilyCareEnabled: true },
+    });
+    return u;
   }
 }

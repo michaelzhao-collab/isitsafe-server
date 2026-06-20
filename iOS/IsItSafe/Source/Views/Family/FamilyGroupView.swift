@@ -24,7 +24,6 @@ public struct FamilyGroupView: View {
     @State private var showLeaveConfirm = false
     @State private var showDissolveConfirm = false
     @State private var showShareSheet = false
-    @State private var showPrivacy = false
     @State private var showSwitchSheet = false
     @State private var showRedeemSheet = false
     /// S5-9 家庭官方消息（来自自己或其他成员的分享，AI 检测后官方匿名广播）
@@ -142,14 +141,8 @@ public struct FamilyGroupView: View {
                             systemImage: "rectangle.portrait.and.arrow.forward"
                         )
                     }
-                    Button {
-                        showPrivacy = true
-                    } label: {
-                        Label(
-                            languageCode == "en" ? "Privacy Settings" : "隐私设置",
-                            systemImage: "lock.shield"
-                        )
-                    }
+                    // V4 复核扩展：隐私设置里目前只有"自动广播"开关，且 TODO 未接 API；
+                    //              业主反馈这功能没实际意义，本次隐藏入口
                     Divider()
                     if group.isOwner {
                         Button(role: .destructive) {
@@ -185,9 +178,6 @@ public struct FamilyGroupView: View {
         }
         .sheet(isPresented: $showShareSheet) {
             ShareToFamilySheet(vm: vm)
-        }
-        .sheet(isPresented: $showPrivacy) {
-            FamilyPrivacySheet(vm: vm)
         }
         .sheet(isPresented: $showSwitchSheet) {
             FamilySwitchSheet(vm: vm)
@@ -737,46 +727,3 @@ private struct FamilyBroadcastListView: View {
     }
 }
 
-// MARK: - 占位：隐私设置 sheet
-
-/// 暂未独立实现完整隐私设置页（S6 再做），先用一个简易 sheet 占位
-/// 内含：shareQueryResults 开关 + 说明文案
-private struct FamilyPrivacySheet: View {
-    @ObservedObject var vm: FamilyViewModel
-    @Environment(\.dismiss) private var dismiss
-    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
-    @State private var shareQueryResults: Bool = true
-    @State private var saving = false
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section(footer: Text(languageCode == "en"
-                                     ? "When OFF, your high-risk queries won't automatically broadcast as 'StarLens Official' to family. Manual share still works."
-                                     : "关闭后，你查询的高风险结果不会自动以'StarLens 官方'名义广播给家人。你仍可手动分享信息。")) {
-                    Toggle(isOn: $shareQueryResults) {
-                        Text(languageCode == "en"
-                             ? "Auto-broadcast my high-risk queries"
-                             : "我的高风险查询自动广播")
-                    }
-                    .disabled(saving)
-                    .onChange(of: shareQueryResults) { _, newValue in
-                        saving = true
-                        Task {
-                            // TODO 调 vm.updatePreferences(shareQueryResults: newValue)
-                            try? await Task.sleep(nanoseconds: 200_000_000)
-                            await MainActor.run { saving = false }
-                        }
-                    }
-                }
-            }
-            .navigationTitle(languageCode == "en" ? "Privacy" : "隐私设置")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(languageCode == "en" ? "Done" : "完成") { dismiss() }
-                }
-            }
-        }
-    }
-}

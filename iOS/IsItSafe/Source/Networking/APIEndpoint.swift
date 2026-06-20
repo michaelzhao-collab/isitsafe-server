@@ -32,6 +32,8 @@ public enum APIEndpoint {
     case knowledgeList(category: String?, page: Int, pageSize: Int, search: String?, language: String?)
     case knowledgeCategories(language: String)
     case knowledgeDetail(id: String)
+    /// V4 案例库举报：POST /api/v2/knowledge/:id/report
+    case knowledgeReport(id: String)
     case subscriptionVerify
     case subscriptionStatus
     case membershipPlans
@@ -51,6 +53,9 @@ public enum APIEndpoint {
     case v3UserElderMode
     /// V3-S1-5 推送设备登记（APNs device token 上报）
     case v3UserRegisterDevice
+    /// V4 通知偏好（家人不活跃提醒 + 总开关）
+    case v3UserGetNotificationPrefs
+    case v3UserPutNotificationPrefs
     /// V3-E 创建家庭组（免费）
     case v3FamilyCreateGroup
     /// V3-E 我的家庭组（兼容旧版：返回单一最早加入的）
@@ -154,6 +159,7 @@ public enum APIEndpoint {
         case .knowledgeList: return "/api/v2/knowledge"
         case .knowledgeCategories: return "/api/knowledge/categories"
         case .knowledgeDetail(let id): return "/api/v2/knowledge/\(id)"
+        case .knowledgeReport(let id): return "/api/v2/knowledge/\(id)/report"
         case .subscriptionVerify: return "/api/subscription/verify"
         case .subscriptionStatus: return "/api/subscription/status"
         case .membershipPlans: return "/api/membership/plans"
@@ -169,6 +175,8 @@ public enum APIEndpoint {
         case .v3UserHeartbeat: return "/api/user/v3/heartbeat"
         case .v3UserElderMode: return "/api/user/v3/elder-mode"
         case .v3UserRegisterDevice: return "/api/user/v3/devices"
+        case .v3UserGetNotificationPrefs, .v3UserPutNotificationPrefs:
+            return "/api/user/v3/notification-prefs"
         case .v3FamilyCreateGroup: return "/api/v3/family/groups"
         case .v3FamilyGetMyGroup: return "/api/v3/family/groups/me"
         case .v3FamilyGetMyGroups: return "/api/v3/family/groups/me/all"
@@ -221,6 +229,7 @@ public enum APIEndpoint {
              .onboardingChips,
              .v3FamilyGetMyGroup, .v3FamilyGetMyGroups, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
              .v3FamilyListCareMutes,
+             .v3UserGetNotificationPrefs,
              .v3IntelFeed, .v3IntelDetail, .v3IntelCategories, .v3IntelUnreadCount,
              .v3IntelMySubmissions, .v3IntelGetPreferences,
              .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeStream,
@@ -232,6 +241,7 @@ public enum APIEndpoint {
              .v3FamilyCreateGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyCreateBroadcast,
              .v3IntelSubmit, .v3IntelReport,
+             .knowledgeReport,
              .v3DeepfakeCreate, .v3DeepfakeFeedback, .v3DeepfakeBroadcast,
              .v3BreachAddTarget:
             return .POST
@@ -241,7 +251,8 @@ public enum APIEndpoint {
             return .DELETE
         case .uploadAvatar, .uploadFile:
             return .POST
-        case .updateProfile, .v3UserElderMode, .v3FamilyUpdatePreferences, .v3FamilyMemberElderMode,
+        case .updateProfile, .v3UserElderMode, .v3UserPutNotificationPrefs,
+             .v3FamilyUpdatePreferences, .v3FamilyMemberElderMode,
              .v3FamilySetMyDisplayName, .v3FamilySetAlias, .v3FamilySetCareMute,
              .v3IntelPutPreferences,
              .v3BreachDismissAlert:
@@ -254,6 +265,7 @@ public enum APIEndpoint {
         switch self {
         case .authLogout, .authDeleteAccount, .authExportData, .authUserInfo, .subscriptionVerify, .subscriptionStatus, .uploadAvatar, .uploadFile, .updateProfile, .deleteQuery, .deleteQueryConversation, .queryHistory, .messagesList, .messageUnreadCount, .messageMarkRead, .feedbackSubmit,
              .v3UserHeartbeat, .v3UserElderMode, .v3UserRegisterDevice,
+             .v3UserGetNotificationPrefs, .v3UserPutNotificationPrefs,
              .v3FamilyCreateGroup, .v3FamilyGetMyGroup, .v3FamilyGetMyGroups, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyDissolveGroup, .v3FamilyRemoveMember, .v3FamilyUpdatePreferences,
              .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus, .v3FamilyMemberElderMode,
@@ -261,6 +273,7 @@ public enum APIEndpoint {
              .v3FamilyListCareMutes, .v3FamilySetCareMute,
              .v3IntelFeed, .v3IntelDetail, .v3IntelUnreadCount, .v3IntelSubmit,
              .v3IntelMySubmissions, .v3IntelGetPreferences, .v3IntelPutPreferences, .v3IntelReport,
+             .knowledgeReport,
              .v3DeepfakeCreate, .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeDelete, .v3DeepfakeFeedback, .v3DeepfakeBroadcast, .v3DeepfakeStream,
              .v3BreachAddTarget, .v3BreachListTargets, .v3BreachDeleteTarget,
              .v3BreachListAlerts, .v3BreachDismissAlert:
