@@ -61,8 +61,11 @@ public struct KnowledgeView: View {
         .toolbar(showsTitle ? .visible : .hidden, for: .navigationBar)
         .toolbarBackground(AppTheme.background, for: .navigationBar)
         .navigationDestination(item: $selectedDetail) { nav in
-            KnowledgeDetailView(id: nav.id)
-                .mainTabBarHidden()
+            KnowledgeDetailView(id: nav.id) { reportedId in
+                // V4 案例库举报：成功后从列表移除（服务端下次刷新也会过滤）
+                Task { @MainActor in vm.removeReportedItem(id: reportedId) }
+            }
+            .mainTabBarHidden()
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: 88) }
         .onAppear { vm.loadFirstPage() }

@@ -9,11 +9,16 @@ import SwiftUI
 
 public struct KnowledgeDetailView: View {
     @StateObject private var vm: KnowledgeDetailViewModel
+    @Environment(\.dismiss) private var dismiss
     private let id: String
+    /// V4 案例库举报：成功后由 KnowledgeView 把列表里的本条 splice 掉
+    private let onReported: ((String) -> Void)?
+    @State private var showReportSheet = false
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
-    public init(id: String) {
+    public init(id: String, onReported: ((String) -> Void)? = nil) {
         self.id = id
+        self.onReported = onReported
         _vm = StateObject(wrappedValue: KnowledgeDetailViewModel())
     }
 
@@ -87,6 +92,26 @@ public struct KnowledgeDetailView: View {
         .background(AppTheme.background)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // V4 案例库举报入口（App Store 1.2 UGC 合规）
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    Button(role: .destructive) {
+                        showReportSheet = true
+                    } label: {
+                        Label(languageCode == "en" ? "Report" : "举报", systemImage: "flag")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+            }
+        }
+        .sheet(isPresented: $showReportSheet) {
+            KnowledgeReportSheet(knowledgeId: id) {
+                onReported?(id)
+                dismiss()
+            }
+        }
         .onAppear { vm.load(id: id) }
     }
 

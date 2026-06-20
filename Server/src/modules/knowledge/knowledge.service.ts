@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -86,7 +86,7 @@ export class KnowledgeService {
     pageSize = 20,
     search?: string,
     language = 'zh',
-    opts: { includeAllStatuses?: boolean; status?: string } = {},
+    opts: { includeAllStatuses?: boolean; status?: string; excludeReportedByUserId?: string | null } = {},
   ) {
     const skip = (page - 1) * pageSize;
     const where: any = { language };
@@ -103,6 +103,10 @@ export class KnowledgeService {
     } else if (!opts.includeAllStatuses) {
       where.status = 'published';
     }
+    // V4 案例库举报隐藏：本人举报过的案例对本人不出现（admin 视角不受影响）
+    if (opts.excludeReportedByUserId) {
+      where.reports = { none: { userId: opts.excludeReportedByUserId } };
+    }
     const [items, total] = await Promise.all([
       this.prisma.knowledgeCase.findMany({
         where,
@@ -115,8 +119,18 @@ export class KnowledgeService {
     return { items, total, page, pageSize };
   }
 
-  async getById(id: string) {
-    return this.prisma.knowledgeCase.findUniqueOrThrow({ where: { id } });
+  async getById(id: string, viewerUserId?: string | null) {
+    const row = await this.prisma.knowledgeCase.findUnique({
+      where: { id },
+      ...(viewerUserId
+        ? { include: { reports: { where: { userId: viewerUserId }, take: 1, select: { id: true } } } }
+        : {}),
+    });
+    if (!row) throw new NotFoundException('Knowledge case not found');
+    if (viewerUserId && (row as any).reports?.length) {
+      throw new NotFoundException('Knowledge case not found');
+    }
+    return row;
   }
 
   /**
@@ -126,7 +140,14 @@ export class KnowledgeService {
    * - 派生 firstImage（用于列表缩略图）：优先 coverImage，否则取 contentBlocks 中第一张图
    * 注意：仅供 V2 接口使用；老 /knowledge 路由继续返回完整字段以兼容旧客户端。
    */
-  async listV2(category?: string, page = 1, pageSize = 20, search?: string, language = 'zh') {
+  async listV2(
+    category?: string,
+    page = 1,
+    pageSize = 20,
+    search?: string,
+    language = 'zh',
+    opts: { excludeReportedByUserId?: string | null } = {},
+  ) {
     const skip = (page - 1) * pageSize;
     // iOS V2 列表仅展示已上架内容（draft / archived 不可见）
     const where: any = { language, status: 'published' };
@@ -136,6 +157,10 @@ export class KnowledgeService {
         { title: { contains: search, mode: 'insensitive' } },
         { content: { contains: search, mode: 'insensitive' } },
       ];
+    }
+    // V4 案例库举报隐藏：本人视角下过滤掉自己举报过的
+    if (opts.excludeReportedByUserId) {
+      where.reports = { none: { userId: opts.excludeReportedByUserId } };
     }
     const [rows, total] = await Promise.all([
       this.prisma.knowledgeCase.findMany({
@@ -174,8 +199,57 @@ export class KnowledgeService {
   }
 
   /** V2 详情：附带 ETag 计算所需字段；服务端使用 id + updatedAt 派生 ETag */
-  async getByIdV2(id: string) {
-    return this.prisma.knowledgeCase.findUniqueOrThrow({ where: { id } });
+  async getByIdV2(id: string, viewerUserId?: string | null) {
+    const row = await this.prisma.knowledgeCase.findUnique({
+      where: { id },
+      ...(viewerUserId
+        ? { include: { reports: { where: { userId: viewerUserId }, take: 1, select: { id: true } } } }
+        : {}),
+    });
+    if (!row) throw new NotFoundException('Knowledge case not found');
+    if (viewerUserId && (row as any).reports?.length) {
+      throw new NotFoundException('Knowledge case not found');
+    }
+    return row;
+  }
+
+  /// V4 案例库举报（与 Intel 同语义：举报即终态、本人视角立刻隐藏）
+  private readonly REPORT_DAILY_CAP = 20;
+  async submitReport(userId: string, knowledgeId: string, reason?: string, note?: string) {
+    const allowed = ['spam', 'inaccurate', 'illegal', 'offensive', 'other'];
+    const r = (reason ?? '').trim();
+    if (!allowed.includes(r)) {
+      throw new BadRequestException('Invalid reason');
+    }
+    const row = await this.prisma.knowledgeCase.findUnique({
+      where: { id: knowledgeId },
+      select: { id: true, status: true },
+    });
+    if (!row || row.status !== 'published') {
+      throw new NotFoundException('Knowledge case not found');
+    }
+
+    const existing = await this.prisma.knowledgeReport.findUnique({
+      where: { knowledgeId_userId: { knowledgeId, userId } },
+      select: { id: true },
+    });
+    if (existing) {
+      return { ok: true, alreadyReported: true };
+    }
+
+    const dayAgo = new Date(Date.now() - 24 * 3600 * 1000);
+    const recentCount = await this.prisma.knowledgeReport.count({
+      where: { userId, createdAt: { gte: dayAgo } },
+    });
+    if (recentCount >= this.REPORT_DAILY_CAP) {
+      throw new BadRequestException('Daily report limit reached');
+    }
+
+    const cleanNote = note?.trim().slice(0, 500) || null;
+    await this.prisma.knowledgeReport.create({
+      data: { knowledgeId, userId, reason: r, note: cleanNote },
+    });
+    return { ok: true };
   }
 
   async create(data: {

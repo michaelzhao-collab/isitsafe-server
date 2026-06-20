@@ -1,15 +1,22 @@
 import {
+  Body,
   Controller,
   Get,
   Headers,
   Param,
+  Post,
   Query,
+  Req,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { createHash } from 'crypto';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { KnowledgeService } from './knowledge.service';
 import { Public } from '../../common/decorators/public.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 function resolveLanguageFromHeader(header?: string, fallback?: string): 'zh' | 'en' {
   if (fallback === 'en' || fallback === 'zh') return fallback;
@@ -32,7 +39,9 @@ export class KnowledgeV2Controller {
 
   @Get()
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   async list(
+    @Req() req: Request,
     @Query('category') category?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
@@ -41,23 +50,39 @@ export class KnowledgeV2Controller {
     @Headers('x-app-language') langHeader?: string,
   ) {
     const lang = resolveLanguageFromHeader(langHeader, language);
+    const viewerUserId = (req.user as any)?.sub as string | undefined;
     return this.knowledge.listV2(
       category,
       parseInt(page || '1', 10),
       parseInt(pageSize || '20', 10),
       search,
       lang,
+      { excludeReportedByUserId: viewerUserId ?? null },
     );
+  }
+
+  /// V4 案例库举报（与 V1 路由并存）
+  @Post(':id/report')
+  @UseGuards(JwtAuthGuard)
+  async reportKnowledge(
+    @CurrentUser('sub') userId: string,
+    @Param('id') id: string,
+    @Body() body: { reason?: string; note?: string },
+  ) {
+    return this.knowledge.submitReport(userId, id, body?.reason, body?.note);
   }
 
   @Get(':id')
   @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   async getById(
+    @Req() req: Request,
     @Param('id') id: string,
     @Headers('if-none-match') ifNoneMatch: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const row = await this.knowledge.getByIdV2(id);
+    const viewerUserId = (req.user as any)?.sub as string | undefined;
+    const row = await this.knowledge.getByIdV2(id, viewerUserId ?? null);
     const etag = computeEtag(row.id, row.updatedAt);
     // 浏览器/iOS URLCache 可能加引号；做宽松比较
     const incoming = (ifNoneMatch || '').replace(/^W\//, '').replace(/^"|"$/g, '');

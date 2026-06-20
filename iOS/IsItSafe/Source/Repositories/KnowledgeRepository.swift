@@ -22,4 +22,13 @@ public final class KnowledgeRepository {
     public func categories(language: String) async throws -> [KnowledgeCategoryItem] {
         try await network.request(endpoint: .knowledgeCategories(language: language))
     }
+
+    /// V4 案例库举报：成功后该案例对本人立刻隐藏（与情报举报同语义）
+    public func report(id: String, reason: String, note: String) async throws {
+        struct Body: Encodable { let reason: String; let note: String }
+        try await network.requestVoid(
+            endpoint: .knowledgeReport(id: id),
+            body: Body(reason: reason, note: note)
+        )
+    }
 }

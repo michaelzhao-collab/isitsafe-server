@@ -26,6 +26,16 @@ public final class KnowledgeViewModel: ObservableObject {
 
     public init() {}
 
+    /// V4 案例库举报：举报成功后立刻把本条从列表移除
+    /// （服务端下次刷新也会过滤掉本人举报过的，这里做乐观更新让 UI 即时响应）
+    @MainActor
+    public func removeReportedItem(id: String) {
+        let remaining = items.filter { $0.id != id }
+        items = remaining
+        total = max(0, total - 1)
+        state = remaining.isEmpty ? .empty : .success(remaining)
+    }
+
     /// 进入页面时调用：先展示本地缓存（若有），再请求服务端并更新
     public func loadFirstPage() {
         if MockData.isMockModeEnabled {
