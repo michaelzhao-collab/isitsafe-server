@@ -209,14 +209,31 @@ public struct AnalyzeInputBar: View {
                             : (languageCode == "en" ? "Recording, slide up to cancel" : "录音中，上滑取消"))
                         : (languageCode == "en" ? "Hold to speak" : "按住说话"))
                 Button(action: {
-                    isVoiceMode = false
-                    onVoiceToggle()
+                    // V4 业主反馈"语音点按一下卡死"：极短点按时 SwiftUI sequenced gesture
+                    // 的 onEnded 偶发不触发 → onVoiceHoldEnd 没调用 → SpeechRecognition 永远卡录音中。
+                    // 这里把键盘图标改成"录音中点击=取消逃生"，无论 gesture 状态如何都能恢复。
+                    if isRecording {
+                        isRecording = false
+                        isCancellableMode = false
+                        if let onCancel = onVoiceCancel {
+                            onCancel()
+                        } else {
+                            onVoiceHoldEnd?()
+                        }
+                        onRecordingStateChange?(false, false)
+                    } else {
+                        isVoiceMode = false
+                        onVoiceToggle()
+                    }
                 }) {
-                    Image(systemName: "keyboard")
+                    Image(systemName: isRecording ? "xmark.circle.fill" : "keyboard")
                         .font(.system(size: 32))
-                        .foregroundColor(AppTheme.primary)
+                        .foregroundColor(isRecording ? .red : AppTheme.primary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(isRecording
+                    ? (languageCode == "en" ? "Cancel recording" : "取消录音")
+                    : (languageCode == "en" ? "Switch to keyboard" : "切回键盘"))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

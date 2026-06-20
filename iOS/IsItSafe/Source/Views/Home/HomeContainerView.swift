@@ -461,7 +461,19 @@ public struct HomeContainerView: View {
                                 }
                             }
                             voiceRecordingTask = Task {
+                                // V4 业主反馈"语音点按一下卡死"：极短点按时 sequenced gesture
+                                // 的 onEnded 偶发不触发 → stopRecording 没调用 → 这里永远 await。
+                                // 60s 看门狗兜底强制 stop，确保不会永远卡在录音中。
+                                let watchdog = Task {
+                                    try? await Task.sleep(nanoseconds: 60_000_000_000)
+                                    if !Task.isCancelled {
+                                        await MainActor.run {
+                                            SpeechRecognitionService.shared.stopRecording()
+                                        }
+                                    }
+                                }
                                 let text = try? await SpeechRecognitionService.shared.startRecording()
+                                watchdog.cancel()
                                 await MainActor.run {
                                     if let t = text, !t.isEmpty {
                                         // 有待发图片时走"图+文"路径，否则纯文本
@@ -474,6 +486,12 @@ public struct HomeContainerView: View {
                                         }
                                     }
                                     voiceRecordingTask = nil
+                                    // 强制复位 overlay（看门狗触发时 onRecordingStateChange 不会 fire）
+                                    if voiceOverlayActive {
+                                        TabBarVisibility.shared.popHidden()
+                                        voiceOverlayActive = false
+                                        voiceOverlayCancelMode = false
+                                    }
                                 }
                             }
                         },
@@ -487,6 +505,12 @@ public struct HomeContainerView: View {
                             SpeechRecognitionService.shared.stopRecording()
                             voiceRecordingTask?.cancel()
                             voiceRecordingTask = nil
+                            // 同上：强制复位 overlay，避免 gesture 没 fire onEnded 时残留
+                            if voiceOverlayActive {
+                                TabBarVisibility.shared.popHidden()
+                                voiceOverlayActive = false
+                                voiceOverlayCancelMode = false
+                            }
                         },
                         voiceHintText: voiceHintText,
                         isFocused: $isInputFocused,

@@ -56,11 +56,13 @@ public struct ElderHomeView: View {
             // 用 safeAreaInset 把 inputBar 固定在底部，跟 HomeContainerView 同
             // pattern；之前直接放在 VStack 末尾会被 MainTabView 自定义 tabBar
             // (~88pt) 完全挡住
+            //
+            // V4 业主反馈"键盘和输入框中间一大段空"：键盘弹出时把给 tabBar 留的
+            // 88pt 收掉，跟 HomeContainerView 的 isInputFocused ? 12 : 56 同思路
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 VStack(spacing: 0) {
                     inputBar
-                    // 让 inputBar 浮在 tabBar 上方 ~88pt 高度位置
-                    Color.clear.frame(height: 88)
+                    Color.clear.frame(height: isInputFocused ? 0 : 88)
                 }
             }
             .background(AppTheme.background.ignoresSafeArea())
@@ -355,8 +357,20 @@ public struct ElderHomeView: View {
                 return
             }
             await MainActor.run { isRecordingVoice = true }
+            // V4 业主反馈"语音点按一下卡死"：极短点按时 sequenced gesture 的 onEnded
+            // 偶发不触发 → stopRecording 没调用 → startRecording 永远 await。
+            // 60s 看门狗兜底强制 stop。
+            let watchdog = Task {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        SpeechRecognitionService.shared.stopRecording()
+                    }
+                }
+            }
             do {
                 let text = try await SpeechRecognitionService.shared.startRecording()
+                watchdog.cancel()
                 await MainActor.run {
                     isRecordingVoice = false
                     let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -372,6 +386,7 @@ public struct ElderHomeView: View {
                     }
                 }
             } catch {
+                watchdog.cancel()
                 await MainActor.run {
                     isRecordingVoice = false
                     errorMessage = error.localizedDescription
