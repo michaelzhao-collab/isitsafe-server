@@ -2,10 +2,9 @@
 //  ElderHomeView.swift
 //  IsItSafe
 //
-//  V3-J 长辈模式首页（V3-J 更新版：保留输入框 + 新增 2 大快捷入口）
+//  V3-J 长辈模式首页（V4 简化：去掉冗余问候条，与普通模式共用聊天区/输入框模式）
 //
 //  布局：
-//   - 顶部：紧凑问候条（昵称 + 当前日期）
 //   - 中上：2 个超大按钮（这是不是骗子 / 给孩子打电话）
 //   - 中部：聊天结果区（vm.turns / vm.lastResult），随用户输入实时滚动
 //   - 底部：AnalyzeInputBar（与普通首页同一组件）
@@ -14,13 +13,17 @@
 //   - 长辈遇到具体可疑事件 → 点 2 个大按钮快速进入向导
 //   - 长辈想直接问 AI → 用底部输入框（文字、拍照、按住说话）
 //
+//  V4 业主复核：
+//   - 删掉头部"您好，您 + 日期" — 信息冗余且占空间
+//   - 字号整体放大约 1.5×；同时套 .dynamicTypeSize(.accessibility3) 让
+//     AnalyzeInputBar 等共用组件里的 dynamic font 同步放大
+//   - 键盘可点击空白处/下拉滚动收起，工具栏右上角加"完成"按钮兜底
 
 import Combine
 import SwiftUI
 import UIKit
 
 public struct ElderHomeView: View {
-    @EnvironmentObject private var appState: AppStateViewModel
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     @StateObject private var vm = HomeViewModel()
@@ -36,15 +39,20 @@ public struct ElderHomeView: View {
     /// 看门狗：超过 45s 的 analyzing 状态强制失败，避免 UI 永远卡死
     @State private var watchdogTask: Task<Void, Never>?
 
+    /// 长辈模式字体倍率：与"放大一倍"诉求平衡布局（部分文本本来就大，×2 会破坏布局）
+    private let elderScale: CGFloat = 1.5
+
     public init() {}
 
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                compactGreeting
                 quickButtons
                 chatResultsArea
             }
+            // 共用组件（AnalyzeInputBar 等）里的 .body/.subheadline/.caption 这些 dynamic font
+            // 会跟着 dynamicTypeSize 放大；本文件里手写的 .system(size:) 已手动 × elderScale
+            .dynamicTypeSize(.accessibility3)
             // 用 safeAreaInset 把 inputBar 固定在底部，跟 HomeContainerView 同
             // pattern；之前直接放在 VStack 末尾会被 MainTabView 自定义 tabBar
             // (~88pt) 完全挡住
@@ -144,37 +152,6 @@ public struct ElderHomeView: View {
         }
     }
 
-    // MARK: - 顶部紧凑问候
-
-    private var compactGreeting: some View {
-        HStack(spacing: 14) {
-            // 头像
-            ZStack {
-                Circle()
-                    .fill(LinearGradient(colors: [AppTheme.primary.opacity(0.75), AppTheme.primary],
-                                         startPoint: .topLeading,
-                                         endPoint: .bottomTrailing))
-                    .frame(width: 52, height: 52)
-                Text(String(displayName.prefix(1)))
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(greetingText)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(AppTheme.textPrimary)
-                Text(dateText)
-                    .font(.system(size: 14))
-                    .foregroundColor(AppTheme.textSecondary)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 14)
-        .padding(.bottom, 14)
-        .background(AppTheme.cardBackground)
-    }
-
     // MARK: - 2 个大按钮
 
     private var quickButtons: some View {
@@ -201,18 +178,18 @@ public struct ElderHomeView: View {
     private func bigButton(icon: String, title: String, bg: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 14) {
-                Text(icon).font(.system(size: 30))
+                Text(icon).font(.system(size: 30 * elderScale))
                 Text(title)
-                    .font(.system(size: 22, weight: .bold))
+                    .font(.system(size: 22 * elderScale, weight: .bold))
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 16 * elderScale, weight: .bold))
                     .foregroundColor(.white.opacity(0.85))
             }
             .foregroundColor(.white)
-            .frame(maxWidth: .infinity, minHeight: 68)
+            .frame(maxWidth: .infinity, minHeight: 68 * elderScale)
             .padding(.horizontal, 18)
             .background(bg)
             .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -242,7 +219,19 @@ public struct ElderHomeView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(AppTheme.background)
-            .dynamicTypeSize(.xLarge)
+            // V4 业主反馈"长辈模式键盘无法隐藏"：交互式下拉收键盘 + 工具栏 Done 按钮
+            .scrollDismissesKeyboard(.interactively)
+            // 点空白处收键盘（不影响按钮交互，因为按钮自带 hit-test 优先）
+            .contentShape(Rectangle())
+            .onTapGesture { isInputFocused = false }
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button(languageCode == "en" ? "Done" : "完成") {
+                        isInputFocused = false
+                    }
+                }
+            }
             .onChange(of: vm.turns.count) { _, _ in
                 withAnimation {
                     if let lastId = vm.turns.last?.id {
@@ -256,11 +245,11 @@ public struct ElderHomeView: View {
     private var emptyHint: some View {
         VStack(spacing: 10) {
             Text("💡")
-                .font(.system(size: 44))
+                .font(.system(size: 44 * elderScale))
             Text(languageCode == "en"
                  ? "Tap a big button above, or type what you want to check below"
                  : "上面有两个大按钮，也可以在下方输入您想问的事情")
-                .font(.system(size: 17))
+                .font(.system(size: 17 * elderScale))
                 .foregroundColor(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
@@ -276,7 +265,7 @@ public struct ElderHomeView: View {
                 HStack {
                     Spacer(minLength: 40)
                     Text(userText)
-                        .font(.system(size: 18))
+                        .font(.system(size: 18 * elderScale))
                         .foregroundColor(.white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
@@ -299,7 +288,7 @@ public struct ElderHomeView: View {
                 HStack(spacing: 8) {
                     ProgressView()
                     Text(languageCode == "en" ? "Checking..." : "正在判断...")
-                        .font(.system(size: 16))
+                        .font(.system(size: 16 * elderScale))
                         .foregroundColor(AppTheme.textSecondary)
                 }
             case .done(let result):
@@ -310,7 +299,7 @@ public struct ElderHomeView: View {
                     QueryRiskCard(response: res)
                 case .failure(let msg):
                     Text(msg)
-                        .font(.system(size: 16))
+                        .font(.system(size: 16 * elderScale))
                         .foregroundColor(AppTheme.riskHigh)
                 }
             }
@@ -401,23 +390,4 @@ public struct ElderHomeView: View {
         // 非取消的话 startRecording 会自动 resume 并触发分析
     }
 
-    // MARK: - 辅助
-
-    private var displayName: String {
-        if let nick = appState.user?.wechatNickname, !nick.isEmpty { return nick }
-        if let nick = appState.user?.nickname, !nick.isEmpty { return nick }
-        return languageCode == "en" ? "Friend" : "您"
-    }
-
-    private var greetingText: String {
-        if languageCode == "en" { return "Hello, \(displayName)" }
-        return "您好，\(displayName)"
-    }
-
-    private var dateText: String {
-        let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: languageCode == "en" ? "en_US" : "zh_CN")
-        fmt.dateFormat = languageCode == "en" ? "EEEE, MMM d" : "M 月 d 日 EEEE"
-        return fmt.string(from: Date())
-    }
 }
