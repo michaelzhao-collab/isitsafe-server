@@ -82,7 +82,7 @@ V1 已上线版本整体打分 **75 / 100**，是合格作品。基础合规与�
 | `Detect Scam Links,Calls & Risk` 逗号后无空格 | 🟡 视觉 | 改 `Links, Calls` |
 | Description 前 3 行是产品描述不是钩子 | 🟡 转化 | 换成痛点提问开场 |
 | 缺中文版（zh-Hans + zh-Hant 本地化） | 🔴 真大问题 | 中文区下载砍 80% |
-| Keywords 缺 `deepfake / anti-scam / robocall / family / parents / elder` | 🟡 ASO | 补 |
+| Keywords 缺 `voiceclone / anti-scam / robocall / family / parents / elder` | 🟡 ASO | 补 |
 | 没分用户群（WHO IT'S FOR） | 🟡 共情 | 加 4 类用户场景描述 |
 | Premium 与免费功能未区分 | 🟡 转化 | 在功能描述中标 (Premium) |
 
@@ -148,7 +148,7 @@ Paste any suspicious SMS, email, link, or phone number — AI gives you a clear 
 📸 SCREENSHOT ANALYSIS
 Got a sketchy WhatsApp message or "official" notice? Upload the screenshot. We detect phishing pages, fake brands, and impersonation.
 
-🎙️ AI VOICE DEEPFAKE DETECTOR (Premium)
+🎙️ AI VOICE CLONE DETECTOR (Premium)
 "Your son calling for emergency money" — is it really him? Our AI analyzes voice patterns to spot AI-generated voice scams.
 
 👨‍👩‍👧 FAMILY GUARDIAN (Premium)
@@ -179,7 +179,7 @@ Browse real-world recent scam cases. Stay one step ahead of new tactics every we
 ━━━ PREMIUM UNLOCKS ━━━
 
 • Unlimited scans
-• AI voice deepfake detection
+• AI voice clone detection
 • Family Group with elder mode
 • Priority AI analysis
 
@@ -200,12 +200,13 @@ Terms of Service: https://www.starlensai.com/terms
 
 ### Keywords (100 字符，逗号分隔，不重复 Name/Subtitle 已有词)
 ```
-fraud,phishing,robocall,checker,scanner,lookup,spam,verify,deepfake,anti-scam,parents,elder,safety
+fraud,phishing,robocall,checker,scanner,lookup,spam,verify,voiceclone,anti-scam,parents,elder,safety
 ```
-✓ 98 字符（接近 100 上限充分利用）
+✓ 100 字符（接近 100 上限充分利用）
 ✓ 保留 V1 高频词：fraud / phishing / checker / scanner / lookup / spam / verify
-✓ 新增高价值长尾词：deepfake / anti-scam / parents / elder
+✓ 新增高价值长尾词：voiceclone / anti-scam / parents / elder
 ✓ 删 V1 重复词：scam / security / detect / linkcheck / safe / alert（已在 Name/Subtitle/描述中覆盖，避免 ASO 算法降权）
+⚠️ 禁用词：`deepfake / 深伪` 会触发 App Store Guideline 1.1（Objectionable Content），一律改用 `voiceclone / 拟声识别 / AI 合成语音识别`（2026-06-24 被拒教训）
 
 ---
 
@@ -246,7 +247,7 @@ fraud,phishing,robocall,checker,scanner,lookup,spam,verify,deepfake,anti-scam,pa
 📸 截图分析
 收到可疑微信 / WhatsApp / 短信？上传截图，识破钓鱼页面、仿冒品牌、身份冒充。
 
-🎙️ AI 语音深伪检测（会员）
+🎙️ AI 合成语音识别（会员）
 "儿子打电话借钱"真的是本人吗？AI 分析声纹，识破 AI 合成语音诈骗。
 
 👨‍👩‍👧 家庭守护（会员）
@@ -277,7 +278,7 @@ fraud,phishing,robocall,checker,scanner,lookup,spam,verify,deepfake,anti-scam,pa
 ━━━ 会员解锁 ━━━
 
 • 不限次智能识别
-• AI 语音深伪检测
+• AI 合成语音识别
 • 家庭守护 + 长辈模式
 • 优先 AI 分析通道
 
@@ -298,7 +299,7 @@ fraud,phishing,robocall,checker,scanner,lookup,spam,verify,deepfake,anti-scam,pa
 
 ### 中文关键词（100 字符）
 ```
-反诈,防诈骗,识别诈骗,骚扰电话,钓鱼,链接安全,AI识别,防骗,家庭守护,长辈,深伪,声纹
+反诈,防诈骗,识别诈骗,骚扰电话,钓鱼,链接安全,AI识别,防骗,家庭守护,长辈,拟声识别,声纹
 ```
 ✓ 13 个高搜索量词覆盖核心场景（个人安全 / 家庭 / 长辈 / 语音）
 
@@ -345,7 +346,7 @@ fraud,phishing,robocall,checker,scanner,lookup,spam,verify,deepfake,anti-scam,pa
 | App Name | StarLens AI-Scam Risk Detector (30 字符，`-`无空格) | StarLens AI - Scam Detector (27 字符，格式规范) |
 | Subtitle | Detect Scam Links,Calls & Risk (30 字符，逗号无空格，功能词) | Stop Scams. Protect Family. (27 字符，情感共鸣) |
 | Description 前 3 行 | 产品描述（"StarLens AI helps you...") | 痛点提问钩子（"Got a suspicious text...?"） |
-| Keywords | 13 词（fraud/phishing/security/checker/scanner/phone/lookup/spam/detect/verify/linkcheck/safe/alert） | 13 词（同方向 + 新增 deepfake/anti-scam/parents/elder，删与 Name 重复词）|
+| Keywords | 13 词（fraud/phishing/security/checker/scanner/phone/lookup/spam/detect/verify/linkcheck/safe/alert） | 13 词（同方向 + 新增 voiceclone/anti-scam/parents/elder，删与 Name 重复词）|
 | 关键词总覆盖（含 Name+Sub+Keywords+Desc）| 约 18-20 词 | 约 35 词 |
 | 中文版（zh-Hans + zh-Hant） | ❌ 无 | ✅ 完整本地化 |
 | 用户分群（WHO IT'S FOR） | ❌ | ✅ 4 类用户 |
@@ -382,7 +383,7 @@ fraud,phishing,robocall,checker,scanner,lookup,spam,verify,deepfake,anti-scam,pa
 ## 📸 截图与视频
 
 - [ ] 截图替换为 V2 版本（按 `docs/市场图设计-V2-Mockup.html` 出 1290×2796 PNG）
-  - 中文区 6 张：钩子 / 风险报告 / 截图分析 / 家庭守护 / 语音深伪 / 情报站
+  - 中文区 6 张：钩子 / 风险报告 / 截图分析 / 家庭守护 / 合成语音识别 / 情报站
   - 英文区 6 张：同上
 - [ ] 截图 captions（每张图下方的小字描述）一同改 V2 文案
 - [ ] App Preview 视频（30s）如有，重新录制（前 5 秒必须出现"3 秒识破诈骗"画面）
@@ -400,3 +401,4 @@ fraud,phishing,robocall,checker,scanner,lookup,spam,verify,deepfake,anti-scam,pa
 - **2026-06-01 V1**：上线初始版本（仅英文，含 KEY FEATURES / WHY / IMPORTANT NOTICE 三段 + EULA + Privacy/Terms URL 法律合规）
 - **2026-06-01 V2 初稿**：ASO 优化版（误判 V1 评分过低，缺法律合规部分）
 - **2026-06-01 V2 修订版**：吸收 V1 法律合规部分 + 双语本地化 + 用户分群 + 关键词扩展 + App Name 格式微调（`AI-Scam` → `AI - Scam`）
+- **2026-06-24 1.1.0(5) 被拒修订**：Guideline 1.1（Objectionable Content）拒审，原因为 keywords/description 含 `deepfake / 深伪`。全文将该词改为中性措辞 —— EN `voiceclone` / `AI Voice Clone Detector`，CN `拟声识别` / `AI 合成语音识别`。截图仅上传 #1–#3（不含语音那张），无需重出。仅改元数据、同 build 重交

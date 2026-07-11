@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>V5.1 UI 交互原型 v2 — 家庭 IM 互动</title>
+<style>
+  :root {
+    --primary: #2F6BFF;
+    --primary-dark: #1d5ae8;
+    --bg: #ECEFF3;
+    --card: #FFFFFF;
+    --ink: #1A1F2E;
+    --ink2: #6B7280;
+    --line: #E5E7EB;
+    --risk-high: #DC2626;
+    --risk-mid: #F59E0B;
+    --risk-low: #10B981;
+    --wechat-green: #95EC69;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; background: #F3F5F9; color: var(--ink); padding: 40px 24px 80px; }
+  .doc-header { max-width: 1280px; margin: 0 auto 8px; }
+  .doc-header h1 { font-size: 26px; margin-bottom: 8px; }
+  .doc-header p { color: var(--ink2); font-size: 14px; line-height: 1.7; max-width: 74em; }
+  .doc-header .tips { margin-top: 10px; font-size: 13px; color: var(--primary); background: #EAF0FF; border: 1px solid #C9D8FF; border-radius: 8px; padding: 8px 14px; display: inline-block; }
+  .changelog { max-width: 1280px; margin: 14px auto 0; background: #FFF8E9; border: 1px solid #F3DFAE; border-radius: 10px; padding: 12px 18px; font-size: 13px; line-height: 1.9; color: #7A5A12; }
+
+  section { max-width: 1280px; margin: 48px auto 0; }
+  section > h2 { font-size: 20px; margin-bottom: 4px; }
+  section > h2 span { color: var(--ink2); font-weight: 400; font-size: 14px; margin-left: 10px; }
+  section > .sec-note { font-size: 13px; color: var(--ink2); margin-bottom: 18px; line-height: 1.7; max-width: 80em; }
+  .frames { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  .frame-col { display: flex; flex-direction: column; gap: 10px; }
+  .frame-label { font-size: 13px; font-weight: 600; color: var(--ink2); padding-left: 4px; }
+  .frame-label b { color: var(--ink); }
+
+  /* ============ 手机壳 ============ */
+  .phone { width: 375px; height: 780px; background: var(--bg); border-radius: 40px; border: 10px solid #1A1F2E; overflow: hidden; position: relative; display: flex; flex-direction: column; box-shadow: 0 20px 50px -20px rgba(20,30,60,.35); flex: none; }
+  .statusbar { height: 32px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; font-size: 13px; font-weight: 600; }
+  .navbar { height: 48px; flex: none; display: flex; align-items: center; padding: 0 12px; gap: 8px; background: var(--bg); border-bottom: .5px solid var(--line); }
+  .navbar .back { font-size: 22px; color: var(--primary); width: 32px; }
+  .navbar .title { flex: 1; text-align: center; font-size: 17px; font-weight: 600; }
+  .navbar .title .switch { font-size: 12px; color: var(--primary); font-weight: 600; }
+  .navbar .more { font-size: 20px; color: var(--ink); width: 46px; text-align: right; letter-spacing: 1px; }
+  .navbar .side { width: 46px; font-size: 13px; color: var(--primary); font-weight: 600; }
+  .phone.elder .navbar .title { font-size: 20px; }
+
+  /* ============ 底部 Tab 栏 ============ */
+  .tabbar { flex: none; height: 74px; background: #FBFCFE; border-top: .5px solid var(--line); display: flex; padding-bottom: 16px; }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10px; color: #9AA1AD; }
+  .tab .ti { font-size: 21px; }
+  .tab.on { color: var(--primary); font-weight: 600; }
+  .tab .dot-badge { position: relative; }
+  .tab .dot-badge::after { content: '2'; position: absolute; top: -4px; right: -10px; background: var(--risk-high); color: #fff; font-size: 9px; border-radius: 8px; padding: 1px 5px; font-weight: 700; }
+  .phone.elder .tab { font-size: 12px; }
+  .phone.elder .tab .ti { font-size: 24px; }
+
+  /* ============ 聊天区 ============ */
+  .chat { flex: 1; overflow-y: auto; padding: 14px 12px 10px; display: flex; flex-direction: column; gap: 14px; }
+  .time-pill { align-self: center; font-size: 11px; color: #9AA1AD; background: #E1E5EB; border-radius: 8px; padding: 2px 10px; }
+  .msg-row { display: flex; gap: 8px; align-items: flex-start; }
+  .msg-row.self { flex-direction: row-reverse; }
+  .avatar { width: 38px; height: 38px; border-radius: 8px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 17px; color: #fff; font-weight: 600; }
+  .avatar.sys { background: linear-gradient(160deg, var(--primary), #6366F1); font-size: 19px; }
+  .avatar.dad { background: #8B9DC3; }
+  .avatar.girl { background: #E8A2B8; }
+  .avatar.ai { background: #1A1F2E; font-size: 15px; }
+  .msg-body { max-width: 76%; display: flex; flex-direction: column; gap: 4px; }
+  .msg-row.self .msg-body { align-items: flex-end; }
+  .sender { font-size: 11px; color: #9AA1AD; padding-left: 2px; }
+  .bubble { background: var(--card); border-radius: 4px 14px 14px 14px; padding: 10px 13px; font-size: 16px; line-height: 1.5; }
+  .msg-row.self .bubble { background: var(--wechat-green); border-radius: 14px 4px 14px 14px; }
+  .phone.elder .bubble { font-size: 19px; }
+  .voice-bubble { display: flex; align-items: center; gap: 8px; min-width: 120px; cursor: pointer; }
+  .voice-bubble .wave { letter-spacing: 2px; font-size: 15px; }
+  .voice-bubble .sec { font-size: 13px; color: var(--ink2); }
+  .voice-trans { font-size: 13px; color: var(--ink2); background: #F0F2F6; border-radius: 8px; padding: 6px 10px; }
+  .phone.elder .voice-trans { font-size: 16px; }
+  .read-state { font-size: 11px; color: #9AA1AD; }
+  .read-state.read { color: var(--primary); }
+
+  /* 消息旁操作（发到家庭群） */
+  .msg-action { align-self: flex-start; margin-top: 2px; border: 1.5px solid var(--primary); color: var(--primary); background: #fff; border-radius: 16px; padding: 6px 14px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+  .phone.elder .msg-action { font-size: 16px; padding: 8px 16px; }
+  .msg-action.sent { border-color: #BEE8D8; color: #047857; background: #F2FBF7; }
+
+  /* ============ 系统卡片 ============ */
+  .card-msg { width: calc(100% - 46px); }
+  .syscard { background: var(--card); border-radius: 16px; overflow: hidden; border: .5px solid var(--line); box-shadow: 0 2px 10px -4px rgba(20,30,60,.08); cursor: pointer; }
+  .syscard .stripe { height: 4px; }
+  .stripe.high { background: var(--risk-high); }
+  .stripe.mid { background: var(--risk-mid); }
+  .stripe.low { background: var(--risk-low); }
+  .stripe.info { background: var(--primary); }
+  .syscard .inner { padding: 12px 14px 14px; }
+  .syscard .card-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; border-radius: 6px; padding: 2px 8px; margin-bottom: 8px; }
+  .card-tag.high { color: var(--risk-high); background: #FDECEC; }
+  .card-tag.mid { color: #B45309; background: #FEF3E2; }
+  .card-tag.low { color: #047857; background: #E7F7F1; }
+  .card-tag.info { color: var(--primary); background: #EAF0FF; }
+  .syscard h4 { font-size: 17px; line-height: 1.4; margin-bottom: 6px; }
+  .syscard .sum { font-size: 14px; color: var(--ink2); line-height: 1.6; }
+  .phone.elder .syscard h4 { font-size: 21px; }
+  .phone.elder .syscard .sum { font-size: 17px; color: #3d4453; }
+  .syscard .meta { margin-top: 10px; font-size: 12px; color: #9AA1AD; display: flex; justify-content: space-between; align-items: center; }
+  .syscard .meta .readers { color: var(--primary); }
+  .card-btn { margin-top: 12px; width: 100%; height: 46px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; font-family: inherit; cursor: pointer; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform .1s; }
+  .card-btn:active { transform: scale(.98); }
+  .card-btn.danger { background: var(--risk-high); }
+  .card-btn.ghost { background: #EAF0FF; color: var(--primary); }
+  .phone.elder .card-btn { height: 54px; font-size: 19px; }
+  .card-status { margin-top: 12px; font-size: 14px; font-weight: 600; border-radius: 10px; padding: 10px 12px; display: none; align-items: center; gap: 6px; }
+  .card-status.danger { display: flex; color: var(--risk-high); background: #FDECEC; }
+  .card-status.safe { display: flex; color: #047857; background: #E7F7F1; }
+  .card-status.always { display: flex; }
+  .phone.elder .card-status { font-size: 17px; }
+  .card-hint { margin-top: 8px; font-size: 12px; color: #9AA1AD; text-align: center; }
+
+  /* ============ chips（仅子女端） ============ */
+  .chips-bar { flex: none; padding: 8px 12px; display: flex; gap: 10px; background: #F6F8FB; border-top: .5px solid var(--line); }
+  .chips-bar.hidden { display: none; }
+  .chip { flex: 1; height: 40px; border-radius: 20px; border: 1.5px solid var(--line); background: #fff; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; transition: transform .1s; }
+  .chip:active { transform: scale(.96); }
+  .chip.warn { color: var(--risk-high); border-color: #F3C1C1; }
+  .chip.ok { color: #047857; border-color: #BEE8D8; }
+  .chips-hint { flex: none; font-size: 11px; color: #9AA1AD; text-align: center; padding: 4px 0 2px; background: #F6F8FB; }
+
+  /* ============ 输入区 ============ */
+  .inputbar { flex: none; background: #F6F8FB; border-top: .5px solid var(--line); padding: 8px 10px; display: flex; align-items: center; gap: 8px; }
+  .ib-icon { width: 38px; height: 38px; border-radius: 19px; border: none; background: transparent; font-size: 24px; color: #4B5563; cursor: pointer; flex: none; display: flex; align-items: center; justify-content: center; }
+  .ib-text { flex: 1; height: 40px; background: #fff; border: .5px solid var(--line); border-radius: 10px; padding: 0 12px; font-size: 16px; color: #9AA1AD; display: flex; align-items: center; }
+  .ib-voice { flex: 1; height: 40px; border-radius: 10px; border: .5px solid var(--line); background: #fff; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; color: var(--ink); user-select: none; -webkit-user-select: none; }
+  .phone.elder .ib-voice { height: 56px; font-size: 19px; border-radius: 14px; border-width: 1.5px; }
+  .phone.elder .ib-icon { width: 44px; height: 44px; font-size: 27px; }
+  .phone.elder .ib-text { height: 56px; border-radius: 14px; font-size: 19px; }
+  .ib-voice.pressing { background: #DCE4F5; }
+  .rec-overlay { position: absolute; inset: 0; background: rgba(20,26,44,.72); z-index: 30; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 18px; }
+  .rec-overlay.show { display: flex; }
+  .rec-blob { width: 120px; height: 120px; border-radius: 60px; background: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 48px; animation: blob 1s ease-in-out infinite alternate; }
+  @keyframes blob { from { transform: scale(.94);} to { transform: scale(1.06);} }
+  .rec-overlay p { color: #fff; font-size: 17px; }
+
+  /* ============ 长辈首页（贴线上 ElderHomeView 结构） ============ */
+  .elder-home { flex: 1; padding: 14px 16px 8px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  .elder-home .greet { font-size: 22px; font-weight: 800; }
+  .quick2 { display: flex; gap: 12px; }
+  .qbtn { flex: 1; border: none; border-radius: 18px; padding: 18px 12px; font-family: inherit; cursor: pointer; text-align: center; box-shadow: 0 2px 10px -4px rgba(20,30,60,.1); }
+  .qbtn .qi { font-size: 34px; display: block; margin-bottom: 6px; }
+  .qbtn .qt { font-size: 18px; font-weight: 800; }
+  .qbtn.q1 { background: #FDECEC; color: var(--risk-high); }
+  .qbtn.q2 { background: #EAF0FF; color: var(--primary); }
+
+  /* ============ 家庭空态 / 切换 sheet ============ */
+  .empty-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 0 30px; text-align: center; }
+  .empty-wrap .art { font-size: 64px; }
+  .empty-wrap h3 { font-size: 20px; }
+  .empty-wrap p { font-size: 14px; color: var(--ink2); line-height: 1.7; }
+  .empty-cta { width: 100%; height: 52px; border: none; border-radius: 14px; background: var(--primary); color: #fff; font-size: 17px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .empty-cta.ghost { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+  .sheet-mask { position: absolute; inset: 0; background: rgba(20,26,44,.45); z-index: 25; display: flex; align-items: flex-end; }
+  .sheet { width: 100%; background: #fff; border-radius: 18px 18px 0 0; padding: 14px 14px 30px; }
+  .sheet .grabber { width: 36px; height: 4px; border-radius: 2px; background: #D5DAE3; margin: 0 auto 12px; }
+  .sheet h5 { font-size: 16px; text-align: center; margin-bottom: 10px; }
+  .fam-row { display: flex; align-items: center; gap: 12px; padding: 13px 10px; border-radius: 12px; font-size: 16px; }
+  .fam-row.cur { background: #EAF0FF; }
+  .fam-row .fi { width: 40px; height: 40px; border-radius: 10px; background: #EAF0FF; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .fam-row .grow { flex: 1; }
+  .fam-row .sub { font-size: 12px; color: var(--ink2); margin-top: 2px; }
+  .fam-row .cur-tag { font-size: 12px; color: var(--primary); font-weight: 700; }
+  .fam-row .unread { background: var(--risk-high); color: #fff; font-size: 11px; border-radius: 9px; padding: 2px 7px; font-weight: 700; }
+
+  /* ============ 列表页 ============ */
+  .list-page { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .group-card { background: var(--card); border-radius: 14px; overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-bottom: .5px solid var(--line); font-size: 16px; }
+  .row:last-child { border-bottom: none; }
+  .row .grow { flex: 1; }
+  .row .sub { font-size: 12px; color: var(--ink2); margin-top: 2px; }
+  .row .chev { color: #C0C6D0; }
+  .row .val { font-size: 14px; color: var(--ink2); }
+  .badge { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 2px 7px; }
+  .badge.owner { color: #B45309; background: #FEF3E2; }
+  .badge.elder-b { color: var(--primary); background: #EAF0FF; }
+  .row .act { color: var(--risk-high); font-size: 14px; font-weight: 600; }
+  .sec-title { font-size: 13px; color: var(--ink2); padding: 4px 6px 0; }
+  .toggle { width: 46px; height: 28px; border-radius: 14px; background: #34C759; position: relative; flex: none; }
+  .toggle::after { content: ''; position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .toggle.off { background: #D5DAE3; }
+  .toggle.off::after { right: auto; left: 2px; }
+  .upgrade-row { background: linear-gradient(90deg, #FFF6E5, #FFEFD1); }
+  .upgrade-row .up-btn { border: none; background: #B45309; color: #fff; font-size: 13px; font-weight: 700; border-radius: 14px; padding: 6px 14px; font-family: inherit; cursor: pointer; }
+
+  .ctx-menu { position: absolute; z-index: 20; background: #fff; border-radius: 12px; box-shadow: 0 8px 30px -8px rgba(20,30,60,.35); overflow: hidden; width: 160px; left: 100px; top: 300px; }
+  .ctx-menu button { display: block; width: 100%; padding: 12px 16px; border: none; background: none; text-align: left; font-size: 15px; font-family: inherit; border-bottom: .5px solid var(--line); cursor: pointer; }
+  .ctx-menu button.danger { color: var(--risk-high); }
+
+  .todo { display: flex; gap: 12px; padding: 13px 14px; border-bottom: .5px solid var(--line); align-items: center; }
+  .todo:last-child { border: none; }
+  .todo .st { width: 26px; height: 26px; border-radius: 13px; flex: none; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .st.done { background: #E7F7F1; color: #047857; }
+  .st.open { background: #FEF3E2; color: #B45309; }
+  .todo .grow { flex: 1; }
+  .todo .t { font-size: 15px; font-weight: 600; }
+  .todo .d { font-size: 12px; color: var(--ink2); margin-top: 2px; }
+  .todo .go { border: 1.5px solid var(--primary); color: var(--primary); background: none; font-size: 13px; font-weight: 600; border-radius: 14px; padding: 5px 12px; font-family: inherit; cursor: pointer; }
+
+  .notes { margin-top: 18px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; font-size: 13.5px; line-height: 1.9; color: #3d4453; max-width: 1280px; }
+  .notes b { color: var(--ink); }
+  .notes .dot { display: inline-flex; width: 18px; height: 18px; border-radius: 9px; background: var(--primary); color: #fff; font-size: 11px; align-items: center; justify-content: center; margin-right: 6px; font-weight: 700; }
+  .anno { position: absolute; z-index: 15; width: 22px; height: 22px; border-radius: 11px; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 4px rgba(47,107,255,.25); }
+  .toast { position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); background: rgba(20,26,44,.85); color: #fff; font-size: 13px; border-radius: 10px; padding: 8px 14px; z-index: 40; display: none; white-space: nowrap; }
+  .toast.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <h1>V5.1 UI 交互原型 v2 — 家庭 IM 互动</h1>
+  <p>对应 <b>docs/V5.1_需求文档-家庭IM互动.md</b>。视觉沿用 AppTheme。Tab 栏 / 长辈首页 / 家庭空态 / 多家庭切换均按<b>线上真实结构</b>绘制（MainTabView 四 Tab、ElderHomeView 双大按钮 + 底部输入框、FamilyEmptyView、FamilySwitchSheet）。</p>
+  <p class="tips">💡 可交互：S2 chips、S3 的「发到家庭群」、「听 AI 讲」、「按住说话」（按住试试）。</p>
+</div>
+<div class="changelog">
+  <b>v2 变更（2026-07-08 评审结论）</b>：① 长辈端「收到/我没点」chips 删除（场景太单一），老人已读靠 IM 回执自动完成；② 周报卡/周报页暂缓（发给谁未定）；③ 求助不再单独造流程页 —— 复用长辈首页既有对话（持续语音/文字输入），<b>每条 AI 分析旁加「发到家庭群」</b>，普通模式分析结果页同款；④ 求助卡子女端默认按钮删除，卡片整体可点进详情；⑤ 成员称呼 = 群主统一设置的「群昵称」，全员可见；⑥ 语音转文字用 iOS 本地 SFSpeechRecognizer；⑦ 家庭免费 5 人、超出升级家庭包（后端 FREE_MAX_FAMILY_MEMBERS 3→5）；⑧ 补充未加入 / 多家庭切换两种状态；⑨ 群设置合并线上 ⋯ 菜单全部能力。
+</div>
+
+<!-- ============================================================ S0 家庭 Tab 三态 ============================================================ -->
+<section>
+  <h2>S0 · 家庭 Tab 的三种状态<span>未加入 / 单家庭群聊 / 多家庭切换（对应线上 FamilyEmptyView / FamilyGroupView / FamilySwitchSheet）</span></h2>
+  <div class="frames">
+    <div class="frame-col">
+      <div class="frame-label"><b>S0-A</b> 未加入家庭 · 空态（IM 版 FamilyEmptyView）</div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="side"></span><span class="title">家庭</span><span class="more"></span></div>
+        <div class="empty-wrap">
+          <span class="art">👨‍👩‍👧‍👦</span>
+          <h3>把家人拉进来，互相守护</h3>
+          <p>家人遇到可疑链接、诈骗电话时，你会第一时间收到提醒；拿不准的事，发到群里大家一起把关。</p>
+          <button class="empty-cta">创建我的家庭</button>
+          <button class="empty-cta ghost">我有邀请码，加入家庭</button>
+          <p style="font-size:12px;">免费版一个家庭最多 5 人</p>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><span class="ti">💬</span>问助手</div>
+          <div class="tab"><span class="ti">📰</span>情报案例</div>
+          <div class="tab on"><span class="ti">👪</span>家庭</div>
+          <div class="tab"><span class="ti">👤</span>我的</div>
+        </div>
+        <span class="anno" style="left:24px; bottom:210px;">1</span>
+      </div>
+    </div>
+
+    <div class="frame-col">
+      <div class="frame-label"><b>S0-B</b> 已加入 · 家庭 Tab = 群聊（多家庭时左上角出现切换）</div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="side">⇄ 切换</span><span class="title">我们家（4）</span><span class="more">⋯</span></div>
+        <div class="chat">
+          <span class="time-pill">今天 18:00</span>
+          <div class="msg-row">
+            <div class="avatar sys">🛡</div>
+            <div class="msg-body card-msg">
+              <span class="sender">StarLens 官方</span>
+              <div class="syscard">
+                <div class="stripe info"></div>
+                <div class="inner">
+                  <span class="card-tag info">🗞 每日一骗 · 7月8日</span>
+                  <h4>"ETC 已失效"短信又开始群发了</h4>
+                  <p class="sum">① 官方从不发链接 ② 域名带 etc- 的都是假 ③ 收到直接删。</p>
+                  <div class="meta"><span>18:00</span><span class="readers">2 人已读</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="msg-row self">
+            <div class="avatar girl">女</div>
+            <div class="msg-body"><div class="bubble">妈，昨天那种电话再打来直接挂</div><span class="read-state read">妈妈已读</span></div>
+          </div>
+        </div>
+        <div class="inputbar"><button class="ib-icon">🎤</button><div class="ib-text">发消息…</div><button class="ib-icon">😊</button><button class="ib-icon">＋</button></div>
+        <div class="tabbar">
+          <div class="tab"><span class="ti">💬</span>问助手</div>
+          <div class="tab"><span class="ti">📰</span>情报案例</div>
+          <div class="tab on"><span class="ti dot-badge">👪</span>家庭</div>
+          <div class="tab"><span class="ti">👤</span>我的</div>
+        </div>
+        <span class="anno" style="left:14px; top:44px;">2</span>
+        <span class="anno" style="right:100px; bottom:22px;">3</span>
+      </div>
+    </div>
+
+    <div class="frame-col">
+      <div class="frame-label"><b>S0-C</b> 多家庭切换 sheet（点左上「⇄ 切换」）</div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="side">⇄ 切换</span><span class="title">我们家（4）</span><span class="more">⋯</span></div>
+        <div class="chat" style="filter: blur(1px); opacity:.6;">
+          <span class="time-pill">今天 18:00</span>
+          <div class="msg-row"><div class="avatar sys">🛡</div><div class="msg-body"><div class="bubble">…</div></div></div>
+        </div>
+        <div class="sheet-mask">
+          <div class="sheet">
+            <div class="grabber"></div>
+            <h5>切换家庭</h5>
+            <div class="fam-row cur">
+              <span class="fi">🏠</span>
+              <div class="grow">我们家<div class="sub">4 人 · 群主是你</div></div>
+              <span class="cur-tag">当前 ✓</span>
+            </div>
+            <div class="fam-row">
+              <span class="fi">🏡</span>
+              <div class="grow">老丈人家<div class="sub">3 人 · 群主：王建国</div></div>
+              <span class="unread">3</span>
+            </div>
+            <div class="fam-row" style="color: var(--primary);">
+              <span class="fi">＋</span>
+              <div class="grow">创建 / 加入另一个家庭</div>
+            </div>
+          </div>
+        </div>
+        <span class="anno" style="right:30px; bottom:196px;">4</span>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <p><span class="dot">1</span>空态复用线上 FamilyEmptyView 的位置与两按钮结构，文案升级为 IM 语境（"发到群里大家一起把关"）。底部注明<b>免费 5 人</b>上限（后端常量 FREE_MAX_FAMILY_MEMBERS 3→5 同步改）。</p>
+    <p><span class="dot">2</span>切换入口沿用线上：<b>左上角「⇄ 切换」仅当加入 ≥2 个家庭时显示</b>（FamilyGroupView 现有逻辑），点开 S0-C 底部 sheet；切换即整个家庭 Tab（群聊 + 群设置）切到目标家庭，无需其他操作。</p>
+    <p><span class="dot">3</span>家庭 Tab 图标带未读角标 = 所有家庭未读之和；sheet 内每个家庭显示各自未读数（红点数字），当前家庭标「当前 ✓」。</p>
+    <p><span class="dot">4</span>sheet 复用线上 FamilySwitchSheet，行内新增未读数与群主信息；末行"创建/加入另一个家庭"对应 ⋯ 菜单里既有的两个入口。</p>
+  </div>
+</section>
+
+<!-- ============================================================ S1 长辈模式群聊 ============================================================ -->
+<section>
+  <h2>S1 · 家庭群聊 — 长辈模式（老人视角）<span>chips 已删；老人已读由 IM 回执自动上报</span></h2>
+  <div class="frames">
+    <div class="frame-col">
+      <div class="frame-label"><b>S1-A</b> 长辈模式 · 语音输入主位（默认态）</div>
+      <div class="phone elder" id="p-s1">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="side"></span><span class="title">我们家（4）</span><span class="more">⋯</span></div>
+        <div class="chat" id="chat-s1">
+          <span class="time-pill">今天 09:32</span>
+          <div class="msg-row">
+            <div class="avatar sys">🛡</div>
+            <div class="msg-body card-msg">
+              <span class="sender">StarLens 官方</span>
+              <div class="syscard">
+                <div class="stripe high"></div>
+                <div class="inner">
+                  <span class="card-tag high">⚠️ 高风险提醒</span>
+                  <h4>您刚查询的链接，AI 判定 95% 是投资类诈骗</h4>
+                  <p class="sum">「稳赚不赔的理财群」是典型杀猪盘开场。请不要点击链接、不要转账。</p>
+                  <button class="card-btn danger" id="btn-tts" onclick="event.stopPropagation();toggleTTS()">🔊 听 AI 讲</button>
+                  <div class="meta"><span>09:32</span><span class="readers">女儿 已查看</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="msg-row">
+            <div class="avatar girl">女</div>
+            <div class="msg-body">
+              <span class="sender">女儿</span>
+              <div class="bubble voice-bubble" onclick="toast('p-s1','▶︎ 播放语音（本地 SFSpeechRecognizer 转文字见下）')"><span class="wave">))) </span><span class="sec">6″</span></div>
+              <div class="voice-trans">转文字：爸，那个链接千万别点，是骗子！</div>
+            </div>
+          </div>
+        </div>
+        <div class="inputbar">
+          <button class="ib-voice" id="voice-btn"
+            onmousedown="recStart()" onmouseup="recEnd()" onmouseleave="recCancel()"
+            ontouchstart="recStart()" ontouchend="recEnd()">🎤 按住说话</button>
+          <button class="ib-icon" onclick="toast('p-s1','切换为文字输入（见 S1-B）')">⌨️</button>
+          <button class="ib-icon" onclick="toast('p-s1','＋ 面板：相册 / 拍照 / 大表情')">＋</button>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><span class="ti">💬</span>问助手</div>
+          <div class="tab"><span class="ti">📰</span>情报案例</div>
+          <div class="tab on"><span class="ti">👪</span>家庭</div>
+          <div class="tab"><span class="ti">👤</span>我的</div>
+        </div>
+        <div class="rec-overlay" id="rec-ov"><div class="rec-blob">🎤</div><p>松开发送 · 上滑取消</p></div>
+        <div class="toast" id="toast-p-s1"></div>
+        <span class="anno" style="left:12px; bottom:100px;">1</span>
+        <span class="anno" style="right:60px; bottom:100px;">2</span>
+      </div>
+    </div>
+
+    <div class="frame-col">
+      <div class="frame-label"><b>S1-B</b> 长辈模式 · 点 ⌨️ 后的文字态（位置互换）</div>
+      <div class="phone elder">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="side"></span><span class="title">我们家（4）</span><span class="more">⋯</span></div>
+        <div class="chat">
+          <span class="time-pill">今天 09:35</span>
+          <div class="msg-row self">
+            <div class="avatar dad">父</div>
+            <div class="msg-body"><div class="bubble">知道了，我不点</div><span class="read-state read">女儿、儿子已读</span></div>
+          </div>
+          <div class="msg-row">
+            <div class="avatar girl">女</div>
+            <div class="msg-body"><span class="sender">女儿</span><div class="bubble">爸真棒👍 以后拿不准的都发到群里</div></div>
+          </div>
+        </div>
+        <div class="inputbar">
+          <div class="ib-text">说点什么…</div>
+          <button class="ib-icon">🎤</button>
+          <button class="ib-icon">＋</button>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><span class="ti">💬</span>问助手</div>
+          <div class="tab"><span class="ti">📰</span>情报案例</div>
+          <div class="tab on"><span class="ti">👪</span>家庭</div>
+          <div class="tab"><span class="ti">👤</span>我的</div>
+        </div>
+        <span class="anno" style="right:104px; bottom:100px;">3</span>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <p><span class="dot">1</span><b>「按住说话」是长辈模式输入区主位</b>（宽 ~80%、高 56pt），按住出全屏录音浮层，松开发送，语音自动附<b>本地转文字</b>（SFSpeechRecognizer，离线、免费、不出设备）。</p>
+    <p><span class="dot">2</span>⌨️ / ＋ 为 44×44 图标；点 ⌨️ → S1-B 文字态，🎤 退居图标位（互换）。群聊页保留底部 Tab 栏（家庭 Tab 高亮），老人随时可切走 —— 不做沉浸式全屏聊天。</p>
+    <p><span class="dot">3</span>老人端不再有 chips 待办条；他的"已读"由 IM 已读回执自动上报（女儿端卡片"爸爸已查看"），他想回应就直接说话 —— 交互只剩一种：像微信一样聊。</p>
+  </div>
+</section>
+
+<!-- ============================================================ S2 子女视角 ============================================================ -->
+<section>
+  <h2>S2 · 家庭群聊 — 普通模式（子女视角）<span>求助卡无默认按钮（整卡可点）；chips 保留</span></h2>
+  <div class="frames">
+    <div class="frame-col">
+      <div class="frame-label"><b>S2-A</b> 求助卡待处置（点 chips 试试）</div>
+      <div class="phone" id="p-s2">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="side">⇄ 切换</span><span class="title">我们家（4）</span><span class="more">⋯</span></div>
+        <div class="chat" id="chat-s2">
+          <span class="time-pill">今天 11:02</span>
+          <div class="msg-row">
+            <div class="avatar sys">🛡</div>
+            <div class="msg-body card-msg">
+              <span class="sender">StarLens 官方</span>
+              <div class="syscard" onclick="toast('p-s2','整卡可点 → 详情页：AI 完整分析 + 原文截图')">
+                <div class="stripe mid"></div>
+                <div class="inner">
+                  <span class="card-tag mid">🙋 爸爸想问问大家</span>
+                  <h4>"您的社保卡将于今日停用，请点击 gov-sb.cc 认证"</h4>
+                  <p class="sum">AI 初判：<b style="color:var(--risk-high)">高风险 · 仿冒公检法类</b>。域名注册于 3 天前，非官方渠道。</p>
+                  <div class="card-status danger" id="help-status">✓ 你已回复「别信」 · 已计入守护记录</div>
+                  <div class="card-status safe" id="help-status-safe">✓ 你已确认没事 · 已计入守护记录</div>
+                  <div class="card-hint">点卡片看 AI 完整分析</div>
+                  <div class="meta"><span>11:02</span><span class="readers">你已查看</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <span class="time-pill">昨天 18:21</span>
+          <div class="msg-row">
+            <div class="avatar sys">🛡</div>
+            <div class="msg-body card-msg">
+              <span class="sender">StarLens 官方</span>
+              <div class="syscard">
+                <div class="stripe info"></div>
+                <div class="inner">
+                  <span class="card-tag info">📋 你分享的案例</span>
+                  <h4>冒充孙子"出车祸要手术费"，武汉七旬老人被骗 8 万</h4>
+                  <p class="sum">骗子深夜来电哭喊"奶奶救我"，利用长辈紧张心理…</p>
+                  <button class="card-btn ghost" onclick="event.stopPropagation();toast('p-s2','已再次提醒爸爸查看（定向推送）')">提醒爸爸看</button>
+                  <div class="meta"><span>昨天 18:21</span><span class="readers">妈妈已查看 · 爸爸未读</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="chips-hint" id="hint-s2">快捷回复爸爸的求助（同时记录处置结果）</div>
+        <div class="chips-bar" id="chips-s2">
+          <button class="chip warn" onclick="guardianChip('别信❗','danger')">别信❗</button>
+          <button class="chip ok" onclick="guardianChip('没事✅','safe')">没事✅</button>
+          <button class="chip" onclick="guardianChip('我看看','none')">我看看</button>
+        </div>
+        <div class="inputbar"><button class="ib-icon">🎤</button><div class="ib-text">发消息…</div><button class="ib-icon">😊</button><button class="ib-icon">＋</button></div>
+        <div class="tabbar">
+          <div class="tab"><span class="ti">💬</span>问助手</div>
+          <div class="tab"><span class="ti">📰</span>情报案例</div>
+          <div class="tab on"><span class="ti">👪</span>家庭</div>
+          <div class="tab"><span class="ti">👤</span>我的</div>
+        </div>
+        <div class="toast" id="toast-p-s2"></div>
+        <span class="anno" style="left:12px; bottom:158px;">1</span>
+        <span class="anno" style="right:20px; top:250px;">2</span>
+      </div>
+    </div>
+
+    <div class="frame-col">
+      <div class="frame-label"><b>S2-B</b> 播报卡（子女端）· 唯一按钮 = 打电话</div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="side">⇄ 切换</span><span class="title">我们家（4）</span><span class="more">⋯</span></div>
+        <div class="chat">
+          <span class="time-pill">今天 09:32</span>
+          <div class="msg-row">
+            <div class="avatar sys">🛡</div>
+            <div class="msg-body card-msg">
+              <span class="sender">StarLens 官方</span>
+              <div class="syscard">
+                <div class="stripe high"></div>
+                <div class="inner">
+                  <span class="card-tag high">⚠️ 高风险提醒</span>
+                  <h4>爸爸 1 分钟前查询了一条链接，AI 判定 95% 是投资类诈骗</h4>
+                  <p class="sum">建议马上打个电话，亲口告诉他别信。老人对子女的话最听得进。</p>
+                  <button class="card-btn danger">📞 打电话给爸爸</button>
+                  <div class="meta"><span>09:32</span><span class="readers">爸爸已查看</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="msg-row self">
+            <div class="avatar girl">女</div>
+            <div class="msg-body"><div class="bubble">已经打过电话了，爸说没转钱👌</div></div>
+          </div>
+        </div>
+        <div class="inputbar"><button class="ib-icon">🎤</button><div class="ib-text">发消息…</div><button class="ib-icon">😊</button><button class="ib-icon">＋</button></div>
+        <div class="tabbar">
+          <div class="tab"><span class="ti">💬</span>问助手</div>
+          <div class="tab"><span class="ti">📰</span>情报案例</div>
+          <div class="tab on"><span class="ti">👪</span>家庭</div>
+          <div class="tab"><span class="ti">👤</span>我的</div>
+        </div>
+        <span class="anno" style="right:20px; top:262px;">3</span>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <p><span class="dot">1</span>子女端 chips 保留：「别信❗ / 没事✅ / 我看看」，点击 = 发群消息 + 写 family_event 处置状态，卡片同步出现处置横幅。这是"处置率"数据的唯一来源。</p>
+    <p><span class="dot">2</span>求助卡<b>不再有默认按钮</b>：整卡可点进详情（卡底 12px 灰字提示"点卡片看 AI 完整分析"），回应动作全部交给 chips 和正常聊天 —— 卡片更轻，动线更聊天化。</p>
+    <p><span class="dot">3</span>播报卡、案例卡保留各自唯一按钮（打电话 / 提醒 TA 看）——这两个是"点了就发生真实动作"的按钮，与求助卡的"查看类"按钮性质不同，后者才被砍。「打电话给爸爸」的称呼取自<b>群主设置的群昵称</b>。</p>
+  </div>
+</section>
+
+<!-- ============================================================ S3 求助闭环（重做） ============================================================ -->
+<section>
+  <h2>S3 · 求助确认闭环 v2 — 长在既有对话里<span>不再单独造流程页；底部 Tab 栏保留；持续语音/文字输入</span></h2>
+  <p class="sec-note">老人动线（全部发生在线上已有的长辈首页对话里）：底部输入框问 AI（语音或文字，可连续追问）→ <b>每条 AI 分析旁自带「发到家庭群」</b> → 点一下发出求助卡 → 女儿在家庭群 chips 拍板 → 老人在家庭群看到结论。<b>点「发到家庭群」试试。</b></p>
+  <div class="frames">
+    <div class="frame-col">
+      <div class="frame-label"><b>S3-A</b> 长辈首页（线上 ElderHomeView 结构）· AI 分析旁的入口</div>
+      <div class="phone elder" id="p-s3">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="elder-home" id="chat-s3" style="gap:14px; overflow-y:auto;">
+          <p class="greet">您好，王大伯</p>
+          <div class="quick2">
+            <button class="qbtn q1"><span class="qi">🕵️</span><span class="qt">这是不是骗子</span></button>
+            <button class="qbtn q2"><span class="qi">📞</span><span class="qt">给孩子打电话</span></button>
+          </div>
+          <div class="msg-row self">
+            <div class="avatar dad">父</div>
+            <div class="msg-body">
+              <div class="bubble voice-bubble"><span class="wave">))) </span><span class="sec">8″</span></div>
+              <div class="voice-trans">转文字：收到短信说我社保卡今天停用，让我点链接认证，是真的吗</div>
+            </div>
+          </div>
+          <div class="msg-row">
+            <div class="avatar ai">AI</div>
+            <div class="msg-body" style="max-width:82%">
+              <div class="syscard" style="cursor:default">
+                <div class="stripe high"></div>
+                <div class="inner">
+                  <span class="card-tag high">⚠️ 高风险</span>
+                  <h4>这是仿冒社保的诈骗短信</h4>
+                  <p class="sum">社保不会用短信链接办认证。别点链接，社保的事去社区或 12333 问。</p>
+                </div>
+              </div>
+              <button class="msg-action" id="send-fam-1" onclick="sendToFamily(this)">👨‍👩‍👧 发到家庭群，让孩子们看看</button>
+            </div>
+          </div>
+          <div class="msg-row self">
+            <div class="avatar dad">父</div>
+            <div class="msg-body"><div class="bubble">那我不用管它了？</div></div>
+          </div>
+          <div class="msg-row">
+            <div class="avatar ai">AI</div>
+            <div class="msg-body" style="max-width:82%">
+              <div class="bubble">对，直接删掉就行。要不要我把刚才的分析发给您的家人，让他们也放心？</div>
+              <button class="msg-action" onclick="sendToFamily(this)">👨‍👩‍👧 发到家庭群</button>
+            </div>
+          </div>
+        </div>
+        <div class="inputbar">
+          <button class="ib-icon">📷</button>
+          <button class="ib-voice" onmousedown="recStart2()" onmouseup="recEnd2()" onmouseleave="recCancel2()" ontouchstart="recStart2()" ontouchend="recEnd2()">🎤 按住说话</button>
+          <button class="ib-icon">⌨️</button>
+        </div>
+        <div class="tabbar">
+          <div class="tab on"><span class="ti">💬</span>问助手</div>
+          <div class="tab"><span class="ti">📰</span>情报案例</div>
+          <div class="tab"><span class="ti">👪</span>家庭</div>
+          <div class="tab"><span class="ti">👤</span>我的</div>
+        </div>
+        <div class="rec-overlay" id="rec-ov2"><div class="rec-blob">🎤</div><p>松开发送 · 上滑取消</p></div>
+        <div class="toast" id="toast-p-s3"></div>
+        <span class="anno" style="left:60px; top:398px;">1</span>
+        <span class="anno" style="left:12px; bottom:100px;">2</span>
+      </div>
+    </div>
+
+    <div class="frame-col">
+      <div class="frame-label"><b>S3-B</b> 家庭群（老人视角）· 闭环终点</div>
+      <div class="phone elder">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="side"></span><span class="title">我们家（4）</span><span class="more">⋯</span></div>
+        <div class="chat">
+          <span class="time-pill">今天 11:02</span>
+          <div class="msg-row self">
+            <div class="avatar dad">父</div>
+            <div class="msg-body card-msg" style="align-items: stretch;">
+              <div class="syscard">
+                <div class="stripe mid"></div>
+                <div class="inner">
+                  <span class="card-tag mid">🙋 我的求助</span>
+                  <h4>"社保卡今日停用"的短信</h4>
+                  <p class="sum">AI 初判：高风险 · 仿冒公检法类</p>
+                  <div class="card-status danger always">✓ 已确认：危险，别信 —— 女儿</div>
+                  <div class="meta"><span>11:02</span><span class="readers">女儿、儿子已查看</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="msg-row">
+            <div class="avatar girl">女</div>
+            <div class="msg-body"><span class="sender">女儿</span><div class="bubble">别信❗</div></div>
+          </div>
+          <div class="msg-row">
+            <div class="avatar girl">女</div>
+            <div class="msg-body"><span class="sender">女儿</span><div class="bubble">爸，社保的事直接去社区问，短信都别理</div></div>
+          </div>
+        </div>
+        <div class="inputbar">
+          <button class="ib-voice">🎤 按住说话</button>
+          <button class="ib-icon">⌨️</button>
+          <button class="ib-icon">＋</button>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><span class="ti">💬</span>问助手</div>
+          <div class="tab"><span class="ti">📰</span>情报案例</div>
+          <div class="tab on"><span class="ti">👪</span>家庭</div>
+          <div class="tab"><span class="ti">👤</span>我的</div>
+        </div>
+        <span class="anno" style="right:24px; top:296px;">3</span>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <p><span class="dot">1</span><b>求助入口 = 每条 AI 分析下方的「发到家庭群」按钮</b>（长辈模式带完整文案"让孩子们看看"，普通模式短文案"发到家庭群"）。点击后按钮变绿色"✓ 已发给家人"，求助卡（带 AI 结论快照）落进家庭群。老人首页结构（双大按钮 + 底部输入框 + Tab 栏）与线上 ElderHomeView 完全一致，<b>零新增页面</b>。普通模式：HomeContainerView 每条分析结果的操作区加同款按钮（复用现有 ShareToFamilySheet 的发送链路，语义从"手动分享"升级为"求助卡"）。</p>
+    <p><span class="dot">2</span>持续输入天然支持：这就是线上已有的对话流（语音/拍照/文字都在），AI 可继续追问，每一轮结论旁都可再发家庭群 —— 同一 conversationId 的重复发送会更新原求助卡而不是刷屏（去重规则）。</p>
+    <p><span class="dot">3</span>闭环终点在家庭群：老人卡片上看到「已确认：危险，别信 —— 女儿」（称呼 = 群主设置的群昵称）。AI 判断 + 女儿名字同框，双重确认。</p>
+  </div>
+</section>
+
+<!-- ============================================================ S4 卡片全集 ============================================================ -->
+<section>
+  <h2>S4 · 系统卡片全集<span>周报卡已暂缓；老人端内容卡统一「听 AI 讲」</span></h2>
+  <div class="frames">
+    <div class="frame-col">
+      <div class="frame-label"><b>S4-A</b> 每日一骗 + 里程碑（子女端）</div>
+      <div class="phone" id="p-s4a">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="side">⇄ 切换</span><span class="title">我们家（4）</span><span class="more">⋯</span></div>
+        <div class="chat">
+          <span class="time-pill">今天 18:00</span>
+          <div class="msg-row">
+            <div class="avatar sys">🛡</div>
+            <div class="msg-body card-msg">
+              <span class="sender">StarLens 官方</span>
+              <div class="syscard">
+                <div class="stripe info"></div>
+                <div class="inner">
+                  <span class="card-tag info">🗞 每日一骗 · 7月8日</span>
+                  <h4>"ETC 已失效"短信又开始群发了</h4>
+                  <p class="sum">3 句话看懂：① 官方从不发链接 ② 域名带 etc- 的都是假 ③ 收到直接删。</p>
+                  <button class="card-btn ghost">转发给朋友</button>
+                  <div class="meta"><span>18:00</span><span class="readers">2 人已读</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="msg-row">
+            <div class="avatar sys">🛡</div>
+            <div class="msg-body card-msg">
+              <span class="sender">StarLens 官方</span>
+              <div class="syscard">
+                <div class="stripe low"></div>
+                <div class="inner">
+                  <span class="card-tag low">🏅 守护里程碑</span>
+                  <h4>StarLens 守护咱家满 100 天</h4>
+                  <p class="sum">累计提醒风险 12 次、家人处置 9 次。把这份安心分享给朋友吧。</p>
+                  <button class="card-btn ghost">生成分享海报</button>
+                  <div class="meta"><span>10:00</span><span></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="inputbar"><button class="ib-icon">🎤</button><div class="ib-text">发消息…</div><button class="ib-icon">😊</button><button class="ib-icon">＋</button></div>
+        <div class="tabbar">
+          <div class="tab"><span class="ti">💬</span>问助手</div>
+          <div class="tab"><span class="ti">📰</span>情报案例</div>
+          <div class="tab on"><span class="ti">👪</span>家庭</div>
+          <div class="tab"><span class="ti">👤</span>我的</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="frame-col">
+      <div class="frame-label"><b>S4-B</b> 每日一骗 + 案例卡（老人端）</div>
+      <div class="phone elder">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="side"></span><span class="title">我们家（4）</span><span class="more">⋯</span></div>
+        <div class="chat">
+          <span class="time-pill">今天 18:00</span>
+          <div class="msg-row">
+            <div class="avatar sys">🛡</div>
+            <div class="msg-body card-msg">
+              <span class="sender">StarLens 官方</span>
+              <div class="syscard">
+                <div class="stripe info"></div>
+                <div class="inner">
+                  <span class="card-tag info">🗞 每日一骗</span>
+                  <h4>"ETC 已失效"短信又开始群发了</h4>
+                  <p class="sum">收到这种短信直接删掉。银行和 ETC 从来不发链接让您认证。</p>
+                  <button class="card-btn" style="background:var(--primary)">🔊 听 AI 讲</button>
+                  <div class="meta"><span>18:00</span><span></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="msg-row">
+            <div class="avatar sys">🛡</div>
+            <div class="msg-body card-msg">
+              <span class="sender">StarLens 官方</span>
+              <div class="syscard">
+                <div class="stripe info"></div>
+                <div class="inner">
+                  <span class="card-tag info">📋 女儿提醒您看</span>
+                  <h4>冒充孙子"出车祸要手术费"，七旬老人被骗 8 万</h4>
+                  <p class="sum">接到这种电话，先挂断，打孩子本人电话核实。</p>
+                  <button class="card-btn" style="background:var(--primary)">🔊 听 AI 讲</button>
+                  <div class="meta"><span>18:21</span><span></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="inputbar">
+          <button class="ib-voice">🎤 按住说话</button>
+          <button class="ib-icon">⌨️</button>
+          <button class="ib-icon">＋</button>
+        </div>
+        <div class="tabbar">
+          <div class="tab"><span class="ti">💬</span>问助手</div>
+          <div class="tab"><span class="ti">📰</span>情报案例</div>
+          <div class="tab on"><span class="ti">👪</span>家庭</div>
+          <div class="tab"><span class="ti">👤</span>我的</div>
+        </div>
+        <span class="anno" style="right:24px; top:330px;">1</span>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <p><span class="dot">1</span>老人端所有内容卡的唯一按钮统一为<b>「🔊 听 AI 讲」</b>；老人的已读由 IM 回执自动上报（无需任何点击），女儿端"爸爸未读 → 已查看"随之变化。</p>
+    <p>角色按钮速查（v2）：求助卡（老人无 / 子女无，整卡可点 + chips）· 播报卡（老人「听 AI 讲」/ 子女「打电话」）· 案例卡（老人「听 AI 讲」/ 子女「提醒 TA 看」）· 每日一骗（老人「听 AI 讲」/ 子女「转发给朋友」）· 里程碑卡（子女「生成分享海报」）。<b>周报卡：暂缓</b>（发给谁未定，等灰度数据再定）。</p>
+  </div>
+</section>
+
+<!-- ============================================================ S5 群设置（综合线上能力） ============================================================ -->
+<section>
+  <h2>S5 · 群设置 & 合规<span>综合线上 ⋯ 菜单全部能力 + IM 新增项</span></h2>
+  <div class="frames">
+    <div class="frame-col">
+      <div class="frame-label"><b>S5-A</b> 群设置页（群主视角）· 线上能力 + IM 新增</div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="back">‹</span><span class="title">群设置</span><span class="more"></span></div>
+        <div class="list-page">
+          <p class="sec-title">成员（4/5 · 免费版最多 5 人）</p>
+          <div class="group-card">
+            <div class="row"><div class="avatar girl">女</div><div class="grow">李婷 <span class="badge owner">群主</span><div class="sub">群昵称：女儿</div></div></div>
+            <div class="row"><div class="avatar dad">父</div><div class="grow">王建国 <span class="badge elder-b">长辈模式</span><div class="sub">群昵称：爸爸 · 本周 5 次风险提醒</div></div><span class="chev">›</span></div>
+            <div class="row"><div class="avatar" style="background:#B8A2E8">母</div><div class="grow">刘玉兰<div class="sub">群昵称：妈妈</div></div><span class="chev">›</span></div>
+            <div class="row"><div class="avatar" style="background:#7FBF9E">弟</div><div class="grow">李强<div class="sub">群昵称：未设置 · 点击设置</div></div><span class="chev">›</span></div>
+            <div class="row" style="color:var(--primary)"><div class="avatar" style="background:#EAF0FF; color:var(--primary)">＋</div><div class="grow">邀请家人加入</div><span class="chev">›</span></div>
+          </div>
+          <div class="group-card">
+            <div class="row upgrade-row"><div class="grow" style="font-size:14px;">还差 1 人满员，升级家庭包最多 10 人<div class="sub">家庭包同时解锁全家会员权益</div></div><button class="up-btn">升级</button></div>
+          </div>
+          <div class="group-card">
+            <div class="row"><div class="grow">群聊名称</div><span class="val">我们家</span><span class="chev">›</span></div>
+            <div class="row"><div class="grow">消息免打扰<div class="sub">高风险提醒不受此限制</div></div><span class="toggle"></span></div>
+            <div class="row"><div class="grow">分享我的查询结果<div class="sub">开启后，高风险查询会自动播报到群里</div></div><span class="toggle"></span></div>
+            <div class="row"><div class="grow">通知偏好设置<div class="sub">关怀提醒 / 风险提醒 / 每日一骗</div></div><span class="chev">›</span></div>
+          </div>
+          <div class="group-card">
+            <div class="row"><div class="grow">切换家庭</div><span class="chev">›</span></div>
+            <div class="row"><div class="grow">用邀请码加入其他家庭</div><span class="chev">›</span></div>
+          </div>
+          <div class="group-card">
+            <div class="row" style="color:var(--risk-high)"><div class="grow">解散家庭</div><span class="chev">›</span></div>
+          </div>
+        </div>
+        <span class="anno" style="right:56px; top:190px;">1</span>
+        <span class="anno" style="right:20px; top:404px;">2</span>
+        <span class="anno" style="right:56px; top:520px;">3</span>
+      </div>
+    </div>
+
+    <div class="frame-col">
+      <div class="frame-label"><b>S5-B</b> 成员详情（群主点成员行进入）· 设置群昵称</div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="back">‹</span><span class="title">王建国</span><span class="more"></span></div>
+        <div class="list-page">
+          <div class="group-card">
+            <div class="row"><div class="avatar dad" style="width:52px;height:52px;font-size:22px;">父</div><div class="grow" style="font-size:18px;font-weight:700;">王建国 <span class="badge elder-b">长辈模式</span><div class="sub">本周 5 次风险提醒 · 昨日活跃</div></div></div>
+          </div>
+          <div class="group-card">
+            <div class="row"><div class="grow">群昵称<div class="sub">仅群主可改，改后全家可见，卡片称呼同步使用</div></div><span class="val" style="color:var(--primary);font-weight:700;">爸爸</span><span class="chev">›</span></div>
+            <div class="row"><div class="grow">TA 的风险记录</div><span class="chev">›</span></div>
+            <div class="row"><div class="grow">屏蔽此人消息<div class="sub">仅对你生效（合规必备）</div></div><span class="toggle off"></span></div>
+          </div>
+          <div class="group-card">
+            <div class="row" style="color:var(--risk-high)"><div class="grow">移出家庭</div><span class="chev">›</span></div>
+          </div>
+        </div>
+        <span class="anno" style="right:80px; top:250px;">4</span>
+      </div>
+    </div>
+
+    <div class="frame-col">
+      <div class="frame-label"><b>S5-C</b> 消息长按菜单（合规最小集）</div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="side">⇄ 切换</span><span class="title">我们家（4）</span><span class="more">⋯</span></div>
+        <div class="chat">
+          <span class="time-pill">今天 14:20</span>
+          <div class="msg-row">
+            <div class="avatar" style="background:#7FBF9E">弟</div>
+            <div class="msg-body"><span class="sender">李强</span><div class="bubble" style="outline: 2px solid var(--primary);">这个理财群大家进一下，稳赚的</div></div>
+          </div>
+        </div>
+        <div class="ctx-menu">
+          <button>复制</button>
+          <button>查一查是不是骗局</button>
+          <button>撤回<span style="color:#9AA1AD; font-size:12px">（2 分钟内）</span></button>
+          <button class="danger">举报</button>
+        </div>
+        <div class="inputbar"><button class="ib-icon">🎤</button><div class="ib-text">发消息…</div><button class="ib-icon">😊</button><button class="ib-icon">＋</button></div>
+        <div class="tabbar">
+          <div class="tab"><span class="ti">💬</span>问助手</div>
+          <div class="tab"><span class="ti">📰</span>情报案例</div>
+          <div class="tab on"><span class="ti">👪</span>家庭</div>
+          <div class="tab"><span class="ti">👤</span>我的</div>
+        </div>
+        <span class="anno" style="left:66px; top:404px;">5</span>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <p><span class="dot">1</span>成员上限按新决策：<b>免费 5 人</b>（4/5 显示于标题），差 1 人满员时出现升级横幅（家庭包最多 10 人）—— 群设置页成为家庭包转化的自然入口。后端 FREE_MAX_FAMILY_MEMBERS 3→5。</p>
+    <p><span class="dot">2</span>设置项完整合并线上 ⋯ 菜单：<b>分享我的查询结果</b>（线上已有的 shareQueryResults，即自动播报开关）、<b>通知偏好设置</b>（线上已有页面直接链接）、切换家庭、用邀请码加入、解散/退出。原 ⋯ 菜单保留最常用两项（群设置、邀请家人），其余收进本页 —— 菜单减负。</p>
+    <p><span class="dot">3</span>免打扰例外明示："高风险提醒不受此限制"（自有 APNs 强提醒通道）。</p>
+    <p><span class="dot">4</span><b>群昵称仅群主可改</b>（"设置后所有人可见"）：卡片称呼（"打电话给爸爸"、"—— 女儿"）、@ 显示全部取自它；未设置时回退为用户昵称，并在群主视角提示"点击设置"。长辈是否属于"被守护者"也以长辈模式 + 群昵称（爸爸/妈妈类）综合判断。</p>
+    <p><span class="dot">5</span>长按菜单在合规三件套（举报 / 屏蔽[在成员页] / 撤回）之外加了一个私货：<b>「查一查是不是骗局」</b>—— 群里任何一条消息可以直接转入 AI 分析（比如弟弟发的"稳赚理财群"）。这是把主产品能力埋进聊天的最短路径。</p>
+  </div>
+</section>
+
+<!-- ============================================================ S6 防护清单 ============================================================ -->
+<section>
+  <h2>S6 · 家庭防护清单<span>周报暂缓后，"守护可见"由防护清单 + 卡片已读/处置承担</span></h2>
+  <div class="frames">
+    <div class="frame-col">
+      <div class="frame-label"><b>S6-A</b> 家庭防护清单（子女端，群设置页入口）</div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span>🔋</span></div>
+        <div class="navbar"><span class="back">‹</span><span class="title">家庭防护清单</span><span class="more"></span></div>
+        <div class="list-page">
+          <p class="sec-title">完成 3/6 · 每完成一项，家里更安全一分</p>
+          <div class="group-card">
+            <div class="todo"><span class="st done">✓</span><div class="grow"><p class="t">全家都已加入家庭群</p><p class="d">4 位成员</p></div></div>
+            <div class="todo"><span class="st done">✓</span><div class="grow"><p class="t">爸妈开启了长辈模式</p><p class="d">大字 + 语音优先</p></div></div>
+            <div class="todo"><span class="st done">✓</span><div class="grow"><p class="t">你开启了高风险强提醒</p><p class="d">爸妈遇险第一时间通知你</p></div></div>
+            <div class="todo"><span class="st open">!</span><div class="grow"><p class="t">妈妈还没开启推送提醒</p><p class="d">她收不到风险提醒</p></div><button class="go">提醒她</button></div>
+            <div class="todo"><span class="st open">!</span><div class="grow"><p class="t">给成员设置群昵称</p><p class="d">李强还没有称呼</p></div><button class="go">去设置</button></div>
+            <div class="todo"><span class="st open">!</span><div class="grow"><p class="t">教爸爸用一次「发到家庭群」</p><p class="d">AI 分析旁的蓝色按钮</p></div><button class="go">看教程</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <p>周报暂缓后，付费方的"守护可见"由三处承担：卡片已读名单（实时）、chips 处置横幅（事件级）、防护清单（家庭健康度）。family_event 表照常落数据 —— 等周报"发给谁"想清楚，数据已经攒好了。</p>
+  </div>
+</section>
+
+<script>
+  function toast(phoneId, text) {
+    var el = document.getElementById('toast-' + phoneId);
+    if (!el) return;
+    el.textContent = text;
+    el.classList.add('show');
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.classList.remove('show'); }, 2000);
+  }
+
+  // S2 子女 chips
+  function guardianChip(text, verdict) {
+    appendMsg('chat-s2', text, 'girl', '女', true);
+    document.getElementById('chips-s2').classList.add('hidden');
+    document.getElementById('hint-s2').style.display = 'none';
+    if (verdict === 'danger') document.getElementById('help-status').style.display = 'flex';
+    if (verdict === 'safe') document.getElementById('help-status-safe').style.display = 'flex';
+    toast('p-s2', verdict === 'none' ? '已回复爸爸，事件标记为「处理中」' : '已回复 + 处置已记录');
+  }
+
+  function appendMsg(chatId, text, avatarCls, avatarTxt, self) {
+    var chat = document.getElementById(chatId);
+    var row = document.createElement('div');
+    row.className = 'msg-row' + (self ? ' self' : '');
+    row.innerHTML = '<div class="avatar ' + avatarCls + '">' + avatarTxt + '</div>' +
+      '<div class="msg-body"><div class="bubble">' + text + '</div></div>';
+    chat.appendChild(row);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  // S3 发到家庭群
+  function sendToFamily(btn) {
+    if (btn.classList.contains('sent')) return;
+    btn.classList.add('sent');
+    btn.textContent = '✓ 已发给家人，他们会收到提醒';
+    toast('p-s3', '求助卡已发到「我们家」· 同一次分析重复点不会刷屏');
+  }
+
+  // 听 AI 讲
+  var playing = false;
+  function toggleTTS() {
+    playing = !playing;
+    var b = document.getElementById('btn-tts');
+    b.textContent = playing ? '⏹ 停止（朗读中…）' : '🔊 听 AI 讲';
+    if (playing) toast('p-s1', 'AVSpeechSynthesizer 朗读标题 + 摘要 + 建议');
+  }
+
+  // 按住说话（S1）
+  function mkRec(voiceSel, ovId, chatId, transText) {
+    var active = false;
+    return {
+      start: function () { active = true; var v = document.querySelector(voiceSel); v.classList.add('pressing'); v.textContent = '松开 发送'; document.getElementById(ovId).classList.add('show'); },
+      end: function () {
+        if (!active) return; active = false;
+        var v = document.querySelector(voiceSel); v.classList.remove('pressing'); v.textContent = '🎤 按住说话';
+        document.getElementById(ovId).classList.remove('show');
+        var chat = document.getElementById(chatId);
+        var row = document.createElement('div');
+        row.className = 'msg-row self';
+        row.innerHTML = '<div class="avatar dad">父</div><div class="msg-body"><div class="bubble voice-bubble"><span class="wave">))) </span><span class="sec">3″</span></div><div class="voice-trans">转文字：' + transText + '</div></div>';
+        chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
+      },
+      cancel: function () { if (!active) return; active = false; var v = document.querySelector(voiceSel); v.classList.remove('pressing'); v.textContent = '🎤 按住说话'; document.getElementById(ovId).classList.remove('show'); }
+    };
+  }
+  var rec1 = mkRec('#voice-btn', 'rec-ov', 'chat-s1', '知道了，我不点。');
+  function recStart() { rec1.start(); }
+  function recEnd() { rec1.end(); }
+  function recCancel() { rec1.cancel(); }
+  var rec2 = mkRec('#p-s3 .ib-voice', 'rec-ov2', 'chat-s3', '那个电话又打来了，怎么办');
+  function recStart2() { rec2.start(); }
+  function recEnd2() { rec2.end(); }
+  function recCancel2() { rec2.cancel(); }
+</script>
+</body>
+</html>
