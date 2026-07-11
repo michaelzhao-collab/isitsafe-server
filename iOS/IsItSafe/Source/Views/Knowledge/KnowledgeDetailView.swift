@@ -155,7 +155,10 @@ public struct KnowledgeDetailView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "doc.text")
                         .font(.caption2)
-                    Text(source).font(.caption)
+                    Text(SourceHostFormatter.host(from: source))
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
                 .foregroundColor(AppTheme.textSecondary)
             }

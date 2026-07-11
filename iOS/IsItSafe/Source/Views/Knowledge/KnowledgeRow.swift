@@ -47,14 +47,17 @@ public struct KnowledgeRow: View {
                         .frame(width: 44, height: 44)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                Spacer()
+                Spacer(minLength: 8)
                 HStack(spacing: 4) {
                     Image(systemName: "book.fill")
                         .font(.caption2)
-                    Text(item.source ?? "案例")
+                    Text(item.source.map { SourceHostFormatter.host(from: $0) } ?? "案例")
                         .font(.caption2)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
                 .foregroundColor(AppTheme.textSecondary)
+                .layoutPriority(0)   // 让来源被压缩/截断，不挤占标题与内容
             }
         }
         .padding(14)
