@@ -7,7 +7,7 @@ window.APP_CONFIG = {
   /** 副标题 / Slogan */
   appSubtitle: 'Official AI Risk Detection, Protecting Your Safety',
   /** App Store 下载地址，留空则点击提示「市场正在审核中」 */
-  appStoreUrl: '',
+  appStoreUrl: 'https://apps.apple.com/app/id6760689855',
   /** Google Play 下载地址，留空则点击提示「市场正在审核中」 */
   googlePlayUrl: '',
   /** 联系邮箱（显示在页脚） */

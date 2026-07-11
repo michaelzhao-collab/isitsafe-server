@@ -1,0 +1,4 @@
+# Apple Universal Link 校验文件：必须以 application/json 返回，且不带缓存过久
+/.well-known/apple-app-site-association
+  Content-Type: application/json
+  Cache-Control: max-age=3600

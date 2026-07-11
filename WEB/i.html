@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>家人邀请你加入家庭守护 - 星识AI</title>
+  <meta name="description" content="你的家人邀请你加入星识AI家庭守护：遇到可疑链接、陌生来电、转账风险时，家人第一时间收到提醒。" />
+  <meta property="og:title" content="家人邀请你加入「家庭守护」" />
+  <meta property="og:description" content="下载星识AI，输入邀请码，和家人互相守护。" />
+  <meta property="og:image" content="https://www.starlensai.com/assets/logo.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+  <meta name="theme-color" content="#0C1222" />
+  <script>
+    // Smart App Banner：已装 App 的 Safari 用户顶部出现「打开」，并把当前邀请链接透传给 App
+    (function () {
+      var m = document.createElement('meta');
+      m.name = 'apple-itunes-app';
+      m.content = 'app-id=6760689855, app-argument=' + location.href;
+      document.head.appendChild(m);
+    })();
+  </script>
+  <style>
+    :root {
+      --brand: #2F6BFF;
+      --brand-dark: #1d5ae8;
+      --brand-bright: #6FA0FF;
+      --warm: #FFC24B;
+      --paper: #F6F8FC;
+      --ink: #1F2D3D;
+      --ink-soft: #5F6B7A;
+      --page-text: #E4E8F0;
+      --page-text-dim: #9AA7BD;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      color: var(--page-text);
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+      overflow-x: hidden;
+      background: #0C1222;
+    }
+    /* 背景：与官网同款深色渐变 + 网格 + 光晕 */
+    .bg { position: fixed; inset: 0; z-index: -1;
+      background: linear-gradient(165deg, #0c1222 0%, #1a1f3a 30%, #16213e 60%, #0f3460 100%); }
+    .bg::before { content: ''; position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(47,107,255,.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(47,107,255,.07) 1px, transparent 1px);
+      background-size: 48px 48px; }
+    .bg::after { content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 120% 70% at 50% -10%, rgba(47,107,255,.28) 0%, transparent 55%),
+        radial-gradient(ellipse 80% 50% at 80% 110%, rgba(99,102,241,.18) 0%, transparent 55%); }
+
+    .page {
+      width: 100%;
+      max-width: 440px;
+      padding: 28px 22px 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 34px;
+      animation: rise .5s ease both; }
+    .brand img { width: 34px; height: 34px; border-radius: 8px; }
+    .brand span { font-size: 17px; font-weight: 700; letter-spacing: .04em; }
+
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: 14px; font-weight: 600; letter-spacing: .12em;
+      color: var(--warm);
+      background: rgba(255,194,75,.12);
+      border: 1px solid rgba(255,194,75,.35);
+      border-radius: 999px;
+      padding: 6px 16px;
+      margin-bottom: 18px;
+      animation: rise .5s .08s ease both;
+    }
+    .eyebrow svg { flex: none; }
+
+    h1 { font-size: 30px; line-height: 1.32; font-weight: 800; letter-spacing: .01em;
+      margin-bottom: 14px; animation: rise .5s .14s ease both; }
+    .lead { font-size: 16px; line-height: 1.7; color: var(--page-text-dim);
+      margin-bottom: 34px; max-width: 34em; animation: rise .5s .2s ease both; }
+
+    /* 守护雷达：卡片背后的同心圆呼吸光环 */
+    .card-wrap { position: relative; width: 100%; margin-bottom: 34px;
+      animation: rise .55s .26s ease both; }
+    .halo { position: absolute; left: 50%; top: 50%; width: 0; height: 0; z-index: 0; }
+    .halo i { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      border: 1px solid rgba(111,160,255,.35); border-radius: 50%;
+      animation: pulse 3.6s ease-out infinite; }
+    .halo i:nth-child(1) { width: 340px; height: 340px; }
+    .halo i:nth-child(2) { width: 460px; height: 460px; animation-delay: 1.2s; }
+    .halo i:nth-child(3) { width: 580px; height: 580px; animation-delay: 2.4s; }
+
+    /* 邀请卡：整页唯一的浅色面，邀请码是绝对主角 */
+    .card {
+      position: relative; z-index: 1;
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 20px;
+      padding: 24px 22px 22px;
+      box-shadow: 0 24px 60px -18px rgba(4, 12, 38, .75), 0 0 0 1px rgba(255,255,255,.06);
+    }
+    .card-label { font-size: 13px; font-weight: 600; letter-spacing: .22em;
+      color: var(--ink-soft); margin-bottom: 14px; }
+    .code { display: flex; justify-content: center; gap: 8px; }
+    .code b {
+      flex: 1; max-width: 52px; height: 62px;
+      display: flex; align-items: center; justify-content: center;
+      background: #fff;
+      border: 1.5px solid #D8E0EE;
+      border-radius: 12px;
+      font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 30px; font-weight: 700; color: var(--ink);
+    }
+    .code.empty b { color: #B9C3D6; }
+    /* 票根打孔分隔线 */
+    .perforation { position: relative; margin: 20px -22px 18px;
+      border-top: 2px dashed #D8E0EE; }
+    .perforation::before, .perforation::after { content: ''; position: absolute; top: -11px;
+      width: 20px; height: 20px; border-radius: 50%; background: #101A33; }
+    .perforation::before { left: -10px; }
+    .perforation::after { right: -10px; }
+    .copy-btn {
+      width: 100%; height: 52px;
+      font-size: 17px; font-weight: 700; font-family: inherit;
+      color: var(--brand); background: rgba(47,107,255,.09);
+      border: 1.5px solid rgba(47,107,255,.45); border-radius: 14px;
+      cursor: pointer; transition: background .15s ease, transform .1s ease;
+    }
+    .copy-btn:active { transform: scale(.98); }
+    .copy-btn.done { color: #1D9E55; background: rgba(29,158,85,.08); border-color: rgba(29,158,85,.4); }
+    .copy-btn[disabled] { color: var(--ink-soft); border-color: #D8E0EE; background: #fff; cursor: default; }
+    .no-code-hint { font-size: 14px; color: var(--ink-soft); margin-top: 10px; display: none; }
+
+    /* 三步指引：真实顺序，数字承载信息 */
+    .steps { list-style: none; width: 100%; text-align: left; margin-bottom: 30px;
+      animation: rise .55s .32s ease both; }
+    .steps li { display: flex; align-items: flex-start; gap: 12px;
+      padding: 9px 4px; font-size: 16px; line-height: 1.55; color: var(--page-text); }
+    .steps li i { flex: none; width: 26px; height: 26px; margin-top: 1px;
+      display: flex; align-items: center; justify-content: center;
+      font-style: normal; font-size: 14px; font-weight: 700;
+      color: #fff; background: var(--brand); border-radius: 50%; }
+    .steps li b { font-weight: 700; }
+
+    .cta {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; height: 58px;
+      font-size: 18px; font-weight: 700; text-decoration: none; color: #fff;
+      background: linear-gradient(180deg, var(--brand) 0%, var(--brand-dark) 100%);
+      border-radius: 16px;
+      box-shadow: 0 14px 34px -10px rgba(47,107,255,.65);
+      margin-bottom: 16px;
+      transition: transform .12s ease;
+      animation: rise .55s .38s ease both;
+    }
+    .cta:active { transform: scale(.98); }
+    .installed-note { font-size: 14px; line-height: 1.6; color: var(--page-text-dim);
+      margin-bottom: 44px; animation: rise .55s .42s ease both; }
+
+    footer { font-size: 13px; color: rgba(154,167,189,.75); display: flex; gap: 14px; }
+    footer a { color: inherit; text-decoration: none; }
+    footer a:hover, footer a:focus-visible { color: var(--brand-bright); }
+
+    a:focus-visible, button:focus-visible { outline: 2px solid var(--brand-bright); outline-offset: 2px; }
+
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @keyframes pulse {
+      0% { opacity: 0; transform: translate(-50%,-50%) scale(.82); }
+      35% { opacity: .8; }
+      100% { opacity: 0; transform: translate(-50%,-50%) scale(1.08); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+      .halo { display: none; }
+    }
+    @media (max-width: 360px) {
+      h1 { font-size: 26px; }
+      .code b { font-size: 25px; height: 54px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg" aria-hidden="true"></div>
+  <main class="page">
+    <header class="brand">
+      <img src="/assets/logo.png" alt="" />
+      <span data-t="brand">星识AI</span>
+    </header>
+
+    <p class="eyebrow">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3zm0 15.35-.9-.82C8.14 13.86 6.5 12.36 6.5 10.5 6.5 9.12 7.62 8 9 8c.85 0 1.68.4 2.2 1.03l.8.97.8-.97A2.87 2.87 0 0 1 15 8c1.38 0 2.5 1.12 2.5 2.5 0 1.86-1.64 3.36-4.6 6.03l-.9.82z"/></svg>
+      <span data-t="eyebrow">家庭守护邀请</span>
+    </p>
+
+    <h1 data-t="title">家人邀请你<br />加入「家庭守护」</h1>
+    <p class="lead" data-t="lead">加入后互相守望：遇到可疑链接、陌生来电、转账风险时，家人会第一时间收到提醒。</p>
+
+    <div class="card-wrap">
+      <div class="halo" aria-hidden="true"><i></i><i></i><i></i></div>
+      <section class="card" aria-labelledby="cardLabel">
+        <p class="card-label" id="cardLabel" data-t="cardLabel">邀请码 · INVITE CODE</p>
+        <div class="code" id="codeCells" role="text"></div>
+        <div class="perforation" aria-hidden="true"></div>
+        <button class="copy-btn" id="copyBtn" data-t="copy">复制邀请码</button>
+        <p class="no-code-hint" id="noCodeHint" data-t="noCode">链接里没有邀请码，请向家人索取。</p>
+      </section>
+    </div>
+
+    <ol class="steps">
+      <li><i>1</i><span data-t="s1">下载「星识AI」App</span></li>
+      <li><i>2</i><span data-t="s2">注册登录后，进入「家庭」页</span></li>
+      <li><i>3</i><span data-t="s3">点「输入邀请码」，粘贴刚才复制的邀请码</span></li>
+    </ol>
+
+    <a class="cta" id="ctaStore" href="https://apps.apple.com/app/id6760689855" rel="noopener">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+      <span data-t="cta">从 App Store 免费下载</span>
+    </a>
+    <p class="installed-note" data-t="note">已安装 App？打开「家庭」页，输入上面的邀请码即可加入。</p>
+
+    <footer>
+      <span>StarLens AI</span>
+      <a href="/privacy.html" data-t="privacy">隐私政策</a>
+      <a href="/terms.html" data-t="terms">用户协议</a>
+    </footer>
+  </main>
+
+  <script>
+    (function () {
+      var I18N = {
+        zh: {
+          htmlTitle: '家人邀请你加入家庭守护 - 星识AI',
+          brand: '星识AI', eyebrow: '家庭守护邀请',
+          title: '家人邀请你<br />加入「家庭守护」',
+          lead: '加入后互相守望：遇到可疑链接、陌生来电、转账风险时，家人会第一时间收到提醒。',
+          cardLabel: '邀请码 · INVITE CODE',
+          copy: '复制邀请码', copied: '已复制，去 App 里粘贴 ✓', copyFail: '长按上方邀请码手动复制',
+          noCode: '链接里没有邀请码，请向家人索取。',
+          s1: '下载「星识AI」App',
+          s2: '注册登录后，进入「家庭」页',
+          s3: '点「输入邀请码」，粘贴刚才复制的邀请码',
+          cta: '从 App Store 免费下载',
+          note: '已安装 App？打开「家庭」页，输入上面的邀请码即可加入。',
+          privacy: '隐私政策', terms: '用户协议'
+        },
+        en: {
+          htmlTitle: "You're invited to Family Guardian - StarLens AI",
+          brand: 'StarLens AI', eyebrow: 'FAMILY GUARDIAN INVITE',
+          title: "You're invited to<br />join Family Guardian",
+          lead: 'Watch out for each other: when a suspicious link, unknown call, or risky transfer shows up, your family gets alerted right away.',
+          cardLabel: 'INVITE CODE',
+          copy: 'Copy invite code', copied: 'Copied — paste it in the app ✓', copyFail: 'Press and hold the code to copy',
+          noCode: 'This link has no invite code — ask your family member for it.',
+          s1: 'Download the StarLens AI app',
+          s2: 'Sign in and open the Family tab',
+          s3: 'Tap "Enter invite code" and paste the code',
+          cta: 'Download on the App Store',
+          note: 'Already have the app? Open the Family tab and enter the code above.',
+          privacy: 'Privacy Policy', terms: 'Terms of Service'
+        }
+      };
+      var qs = new URLSearchParams(location.search);
+      var lang = qs.get('lang') || ((navigator.language || 'zh').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en');
+      if (!I18N[lang]) lang = 'en';
+      var t = I18N[lang];
+      document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+      document.title = t.htmlTitle;
+      document.querySelectorAll('[data-t]').forEach(function (el) {
+        var v = t[el.getAttribute('data-t')];
+        if (v != null) el.innerHTML = v;
+      });
+
+      // 邀请码来自路径 /i/{code}（Pages 200 重写保留原路径），兼容 ?code=
+      var m = location.pathname.match(/^\/i\/([A-Za-z0-9]{4,10})\/?$/);
+      var code = (m ? m[1] : qs.get('code') || '').toUpperCase();
+      if (!/^[A-Z0-9]{4,10}$/.test(code)) code = '';
+
+      var cells = document.getElementById('codeCells');
+      var btn = document.getElementById('copyBtn');
+      var chars = code ? code.split('') : ['·', '·', '·', '·', '·', '·'];
+      cells.className = 'code' + (code ? '' : ' empty');
+      cells.setAttribute('aria-label', code ? (lang === 'zh' ? '邀请码 ' : 'Invite code ') + code.split('').join(' ') : '');
+      chars.forEach(function (ch) {
+        var b = document.createElement('b');
+        b.textContent = ch;
+        cells.appendChild(b);
+      });
+
+      if (!code) {
+        btn.disabled = true;
+        document.getElementById('noCodeHint').style.display = 'block';
+      } else {
+        btn.addEventListener('click', function () {
+          function done(ok) {
+            btn.textContent = ok ? t.copied : t.copyFail;
+            btn.classList.add('done');
+            setTimeout(function () { btn.textContent = t.copy; btn.classList.remove('done'); }, 2600);
+          }
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(code).then(function () { done(true); }, function () { done(false); });
+          } else {
+            var ta = document.createElement('textarea');
+            ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select();
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+            done(ok);
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": [
+          "LWQAP563XV.com.devin.starlensaiapp",
+          "VL5D443J2P.com.devin.starlensaiapp"
+        ],
+        "components": [
+          {
+            "/": "/i/*",
+            "comment": "V3-E family invite code redemption"
+          }
+        ]
+      }
+    ]
+  }
+}

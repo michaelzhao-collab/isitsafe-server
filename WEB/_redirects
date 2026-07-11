@@ -1,0 +1,3 @@
+# 家庭邀请链接 /i/{code}：已装 App 的用户由 iOS Universal Link 直接拉起 App（不经过这里）；
+# 未装 App 的用户浏览器打开 → 重写到邀请落地页（200 rewrite，保留原始路径供 JS 取邀请码）
+/i/* /i.html 200
