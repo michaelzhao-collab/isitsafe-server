@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { FamilyService } from '../family/family.service';
+import { FamilyEventService } from '../chat/family-event.service';
 
 const CACHE_PREFIX = 'query:';
 const CACHE_TTL = 300; // 5 分钟（admin 更新风险库后最多 5 分钟生效）
@@ -14,13 +15,14 @@ export class QueryService {
     private prisma: PrismaService,
     private redis: RedisService,
     private family: FamilyService,
+    private familyEvent: FamilyEventService,
   ) {}
 
   private cacheKey(type: string, content: string): string {
     return `${CACHE_PREFIX}${type}:${content}`;
   }
 
-  async queryPhone(phone: string, userId?: string) {
+  async queryPhone(phone: string, userId?: string, imCapable = false) {
     const cached = await this.redis.get(this.cacheKey('phone', phone));
     const result = cached
       ? JSON.parse(cached)
@@ -30,21 +32,22 @@ export class QueryService {
       contentType: 'phone',
       content: phone,
       result,
+      imCapable,
     });
     return result;
   }
 
-  async queryUrl(url: string, userId?: string) {
+  async queryUrl(url: string, userId?: string, imCapable = false) {
     console.log('[QUERY_URL] 输入 content=' + JSON.stringify(url?.slice(0, 200)) + ' （本接口仅查风险库，不调用豆包）');
     const cached = await this.redis.get(this.cacheKey('url', url));
     if (cached) {
       const result = JSON.parse(cached);
       console.log('[QUERY_URL] 命中缓存 risk_level=' + result.risk_level + ' recordsCount=' + (result.records?.length ?? 0));
-      this.maybeAutoBroadcast({ userId, contentType: 'url', content: url, result });
+      this.maybeAutoBroadcast({ userId, contentType: 'url', content: url, result, imCapable });
       return result;
     }
     const result = await this.lookupAndCache('url', url, true);
-    this.maybeAutoBroadcast({ userId, contentType: 'url', content: url, result });
+    this.maybeAutoBroadcast({ userId, contentType: 'url', content: url, result, imCapable });
     return result;
   }
 
@@ -97,12 +100,27 @@ export class QueryService {
     contentType: 'phone' | 'url';
     content: string;
     result: { risk_level: string; tags: unknown[]; records: unknown[] };
+    imCapable?: boolean;
   }): void {
     if (!params.userId) return;
     if (params.result.risk_level !== 'high') return;
 
     const userId = params.userId;
     const result = params.result;
+
+    // V5.1 版本门控：只有新版客户端触发的查询才写 IM 群聊卡片。
+    // 老版本触发 → 跳过（不写 family_events/family_messages、不发信号），只走下方旧 broadcast，
+    // 保证服务端部署对老用户零行为变化。CHAT_ENABLED=false 时 isImCapableRequest 恒 false，全局熔断。
+    if (params.imCapable) {
+      this.familyEvent
+        .autoBroadcastRiskAlert(userId, {
+          title: maskForFamily(params.contentType, params.content),
+          summary: 'AI 判定高风险，请不要按对方要求操作、不要转账。',
+          riskLevel: 'high',
+          refId: `${params.contentType}:${params.content}`,
+        })
+        .catch((err) => this.logger.warn(`[AutoBroadcastCard] failed: ${err?.message ?? err}`));
+    }
 
     // 不 await：让 query 立即返回；fire-and-forget
     this.family

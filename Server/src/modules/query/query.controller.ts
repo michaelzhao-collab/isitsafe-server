@@ -3,11 +3,13 @@ import {
   Post,
   Get,
   Body,
+  Headers,
   UseGuards,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { QueryService } from './query.service';
+import { isImCapableRequest } from '../../common/app-version.util';
 import { QuotaService, QuotaSnapshot } from '../quota/quota.service';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -21,13 +23,23 @@ export class QueryController {
   ) {}
 
   @Post('phone')
-  async phone(@Body('content') content: string, @CurrentUser('sub') userId?: string) {
-    return this.runWithQuota(userId, () => this.query.queryPhone(content, userId));
+  async phone(
+    @Body('content') content: string,
+    @CurrentUser('sub') userId?: string,
+    @Headers('x-app-version') appVersion?: string,
+  ) {
+    const imCapable = isImCapableRequest(appVersion);
+    return this.runWithQuota(userId, () => this.query.queryPhone(content, userId, imCapable));
   }
 
   @Post('url')
-  async url(@Body('content') content: string, @CurrentUser('sub') userId?: string) {
-    return this.runWithQuota(userId, () => this.query.queryUrl(content, userId));
+  async url(
+    @Body('content') content: string,
+    @CurrentUser('sub') userId?: string,
+    @Headers('x-app-version') appVersion?: string,
+  ) {
+    const imCapable = isImCapableRequest(appVersion);
+    return this.runWithQuota(userId, () => this.query.queryUrl(content, userId, imCapable));
   }
 
   @Post('company')

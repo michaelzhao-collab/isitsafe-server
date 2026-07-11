@@ -19,6 +19,7 @@ import { FeedbackModule } from './modules/feedback/feedback.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { HealthModule } from './modules/health/health.module';
 import { FamilyModule } from './modules/family/family.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { WellKnownModule } from './modules/wellknown/wellknown.module';
 import { IntelModule } from './modules/intel/intel.module';
 import { DeepfakeModule } from './modules/deepfake/deepfake.module';
@@ -36,6 +37,8 @@ class PublicConfigController {
   getPublicConfig() {
     return {
       freeQueriesPerDay: Number(process.env.FREE_DAILY_LIMIT ?? '5'),
+      // V5.1 家庭群聊紧急回退开关：设 CHAT_ENABLED=false 让客户端回退旧官方消息页
+      familyChatEnabled: process.env.CHAT_ENABLED !== 'false',
     };
   }
 }
@@ -64,6 +67,7 @@ class PublicConfigController {
     SettingsModule,
     HealthModule,
     FamilyModule,
+    ChatModule,
     WellKnownModule,
     IntelModule,
     DeepfakeModule,

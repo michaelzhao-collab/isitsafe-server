@@ -4,13 +4,18 @@ import { Controller, Get, Header, HttpCode } from '@nestjs/common';
  * Apple Universal Link 和 Android App Links 必需的 well-known 文件。
  * 这两个路由 **不在 /api/ 前缀下**（已在 main.ts 的 setGlobalPrefix exclude 中排除）。
  *
- * iOS：当用户在 Safari/iMessage 点击 https://starlens.ai/i/{code} 时，
- *   iOS 系统先来这里拉取 apple-app-site-association 文件验证 App 的关联，
+ * iOS：当用户在 Safari/iMessage 点击 https://www.starlensai.com/i/{code} 时，
+ *   iOS 系统去 **邀请链接所在域名** 拉取 apple-app-site-association 验证 App 的关联，
  *   只有 appID + bundleID 匹配才会拉起 App 而不是浏览器。
+ *
+ * 注意：www.starlensai.com 是 Cloudflare Pages 静态站，Apple 实际抓取的是
+ *   WEB/.well-known/apple-app-site-association 那份静态文件（随 Pages 部署）。
+ *   本控制器只服务 api.starlensai.com 域名下的同路径请求，作为备份/调试入口，
+ *   两处内容需保持一致（TeamID.BundleID 见 WEB 静态文件）。
  *
  * 需要在 iOS Xcode：
  *   1. 开启 Associated Domains capability
- *   2. 添加 entitlement: applinks:starlens.ai
+ *   2. 添加 entitlement: applinks:starlensai.com / applinks:www.starlensai.com
  */
 @Controller()
 export class WellKnownController {
@@ -48,7 +53,7 @@ export class WellKnownController {
             appIDs: [appID],
             components: [
               {
-                // 匹配 https://starlens.ai/i/{code} 路径
+                // 匹配 https://www.starlensai.com/i/{code} 路径
                 '/': '/i/*',
                 comment: 'V3-E family invite code redemption',
               },

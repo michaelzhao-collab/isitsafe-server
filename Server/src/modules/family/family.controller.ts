@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   Post,
   Put,
@@ -12,6 +13,7 @@ import {
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { FamilyService } from './family.service';
+import { isImCapableRequest } from '../../common/app-version.util';
 import {
   CreateFamilyGroupDto,
   RedeemInviteDto,
@@ -52,8 +54,11 @@ export class FamilyController {
   }
 
   @Get('groups/me')
-  async getMyGroup(@CurrentUser('sub') userId: string) {
-    return this.family.getMyGroup(userId);
+  async getMyGroup(
+    @CurrentUser('sub') userId: string,
+    @Headers('x-app-version') appVersion?: string,
+  ) {
+    return this.family.getMyGroup(userId, isImCapableRequest(appVersion));
   }
 
   @Post('groups/:id/leave')
@@ -80,8 +85,12 @@ export class FamilyController {
 
   // ====== 邀请码 ======
   @Post('groups/:id/invites')
-  async generateInvite(@CurrentUser('sub') userId: string, @Param('id') groupId: string) {
-    return this.family.generateInviteCode(userId, groupId);
+  async generateInvite(
+    @CurrentUser('sub') userId: string,
+    @Param('id') groupId: string,
+    @Headers('x-app-version') appVersion?: string,
+  ) {
+    return this.family.generateInviteCode(userId, groupId, isImCapableRequest(appVersion));
   }
 
   /**
@@ -89,14 +98,22 @@ export class FamilyController {
    * 兼容性：老接口 GET /groups/me 仍返回单一（最早加入的）
    */
   @Get('groups/me/all')
-  async getMyGroups(@CurrentUser('sub') userId: string) {
-    return this.family.getMyGroups(userId);
+  async getMyGroups(
+    @CurrentUser('sub') userId: string,
+    @Headers('x-app-version') appVersion?: string,
+  ) {
+    return this.family.getMyGroups(userId, isImCapableRequest(appVersion));
   }
 
   @Post('invites/redeem')
-  async redeemInvite(@CurrentUser('sub') userId: string, @Body() dto: RedeemInviteDto) {
+  async redeemInvite(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: RedeemInviteDto,
+    @Headers('x-app-version') appVersion?: string,
+  ) {
     const member = await this.family.redeemInviteCode(userId, dto.inviteCode, {
       parentConsent: dto.parentConsent,
+      imCapable: isImCapableRequest(appVersion),
     });
     return { groupId: member.groupId, joinedAt: member.joinedAt };
   }
@@ -119,6 +136,20 @@ export class FamilyController {
     @Body() body: { displayName?: string | null },
   ) {
     return this.family.setMyDisplayName(userId, groupId, body?.displayName ?? null);
+  }
+
+  /**
+   * V5.1 群昵称方案 B：群主给任意成员设群昵称（全员可见）
+   * body: { displayName: string | null }
+   */
+  @Put('groups/:groupId/members/:memberId/display-name')
+  async setMemberDisplayNameByOwner(
+    @CurrentUser('sub') userId: string,
+    @Param('groupId') groupId: string,
+    @Param('memberId') memberId: string,
+    @Body() body: { displayName?: string | null },
+  ) {
+    return this.family.setMemberDisplayNameByOwner(userId, groupId, memberId, body?.displayName ?? null);
   }
 
   /**

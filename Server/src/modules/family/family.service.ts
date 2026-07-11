@@ -17,7 +17,10 @@ import { normalizeByType } from '../../common/utils/content-normalize';
  * 家庭组容量上限（S5-7 按 owner 订阅动态）
  *   免费：3 人 / Pro：10 人
  */
+/// 老版本客户端的免费家庭人数上限（保持不变，服务端部署对老用户零影响）
 const FREE_MAX_FAMILY_MEMBERS = 3;
+/// V5.1 新版客户端的免费家庭人数上限（版本门控：仅带 X-App-Version 的新版请求生效）
+const FREE_MAX_FAMILY_MEMBERS_IM = 5;
 const PAID_MAX_FAMILY_MEMBERS = 10;
 
 /**
@@ -30,6 +33,10 @@ const PAID_MAX_OWNED_GROUPS = 3;
 
 const INVITE_CODE_TTL_DAYS = 7;
 const INVITE_CODE_MAX_USES = 4;
+
+/// 邀请链接基址（后端下发给客户端，客户端不再写死域名）；可用环境变量覆盖
+const INVITE_SHARE_BASE_URL =
+  process.env.INVITE_SHARE_BASE_URL || 'https://www.starlensai.com/i';
 
 /// 广播分布式锁 TTL：覆盖 AI 检测 P95 ≤ 15s 上限，留 4× buffer 防慢调用
 const BROADCAST_LOCK_TTL_SEC = 60;
@@ -193,7 +200,7 @@ export class FamilyService {
     });
   }
 
-  async getMyGroup(userId: string) {
+  async getMyGroup(userId: string, imCapable = false) {
     // S5-10：兼容旧 iOS 客户端 — 仍返回单一家庭组（按 joinedAt 最早的那个），
     //        新客户端应该用 getMyGroups 拉全量
     const member = await this.prisma.familyMember.findFirst({
@@ -202,21 +209,21 @@ export class FamilyService {
       include: { group: { include: { members: { include: { user: true } } } } },
     });
     if (!member) return null;
-    return await this.composeGroupDto(member.group, userId);
+    return await this.composeGroupDto(member.group, userId, imCapable);
   }
 
   /**
    * S5-10 多家庭：拉取我加入的全部家庭组
    * 按 joinedAt 升序（最早加入的排前），客户端自行 sort/select active
    */
-  async getMyGroups(userId: string) {
+  async getMyGroups(userId: string, imCapable = false) {
     const members = await this.prisma.familyMember.findMany({
       where: { userId },
       orderBy: { joinedAt: 'asc' },
       include: { group: { include: { members: { include: { user: true } } } } },
     });
     const groups = await Promise.all(
-      members.map((m) => this.composeGroupDto(m.group, userId)),
+      members.map((m) => this.composeGroupDto(m.group, userId, imCapable)),
     );
     return groups;
   }
@@ -385,7 +392,11 @@ export class FamilyService {
   // ====================================================================
   // 邀请码（生成 / 兑换）
   // ====================================================================
-  async generateInviteCode(userId: string, groupId: string): Promise<{ code: string; expiresAt: Date }> {
+  async generateInviteCode(
+    userId: string,
+    groupId: string,
+    imCapable = false,
+  ): Promise<{ code: string; expiresAt: Date; shareLink: string }> {
     const group = await this.prisma.familyGroup.findUnique({ where: { id: groupId } });
     if (!group) throw new NotFoundException('Group not found');
     // S5-12：任一家庭成员都可邀请（不再仅 owner）；踢人 / 解散仍 owner only
@@ -397,7 +408,7 @@ export class FamilyService {
     }
 
     const memberCount = await this.prisma.familyMember.count({ where: { groupId } });
-    const maxMembers = await this.getMaxMembersFor(group.ownerUserId);
+    const maxMembers = await this.getMaxMembersFor(group.ownerUserId, imCapable);
     if (memberCount >= maxMembers) {
       throw new BadRequestException(
         `Family group is full (${memberCount}/${maxMembers}). Upgrade to Pro for up to ${PAID_MAX_FAMILY_MEMBERS} members.`,
@@ -423,7 +434,7 @@ export class FamilyService {
       where: { id: groupId },
       data: { inviteCode: code, inviteCodeExpiresAt: expiresAt },
     });
-    return { code, expiresAt };
+    return { code, expiresAt, shareLink: `${INVITE_SHARE_BASE_URL}/${code}` };
   }
 
   /**
@@ -437,7 +448,7 @@ export class FamilyService {
   async redeemInviteCode(
     userId: string,
     inviteCode: string,
-    opts: { parentConsent?: boolean } = {},
+    opts: { parentConsent?: boolean; imCapable?: boolean } = {},
   ) {
     const group = await this.prisma.familyGroup.findUnique({
       where: { inviteCode },
@@ -456,7 +467,7 @@ export class FamilyService {
     }
 
     const memberCount = await this.prisma.familyMember.count({ where: { groupId: group.id } });
-    const maxMembers = await this.getMaxMembersFor(group.ownerUserId);
+    const maxMembers = await this.getMaxMembersFor(group.ownerUserId, opts.imCapable ?? false);
     if (memberCount >= maxMembers) {
       throw new BadRequestException(
         `Family group is full (${memberCount}/${maxMembers})`,
@@ -1204,12 +1215,14 @@ export class FamilyService {
    *   personal_pro / family_owner / family_member → PAID_MAX_FAMILY_MEMBERS（10）
    * EntitlementService 已在 S1-4 注入，复用同一份权益判定
    */
-  private async getMaxMembersFor(ownerUserId: string): Promise<number> {
+  private async getMaxMembersFor(ownerUserId: string, imCapable = false): Promise<number> {
     const e = await this.entitlement.getUserEntitlement(ownerUserId);
-    return e.isUnlimited ? PAID_MAX_FAMILY_MEMBERS : FREE_MAX_FAMILY_MEMBERS;
+    if (e.isUnlimited) return PAID_MAX_FAMILY_MEMBERS;
+    // 免费档：新版客户端触发才放宽到 5，老版本仍为 3（零影响）
+    return imCapable ? FREE_MAX_FAMILY_MEMBERS_IM : FREE_MAX_FAMILY_MEMBERS;
   }
 
-  private async composeGroupDto(group: any, currentUserId: string) {
+  private async composeGroupDto(group: any, currentUserId: string, imCapable = false) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -1251,8 +1264,8 @@ export class FamilyService {
       };
     });
 
-    // 按 owner 订阅状态动态返回容量上限
-    const maxMembers = await this.getMaxMembersFor(group.ownerUserId);
+    // 按 owner 订阅状态动态返回容量上限（免费档新版 5 / 老版 3）
+    const maxMembers = await this.getMaxMembersFor(group.ownerUserId, imCapable);
 
     return {
       id: group.id,
@@ -1288,6 +1301,36 @@ export class FamilyService {
       data: { displayName: trimmed },
     });
     return { success: true, displayName: trimmed };
+  }
+
+  /**
+   * V5.1 群昵称方案 B：群主给「任意成员」设置群昵称（全员可见）。
+   * 与 setMyDisplayName 并存，都写 displayName 字段，冲突时后写为准。
+   */
+  async setMemberDisplayNameByOwner(
+    ownerUserId: string,
+    groupId: string,
+    targetMemberId: string,
+    displayName: string | null,
+  ) {
+    const group = await this.prisma.familyGroup.findUnique({ where: { id: groupId } });
+    if (!group) throw new NotFoundException('Group not found');
+    if (group.ownerUserId !== ownerUserId) {
+      throw new ForbiddenException('Only the family owner can rename members');
+    }
+    const target = await this.prisma.familyMember.findFirst({
+      where: { id: targetMemberId, groupId },
+    });
+    if (!target) throw new NotFoundException('Member not found in this group');
+    const trimmed = displayName?.trim() || null;
+    if (trimmed && trimmed.length > 64) {
+      throw new BadRequestException('Display name too long (max 64 chars)');
+    }
+    await this.prisma.familyMember.update({
+      where: { id: target.id },
+      data: { displayName: trimmed },
+    });
+    return { success: true, memberId: target.id, displayName: trimmed };
   }
 
   /**
