@@ -48,6 +48,11 @@ public struct IntelCaseRootView: View {
                             .opacity(segment == .knowledge ? 1 : 0)
                             .allowsHitTesting(segment == .knowledge)
                     }
+                    .onAppear {
+                        // V5：进入情报 tab 申请推送权限（推送会用来发情报告警；
+                        //     仅 notDetermined 时弹框，已授权/已拒绝不打扰）
+                        PushService.shared.promptIfNeeded()
+                    }
                 }
             }
             .toolbar(.hidden, for: .navigationBar)

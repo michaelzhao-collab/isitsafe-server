@@ -17,6 +17,8 @@ public struct FamilyView: View {
     @StateObject private var vm = FamilyViewModel()
     @EnvironmentObject private var router: AppRouter
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    // V5.1：服务端家庭 IM 开关（默认 false，服务端 /api/config 返回 true 才启用群聊）
+    @AppStorage(AppSettingsStore.familyChatEnabledKey) private var familyChatEnabled: Bool = false
     @State private var showCreateSheet = false
     @State private var showRedeemSheet = false
 
@@ -31,6 +33,9 @@ public struct FamilyView: View {
                 .toolbarBackground(AppTheme.background, for: .navigationBar)
         }
         .onAppear {
+            // V5：进入家庭 tab 申请推送权限（家庭关怀提醒/风险事件群播报依赖推送；
+            //     仅 notDetermined 时弹框，已授权/已拒绝不打扰）
+            PushService.shared.promptIfNeeded()
             // 启动时已经携带 pending 邀请码 → 立即打开兑换 sheet
             if router.pendingInviteCode != nil {
                 showRedeemSheet = true
@@ -74,7 +79,13 @@ public struct FamilyView: View {
                 onRedeem: { showRedeemSheet = true }
             )
         case .loaded(let group):
-            FamilyGroupView(group: group, vm: vm)
+            // V5.1：仅当服务端 familyChatEnabled=true 时启用群聊；否则回退老的官方消息页
+            //       （服务端未部署/未开启时不连 WebSocket、不 404，家庭页照常可用）
+            if familyChatEnabled {
+                FamilyChatContainerView(group: group, vm: vm)
+            } else {
+                FamilyGroupView(group: group, vm: vm)
+            }
         case .error(let msg):
             errorView(message: msg)
         }

@@ -19,6 +19,7 @@ struct IsItSafeApp: App {
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     @State private var isSplashVisible = true
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -45,10 +46,25 @@ struct IsItSafeApp: App {
                     languageCode = preferred.hasPrefix("zh") ? "zh" : "en"
                     // 启动时触发网络预热
                     Task { await AuthService.shared.refreshTokenIfNeeded() }
-                    // V3-S1-5：申请通知权限（系统弹框幂等，授权后会异步触发 APNs 注册）
-                    PushService.shared.requestAuthorizationAndRegister()
+                    // V5：推送权限不在冷启动弹（首页首次出结果 / 进入情报 / 家庭 tab 时再弹），
+                    //       避免一启动就被拒、开通率低。
+                    //       但已授权用户仍需每次启动静默重注册，覆盖 APNs token 轮换（换机/恢复备份）。
+                    PushService.shared.registerIfAuthorized()
+                    // V5：开启 StoreKit Transaction 常驻监听：仍有效的重投交易补发后端 verify
+                    //       （成功才 finish），过期/已撤销的清理掉，避免下次 purchase() 被旧
+                    //       receipt 拽出来"卡死"。
+                    IAPManager.shared.startTransactionMonitor()
+                    // V5.1：登录态下自举家庭群聊（连 WS + 拉未读，保证家庭 Tab 角标可用）
+                    FamilyChatCoordinator.shared.bootstrapIfLoggedIn()
                 }
-                // V3-E Universal Link：starlens.ai/i/{code} 拉起 App 直接进兑换流程
+                .onChange(of: scenePhase) { _, phase in
+                    switch phase {
+                    case .active: FamilyChatCoordinator.shared.appDidBecomeActive()
+                    case .background: FamilyChatCoordinator.shared.appDidEnterBackground()
+                    default: break
+                    }
+                }
+                // V3-E Universal Link：www.starlensai.com/i/{code} 拉起 App 直接进兑换流程
                 .onOpenURL { url in
                     router.handleUniversalLink(url)
                 }

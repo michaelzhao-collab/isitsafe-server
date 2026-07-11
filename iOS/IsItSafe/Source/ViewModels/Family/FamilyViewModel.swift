@@ -219,6 +219,41 @@ public final class FamilyViewModel: ObservableObject {
         }
     }
 
+    /// V5.1 群主移除成员
+    public func removeMember(groupId: String, userId: String) async -> Bool {
+        do {
+            try await repo.removeMember(groupId: groupId, userId: userId)
+            refresh()
+            return true
+        } catch {
+            redeemError = friendlyMessage(for: error)
+            return false
+        }
+    }
+
+    /// V5.1 更新"分享我的查询结果"（自动播报开关）
+    public func setShareQueryResults(_ enabled: Bool) async -> Bool {
+        do {
+            try await repo.updatePreferences(shareQueryResults: enabled)
+            return true
+        } catch {
+            redeemError = friendlyMessage(for: error)
+            return false
+        }
+    }
+
+    /// V5.1 群昵称方案 B：群主给任意成员设群昵称（全员可见）
+    public func setMemberDisplayNameByOwner(in groupId: String, memberId: String, name: String?) async -> Bool {
+        do {
+            try await repo.setMemberDisplayNameByOwner(groupId: groupId, memberId: memberId, displayName: name)
+            refresh()
+            return true
+        } catch {
+            redeemError = friendlyMessage(for: error)
+            return false
+        }
+    }
+
     /// S5-12 给某成员设私人备注（仅自己可见）；alias=nil 删除
     public func setAlias(for memberId: String, alias: String?) async -> Bool {
         do {

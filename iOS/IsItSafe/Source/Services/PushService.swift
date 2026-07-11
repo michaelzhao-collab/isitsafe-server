@@ -55,6 +55,30 @@ public final class PushService {
         }
     }
 
+    /// 冷启动调用：不弹授权框。已授权（含 provisional/ephemeral）时静默重注册，
+    /// 覆盖 APNs token 轮换（换机 / 从备份恢复）后旧 token 失效、后端推送打到死 token 的场景。
+    public func registerIfAuthorized() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                DispatchQueue.main.async {
+                    UIApplication.shared.registerForRemoteNotifications()
+                }
+            default:
+                break
+            }
+        }
+    }
+
+    /// 业务触发点调用（首页出 AI 结果 / 进情报 tab / 进家庭 tab）：
+    /// 仅在用户尚未决定时弹系统授权框；已授权（启动时已静默重注册）或已拒绝都不再打扰。
+    public func promptIfNeeded() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            guard settings.authorizationStatus == .notDetermined else { return }
+            self.requestAuthorizationAndRegister()
+        }
+    }
+
     /// AppDelegate didRegisterForRemoteNotificationsWithDeviceToken 转入
     public func didReceiveDeviceToken(_ rawToken: Data) {
         let hex = rawToken.map { String(format: "%02x", $0) }.joined()

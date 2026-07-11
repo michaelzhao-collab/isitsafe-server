@@ -42,6 +42,28 @@ public final class TokenStore {
         return Self.expiryDate(from: token)
     }
 
+    /// 当前登录用户 id（JWT payload.sub），未登录/解析失败返回 nil。
+    /// V5.1 家庭 IM 用它判断消息是"自己发的"（气泡靠边、已读渲染）。
+    public var userId: String? {
+        guard let token = accessToken else { return nil }
+        return Self.claim("sub", from: token)
+    }
+
+    private static func claim(_ key: String, from jwt: String) -> String? {
+        let parts = jwt.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count >= 2 else { return nil }
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let mod = payload.count % 4
+        if mod > 0 { payload += String(repeating: "=", count: 4 - mod) }
+        guard let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return json[key] as? String
+    }
+
     /// JWT 不会很大，本地解析比走 keychain 多次读取更快；仅读 header.payload 不验签。
     private static func expiryDate(from jwt: String) -> Date? {
         let parts = jwt.split(separator: ".", omittingEmptySubsequences: false)

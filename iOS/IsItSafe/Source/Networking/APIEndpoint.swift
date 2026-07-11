@@ -91,6 +91,33 @@ public enum APIEndpoint {
     /// V4-P3 关怀提醒静音：开/关对某 target 的不活跃 push
     case v3FamilySetCareMute(groupId: String, targetUserId: String)
 
+    // ====== V5.1 自建 IM 家庭群聊 ======
+    /// 发送消息（幂等 clientMsgId）POST /api/chat/groups/:groupId/messages
+    case chatSendMessage(groupId: String)
+    /// 拉取消息：afterSeq 增量 / beforeSeq 历史 / 都不传取最近 GET /api/chat/groups/:groupId/messages
+    case chatPullMessages(groupId: String, afterSeq: Int?, beforeSeq: Int?, limit: Int?)
+    /// 推进已读游标 PUT /api/chat/groups/:groupId/read-cursor
+    case chatReadCursor(groupId: String)
+    /// 撤回消息 POST /api/chat/groups/:groupId/recall
+    case chatRecall(groupId: String)
+    /// 我全部家庭未读汇总 GET /api/chat/unread-summary
+    case chatUnreadSummary
+    /// 举报消息 POST /api/chat/report
+    case chatReport
+    /// 屏蔽/解除屏蔽某人 POST/DELETE /api/chat/block/:userId
+    case chatBlock(userId: String)
+    case chatUnblock(userId: String)
+    /// 我屏蔽的用户列表 GET /api/chat/blocked
+    case chatBlocked
+    /// V5.1 群主给任意成员设群昵称 PUT /api/v3/family/groups/:groupId/members/:memberId/display-name
+    case v3FamilySetMemberDisplayName(groupId: String, memberId: String)
+    /// V5.1 老人求助 POST /api/family/help-request
+    case familyHelpRequest
+    /// V5.1 案例/情报发给家人 POST /api/family/share-case
+    case familyShareCase
+    /// V5.1 chips 处置 POST /api/family/events/:id/handle
+    case familyEventHandle(eventId: String)
+
     // V4-P1 冷启动引导 chips
     case onboardingChips(language: String?)
 
@@ -178,6 +205,20 @@ public enum APIEndpoint {
         case .v3UserGetNotificationPrefs, .v3UserPutNotificationPrefs:
             return "/api/user/v3/notification-prefs"
         case .v3FamilyCreateGroup: return "/api/v3/family/groups"
+        case .chatSendMessage(let groupId): return "/api/chat/groups/\(groupId)/messages"
+        case .chatPullMessages(let groupId, _, _, _): return "/api/chat/groups/\(groupId)/messages"
+        case .chatReadCursor(let groupId): return "/api/chat/groups/\(groupId)/read-cursor"
+        case .chatRecall(let groupId): return "/api/chat/groups/\(groupId)/recall"
+        case .chatUnreadSummary: return "/api/chat/unread-summary"
+        case .chatReport: return "/api/chat/report"
+        case .chatBlock(let userId): return "/api/chat/block/\(userId)"
+        case .chatUnblock(let userId): return "/api/chat/block/\(userId)"
+        case .chatBlocked: return "/api/chat/blocked"
+        case .v3FamilySetMemberDisplayName(let groupId, let memberId):
+            return "/api/v3/family/groups/\(groupId)/members/\(memberId)/display-name"
+        case .familyHelpRequest: return "/api/family/help-request"
+        case .familyShareCase: return "/api/family/share-case"
+        case .familyEventHandle(let eventId): return "/api/family/events/\(eventId)/handle"
         case .v3FamilyGetMyGroup: return "/api/v3/family/groups/me"
         case .v3FamilyGetMyGroups: return "/api/v3/family/groups/me/all"
         case .v3FamilyGenerateInvite(let groupId): return "/api/v3/family/groups/\(groupId)/invites"
@@ -227,6 +268,7 @@ public enum APIEndpoint {
         switch self {
         case .health, .authUserInfo, .authExportData, .authRegionHint, .queryHistory, .queryTags, .knowledgeList, .knowledgeCategories, .knowledgeDetail, .subscriptionStatus, .membershipPlans, .messagesList, .messageUnreadCount, .publicConfig,
              .onboardingChips,
+             .chatPullMessages, .chatUnreadSummary, .chatBlocked,
              .v3FamilyGetMyGroup, .v3FamilyGetMyGroups, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
              .v3FamilyListCareMutes,
              .v3UserGetNotificationPrefs,
@@ -238,6 +280,8 @@ public enum APIEndpoint {
         case .authLogin, .authAppleLogin, .authSendCode, .authLogout, .authDeleteAccount, .authRefreshToken, .aiAnalyze, .aiAnalyzeScreenshot,
              .queryPhone, .queryURL, .queryCompany, .reportSubmit, .subscriptionVerify, .messageMarkRead, .feedbackSubmit,
              .v3UserHeartbeat, .v3UserRegisterDevice,
+             .chatSendMessage, .chatRecall, .chatReport, .chatBlock,
+             .familyHelpRequest, .familyShareCase, .familyEventHandle,
              .v3FamilyCreateGroup, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyCreateBroadcast,
              .v3IntelSubmit, .v3IntelReport,
@@ -246,12 +290,14 @@ public enum APIEndpoint {
              .v3BreachAddTarget:
             return .POST
         case .deleteQuery, .deleteQueryConversation,
+             .chatUnblock,
              .v3FamilyDissolveGroup, .v3FamilyRemoveMember,
              .v3DeepfakeDelete, .v3BreachDeleteTarget:
             return .DELETE
         case .uploadAvatar, .uploadFile:
             return .POST
         case .updateProfile, .v3UserElderMode, .v3UserPutNotificationPrefs,
+             .chatReadCursor, .v3FamilySetMemberDisplayName,
              .v3FamilyUpdatePreferences, .v3FamilyMemberElderMode,
              .v3FamilySetMyDisplayName, .v3FamilySetAlias, .v3FamilySetCareMute,
              .v3IntelPutPreferences,
@@ -318,6 +364,12 @@ public enum APIEndpoint {
                 URLQueryItem(name: "page", value: "\(page)"),
                 URLQueryItem(name: "pageSize", value: "\(pageSize)")
             ]
+        case .chatPullMessages(_, let afterSeq, let beforeSeq, let limit):
+            var items: [URLQueryItem] = []
+            if let a = afterSeq { items.append(URLQueryItem(name: "afterSeq", value: "\(a)")) }
+            if let b = beforeSeq { items.append(URLQueryItem(name: "beforeSeq", value: "\(b)")) }
+            if let l = limit { items.append(URLQueryItem(name: "limit", value: "\(l)")) }
+            return items
         case .v3FamilyGetBroadcasts(let limit):
             return [URLQueryItem(name: "limit", value: "\(limit)")]
         case .v3IntelFeed(let limit, let lang):

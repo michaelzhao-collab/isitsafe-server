@@ -51,10 +51,13 @@ public final class AppStateViewModel: ObservableObject {
     private func fetchPublicConfig() async {
         struct PublicConfigResponse: Decodable {
             let freeQueriesPerDay: Int
+            let familyChatEnabled: Bool?
         }
         do {
             let config: PublicConfigResponse = try await NetworkManager.shared.request(endpoint: .publicConfig)
             AppSettingsStore.maxFreeQueriesPerDay = config.freeQueriesPerDay
+            // V5.1 家庭 IM 总开关：服务端未部署/未返回该字段时视为 false → 客户端回退老家庭页、不连 WS
+            AppSettingsStore.familyChatEnabled = config.familyChatEnabled ?? false
         } catch {
             // 失败静默处理，使用缓存值或默认 5
         }

@@ -21,6 +21,16 @@ public final class AppSettingsStore {
         set { UserDefaults.standard.set(newValue, forKey: maxFreeQueriesKey) }
     }
 
+    /// V5.1 家庭 IM 开关键（UserDefaults key 供 @AppStorage 观察）
+    public static let familyChatEnabledKey = "isitsafe.familyChatEnabled"
+    /// 家庭群聊是否启用：由服务端 /api/config 的 familyChatEnabled 决定。
+    /// **默认 false** —— 服务端未部署 / 未返回该字段 / 显式关闭时，客户端回退老家庭页、不连 WebSocket，
+    /// 保证新包连到未就绪的服务端也不报错、家庭页正常。
+    public static var familyChatEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: familyChatEnabledKey) }
+        set { UserDefaults.standard.set(newValue, forKey: familyChatEnabledKey) }
+    }
+
     private init() {
         // 首次启动：根据系统语言设置默认语言（中文系统→中文；非中文系统→英文）
         if UserDefaults.standard.string(forKey: langKey) == nil {

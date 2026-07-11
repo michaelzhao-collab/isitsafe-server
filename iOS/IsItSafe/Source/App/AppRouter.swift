@@ -24,12 +24,20 @@ public final class AppRouter: ObservableObject {
     @Published public var presentedSheet: AppRoute?
     @Published public var isShowingLogin = false
 
-    // V3-E Universal Link 跳转：从 starlens.ai/i/{code} 拉起 App 后，主界面观察此值自动弹兑换 sheet
+    // V3-E Universal Link 跳转：从 www.starlensai.com/i/{code} 拉起 App 后，主界面观察此值自动弹兑换 sheet
     @Published public var pendingInviteCode: String?
     // 拉起家庭 Tab 的指令（来自 push 通知或 deep link）
     @Published public var pendingTabIndex: Int?
+    // V5.1 群聊「查一查是不是骗局」：携带待分析文本切到问助手 Tab，由首页消费
+    @Published public var pendingAssistantText: String?
 
     private init() {}
+
+    /// 从家庭群把一条消息转到问助手分析
+    public func analyzeInAssistant(_ text: String) {
+        pendingAssistantText = text
+        pendingTabIndex = 0
+    }
 
     public func push(_ route: AppRoute) {
         path.append(route)
@@ -58,11 +66,13 @@ public final class AppRouter: ObservableObject {
     // MARK: - Universal Link 解析
 
     /// 解析进入的 URL：
-    /// - https://starlens.ai/i/{code} → 设置 pendingInviteCode + 跳家庭 Tab
+    /// - https://www.starlensai.com/i/{code} → 设置 pendingInviteCode + 跳家庭 Tab
     /// - 其他 → 忽略
     public func handleUniversalLink(_ url: URL) {
         guard let host = url.host?.lowercased() else { return }
-        guard host == "starlens.ai" || host.hasSuffix(".starlens.ai") else { return }
+        // 兼容旧域名 starlens.ai（改域名前 7 天 TTL 内发出的邀请链接仍需能拉起兑换）
+        let allowed = ["starlensai.com", "starlens.ai"]
+        guard allowed.contains(host) || allowed.contains(where: { host.hasSuffix(".\($0)") }) else { return }
 
         let parts = url.pathComponents.filter { $0 != "/" }
         if parts.count == 2, parts[0] == "i" {

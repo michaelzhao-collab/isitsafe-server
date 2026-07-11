@@ -177,7 +177,12 @@ public struct InviteFamilySheet: View {
     private func shareText(invite: GenerateInviteResponse) -> String {
         let appName = "StarLens AI"
         let code = invite.code
-        let url = invite.shareLink
+        guard let url = invite.shareLink, !url.isEmpty else {
+            // 老版本后端未下发链接：只分享邀请码，避免客户端写死域名
+            return languageCode == "en"
+                ? "Join my family on \(appName) — invite code: \(code)."
+                : "我邀请你加入 \(appName) 家庭组。邀请码：\(code)。"
+        }
         return languageCode == "en"
             ? "Join my family on \(appName) — invite code: \(code). Open link: \(url)"
             : "我邀请你加入 \(appName) 家庭组。邀请码：\(code)。链接：\(url)"

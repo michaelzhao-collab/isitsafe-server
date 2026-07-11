@@ -75,6 +75,16 @@ public struct RiskResultCard: View {
                         }
                     }
                 }
+
+                // V5.1 求助闭环：把这条 AI 结论发到家庭群，让家人把关
+                ShareToFamilyButton(
+                    title: data.verdict ?? data.summary,
+                    summary: data.summary,
+                    riskLevel: data.riskLevel,
+                    conversationId: data.conversationId,
+                    elder: ElderModeService.shared.isEnabled
+                )
+                .padding(.top, 4)
             }
             .padding(16)
         }

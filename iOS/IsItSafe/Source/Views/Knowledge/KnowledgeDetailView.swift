@@ -58,6 +58,11 @@ public struct KnowledgeDetailView: View {
                                 .foregroundColor(AppTheme.textPrimary)
                                 .lineSpacing(2)
                             metaRow(for: item)
+                            // V5.1：一键发给家人（案例卡进家庭群）
+                            ShareCaseToFamilyButton(
+                                refType: "case", refId: id, title: item.title,
+                                summary: String(item.content.prefix(80))
+                            )
                         }
 
                         Divider()

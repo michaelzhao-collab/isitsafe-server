@@ -31,6 +31,11 @@ public final class RequestBuilder {
         // 统一传递 App 语言给服务端，用于返回对应语言内容
         let lang = AppSettingsStore.shared.languageCode == "en" ? "en" : "zh"
         request.setValue(lang, forHTTPHeaderField: "X-App-Language")
+        // V5.1：带上 App 版本，供服务端对新行为（家庭 IM 自动播报 / 免费 5 人）做版本门控。
+        //       老版本不含此代码 → 不带此头 → 服务端按老逻辑处理，保证零影响。
+        if let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+            request.setValue(ver, forHTTPHeaderField: "X-App-Version")
+        }
 
         if endpoint.requiresAuth, let token = authToken {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

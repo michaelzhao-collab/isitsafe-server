@@ -285,6 +285,8 @@ public final class HomeViewModel: ObservableObject {
                 if case .analysis(let d) = result {
                     self.lastResult = d
                     self.state = .success(d)
+                    // V5：出 AI 结果后申请推送权限（仅 notDetermined 时弹框，已授权/已拒绝不打扰）
+                    PushService.shared.promptIfNeeded()
                     // 非会员：成功后记录次数（失败/网络错误不计）
                     if !self.appState.subscriptionActive {
                         AppSettingsStore.shared.incrementFreeQueryCount()

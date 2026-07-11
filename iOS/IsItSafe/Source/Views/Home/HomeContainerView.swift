@@ -304,6 +304,13 @@ public struct HomeContainerView: View {
                 }
             }
         }
+        // V5.1 家庭群「查一查是不是骗局」：切到问助手后预填并自动分析
+        .onChange(of: router.pendingAssistantText) { _, text in
+            guard let text, !text.isEmpty else { return }
+            router.pendingAssistantText = nil
+            homeVm.inputText = text
+            homeVm.analyze()
+        }
         .onAppear {
             // V4-P1 拉冷启动 chips（24h 缓存）
             Task {

@@ -16,7 +16,82 @@ public final class IAPManager: ObservableObject {
     /// 等待后端 verify 完成才能 finish 的 StoreKit 交易；key 为 receipt JWS（用于精确匹配）
     private var pendingTransactions: [String: Transaction] = [:]
 
+    /// V5：常驻 Transaction.updates 监听任务（避免被 deinit 取消，单例生命周期与 App 一致）
+    private var updatesListenerTask: Task<Void, Never>?
+    /// 本会话内已处理过的交易 id：启动时 `Transaction.unfinished` 与 `Transaction.updates`
+    /// 的首次重投可能投递同一笔，去重避免重复 verify / finish（在 MainActor 上读写）
+    private var handledTransactionIds: Set<UInt64> = []
+
     private init() {}
+
+    /// V5：App 启动时调用一次。
+    ///  ① 处理 `Transaction.unfinished` 里残留的交易；
+    ///  ② 持续监听 `Transaction.updates`（自动续期、他设备购买、Ask to Buy 审批通过、上次 verify 失败的重投都走这里）。
+    /// 处理规则见 handleTransactionUpdate。
+    public func startTransactionMonitor() {
+        guard updatesListenerTask == nil else { return }
+        Task { [weak self] in
+            for await result in Transaction.unfinished {
+                await self?.handleTransactionUpdate(result)
+            }
+        }
+        updatesListenerTask = Task.detached { [weak self] in
+            for await update in Transaction.updates {
+                await self?.handleTransactionUpdate(update)
+            }
+        }
+    }
+
+    /// 监听/重投交易的统一处理：
+    ///  - 仍有效（续期 / 他设备购买 / 上次 verify 失败重投）：后端 verify 成功才 finish，
+    ///    失败或无登录态则保留 unfinished，下次启动重投再试——保证"扣了钱一定有补账机会"。
+    ///  - 已过期 / 已撤销：无可恢复价值（过期补验证不产生服务时长；退款降级由 App Store
+    ///    Server Notification 兜底），有登录态时尽力给后端留痕，随后无论成败都 finish，防止堆积。
+    private func handleTransactionUpdate(_ result: VerificationResult<Transaction>) async {
+        guard let transaction = try? checkVerified(result) else { return }
+        let txId = transaction.id
+        let alreadyHandled = await MainActor.run { () -> Bool in
+            // 购买路径（purchase → verify → finishTransaction）正在处理的交易不抢
+            if self.pendingTransactions.values.contains(where: { $0.id == txId }) { return true }
+            return !self.handledTransactionIds.insert(txId).inserted
+        }
+        if alreadyHandled { return }
+
+        let receipt = result.jwsRepresentation
+        let isRevoked = transaction.revocationDate != nil
+        let isExpired = (transaction.expirationDate ?? .distantFuture) < Date()
+        let hasSession = AuthInterceptor.token() != nil
+
+        if isRevoked || isExpired {
+            if hasSession {
+                _ = try? await SubscriptionService.shared.verifyReceipt(
+                    productId: transaction.productID, receipt: receipt
+                )
+            }
+            #if DEBUG
+            print("[IAP] finish stale transaction id=\(txId) productId=\(transaction.productID) expired=\(isExpired) revoked=\(isRevoked)")
+            #endif
+            await transaction.finish()
+            return
+        }
+
+        guard hasSession else { return }
+        do {
+            _ = try await SubscriptionService.shared.verifyReceipt(
+                productId: transaction.productID, receipt: receipt
+            )
+            await transaction.finish()
+            #if DEBUG
+            print("[IAP] monitor verified & finished id=\(txId) productId=\(transaction.productID)")
+            #endif
+            await AppStateViewModel.shared.refreshSubscriptionState()
+        } catch {
+            #if DEBUG
+            print("[IAP] monitor verify failed, keep unfinished id=\(txId): \(error)")
+            #endif
+            _ = await MainActor.run { self.handledTransactionIds.remove(txId) }
+        }
+    }
 
     public func fetchProducts() async -> [Product] {
         await fetchProducts(ids: ProductIdentifiers.all)
@@ -65,8 +140,9 @@ public final class IAPManager: ObservableObject {
             #if DEBUG
             print("IAP purchase start productId:", productId)
             #endif
-            // 先同步 App Store，清理旧的未完成交易，避免重复购买报"无法完成请求"
-            try? await AppStore.sync()
+            // V5 修复：不在购买前调 AppStore.sync()。
+            // sync() 会弹 Apple ID 密码框，且把未 finish 的旧交易塞回 purchase() 结果，
+            // 导致 Sandbox 测试号"卡死"在过期 receipt 上。Apple 文档明确 sync() 仅用于 Restore。
             if products[productId] == nil {
                 _ = await fetchProducts(ids: [productId])
             }

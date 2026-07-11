@@ -250,10 +250,8 @@ public struct RedeemInviteResponse: Codable {
 public struct GenerateInviteResponse: Codable {
     public let code: String
     public let expiresAt: String
-
-    public var shareLink: String {
-        "https://starlens.ai/i/\(code)"
-    }
+    /// 完整分享链接，由后端下发（域名不写死在客户端）；后端未下发时为 nil，分享文案退化为纯邀请码
+    public let shareLink: String?
 }
 
 /// 更新隐私偏好请求

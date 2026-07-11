@@ -97,8 +97,10 @@ public final class NetworkManager {
         decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
 
+        #if DEBUG
         // 强制打印一次当前 baseURL（方便确认不是 localhost）
         print("\(forcedNetworkPrintPrefix) BASE_URL:", AppConfiguration.shared.baseURL)
+        #endif
     }
 
     public func request<T: Decodable>(

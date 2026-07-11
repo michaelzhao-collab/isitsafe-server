@@ -101,8 +101,17 @@
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "A666807D",
+          "introductoryOffer" : {
+            "billingPlanType" : "BILLED_UPFRONT",
+            "displayPrice" : "1.99",
+            "internalID" : "INTRO-MONTHLY-FIRST",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "payAsYouGo",
+            "subscriptionPeriod" : "P1M"
+          },
           "introductoryOffers" : [
             {
+              "billingPlanType" : "BILLED_UPFRONT",
               "displayPrice" : "1.99",
               "internalID" : "INTRO-MONTHLY-FIRST",
               "numberOfPeriods" : 1,
@@ -146,8 +155,17 @@
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "D0B2DDE7",
+          "introductoryOffer" : {
+            "billingPlanType" : "BILLED_UPFRONT",
+            "displayPrice" : "29.99",
+            "internalID" : "INTRO-YEARLY-FIRST",
+            "numberOfPeriods" : 1,
+            "paymentMode" : "payAsYouGo",
+            "subscriptionPeriod" : "P1Y"
+          },
           "introductoryOffers" : [
             {
+              "billingPlanType" : "BILLED_UPFRONT",
               "displayPrice" : "29.99",
               "internalID" : "INTRO-YEARLY-FIRST",
               "numberOfPeriods" : 1,

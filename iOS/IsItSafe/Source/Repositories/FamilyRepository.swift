@@ -115,6 +115,15 @@ public final class FamilyRepository {
         )
     }
 
+    /// V5.1 群昵称方案 B：群主给任意成员设群昵称（全员可见）
+    public func setMemberDisplayNameByOwner(groupId: String, memberId: String, displayName: String?) async throws {
+        struct Body: Codable { let displayName: String? }
+        try await network.requestVoid(
+            endpoint: .v3FamilySetMemberDisplayName(groupId: groupId, memberId: memberId),
+            body: Body(displayName: displayName?.isEmpty == true ? nil : displayName)
+        )
+    }
+
     /// S5-12 给某成员设私人备注（仅自己可见）
     /// alias=nil/空 → 删除备注
     public func setAlias(memberId: String, alias: String?) async throws {

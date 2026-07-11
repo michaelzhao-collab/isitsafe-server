@@ -15,6 +15,7 @@ public struct MainTabView: View {
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @StateObject private var tabBarVisibility = TabBarVisibility.shared
     @StateObject private var elderMode = ElderModeService.shared
+    @ObservedObject private var familyChat = FamilyChatCoordinator.shared
 
     public init() {}
 
@@ -128,6 +129,15 @@ public struct MainTabView: View {
                             .fill(Color.red)
                             .frame(width: 8, height: 8)
                             .offset(x: 8, y: -6)
+                    }
+                    // V5.1 家庭群未读角标（全部家庭之和）
+                    if index == 2, familyChat.totalUnread > 0 {
+                        Text(familyChat.totalUnread > 99 ? "99+" : "\(familyChat.totalUnread)")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4).padding(.vertical, 1)
+                            .background(Capsule().fill(Color.red))
+                            .offset(x: 12, y: -8)
                     }
                 }
                 Text(title)
