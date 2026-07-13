@@ -33,6 +33,8 @@ import AiEvaluation from '../pages/aiEvaluation/AiEvaluation';
 import OnboardingChips from '../pages/onboarding/OnboardingChips';
 import PushNotifications from '../pages/push/PushNotifications';
 import DiagnosticsPage from '../pages/diagnostics/DiagnosticsPage';
+import ModerationList from '../pages/moderation/ModerationList';
+import DailyScamQueue from '../pages/dailyScam/DailyScamQueue';
 import Login from '../pages/Login';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -78,6 +80,8 @@ const router = createBrowserRouter([
       { path: 'intel/new/edit', element: <IntelEdit /> },
       { path: 'intel/:id/edit', element: <IntelEdit /> },
       { path: 'intel/submissions', element: <IntelSubmissions /> },
+      { path: 'im-moderations', element: <ModerationList /> },
+      { path: 'daily-scam', element: <DailyScamQueue /> },
       { path: 'content-fetch', element: <ContentFetch /> },
       { path: 'ai-evaluation', element: <AiEvaluation /> },
       { path: 'onboarding-chips', element: <OnboardingChips /> },
