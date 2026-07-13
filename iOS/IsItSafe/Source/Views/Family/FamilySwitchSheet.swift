@@ -14,6 +14,7 @@ import SwiftUI
 
 public struct FamilySwitchSheet: View {
     @ObservedObject var vm: FamilyViewModel
+    @ObservedObject private var chat = FamilyChatCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppStateViewModel
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
@@ -93,6 +94,7 @@ public struct FamilySwitchSheet: View {
                     .foregroundColor(AppTheme.textSecondary)
             }
             Spacer()
+            unreadBadge(for: group)
             if group.id == currentGroupId {
                 Image(systemName: "checkmark")
                     .foregroundColor(AppTheme.primary)
@@ -103,6 +105,23 @@ public struct FamilySwitchSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         // 业主反馈：整行都要可点（之前只有头像+文字处响应，右侧空白不响应）
         .contentShape(Rectangle())
+    }
+
+    /// §7-14/§7-15：未读数徽标；免打扰群显示小红点，否则显示数字
+    @ViewBuilder
+    private func unreadBadge(for group: FamilyGroup) -> some View {
+        let unread = chat.unreadByGroup[group.id] ?? 0
+        if unread > 0 {
+            if chat.isMuted(group.id) {
+                Circle().fill(AppTheme.riskHigh).frame(width: 8, height: 8)
+            } else {
+                Text(unread > 99 ? "99+" : "\(unread)")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Capsule().fill(AppTheme.riskHigh))
+            }
+        }
     }
 
     private func roleText(for group: FamilyGroup) -> String {

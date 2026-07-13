@@ -469,13 +469,38 @@ public struct FamilyChatView: View {
                     .font(.system(size: elderScaled(15)))
             }
         default:
-            // 已确认：读回执名单在 §7-4 完整版接入，先显示"已送达"
+            // 已确认：§7-4 已读名单"女儿已读"；无人读到时回退"已送达"
             if msg.isConfirmed {
-                Text(localized(zh: "已送达", en: "Sent"))
-                    .font(.system(size: elderScaled(10)))
-                    .foregroundColor(AppTheme.textSecondary)
+                if let receipt = readReceiptText(for: msg) {
+                    Text(receipt)
+                        .font(.system(size: elderScaled(10)))
+                        .foregroundColor(AppTheme.primary.opacity(0.85))
+                } else {
+                    Text(localized(zh: "已送达", en: "Sent"))
+                        .font(.system(size: elderScaled(10)))
+                        .foregroundColor(AppTheme.textSecondary)
+                }
             }
         }
+    }
+
+    /// §7-4 已读名单：已读到该消息 seq 的其他成员称呼。全读→"全部已读"，多人→"X 等 N 人已读"。
+    private func readReceiptText(for msg: ChatMessage) -> String? {
+        let ids = chat.readers(groupId: groupId, seq: msg.seq, excluding: myUserId)
+        guard !ids.isEmpty else { return nil }
+        let others = max(0, membersById.count - 1)
+        if others > 0 && ids.count >= others {
+            return localized(zh: "全部已读", en: "Read by all")
+        }
+        let names = ids.compactMap { membersById[$0]?.effectiveName }
+        if names.isEmpty {
+            return localized(zh: "\(ids.count) 人已读", en: "\(ids.count) read")
+        }
+        let head = names.prefix(2).joined(separator: "、")
+        if names.count > 2 {
+            return localized(zh: "\(head) 等 \(names.count) 人已读", en: "\(head) +\(names.count - 2) read")
+        }
+        return localized(zh: "\(head) 已读", en: "Read by \(head)")
     }
 
     // MARK: - 头像

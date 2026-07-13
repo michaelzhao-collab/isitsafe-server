@@ -109,6 +109,10 @@ public enum APIEndpoint {
     case chatUnblock(userId: String)
     /// 我屏蔽的用户列表 GET /api/chat/blocked
     case chatBlocked
+    /// V5.1 群聊免打扰 PUT /api/v3/family/groups/:groupId/chat-mute
+    case chatSetMute(groupId: String)
+    /// V5.1 §7-4 群成员已读游标 GET /api/chat/groups/:groupId/read-states
+    case chatReadStates(groupId: String)
     /// V5.1 群主给任意成员设群昵称 PUT /api/v3/family/groups/:groupId/members/:memberId/display-name
     case v3FamilySetMemberDisplayName(groupId: String, memberId: String)
     /// V5.1 老人求助 POST /api/family/help-request
@@ -214,6 +218,8 @@ public enum APIEndpoint {
         case .chatBlock(let userId): return "/api/chat/block/\(userId)"
         case .chatUnblock(let userId): return "/api/chat/block/\(userId)"
         case .chatBlocked: return "/api/chat/blocked"
+        case .chatSetMute(let groupId): return "/api/v3/family/groups/\(groupId)/chat-mute"
+        case .chatReadStates(let groupId): return "/api/chat/groups/\(groupId)/read-states"
         case .v3FamilySetMemberDisplayName(let groupId, let memberId):
             return "/api/v3/family/groups/\(groupId)/members/\(memberId)/display-name"
         case .familyHelpRequest: return "/api/family/help-request"
@@ -268,7 +274,7 @@ public enum APIEndpoint {
         switch self {
         case .health, .authUserInfo, .authExportData, .authRegionHint, .queryHistory, .queryTags, .knowledgeList, .knowledgeCategories, .knowledgeDetail, .subscriptionStatus, .membershipPlans, .messagesList, .messageUnreadCount, .publicConfig,
              .onboardingChips,
-             .chatPullMessages, .chatUnreadSummary, .chatBlocked,
+             .chatPullMessages, .chatUnreadSummary, .chatBlocked, .chatReadStates,
              .v3FamilyGetMyGroup, .v3FamilyGetMyGroups, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus,
              .v3FamilyListCareMutes,
              .v3UserGetNotificationPrefs,
@@ -297,7 +303,7 @@ public enum APIEndpoint {
         case .uploadAvatar, .uploadFile:
             return .POST
         case .updateProfile, .v3UserElderMode, .v3UserPutNotificationPrefs,
-             .chatReadCursor, .v3FamilySetMemberDisplayName,
+             .chatReadCursor, .chatSetMute, .v3FamilySetMemberDisplayName,
              .v3FamilyUpdatePreferences, .v3FamilyMemberElderMode,
              .v3FamilySetMyDisplayName, .v3FamilySetAlias, .v3FamilySetCareMute,
              .v3IntelPutPreferences,
@@ -317,6 +323,7 @@ public enum APIEndpoint {
              .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus, .v3FamilyMemberElderMode,
              .v3FamilySetMyDisplayName, .v3FamilySetAlias,
              .v3FamilyListCareMutes, .v3FamilySetCareMute,
+             .chatSetMute, .chatReadStates,
              .v3IntelFeed, .v3IntelDetail, .v3IntelUnreadCount, .v3IntelSubmit,
              .v3IntelMySubmissions, .v3IntelGetPreferences, .v3IntelPutPreferences, .v3IntelReport,
              .knowledgeReport,

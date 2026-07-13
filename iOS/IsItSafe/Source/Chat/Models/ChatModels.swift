@@ -164,7 +164,25 @@ public struct ChatUnreadItem: Decodable, Identifiable {
     public let lastSeq: Int64
     public let lastReadSeq: Int64
     public let unread: Int
+    /// V5.1 群聊免打扰：客户端据此把未读数字渲染为小红点（老服务端无此字段 → 默认 false）
+    public let muted: Bool
     public var id: String { groupId }
+
+    enum CodingKeys: String, CodingKey { case groupId, lastSeq, lastReadSeq, unread, muted }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        groupId = try c.decode(String.self, forKey: .groupId)
+        lastSeq = try c.decodeIfPresent(Int64.self, forKey: .lastSeq) ?? 0
+        lastReadSeq = try c.decodeIfPresent(Int64.self, forKey: .lastReadSeq) ?? 0
+        unread = try c.decodeIfPresent(Int.self, forKey: .unread) ?? 0
+        muted = try c.decodeIfPresent(Bool.self, forKey: .muted) ?? false
+    }
+}
+
+/// V5.1 §7-4 群成员已读游标项（GET /chat/groups/:groupId/read-states）
+public struct ChatReadState: Decodable {
+    public let userId: String
+    public let lastReadSeq: Int64
 }
 
 /// WebSocket 下行信号

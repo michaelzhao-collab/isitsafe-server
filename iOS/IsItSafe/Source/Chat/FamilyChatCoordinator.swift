@@ -24,6 +24,10 @@ public final class FamilyChatCoordinator: ObservableObject {
     @Published public private(set) var totalUnread: Int = 0
     /// WS 是否已连接（UI 可据此决定是否显示"连接中"）
     @Published public private(set) var isRealtimeConnected: Bool = false
+    /// 我开启了聊天免打扰的群（切换 sheet / 角标渲染小红点）
+    @Published public private(set) var mutedGroups: Set<String> = []
+    /// 每群各成员已读游标（§7-4 已读名单）：groupId → (userId → lastReadSeq)
+    @Published public private(set) var readStatesByGroup: [String: [String: Int64]] = [:]
 
     private let store: ChatMessageStore
     private let engine: ChatSyncEngine
@@ -84,6 +88,7 @@ public final class FamilyChatCoordinator: ObservableObject {
                 for it in items { map[it.groupId] = it.unread }
                 unreadByGroup = map
                 totalUnread = map.values.reduce(0, +)
+                mutedGroups = Set(items.filter { $0.muted }.map { $0.groupId })
                 start(groupIds: ids)
             } catch {
                 // 无家庭/网络失败：忽略
@@ -99,6 +104,8 @@ public final class FamilyChatCoordinator: ObservableObject {
         messagesByGroup = [:]
         unreadByGroup = [:]
         totalUnread = 0
+        mutedGroups = []
+        readStatesByGroup = [:]
     }
 
     // MARK: - 对外操作（代理到引擎）
@@ -231,7 +238,7 @@ public final class FamilyChatCoordinator: ObservableObject {
         }
     }
 
-    /// 进入某群时调用：立即同步 + 全部标已读
+    /// 进入某群时调用：立即同步 + 全部标已读 + 拉取成员已读游标（§7-4）
     public func enterGroup(_ groupId: String) {
         Task {
             await engine.syncGroup(groupId)
@@ -239,6 +246,54 @@ public final class FamilyChatCoordinator: ObservableObject {
             if let last = messagesByGroup[groupId]?.last(where: { $0.seq > 0 })?.seq {
                 await markRead(groupId: groupId, upToSeq: last)
             }
+            await fetchReadStates(groupId)
+        }
+    }
+
+    // MARK: - §7-4 已读名单 + 群聊免打扰
+
+    /// 拉取该群各成员已读游标（进群时校准；之后靠 WS read 信号增量更新）
+    public func fetchReadStates(_ groupId: String) async {
+        guard let states: [ChatReadState] = try? await NetworkManager.shared.request(
+            endpoint: .chatReadStates(groupId: groupId)
+        ) else { return }
+        var map: [String: Int64] = [:]
+        for s in states { map[s.userId] = s.lastReadSeq }
+        readStatesByGroup[groupId] = map
+    }
+
+    /// WS read 信号：对方已读游标只增
+    private func applyReadSignal(groupId: String, userId: String, seq: Int64) {
+        var map = readStatesByGroup[groupId] ?? [:]
+        if seq > (map[userId] ?? 0) {
+            map[userId] = seq
+            readStatesByGroup[groupId] = map
+        }
+    }
+
+    /// 已读到某 seq 的成员 userId（排除自己），供"女儿已读"渲染
+    public func readers(groupId: String, seq: Int64, excluding selfId: String?) -> [String] {
+        guard seq > 0, let states = readStatesByGroup[groupId] else { return [] }
+        return states.compactMap { (uid, readSeq) in
+            (uid != selfId && readSeq >= seq) ? uid : nil
+        }
+    }
+
+    public func isMuted(_ groupId: String) -> Bool { mutedGroups.contains(groupId) }
+
+    /// 设置我在某群的聊天免打扰
+    @discardableResult
+    public func setChatMute(groupId: String, muted: Bool) async -> Bool {
+        struct Req: Encodable { let muted: Bool }
+        struct Resp: Decodable { let muted: Bool }
+        do {
+            let r: Resp = try await NetworkManager.shared.request(
+                endpoint: .chatSetMute(groupId: groupId), body: Req(muted: muted)
+            )
+            if r.muted { mutedGroups.insert(groupId) } else { mutedGroups.remove(groupId) }
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -279,6 +334,7 @@ public final class FamilyChatCoordinator: ObservableObject {
             }
             unreadByGroup = map
             totalUnread = map.values.reduce(0, +)
+            mutedGroups = Set(items.filter { $0.muted }.map { $0.groupId })
         } catch {
             // 失败静默：本地 recompute 会兜底
         }
@@ -299,6 +355,10 @@ public final class FamilyChatCoordinator: ObservableObject {
     private func wireWebSocket() {
         ws.onSignal = { [weak self] signal in
             Task { await self?.engine.handleSignal(signal) }
+            // §7-4 已读名单：他人已读游标更新，实时刷新"女儿已读"（引擎只处理消息，不落对方游标）
+            if case let .read(groupId, userId, seq) = signal {
+                Task { @MainActor in self?.applyReadSignal(groupId: groupId, userId: userId, seq: seq) }
+            }
         }
         ws.onConnectedChange = { [weak self] connected in
             guard let self else { return }

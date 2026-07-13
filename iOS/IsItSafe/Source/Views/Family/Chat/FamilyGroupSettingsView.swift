@@ -11,10 +11,12 @@ import SwiftUI
 public struct FamilyGroupSettingsView: View {
     let group: FamilyGroup
     @ObservedObject var vm: FamilyViewModel
+    @ObservedObject private var chat = FamilyChatCoordinator.shared
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @Environment(\.dismiss) private var dismiss
 
     @State private var shareQueryResults = true
+    @State private var chatMuted = false
     @State private var editingMember: FamilyMember?
     @State private var nicknameDraft = ""
     @State private var showDissolveConfirm = false
@@ -39,6 +41,7 @@ public struct FamilyGroupSettingsView: View {
         }
         .navigationTitle(isEN ? "Group Settings" : "群设置")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { chatMuted = chat.isMuted(group.id) }
         .alert(isEN ? "Set nickname (visible to all)" : "设置群昵称（全员可见）", isPresented: Binding(
             get: { editingMember != nil }, set: { if !$0 { editingMember = nil } })) {
             TextField(isEN ? "Nickname" : "群昵称", text: $nicknameDraft)
@@ -122,6 +125,16 @@ public struct FamilyGroupSettingsView: View {
                 }
             }
             .onChange(of: shareQueryResults) { _, v in Task { _ = await vm.setShareQueryResults(v) } }
+
+            Toggle(isOn: $chatMuted) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(isEN ? "Mute this group" : "消息免打扰")
+                    Text(isEN ? "No banner alerts; unread still counts (strong risk alerts unaffected)"
+                             : "不再弹横幅提醒，未读仍计数（高风险强提醒不受影响）")
+                        .font(.caption).foregroundColor(AppTheme.textSecondary)
+                }
+            }
+            .onChange(of: chatMuted) { _, v in Task { _ = await chat.setChatMute(groupId: group.id, muted: v) } }
 
             Button { showNotificationSettings = true } label: {
                 settingRow(title: isEN ? "Notification preferences" : "通知偏好设置",
