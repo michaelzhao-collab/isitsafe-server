@@ -185,8 +185,11 @@ export class ChatService {
     const offline = recipients.filter((id) => !this.realtime.isOnline(id));
     if (offline.length === 0) return;
 
-    // 尊重推送总开关：pushAllEnabled=false 的用户不发任何非交易类业务推送
-    const pushable = await this.filterPushEnabled(offline);
+    // 尊重推送总开关（pushAllEnabled）+ 群聊免打扰（chatMuted）：都不发聊天横幅
+    const pushable = await this.filterChatMuted(
+      groupId,
+      await this.filterPushEnabled(offline),
+    );
     if (pushable.length === 0) return;
 
     const group = await this.prisma.familyGroup.findUnique({
@@ -220,6 +223,18 @@ export class ChatService {
     return rows.map((r) => r.id);
   }
 
+  /** 过滤掉在该群开启了聊天免打扰（chatMuted=true）的成员 —— 只用于聊天/普通卡片推送 */
+  async filterChatMuted(groupId: string, userIds: string[]): Promise<string[]> {
+    if (userIds.length === 0) return [];
+    const muted = await this.prisma.familyMember.findMany({
+      where: { groupId, userId: { in: userIds }, chatMuted: true },
+      select: { userId: true },
+    });
+    if (muted.length === 0) return userIds;
+    const mutedSet = new Set(muted.map((m) => m.userId));
+    return userIds.filter((id) => !mutedSet.has(id));
+  }
+
   /**
    * 给卡片类消息发离线推送（供 FamilyEventService 调用）。
    * 排除发起人；尊重 pushAllEnabled；只推离线成员。
@@ -227,7 +242,7 @@ export class ChatService {
   async notifyCardToOffline(groupId: string, title: string, excludeUserId: string | null) {
     const memberIds = await this.memberUserIds(groupId);
     const offline = memberIds.filter((id) => id !== excludeUserId && !this.realtime.isOnline(id));
-    const pushable = await this.filterPushEnabled(offline);
+    const pushable = await this.filterChatMuted(groupId, await this.filterPushEnabled(offline));
     if (pushable.length === 0) return;
     const group = await this.prisma.familyGroup.findUnique({
       where: { id: groupId }, select: { name: true },
@@ -387,13 +402,14 @@ export class ChatService {
 
   /**
    * 我加入的每个群的未读数与已读游标（用于家庭 Tab 角标、切换 sheet）。
+   * muted：我在该群是否开启了聊天免打扰（客户端据此把未读数字渲染为小红点）。
    */
   async unreadSummary(userId: string): Promise<
-    Array<{ groupId: string; lastSeq: number; lastReadSeq: number; unread: number }>
+    Array<{ groupId: string; lastSeq: number; lastReadSeq: number; unread: number; muted: boolean }>
   > {
     const members = await this.prisma.familyMember.findMany({
       where: { userId },
-      select: { groupId: true, group: { select: { lastSeq: true } } },
+      select: { groupId: true, chatMuted: true, group: { select: { lastSeq: true } } },
     });
     if (members.length === 0) return [];
     const cursors = await this.prisma.familyReadCursor.findMany({
@@ -408,7 +424,24 @@ export class ChatService {
         lastSeq,
         lastReadSeq,
         unread: Math.max(0, lastSeq - lastReadSeq),
+        muted: m.chatMuted,
       };
     });
+  }
+
+  /**
+   * V5.1 §7-4 已读名单："女儿已读"。返回该群每个成员的已读游标，
+   * 客户端对自己发的消息计算 lastReadSeq >= msg.seq 的成员集渲染已读名单。
+   */
+  async readStates(
+    userId: string,
+    groupId: string,
+  ): Promise<Array<{ userId: string; lastReadSeq: number }>> {
+    await this.assertMember(userId, groupId);
+    const cursors = await this.prisma.familyReadCursor.findMany({
+      where: { groupId },
+      select: { userId: true, lastReadSeq: true },
+    });
+    return cursors.map((c) => ({ userId: c.userId, lastReadSeq: Number(c.lastReadSeq) }));
   }
 }

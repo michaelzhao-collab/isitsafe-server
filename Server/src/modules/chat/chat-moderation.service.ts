@@ -71,4 +71,102 @@ export class ChatModerationService {
     ]);
     return { items, total, page, pageSize };
   }
+
+  // ====== 管理后台（App Store 1.2 合规：查看 + 处置举报/拉黑）======
+
+  /**
+   * admin 列表（举报/拉黑），带被举报消息快照 + 举报人/被处置人昵称 + 群名，供后台审阅。
+   */
+  async adminList(params: { type?: string; status?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(params.pageSize ?? 30, 100);
+    const where: { type?: string; status?: string } = {};
+    if (params.type) where.type = params.type;
+    if (params.status) where.status = params.status;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.imModeration.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.imModeration.count({ where }),
+    ]);
+
+    // 批量取关联实体：消息、用户、群
+    const msgIds = rows.map((r) => r.imMsgId).filter((x): x is string => !!x);
+    const userIds = Array.from(
+      new Set(rows.flatMap((r) => [r.reporterId, r.targetId].filter((x): x is string => !!x))),
+    );
+    const groupIds = Array.from(new Set(rows.map((r) => r.groupId).filter((x): x is string => !!x)));
+
+    const [messages, users, groups] = await Promise.all([
+      msgIds.length
+        ? this.prisma.familyMessage.findMany({
+            where: { id: { in: msgIds } },
+            select: { id: true, type: true, content: true, senderId: true, status: true },
+          })
+        : Promise.resolve([]),
+      userIds.length
+        ? this.prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, nickname: true },
+          })
+        : Promise.resolve([]),
+      groupIds.length
+        ? this.prisma.familyGroup.findMany({
+            where: { id: { in: groupIds } },
+            select: { id: true, name: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const msgMap = new Map(messages.map((m) => [m.id, m]));
+    const userMap = new Map(users.map((u) => [u.id, u.nickname]));
+    const groupMap = new Map(groups.map((g) => [g.id, g.name]));
+
+    const items = rows.map((r) => {
+      const msg = r.imMsgId ? msgMap.get(r.imMsgId) : null;
+      return {
+        id: r.id,
+        type: r.type,
+        status: r.status,
+        reason: r.reason,
+        reporterId: r.reporterId,
+        reporterName: userMap.get(r.reporterId) ?? null,
+        targetId: r.targetId,
+        targetName: r.targetId ? (userMap.get(r.targetId) ?? null) : null,
+        groupId: r.groupId,
+        groupName: r.groupId ? (groupMap.get(r.groupId) ?? null) : null,
+        messageId: r.imMsgId,
+        messageType: msg?.type ?? null,
+        // 举报消息内容快照；已撤回则不回显正文
+        messageContent: msg && msg.status !== 'recalled' ? msg.content : null,
+        messageRecalled: msg?.status === 'recalled',
+        createdAt: r.createdAt,
+      };
+    });
+    return { items, total, page, pageSize };
+  }
+
+  /** admin 处置：更新举报/拉黑记录状态 pending → reviewed | actioned */
+  async adminUpdateStatus(id: string, status: string) {
+    const valid = ['pending', 'reviewed', 'actioned'];
+    if (!valid.includes(status)) throw new NotFoundException('invalid status');
+    const row = await this.prisma.imModeration.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('moderation not found');
+    return this.prisma.imModeration.update({ where: { id }, data: { status } });
+  }
+
+  /** admin 统计小卡：待处理 / 已处理 / 总数 */
+  async adminStats() {
+    const [pending, reviewed, actioned, total] = await Promise.all([
+      this.prisma.imModeration.count({ where: { type: 'report', status: 'pending' } }),
+      this.prisma.imModeration.count({ where: { type: 'report', status: 'reviewed' } }),
+      this.prisma.imModeration.count({ where: { type: 'report', status: 'actioned' } }),
+      this.prisma.imModeration.count({ where: { type: 'report' } }),
+    ]);
+    return { pending, reviewed, actioned, total };
+  }
 }

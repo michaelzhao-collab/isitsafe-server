@@ -250,4 +250,18 @@ export class FamilyController {
   ) {
     return this.family.setCareMute(userId, groupId, targetUserId, !!body?.muted);
   }
+
+  /**
+   * V5.1 群聊免打扰：设置我在某群的聊天推送开关。
+   * PUT /api/v3/family/groups/:groupId/chat-mute  body: { muted: boolean }
+   * 免打扰只压制聊天/普通卡片离线推送；高风险强提醒不受影响。
+   */
+  @Put('groups/:groupId/chat-mute')
+  async setChatMute(
+    @CurrentUser('sub') userId: string,
+    @Param('groupId') groupId: string,
+    @Body() body: { muted?: boolean },
+  ) {
+    return this.family.setChatMute(userId, groupId, !!body?.muted);
+  }
 }

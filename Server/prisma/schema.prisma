@@ -134,6 +134,9 @@ model FamilyMember {
   /// S5-12 成员在此家庭内的自我命名（owner 也是 member，自己改自己）
   /// NULL → 回退到 user.nickname；非 NULL → 全员可见的家庭内称呼
   displayName       String?     @map("display_name") @db.VarChar(64)
+  /// V5.1 群聊免打扰：true → 该成员在此群不收聊天离线推送横幅（角标仍算未读，客户端渲染小红点）
+  /// 只压制普通聊天/普通卡片推送；高风险强提醒不受此开关影响（走独立通道）
+  chatMuted         Boolean     @default(false) @map("chat_muted")
   joinedAt          DateTime    @default(now()) @map("joined_at")
 
   /// S5-12 别人给我打的私人备注（仅其他成员可见自己设的备注）
@@ -547,6 +550,40 @@ model ImModeration {
   @@index([type, status, createdAt])
   @@index([reporterId])
   @@map("im_moderations")
+}
+
+// --------------------------------------------
+// V5.1 每日一骗（daily_scam）：候选 + 人工审核队列
+// 决策 #5：人工确认才发。cron 每日 18:00 只发 status=approved 且到期的候选，
+// 发完置 sent。admin"明日一骗"队列增删改审。
+// --------------------------------------------
+model DailyScamCandidate {
+  id            String    @id @default(cuid())
+  /// 卡片标题（进群展示）
+  title         String    @db.VarChar(200)
+  /// 卡片正文 ≤3 行摘要
+  summary       String    @db.Text
+  /// high | medium | low —— 卡片风险色
+  riskLevel     String    @default("high") @map("risk_level")
+  /// 关联来源：intel | knowledge | manual
+  refType       String?   @map("ref_type")
+  refId         String?   @map("ref_id")
+  /// 点击卡片跳转的内部路由（可空）
+  deepLink      String?   @map("deep_link")
+  /// 计划发送日（服务端日期，UTC 存储，cron 按当日匹配）
+  scheduledDate DateTime  @map("scheduled_date") @db.Date
+  /// pending（待审）| approved（已批，待发）| rejected（驳回）| sent（已发）
+  status        String    @default("pending")
+  reviewedBy    String?   @map("reviewed_by")
+  reviewedAt    DateTime? @map("reviewed_at")
+  sentAt        DateTime? @map("sent_at")
+  /// 实发家庭群数（统计用）
+  sentGroupCount Int?     @map("sent_group_count")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, scheduledDate])
+  @@map("daily_scam_candidates")
 }
 
 // --------------------------------------------

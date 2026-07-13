@@ -1187,6 +1187,24 @@ export class FamilyService {
     return { muted };
   }
 
+  /**
+   * V5.1 群聊免打扰：设置我在某群的聊天推送开关。
+   * muted=true → 该群聊天离线推送横幅不再发给我（未读角标仍累加，客户端渲染小红点）。
+   * 高风险强提醒不受此开关影响（走独立通道）。
+   */
+  async setChatMute(
+    userId: string,
+    groupId: string,
+    muted: boolean,
+  ): Promise<{ muted: boolean }> {
+    await this.assertMemberOf(groupId, userId);
+    await this.prisma.familyMember.updateMany({
+      where: { groupId, userId },
+      data: { chatMuted: muted },
+    });
+    return { muted };
+  }
+
   private async assertMemberOf(groupId: string, userId: string): Promise<void> {
     const m = await this.prisma.familyMember.findFirst({
       where: { groupId, userId },

@@ -83,6 +83,12 @@ export class ChatController {
     return this.chat.unreadSummary(userId);
   }
 
+  /** 某群各成员已读游标（§7-4 已读名单"女儿已读"） */
+  @Get('groups/:groupId/read-states')
+  readStates(@CurrentUser('sub') userId: string, @Param('groupId') groupId: string) {
+    return this.chat.readStates(userId, groupId);
+  }
+
   // ====== 合规：举报 / 拉黑 ======
 
   /** 举报一条消息 */

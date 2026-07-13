@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { NotificationModule } from '../notification/notification.module';
 import { ChatController } from './chat.controller';
@@ -6,8 +7,12 @@ import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { ChatRealtimeService } from './chat-realtime.service';
 import { ChatModerationService } from './chat-moderation.service';
+import { ChatAdminController } from './chat-admin.controller';
 import { FamilyEventService } from './family-event.service';
 import { FamilyEventController } from './family-event.controller';
+import { DailyScamService } from './daily-scam.service';
+import { DailyScamAdminController } from './daily-scam-admin.controller';
+import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 
 /**
  * V5.1 自建轻量 IM 模块。
@@ -20,13 +25,21 @@ import { FamilyEventController } from './family-event.controller';
  */
 @Module({
   imports: [PrismaModule, NotificationModule],
-  controllers: [ChatController, FamilyEventController],
+  controllers: [
+    ChatController,
+    FamilyEventController,
+    ChatAdminController,
+    DailyScamAdminController,
+  ],
   providers: [
     ChatService,
     ChatGateway,
     ChatRealtimeService,
     ChatModerationService,
     FamilyEventService,
+    DailyScamService,
+    AdminRoleGuard,
+    Reflector,
   ],
   exports: [ChatService, FamilyEventService],
 })
