@@ -28,6 +28,9 @@ export interface MessageView {
 }
 
 const RECALL_WINDOW_MS = 2 * 60 * 1000; // 撤回窗口 2 分钟（与微信一致）
+// 撤回墓碑补投递窗口：撤回不改 seq（墓碑需原地生效），错过 WS recall 信号的
+// 离线端靠增量 pull 补投近期被撤回的消息（按 id upsert，seq 不变）
+const RECALL_REDELIVERY_WINDOW_MS = 7 * 24 * 3600 * 1000;
 
 @Injectable()
 export class ChatService {
@@ -266,13 +269,19 @@ export class ChatService {
    */
   async bumpAndSignalCard(groupId: string, messageId: string, payloadPatch: Record<string, unknown>) {
     const updated = await this.prisma.$transaction(async (tx) => {
-      const msg = await tx.familyMessage.findUnique({ where: { id: messageId } });
-      if (!msg || msg.groupId !== groupId) return null;
+      const exists = await tx.familyMessage.findUnique({
+        where: { id: messageId },
+        select: { groupId: true },
+      });
+      if (!exists || exists.groupId !== groupId) return null;
+      // 先拿组行锁再读 payload：并发处置同一张卡时串行化，后到方能读到先到方的补丁，合并不丢
       const grp = await tx.familyGroup.update({
         where: { id: groupId },
         data: { lastSeq: { increment: 1 } },
         select: { lastSeq: true },
       });
+      const msg = await tx.familyMessage.findUnique({ where: { id: messageId } });
+      if (!msg) return null;
       const payload = { ...((msg.payload as Record<string, unknown>) ?? {}), ...payloadPatch };
       return tx.familyMessage.update({
         where: { id: messageId },
@@ -326,6 +335,24 @@ export class ChatService {
         orderBy: { seq: 'asc' },
         take: limit,
       });
+      // 撤回补投递：撤回不改 seq，仅靠 WS 信号会被离线端永久错过。
+      // 增量 pull 额外附带窗口期内 seq<=afterSeq 的撤回墓碑（与上面结果天然不重叠），
+      // 客户端按 id upsert、seq 不变 → 墓碑原地生效。撤回极少发生，通常为空集。
+      const recalledTombstones = await this.prisma.familyMessage.findMany({
+        where: {
+          groupId,
+          status: 'recalled',
+          seq: { lte: BigInt(opts.afterSeq) },
+          createdAt: { gte: new Date(Date.now() - RECALL_REDELIVERY_WINDOW_MS) },
+        },
+        orderBy: { seq: 'desc' },
+        // 上限须低于客户端分页阈值 50：若墓碑集独自凑满一页，客户端“count<50 即追平”
+        // 的判断会误判未追平、以不变的 afterSeq 重复拉取（死循环）
+        take: 20,
+      });
+      if (recalledTombstones.length > 0) {
+        rows = [...recalledTombstones.reverse(), ...rows];
+      }
     } else if (opts.beforeSeq != null) {
       const desc = await this.prisma.familyMessage.findMany({
         where: { groupId, seq: { lt: BigInt(opts.beforeSeq) } },
@@ -357,26 +384,47 @@ export class ChatService {
    */
   async updateReadCursor(userId: string, groupId: string, seq: number): Promise<{ lastReadSeq: number }> {
     await this.assertMember(userId, groupId);
-    const target = BigInt(seq);
-    const existing = await this.prisma.familyReadCursor.findUnique({
-      where: { groupId_userId: { groupId, userId } },
+    // clamp 到组内高水位：防止把游标推到未发出的消息之后（对未来消息伪造"已读"）
+    const grp = await this.prisma.familyGroup.findUnique({
+      where: { id: groupId },
+      select: { lastSeq: true },
     });
-    const current = existing?.lastReadSeq ?? BigInt(0);
-    if (target <= current) {
-      return { lastReadSeq: Number(current) };
+    const target = BigInt(seq) < (grp?.lastSeq ?? BigInt(0)) ? BigInt(seq) : (grp?.lastSeq ?? BigInt(0));
+    if (target <= BigInt(0)) return { lastReadSeq: 0 };
+
+    // 原子条件推进（只增不减）：并发多次上报时旧值无法覆盖新值
+    const advanced = await this.prisma.familyReadCursor.updateMany({
+      where: { groupId, userId, lastReadSeq: { lt: target } },
+      data: { lastReadSeq: target },
+    });
+    if (advanced.count === 0) {
+      const existing = await this.prisma.familyReadCursor.findUnique({
+        where: { groupId_userId: { groupId, userId } },
+      });
+      if (existing) {
+        // 已有更靠前的游标 → 本次是迟到的旧上报，不广播
+        return { lastReadSeq: Number(existing.lastReadSeq) };
+      }
+      try {
+        await this.prisma.familyReadCursor.create({
+          data: { groupId, userId, lastReadSeq: target },
+        });
+      } catch (err: any) {
+        // 并发首建撞唯一键 → 对方已建行，条件推进一次即可
+        if (err?.code !== 'P2002') throw err;
+        await this.prisma.familyReadCursor.updateMany({
+          where: { groupId, userId, lastReadSeq: { lt: target } },
+          data: { lastReadSeq: target },
+        });
+      }
     }
-    await this.prisma.familyReadCursor.upsert({
-      where: { groupId_userId: { groupId, userId } },
-      create: { groupId, userId, lastReadSeq: target },
-      update: { lastReadSeq: target },
-    });
     // 广播已读，让他人界面实时更新"已读"
     const memberIds = await this.memberUserIds(groupId);
     this.realtime.signalUsers(
       memberIds.filter((id) => id !== userId),
-      { op: 'read', groupId, userId, seq },
+      { op: 'read', groupId, userId, seq: Number(target) },
     );
-    return { lastReadSeq: seq };
+    return { lastReadSeq: Number(target) };
   }
 
   /**
@@ -438,8 +486,10 @@ export class ChatService {
     groupId: string,
   ): Promise<Array<{ userId: string; lastReadSeq: number }>> {
     await this.assertMember(userId, groupId);
+    // 只返回现任成员的游标：退群成员的游标行不随成员删除清理，不过滤会把前成员算进已读名单
+    const memberIds = await this.memberUserIds(groupId);
     const cursors = await this.prisma.familyReadCursor.findMany({
-      where: { groupId },
+      where: { groupId, userId: { in: memberIds } },
       select: { userId: true, lastReadSeq: true },
     });
     return cursors.map((c) => ({ userId: c.userId, lastReadSeq: Number(c.lastReadSeq) }));

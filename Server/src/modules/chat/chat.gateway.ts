@@ -5,10 +5,10 @@ import {
   WebSocketGateway,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import type { IncomingMessage } from 'http';
 import * as nodeJwt from 'jsonwebtoken';
 import { ChatRealtimeService, RealtimeSocket } from './chat-realtime.service';
+import { getJwtSecret } from '../../common/jwt-secret.util';
 
 /**
  * V5.1 自建 IM WebSocket 网关（挂在同一 HTTP server 的 /chat 路径）。
@@ -42,11 +42,8 @@ export class ChatGateway
   private heartbeatTimer?: NodeJS.Timeout;
   private readonly liveSockets = new Set<WsClient>();
 
-  constructor(
-    private realtime: ChatRealtimeService,
-    private config: ConfigService,
-  ) {
-    this.jwtSecret = this.config.get('JWT_SECRET', 'secret');
+  constructor(private realtime: ChatRealtimeService) {
+    this.jwtSecret = getJwtSecret();
   }
 
   afterInit(): void {

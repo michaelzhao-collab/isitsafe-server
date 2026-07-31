@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GeoIpService } from './geoip.service';
+import { getJwtSecret } from '../../common/jwt-secret.util';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { GeoIpService } from './geoip.service';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
-        secret: config.get('JWT_SECRET', 'secret'),
+        secret: getJwtSecret(),
         signOptions: { expiresIn: config.get('JWT_EXPIRES_IN', '7d') },
       }),
       inject: [ConfigService],

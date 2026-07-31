@@ -1,7 +1,26 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { CronTime } from 'cron';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FamilyEventService } from './family-event.service';
+
+const DEFAULT_DAILY_SCAM_CRON = '0 10 * * *';
+
+/** DAILY_SCAM_CRON 配错不能拖垮整个服务：非法表达式回退默认值并告警 */
+function resolveDailyScamCron(): string {
+  const expr = process.env.DAILY_SCAM_CRON?.trim();
+  if (!expr) return DEFAULT_DAILY_SCAM_CRON;
+  try {
+    new CronTime(expr);
+    return expr;
+  } catch {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[DailyScam] invalid DAILY_SCAM_CRON "${expr}", falling back to "${DEFAULT_DAILY_SCAM_CRON}"`,
+    );
+    return DEFAULT_DAILY_SCAM_CRON;
+  }
+}
 
 /**
  * V5.1 每日一骗（daily_scam）。
@@ -110,7 +129,7 @@ export class DailyScamService {
 
   // ====== 定时派发 ======
 
-  @Cron(process.env.DAILY_SCAM_CRON || '0 10 * * *', { name: 'daily-scam-dispatch' })
+  @Cron(resolveDailyScamCron(), { name: 'daily-scam-dispatch' })
   async runDailyDispatch() {
     // 紧急回退开关同群聊：CHAT_ENABLED=false 时不派发
     if (process.env.CHAT_ENABLED === 'false') {
@@ -152,6 +171,14 @@ export class DailyScamService {
     if (cand.status === 'sent') return 0;
     if (cand.status !== 'approved') throw new BadRequestException('仅 approved 候选可发送');
 
+    // 先原子占位再派发：cron 与 admin"立即发送"并发时只有一方拿到；
+    // 派发中途进程重启也不会下轮重发（宁可漏发部分群，不重复刷群）
+    const claimed = await this.prisma.dailyScamCandidate.updateMany({
+      where: { id, status: 'approved' },
+      data: { status: 'sent', sentAt: new Date() },
+    });
+    if (claimed.count === 0) return 0;
+
     const groups = await this.prisma.familyGroup.findMany({ select: { id: true } });
     let sent = 0;
     for (const g of groups) {
@@ -174,7 +201,7 @@ export class DailyScamService {
     }
     await this.prisma.dailyScamCandidate.update({
       where: { id },
-      data: { status: 'sent', sentAt: new Date(), sentGroupCount: sent },
+      data: { sentGroupCount: sent },
     });
     return sent;
   }
