@@ -72,7 +72,12 @@ export default function DailyScamQueue() {
       summary: row.summary,
       riskLevel: row.riskLevel,
       deepLink: row.deepLink ?? undefined,
-      scheduledDate: dayjs(row.scheduledDate),
+      // 2026-09-07 复核：服务端下发的是 `2026-09-08T00:00:00.000Z`（纯日期存成了 UTC 零点）。
+      // 带 Z 的字符串走 new Date() 按 UTC 解析，在 UTC 以西的时区会回退成前一天。
+      // 先截成 `2026-09-08` 再交给 dayjs——这种纯日期串 dayjs 按【本地】零点解析，
+      // 编辑框里就是运营当初填的那天。（注意：项目没装 customParseFormat 插件，
+      // 所以这里不能传第二个 format 参数，传了也会被忽略。）
+      scheduledDate: dayjs(row.scheduledDate.slice(0, 10)),
     });
     setModalOpen(true);
   };

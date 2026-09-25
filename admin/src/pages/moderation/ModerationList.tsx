@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card, Table, Tag, Button, Space, Select, message, Popconfirm, Drawer, Statistic, Row, Col } from 'antd';
+import dayjs from 'dayjs';
 import {
   listModerations,
   moderationStats,
@@ -7,6 +8,12 @@ import {
   type ModerationItem,
   type ModerationStats,
 } from '../../api/moderation';
+
+/**
+ * 2026-09-07 复核：原来直接 `v.slice(0,19).replace('T',' ')` 截 ISO 字符串，
+ * 那是 UTC 时间，运营看到的比北京时间早 8 小时。改成按浏览器本地时区渲染。
+ */
+const fmtLocal = (v?: string | null) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm:ss') : '');
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'gold',
@@ -101,7 +108,7 @@ export default function ModerationList() {
       dataIndex: 'createdAt',
       key: 'createdAt',
       width: 170,
-      render: (v: string) => v?.slice(0, 19).replace('T', ' '),
+      render: (v: string) => fmtLocal(v),
     },
     {
       title: '操作',
@@ -193,7 +200,7 @@ export default function ModerationList() {
             <div><strong>举报人：</strong>{previewRow.reporterName || previewRow.reporterId}</div>
             {previewRow.targetId && <div><strong>被处置人：</strong>{previewRow.targetName || previewRow.targetId}</div>}
             <div><strong>家庭：</strong>{previewRow.groupName ?? '-'}</div>
-            <div><strong>时间：</strong>{previewRow.createdAt?.slice(0, 19).replace('T', ' ')}</div>
+            <div><strong>时间：</strong>{fmtLocal(previewRow.createdAt)}</div>
             <div><strong>状态：</strong><Tag color={STATUS_COLORS[previewRow.status] ?? 'default'}>{STATUS_LABEL[previewRow.status] ?? previewRow.status}</Tag></div>
             {previewRow.reason && <div><strong>理由：</strong>{previewRow.reason}</div>}
             {previewRow.type === 'report' && (
