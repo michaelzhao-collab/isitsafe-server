@@ -178,6 +178,10 @@ public final class NetworkManager {
     /// 上传头像：multipart/form-data，返回 CDN URL
     public func uploadAvatar(imageData: Data, filename: String = "avatar.jpg") async throws -> String {
         let endpoint = APIEndpoint.uploadAvatar
+        // 2026-09-07 复核：上传走的是独立的 multipart 路径，此前没有像 request() 那样
+        // 主动刷新临期 token；access token 差几秒过期时发一条语音/图片就会拿到 401，
+        // 而 ResponseValidator 对 401 一律清 session → 用户被直接登出。
+        await AuthService.shared.ensureFreshTokenIfNearExpiry()
         let boundary = "Boundary-\(UUID().uuidString)"
         var urlString = AppConfiguration.shared.baseURL
         if urlString.hasSuffix("/") { urlString = String(urlString.dropLast()) }
@@ -208,6 +212,10 @@ public final class NetworkManager {
     /// V3-A1 上传音频文件到 R2，返回 CDN URL（POST /api/upload/audio）
     /// type 通常 'deepfake'；m4a / mp3 / wav / aac 都可
     public func uploadAudio(type: String = "deepfake", audioData: Data, mimeType: String = "audio/mp4", filename: String = "voice.m4a") async throws -> String {
+        // 2026-09-07 复核：上传走的是独立的 multipart 路径，此前没有像 request() 那样
+        // 主动刷新临期 token；access token 差几秒过期时发一条语音/图片就会拿到 401，
+        // 而 ResponseValidator 对 401 一律清 session → 用户被直接登出。
+        await AuthService.shared.ensureFreshTokenIfNearExpiry()
         let boundary = "Boundary-\(UUID().uuidString)"
         var urlString = AppConfiguration.shared.baseURL
         if urlString.hasSuffix("/") { urlString = String(urlString.dropLast()) }
@@ -241,6 +249,10 @@ public final class NetworkManager {
     /// 上传文件（如截图）到 OSS，type 取 screenshot 等，返回 CDN URL
     public func uploadFile(type: String, imageData: Data, mimeType: String = "image/jpeg", filename: String = "screenshot.jpg") async throws -> String {
         let endpoint = APIEndpoint.uploadFile
+        // 2026-09-07 复核：上传走的是独立的 multipart 路径，此前没有像 request() 那样
+        // 主动刷新临期 token；access token 差几秒过期时发一条语音/图片就会拿到 401，
+        // 而 ResponseValidator 对 401 一律清 session → 用户被直接登出。
+        await AuthService.shared.ensureFreshTokenIfNearExpiry()
         let boundary = "Boundary-\(UUID().uuidString)"
         var urlString = AppConfiguration.shared.baseURL
         if urlString.hasSuffix("/") { urlString = String(urlString.dropLast()) }

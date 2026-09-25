@@ -16,6 +16,7 @@ import SwiftUI
 public struct FamilyView: View {
     @StateObject private var vm = FamilyViewModel()
     @EnvironmentObject private var router: AppRouter
+    @EnvironmentObject private var appState: AppStateViewModel
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     // V5.1：服务端家庭 IM 开关（默认 false，服务端 /api/config 返回 true 才启用群聊）
     @AppStorage(AppSettingsStore.familyChatEnabledKey) private var familyChatEnabled: Bool = false
@@ -36,10 +37,8 @@ public struct FamilyView: View {
             // V5：进入家庭 tab 申请推送权限（家庭关怀提醒/风险事件群播报依赖推送；
             //     仅 notDetermined 时弹框，已授权/已拒绝不打扰）
             PushService.shared.promptIfNeeded()
-            // 启动时已经携带 pending 邀请码 → 立即打开兑换 sheet
-            if router.pendingInviteCode != nil {
-                showRedeemSheet = true
-            }
+            // 启动时已经携带 pending 邀请码 → 打开兑换 sheet（未登录时先去登录，见下方注释）
+            presentRedeemIfPossible()
             // V4 复核 #11：之前 onAppear 同步 refresh() + Task 内 await 心跳后又 refresh() 一次
             //                两个请求并发，URLSession 可能取消其中一次抛 CancellationError；
             //                同时 access_token 接近过期还会让两次都触发 refresh_token。
@@ -51,9 +50,22 @@ public struct FamilyView: View {
                 await MainActor.run { vm.refresh() }
             }
         }
+        // 从本页「立即登录」登录成功后，vm.state 仍停在 notLoggedIn：监听登录态变化主动刷新。
+        // 注意 401 清 token 的路径不会把 appState.isLoggedIn 置 false（可能一直是 true），
+        // 所以还要监听登录弹层关闭：关闭时只要本地有 token 就刷新一次。
+        .onChange(of: appState.isLoggedIn) { _, loggedIn in
+            if loggedIn { vm.refresh(); presentRedeemIfPossible() }
+        }
+        .onChange(of: router.isShowingLogin) { _, showing in
+            // 登录弹层关掉且本地已有 token → 刷新家庭；如果之前攒着邀请码，这时补弹兑换页
+            if !showing, AuthInterceptor.token() != nil {
+                vm.refresh()
+                presentRedeemIfPossible()
+            }
+        }
         // Universal Link 拉起家庭 Tab + 携带邀请码 → 自动弹兑换 sheet
         .onChange(of: router.pendingInviteCode) { _, code in
-            if code != nil { showRedeemSheet = true }
+            if code != nil { presentRedeemIfPossible() }
         }
         .sheet(isPresented: $showCreateSheet) {
             CreateFamilyGroupSheet(vm: vm)
@@ -64,6 +76,19 @@ public struct FamilyView: View {
         }) {
             RedeemInviteSheet(vm: vm, prefilledCode: router.pendingInviteCode)
         }
+    }
+
+    /// 2026-09-07 复核：原来 onAppear 只判 pendingInviteCode != nil 就弹兑换 sheet，不看是否已登录。
+    /// 未登录的老人点邀请链接 → 兑换页弹在"登录后使用家庭守护"占位页上 → 兑换 401 失败 →
+    /// 关闭 sheet 时 onDismiss 把邀请码清掉 → 登录后还得手动再输一次。
+    /// 现在：未登录先拉起登录页并【保留】邀请码，登录成功后由 onChange 补弹兑换页。
+    private func presentRedeemIfPossible() {
+        guard router.pendingInviteCode != nil else { return }
+        guard AuthInterceptor.token() != nil else {
+            router.showLogin()
+            return
+        }
+        showRedeemSheet = true
     }
 
     @ViewBuilder

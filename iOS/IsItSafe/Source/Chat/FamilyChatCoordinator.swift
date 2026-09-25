@@ -43,6 +43,18 @@ public final class FamilyChatCoordinator: ObservableObject {
     private var started = false
     private var pollTimer: Timer?
 
+    /// 每群当前已加载到内存的消息条数上限（向上翻页时逐页放大）。
+    /// 2026-09-07 复核：原来固定 300 条且没有任何地方调 loadHistory，
+    /// 导致 300 条以前的历史即使在库里也永远看不到。
+    private var loadedLimitByGroup: [String: Int] = [:]
+    private static let initialWindow = 300
+
+    /// 本地库属于哪个账号（换账号必须清库，否则跨账号看到上一个人的家庭消息）
+    private static let lastUserIdKey = "isitsafe.chat.lastUserId"
+
+    /// 串行化所有"清库"类操作，保证它们不会与随后的同步任务乱序执行
+    private var maintenance: Task<Void, Never>?
+
     private init() {
         let store = SQLiteChatStore()
         self.store = store
@@ -56,23 +68,72 @@ public final class FamilyChatCoordinator: ObservableObject {
 
     /// 登录后 / 家庭数据就绪后调用。可重复调用（幂等）。
     public func start(groupIds: [String]) {
-        self.groupIds = groupIds
+        // ① 换账号检测：本地库全账号共用一个文件，登录者变了就必须先清干净。
+        //    否则 started 仍为 true → 跳过 refreshUnreadFromServer（本地游标恒为 0，
+        //    历史全算未读 99+）、WS 仍绑着上一个账号的 token、列表里还是上一个人的消息。
+        let currentUser = TokenStore.shared.userId
+        let previousUser = UserDefaults.standard.string(forKey: Self.lastUserIdKey)
+        if let currentUser, let previousUser, previousUser != currentUser {
+            resetLocalState(clearIdentity: false)
+        }
+        if let currentUser { UserDefaults.standard.set(currentUser, forKey: Self.lastUserIdKey) }
+
+        // ② 群列表同步落定：hasFamily / primaryGroupId 对调用方必须立即可见，
+        //    不能推迟到下面的 Task 里（"发到家庭群"按钮会立刻读它）
+        applyGroupList(groupIds)
+
+        Task { await startInternal() }
+    }
+
+    private func startInternal() async {
+        // 等清库类操作全部落地，避免它们与随后的同步竞争把新拉的数据又抹掉
+        await maintenance?.value
+
+        ws.connect()   // 幂等；换账号后此处会用新 token 重新握手
         guard !started else {
-            Task { await self.syncAllGroups() }
+            await syncAllGroups()
             return
         }
         started = true
-        ws.connect()
-        Task {
-            await refreshUnreadFromServer()
-            await syncAllGroups()
-        }
+        await store.resetStuckSending()   // 清扫上次被杀进程留下的"发送中"僵尸消息
+        await refreshUnreadFromServer()
+        await syncAllGroups()
     }
 
     /// 更新我所属的群列表（切换/加入/退出家庭后）
     public func setGroups(_ ids: [String]) {
-        self.groupIds = ids
+        applyGroupList(ids)
         Task { await syncAllGroups() }
+    }
+
+    /// 用最新群列表覆盖本地状态，并清理已不属于我的群
+    private func applyGroupList(_ ids: [String]) {
+        let removed = Set(groupIds).subtracting(ids)
+        groupIds = ids
+        guard !removed.isEmpty else { return }
+        // 2026-09-07 复核：退群/群解散后，unreadByGroup 里的旧条目从不被删除，
+        // 角标一直把已退出的群算进去，直到冷启动才恢复。
+        for gid in removed {
+            unreadByGroup.removeValue(forKey: gid)
+            messagesByGroup.removeValue(forKey: gid)
+            readStatesByGroup.removeValue(forKey: gid)
+            loadedLimitByGroup.removeValue(forKey: gid)
+            mutedGroups.remove(gid)
+        }
+        totalUnread = unreadByGroup.values.reduce(0, +)
+        enqueueStoreMaintenance { store in
+            for gid in removed { await store.deleteGroup(groupId: gid) }
+        }
+    }
+
+    /// 把清库类操作串成一条链，保证彼此有序、且可被 startInternal await 到
+    private func enqueueStoreMaintenance(_ work: @escaping (ChatMessageStore) async -> Void) {
+        let previous = maintenance
+        let store = self.store
+        maintenance = Task { @MainActor in
+            await previous?.value
+            await work(store)
+        }
     }
 
     /// 登录态下从服务端自举群列表并启动（用于 App 激活时，不依赖是否进过家庭 Tab，
@@ -96,16 +157,32 @@ public final class FamilyChatCoordinator: ObservableObject {
         }
     }
 
-    /// 登出清理
+    /// 登出清理。由 `UserSessionStore.clearSession()` 统一调用，
+    /// 覆盖主动登出、删账号、以及 401 被动清 session 三条路径。
     public func stop() {
+        resetLocalState(clearIdentity: true)
+    }
+
+    /// 断连 + 清空内存态 + 排队清本地库。
+    /// - Parameter clearIdentity: 登出时连"本地库属于谁"的标记一起清；
+    ///   换账号场景传 false，由 start() 紧接着写入新 userId。
+    private func resetLocalState(clearIdentity: Bool) {
         started = false
         ws.disconnect()
         stopPolling()
+        groupIds = []
         messagesByGroup = [:]
         unreadByGroup = [:]
         totalUnread = 0
         mutedGroups = []
         readStatesByGroup = [:]
+        blockedUserIds = []
+        loadedLimitByGroup = [:]
+        if clearIdentity {
+            UserDefaults.standard.removeObject(forKey: Self.lastUserIdKey)
+        }
+        // 本地消息库全账号共用一个文件，必须清空，否则下一个登录者能看到上一个账号的家庭聊天
+        enqueueStoreMaintenance { store in await store.clearAll() }
     }
 
     // MARK: - 对外操作（代理到引擎）
@@ -125,9 +202,35 @@ public final class FamilyChatCoordinator: ObservableObject {
         await recomputeUnread(groupId: groupId)
     }
 
+    /// 向上翻历史（指定锚点）。拉到的消息会进入 `messagesByGroup`（窗口同步放大）。
     @discardableResult
     public func loadHistory(groupId: String, beforeSeq: Int64, limit: Int = 30) async -> [ChatMessage] {
-        await engine.loadHistory(groupId: groupId, beforeSeq: beforeSeq, limit: limit)
+        let fetched = await engine.loadHistory(groupId: groupId, beforeSeq: beforeSeq, limit: limit)
+        growWindow(groupId: groupId, by: limit)
+        await reloadMessages(groupId: groupId)
+        return fetched
+    }
+
+    /// 向上翻一页历史（推荐给列表用：自己算锚点，不需要调用方关心 seq）。
+    /// 2026-09-07 复核：此前 loadHistory 全工程无调用者，且内存窗口固定 300 条，
+    /// 300 条以前的消息即使已在本地库里也永远滚不出来。
+    /// - Returns: 是否还可能有更早的消息（false = 已到群聊开头）
+    @discardableResult
+    public func loadOlderMessages(groupId: String, pageSize: Int = 30) async -> Bool {
+        // 锚点取当前列表里最早一条"已确认"消息；乐观消息 seq=0 不能当锚点
+        guard let oldestSeq = messagesByGroup[groupId]?.first(where: { $0.seq > 0 })?.seq else {
+            return false
+        }
+        guard oldestSeq > 1 else { return false }   // 已经是群里第一条
+        let fetched = await engine.loadHistory(groupId: groupId, beforeSeq: oldestSeq, limit: pageSize)
+        // 即使这次没拉到新消息，也要放大窗口：更早的消息可能已在本地库、只是没进内存列表
+        growWindow(groupId: groupId, by: pageSize)
+        await reloadMessages(groupId: groupId)
+        return !fetched.isEmpty
+    }
+
+    private func growWindow(groupId: String, by delta: Int) {
+        loadedLimitByGroup[groupId] = (loadedLimitByGroup[groupId] ?? Self.initialWindow) + max(0, delta)
     }
 
     public func recall(groupId: String, messageId: String) async -> Bool {
@@ -199,17 +302,24 @@ public final class FamilyChatCoordinator: ObservableObject {
     }
 
     /// chips 处置：写事件状态 + 同时发一条预设文本消息（双写，进周报口径）
-    public func handleEvent(eventId: String, groupId: String, action: String, presetText: String) async {
+    ///
+    /// 2026-09-07 复核：原来是"先发文本再写状态"，处置请求失败时文本已经发出去了，
+    /// 用户重试会在群里重复刷同一句预设话。改为处置成功才发文本。
+    @discardableResult
+    public func handleEvent(eventId: String, groupId: String, action: String, presetText: String) async -> Bool {
         struct Req: Encodable { let action: String }
         struct Resp: Decodable { let status: String }
-        // 发预设文本（走普通聊天，乐观上屏）
+        do {
+            let _: Resp = try await NetworkManager.shared.request(
+                endpoint: .familyEventHandle(eventId: eventId), body: Req(action: action)
+            )
+        } catch {
+            return false   // 状态没写成，不发文本，让 UI 可以提示重试
+        }
         await engine.send(groupId: groupId, type: .text, content: presetText)
-        // 写处置状态
-        _ = try? await NetworkManager.shared.request(
-            endpoint: .familyEventHandle(eventId: eventId), body: Req(action: action)
-        ) as Resp
         // 拉一次，卡片横幅状态随之更新
         await syncGroupPublic(groupId)
+        return true
     }
 
     /// 供 UI 触发的公开增量同步
@@ -236,6 +346,18 @@ public final class FamilyChatCoordinator: ObservableObject {
         } catch {
             return nil
         }
+    }
+
+    /// 发语音：结束录音 → 乐观上屏 → 上传 → 发送。
+    /// 上传失败会留下一条红点消息（本地文件保留），点重发即可重新上传，
+    /// 不再像旧实现那样把老人录好的语音悄悄删掉。
+    /// - Returns: false 表示录音本身无效（时长过短 / 取不到文件），UI 可提示"说话时间太短"
+    @discardableResult
+    public func sendVoice(groupId: String) async -> Bool {
+        guard let recorded = await VoiceMessageComposer.shared.finishRecording() else { return false }
+        await engine.sendVoice(groupId: groupId, fileURL: recorded.fileURL,
+                               duration: recorded.duration, transcript: recorded.transcript)
+        return true
     }
 
     /// 进入某群时调用：立即同步 + 全部标已读 + 拉取成员已读游标（§7-4）
@@ -305,9 +427,16 @@ public final class FamilyChatCoordinator: ObservableObject {
         startPollingIfNeeded()
     }
 
-    /// 进后台：停轮询（省电）；WS 由系统挂起
+    /// 进后台：停轮询（省电）+ 主动断开 WS。
+    ///
+    /// 2026-09-07 复核：iOS 挂起 App 时 socket 不发 FIN，服务端要等心跳超时（最长 ~90s）
+    /// 才认定离线，这段窗口里发给我的消息会写进僵尸连接并**跳过 APNs 推送**，
+    /// 老人什么都收不到。主动断开让服务端立刻走离线推送路径。
+    /// 顺带修掉一个隐患：挂起后 task 仍非 nil，回前台 connect() 会因 `task == nil` 判定
+    /// 而不重连，长连接实际已死。
     public func appDidEnterBackground() {
         stopPolling()
+        ws.disconnect()
     }
 
     // MARK: - 同步
@@ -374,7 +503,8 @@ public final class FamilyChatCoordinator: ObservableObject {
     }
 
     private func reloadMessages(groupId: String) async {
-        let msgs = await engine.currentMessages(groupId: groupId, limit: 300)
+        let limit = loadedLimitByGroup[groupId] ?? Self.initialWindow
+        let msgs = await engine.currentMessages(groupId: groupId, limit: limit)
         messagesByGroup[groupId] = msgs
     }
 

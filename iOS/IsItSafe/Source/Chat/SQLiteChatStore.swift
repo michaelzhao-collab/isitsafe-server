@@ -167,6 +167,30 @@ public actor SQLiteChatStore: ChatMessageStore {
         }
     }
 
+    // MARK: - 生命周期维护（2026-09-07 复核新增）
+
+    /// 登出 / 换账号：本地库文件全账号共用，不清空会跨账号泄露聊天记录
+    public func clearAll() async {
+        exec("BEGIN;")
+        exec("DELETE FROM messages;")
+        exec("DELETE FROM cursors;")
+        exec("COMMIT;")
+    }
+
+    /// 退群 / 群解散：该群本地数据不再有意义，留着还会让角标一直不减
+    public func deleteGroup(groupId: String) async {
+        exec("BEGIN;")
+        run("DELETE FROM messages WHERE group_id=?;") { st in bindText(st, 1, groupId) }
+        run("DELETE FROM cursors WHERE group_id=?;") { st in bindText(st, 1, groupId) }
+        exec("COMMIT;")
+    }
+
+    /// App 被杀时 send() 的 catch 不会执行，sending 行会永久留库（气泡永远转圈、
+    /// 且 resend 只对 failed 行开放）。启动时把这些僵尸行改成 failed，让用户能重发。
+    public func resetStuckSending() async {
+        run("UPDATE messages SET send_state='failed' WHERE seq=0 AND send_state='sending';") { _ in }
+    }
+
     // MARK: - 写入辅助
 
     private func insertOrReplace(_ m: ChatMessage) {

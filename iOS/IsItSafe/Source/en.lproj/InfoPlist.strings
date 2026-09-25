@@ -1,1 +1,5 @@
 "CFBundleDisplayName" = "StarLens AI";
+"NSCameraUsageDescription" = "Used to capture suspicious screenshots or QR codes for analysis.";
+"NSMicrophoneUsageDescription" = "Used to record voice for recognition and to send voice messages in your family chat.";
+"NSPhotoLibraryUsageDescription" = "Used to pick suspicious screenshots for analysis or send photos in your family chat.";
+"NSSpeechRecognitionUsageDescription" = "Used to convert your voice into text for analysis and messaging.";

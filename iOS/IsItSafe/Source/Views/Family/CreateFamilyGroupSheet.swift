@@ -139,13 +139,14 @@ public struct CreateFamilyGroupSheet: View {
                     ? "Auto push + SMS when a member hasn't opened the app for 2+ days"
                     : "家人连续 2 天没打开 App 时，自动推送 + 短信提醒"
             )
+            // 2026-09-07 复核：V3 的"匿名广播"已被 V5.1 家庭群播报卡取代（卡片写明是谁查的）
             feature(
-                sfIcon: "megaphone.fill",
+                sfIcon: "bubble.left.and.bubble.right.fill",
                 iconColor: AppTheme.riskMedium,
-                title: languageCode == "en" ? "Anonymous family alert" : "家庭匿名广播",
+                title: languageCode == "en" ? "Family group chat" : "家庭群聊",
                 desc: languageCode == "en"
-                    ? "When one checks a scam, the rest get an instant heads-up (anonymous)"
-                    : "家人查到诈骗时，全家立刻收到匿名提醒"
+                    ? "Chat together; a reminder card lands in the group when someone hits a high-risk scam"
+                    : "一家人在群里聊天；谁查到高风险诈骗，群里自动出提醒卡片"
             )
         }
         .padding(AppTheme.Spacing.lg)

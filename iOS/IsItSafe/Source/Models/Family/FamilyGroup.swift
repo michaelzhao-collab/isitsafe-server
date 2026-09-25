@@ -78,6 +78,10 @@ public struct FamilyMember: Codable, Identifiable {
     public let displayName: String?
     /// S5-12 我对该成员的私人备注（仅自己可见；NULL → 没设过）
     public let myAlias: String?
+    /// V5.1 该成员是否开启"分享我的查询结果"（高风险查询自动播报到群）。
+    /// 2026-09-07 复核：服务端原来不下发这个字段，群设置页的开关只能写死 true，
+    /// 导致用户关掉后再进来又显示为开。可选类型：老服务端不下发时为 nil，UI 回退默认值。
+    public let shareQueryResults: Bool?
 
     /// 家庭页显示用的有效名字
     /// 优先级：私人备注 > 自我命名 > APP 昵称 > 手机后 4 位 > member id 后 4 位
@@ -130,6 +134,7 @@ public struct FamilyMember: Codable, Identifiable {
         self.phoneDisplay = try? c.decodeIfPresent(String.self, forKey: .phoneDisplay)
         self.displayName = try? c.decodeIfPresent(String.self, forKey: .displayName)
         self.myAlias = try? c.decodeIfPresent(String.self, forKey: .myAlias)
+        self.shareQueryResults = try? c.decodeIfPresent(Bool.self, forKey: .shareQueryResults)
     }
 
     /// 构造器（用于本地占位和测试）
@@ -145,7 +150,8 @@ public struct FamilyMember: Codable, Identifiable {
         phone: String? = nil,
         phoneDisplay: String? = nil,
         displayName: String? = nil,
-        myAlias: String? = nil
+        myAlias: String? = nil,
+        shareQueryResults: Bool? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -159,6 +165,7 @@ public struct FamilyMember: Codable, Identifiable {
         self.phoneDisplay = phoneDisplay
         self.displayName = displayName
         self.myAlias = myAlias
+        self.shareQueryResults = shareQueryResults
     }
 }
 
@@ -256,8 +263,14 @@ public struct GenerateInviteResponse: Codable {
 
 /// 更新隐私偏好请求
 public struct UpdateFamilyPreferencesRequest: Codable {
+    /// 2026-09-07 复核：不带 groupId 时服务端会改「全部家庭」的偏好。
+    /// 群设置页是针对某个具体家庭的开关，必须带上当前群 id。
+    public let groupId: String?
     public let shareQueryResults: Bool?
-    public init(shareQueryResults: Bool?) { self.shareQueryResults = shareQueryResults }
+    public init(groupId: String? = nil, shareQueryResults: Bool?) {
+        self.groupId = groupId
+        self.shareQueryResults = shareQueryResults
+    }
 }
 
 /// 家庭官方广播消息（不含触发者身份）

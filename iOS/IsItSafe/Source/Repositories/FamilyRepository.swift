@@ -96,10 +96,10 @@ public final class FamilyRepository {
         try await network.request(endpoint: .v3FamilyGetMyGroups)
     }
 
-    public func updatePreferences(shareQueryResults: Bool?) async throws {
+    public func updatePreferences(groupId: String? = nil, shareQueryResults: Bool?) async throws {
         try await network.requestVoid(
             endpoint: .v3FamilyUpdatePreferences,
-            body: UpdateFamilyPreferencesRequest(shareQueryResults: shareQueryResults)
+            body: UpdateFamilyPreferencesRequest(groupId: groupId, shareQueryResults: shareQueryResults)
         )
     }
 

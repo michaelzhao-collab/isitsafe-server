@@ -88,9 +88,11 @@ public struct FamilyEmptyView: View {
                     .foregroundColor(AppTheme.riskLow)
                     .clipShape(Capsule())
             }
+            // 2026-09-07 复核：原文案"免费 3 人"是 V3 时代的；V5.1 新版客户端免费上限已是 5 人，
+            // 但客户端此时还没有群、拿不到服务端真实上限，所以不写死数字。
             Text(languageCode == "en"
-                 ? "Free up to 3 members · Upgrade to Pro for up to 10"
-                 : "免费 3 人 · 升级 Pro 最多 10 人")
+                 ? "Free to create · Upgrade to Family plan for more members"
+                 : "免费创建 · 升级家庭包可加更多家人")
                 .font(.subheadline)
                 .foregroundColor(AppTheme.textSecondary)
             Button(action: onCreate) {
@@ -149,13 +151,15 @@ public struct FamilyEmptyView: View {
                     .font(.headline)
                     .foregroundColor(AppTheme.textPrimary)
             }
+            // 2026-09-07 复核：V3 的"匿名广播"已被 V5.1 的家庭群播报卡取代
+            // （卡片会写明是谁查的，受"分享我的查询结果"开关控制），文案同步改掉。
             featureRow(
-                sfIcon: "megaphone.fill",
+                sfIcon: "bubble.left.and.bubble.right.fill",
                 iconColor: AppTheme.primary,
-                title: languageCode == "en" ? "Anonymous family alerts" : "家庭匿名广播",
+                title: languageCode == "en" ? "Family group chat" : "家庭群聊",
                 desc: languageCode == "en"
-                    ? "When one family member checks a scam, the rest get an instant heads-up (anonymous)"
-                    : "家人查到诈骗时，其他人会立刻收到匿名提醒"
+                    ? "Chat with your family, and get a card in the group when someone hits a high-risk scam"
+                    : "一家人在群里聊天；谁查到高风险诈骗，群里会自动出一张提醒卡片"
             )
             featureRow(
                 sfIcon: "heart.fill",

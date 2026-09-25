@@ -232,9 +232,10 @@ public final class FamilyViewModel: ObservableObject {
     }
 
     /// V5.1 更新"分享我的查询结果"（自动播报开关）
-    public func setShareQueryResults(_ enabled: Bool) async -> Bool {
+    /// 2026-09-07 复核：必须带 groupId，否则服务端会把用户所有家庭的开关一起改掉。
+    public func setShareQueryResults(_ enabled: Bool, groupId: String? = nil) async -> Bool {
         do {
-            try await repo.updatePreferences(shareQueryResults: enabled)
+            try await repo.updatePreferences(groupId: groupId, shareQueryResults: enabled)
             return true
         } catch {
             redeemError = friendlyMessage(for: error)

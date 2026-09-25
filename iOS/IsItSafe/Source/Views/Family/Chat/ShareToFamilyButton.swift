@@ -9,6 +9,26 @@
 
 import SwiftUI
 
+/// 2026-09-07 复核：两个"发到家庭群"按钮原来都用 `chat.primaryGroupId`（= groupIds.first），
+/// 与家庭 Tab 当前选中的群无关。用户在看「小强的家」，点发送却发进了「张家」。
+/// 这里统一优先取家庭页持久化的当前选中群（FamilyViewModel 写的同一个 key），
+/// 取不到或已不在群列表里时再回退 primaryGroupId。
+enum FamilyShareTarget {
+    static let selectedGroupIdKey = "isitsafe.family.selectedGroupId"
+
+    static func groupId(_ chat: FamilyChatCoordinator) -> String? {
+        guard let saved = UserDefaults.standard.string(forKey: selectedGroupIdKey), !saved.isEmpty else {
+            return chat.primaryGroupId
+        }
+        // unreadByGroup 由服务端 unread-summary 下发，含我全部家庭；非空时可用来剔除失效的旧选中值。
+        // 冷启动它还是空的，这时直接信任持久化值（FamilyViewModel 每次 refresh 都会重写这个 key）。
+        if !chat.unreadByGroup.isEmpty && chat.unreadByGroup[saved] == nil {
+            return chat.primaryGroupId
+        }
+        return saved
+    }
+}
+
 public struct ShareToFamilyButton: View {
     let title: String        // 卡片标题（结论）
     let summary: String      // 摘要
@@ -53,7 +73,7 @@ public struct ShareToFamilyButton: View {
     }
 
     private func tap() {
-        guard let gid = chat.primaryGroupId, chat.hasFamily else {
+        guard let gid = FamilyShareTarget.groupId(chat), chat.hasFamily else {
             // 未加入家庭：跳家庭 Tab 引导
             router.pendingTabIndex = 2
             return

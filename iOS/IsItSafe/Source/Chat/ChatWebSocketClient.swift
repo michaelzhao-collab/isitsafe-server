@@ -69,8 +69,10 @@ public final class ChatWebSocketClient: NSObject {
         let t = session.webSocketTask(with: url)
         task = t
         t.resume()
-        receiveNext()
-        schedulePing()
+        // 把当前 task 传给收包/心跳闭包：断开处理按 task 身份去重，
+        // 避免 receive 失败与 didCloseWith 各触发一次 handleDrop（退避直接跳到 8s）
+        receiveNext(on: t)
+        schedulePing(for: t)
     }
 
     private func teardown() {
@@ -80,21 +82,21 @@ public final class ChatWebSocketClient: NSObject {
         setConnected(false)
     }
 
-    private func receiveNext() {
-        task?.receive { [weak self] result in
+    private func receiveNext(on t: URLSessionWebSocketTask) {
+        t.receive { [weak self] result in
             guard let self else { return }
             switch result {
             case .success(let message):
                 self.setConnected(true)
-                self.reconnectAttempt = 0
+                self.stateQueue.async { self.reconnectAttempt = 0 }
                 switch message {
                 case .string(let text): self.handleText(text)
                 case .data(let data): self.handleData(data)
                 @unknown default: break
                 }
-                self.receiveNext()   // 继续收下一条
+                self.receiveNext(on: t)   // 继续收下一条
             case .failure:
-                self.stateQueue.async { self.handleDrop() }
+                self.stateQueue.async { self.handleDrop(for: t) }
             }
         }
     }
@@ -107,13 +109,34 @@ public final class ChatWebSocketClient: NSObject {
     private func handleData(_ data: Data) {
         guard let signal = try? decoder.decode(ChatSignal.self, from: data) else { return }
         // ready/error 只影响连接态，其余转交协调器
-        if case .error = signal { return }
+        if case .error(let reason) = signal {
+            // 2026-09-07 复核：服务端在拒绝握手时会先发 {op:error} 再 close(4401/4403)。
+            // 这类拒绝重连多少次都不会成功（token 失效 / 账号被禁用或删除），
+            // 继续退避重连只是徒劳地打服务端，所以直接停掉本次会话，
+            // 等下一次显式 connect()（换 token 后重新登录）再起。
+            if Self.fatalRejectReasons.contains(reason) {
+                stateQueue.async { [weak self] in
+                    guard let self else { return }
+                    self.shouldRun = false
+                    self.pingTimer?.cancel(); self.pingTimer = nil
+                    self.task?.cancel(with: .normalClosure, reason: nil)
+                    self.task = nil
+                }
+            }
+            return
+        }
         if case .ready = signal { return }
         onSignal?(signal)
     }
 
-    /// 连接掉了 → 若仍期望运行则退避重连
-    private func handleDrop() {
+    /// 服务端明确拒绝、重连无意义的原因（对应 close code 4401 / 4403）
+    private static let fatalRejectReasons: Set<String> = ["unauthorized", "account_unavailable"]
+
+    /// 连接掉了 → 若仍期望运行则退避重连。
+    /// 2026-09-07 复核：同一次断开会被 receive 失败、didCloseWith、ping 失败重复上报，
+    /// 以 task 身份去重——只有当前活跃 task 的断开才算数，重复上报直接忽略。
+    private func handleDrop(for droppedTask: URLSessionWebSocketTask?) {
+        guard let current = task, droppedTask === current else { return }
         pingTimer?.cancel(); pingTimer = nil
         task = nil
         setConnected(false)
@@ -126,14 +149,14 @@ public final class ChatWebSocketClient: NSObject {
         }
     }
 
-    private func schedulePing() {
+    private func schedulePing(for t: URLSessionWebSocketTask) {
         pingTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: stateQueue)
         timer.schedule(deadline: .now() + pingInterval, repeating: pingInterval)
-        timer.setEventHandler { [weak self] in
-            guard let self, let task = self.task else { return }
-            task.sendPing { [weak self] error in
-                if error != nil { self?.stateQueue.async { self?.handleDrop() } }
+        timer.setEventHandler { [weak self, weak t] in
+            guard let self, let t else { return }
+            t.sendPing { [weak self] error in
+                if error != nil { self?.stateQueue.async { self?.handleDrop(for: t) } }
             }
         }
         timer.resume()
@@ -170,6 +193,6 @@ extension ChatWebSocketClient: URLSessionWebSocketDelegate {
     }
     public func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
                            didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
-        stateQueue.async { [weak self] in self?.handleDrop() }
+        stateQueue.async { [weak self] in self?.handleDrop(for: webSocketTask) }
     }
 }

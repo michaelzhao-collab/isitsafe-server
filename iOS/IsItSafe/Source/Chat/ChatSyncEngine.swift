@@ -47,11 +47,32 @@ public struct NetworkChatTransport: ChatTransport {
     }
 }
 
+/// 媒体上传抽象（语音失败重传需要在引擎内重新上传，故与 transport 一样做成可注入）
+public protocol ChatMediaUploader: Sendable {
+    func uploadVoice(data: Data, filename: String) async throws -> String
+}
+
+/// 用 NetworkManager 实现的媒体上传
+public struct NetworkChatMediaUploader: ChatMediaUploader {
+    public init() {}
+    public func uploadVoice(data: Data, filename: String) async throws -> String {
+        try await NetworkManager.shared.uploadAudio(
+            type: "family_voice", audioData: data, mimeType: "audio/mp4", filename: filename
+        )
+    }
+}
+
 /// 增量同步引擎（actor 保证并发安全）
 public actor ChatSyncEngine {
     private let store: ChatMessageStore
     private let transport: ChatTransport
+    private let uploader: ChatMediaUploader
     private let currentUserId: () -> String?
+
+    /// 首次进群拉取的最近消息条数（不再从 seq=0 逐页追平整个群历史）
+    private static let firstSyncPageSize = 50
+    /// 语音乐观消息在 payload 里暂存本地文件路径的 key（上传成功后被 url 取代）
+    static let localPathKey = "localPath"
 
     /// 每群一把"同步中"标志，避免同一群并发拉取造成乱序
     private var syncing: Set<String> = []
@@ -64,10 +85,12 @@ public actor ChatSyncEngine {
     public init(
         store: ChatMessageStore,
         transport: ChatTransport = NetworkChatTransport(),
+        uploader: ChatMediaUploader = NetworkChatMediaUploader(),
         currentUserId: @escaping () -> String?
     ) {
         self.store = store
         self.transport = transport
+        self.uploader = uploader
         self.currentUserId = currentUserId
     }
 
@@ -116,12 +139,88 @@ public actor ChatSyncEngine {
         }
     }
 
+    /// 发送语音：先落乐观消息（payload 暂存本地文件路径）→ 上传 → 发送。
+    ///
+    /// 2026-09-07 复核：原先是"先上传成功才有消息"，上传失败直接删文件返回 nil，
+    /// 老人在弱网下录的 30 秒语音会静默消失，与文本消息"标红可重发"的体验不一致。
+    /// 现在失败也留下一条可重发的红点气泡，本地文件保留供重传。
+    @discardableResult
+    public func sendVoice(groupId: String, fileURL: URL, duration: Int, transcript: String) async -> ChatMessage {
+        let clientMsgId = UUID().uuidString
+        var payload: [String: JSONValue] = [
+            Self.localPathKey: .string(fileURL.path),
+            "duration": .number(Double(duration)),
+            "transcript": .string(transcript),
+        ]
+        let optimistic = ChatMessage(
+            id: "local:\(clientMsgId)", groupId: groupId, seq: 0, senderId: currentUserId(),
+            type: .voice, content: transcript.isEmpty ? nil : transcript,
+            payload: ChatPayload(payload), eventId: nil, clientMsgId: clientMsgId,
+            status: "normal", version: 1, createdAt: Date(), sendState: .sending
+        )
+        await store.insertOptimistic(optimistic)
+        onGroupChanged?(groupId)
+
+        do {
+            let url = try await uploadVoiceFile(fileURL)
+            payload["url"] = .string(url)
+            payload.removeValue(forKey: Self.localPathKey)   // 上传成功，本地路径不再需要
+            let body = ChatSendRequest(clientMsgId: clientMsgId, type: ChatMessageType.voice.rawValue,
+                                       content: optimistic.content, payload: payload)
+            let server = try await withRetry(times: 3) {
+                try await self.transport.send(groupId: groupId, body: body)
+            }
+            await store.confirmOptimistic(clientMsgId: clientMsgId, with: server)
+            onGroupChanged?(groupId)
+            try? FileManager.default.removeItem(at: fileURL)
+            return server
+        } catch {
+            // 保留本地文件：重发时还要用它重新上传
+            await store.markFailed(clientMsgId: clientMsgId)
+            onGroupChanged?(groupId)
+            var failed = optimistic
+            failed.sendState = .failed
+            return failed
+        }
+    }
+
+    /// 读文件 + 上传（带退避重试）
+    private func uploadVoiceFile(_ fileURL: URL) async throws -> String {
+        let data = try Data(contentsOf: fileURL)
+        let filename = "voice_\(UUID().uuidString).m4a"
+        return try await withRetry(times: 2) {
+            try await self.uploader.uploadVoice(data: data, filename: filename)
+        }
+    }
+
     /// 重发一条失败的乐观消息（复用相同 clientMsgId，服务端幂等去重）
     @discardableResult
     public func resend(_ message: ChatMessage) async -> ChatMessage {
         guard let clientMsgId = message.clientMsgId, message.seq == 0 else { return message }
+
+        // 语音消息上次卡在"上传失败"：payload 里只有本地路径没有 url，必须先重新上传，
+        // 否则重发的是一条没有音频地址的空语音（服务端 payload 校验也会拒绝）。
+        var outgoingPayload = message.payload?.raw
+        if message.type == .voice,
+           let localPath = message.payload?.string(Self.localPathKey),
+           message.payload?.string("url") == nil {
+            let fileURL = URL(fileURLWithPath: localPath)
+            guard let url = try? await uploadVoiceFile(fileURL) else {
+                await store.markFailed(clientMsgId: clientMsgId)
+                onGroupChanged?(message.groupId)
+                var stillFailed = message
+                stillFailed.sendState = .failed
+                return stillFailed
+            }
+            var patched = message.payload?.raw ?? [:]
+            patched["url"] = .string(url)
+            patched.removeValue(forKey: Self.localPathKey)
+            outgoingPayload = patched
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+
         let body = ChatSendRequest(clientMsgId: clientMsgId, type: message.type.rawValue,
-                                   content: message.content, payload: message.payload?.raw)
+                                   content: message.content, payload: outgoingPayload)
         do {
             let server = try await withRetry(times: 3) {
                 try await self.transport.send(groupId: message.groupId, body: body)
@@ -143,6 +242,8 @@ public actor ChatSyncEngine {
     /// 增量同步：从本地 lastSeq 之后把服务端新消息拉全（分页直到追平）。
     /// 三条通道（WS new 信号 / APNs 点开 / 前台激活）都调用此方法，天然收敛。
     public func syncGroup(_ groupId: String) async {
+        // 401 清 token 后不要继续空轮询（实测每 5s 一次无鉴权请求打到服务端）
+        guard let token = AuthInterceptor.token(), !token.isEmpty else { return }
         if syncing.contains(groupId) {
             pendingResync.insert(groupId)   // 正在同步，记一笔，结束后补一轮
             return
@@ -152,13 +253,25 @@ public actor ChatSyncEngine {
 
         do {
             var changed = false
-            while true {
-                let after = await store.localLastSeq(groupId: groupId)
-                let resp = try await transport.pull(groupId: groupId, afterSeq: after, beforeSeq: nil, limit: 50)
-                if resp.messages.isEmpty { break }
-                await store.upsert(resp.messages)
-                changed = true
-                if resp.messages.count < 50 { break }  // 已追平
+            if await store.localLastSeq(groupId: groupId) == 0 {
+                // 2026-09-07 复核：本地空库（新装机 / 清缓存 / 换账号）时原来会从 seq=0
+                // 逐页追平整个群历史，5000 条的群 = 100 次请求且全量落库。
+                // 改为只拉最近一页，更早的消息由 loadHistory 向上翻页按需加载。
+                let resp = try await transport.pull(groupId: groupId, afterSeq: nil, beforeSeq: nil,
+                                                    limit: Self.firstSyncPageSize)
+                if !resp.messages.isEmpty {
+                    await store.upsert(resp.messages)
+                    changed = true
+                }
+            } else {
+                while true {
+                    let after = await store.localLastSeq(groupId: groupId)
+                    let resp = try await transport.pull(groupId: groupId, afterSeq: after, beforeSeq: nil, limit: 50)
+                    if resp.messages.isEmpty { break }
+                    await store.upsert(resp.messages)
+                    changed = true
+                    if resp.messages.count < 50 { break }  // 已追平
+                }
             }
             if changed { onGroupChanged?(groupId) }
         } catch {

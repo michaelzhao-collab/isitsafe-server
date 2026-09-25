@@ -1,1 +1,5 @@
 "CFBundleDisplayName" = "星识安全助手";
+"NSCameraUsageDescription" = "用于拍摄可疑截图、二维码等内容进行识别分析。";
+"NSMicrophoneUsageDescription" = "用于录制语音进行识别，以及在家庭群里发送语音消息。";
+"NSPhotoLibraryUsageDescription" = "用于从相册选择可疑截图进行分析，或在家庭群里发送图片。";
+"NSSpeechRecognitionUsageDescription" = "用于把您的语音转成文字，方便分析和发送。";

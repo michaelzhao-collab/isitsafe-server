@@ -336,9 +336,11 @@ public struct MemberDetailView: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "lock.shield")
                 .foregroundColor(AppTheme.textSecondary)
+            // 2026-09-07 复核：V5.1 的播报卡会写明是谁查的（内容脱敏，受"分享我的查询结果"开关控制），
+            // 原文案"只共享…官方匿名广播"已经不准确，属于隐私声明，必须与实际行为一致。
             Text(languageCode == "en"
-                 ? "Members never see each other's specific query history. Only activity status & official broadcasts are shared."
-                 : "我们绝不展示家人具体查询历史或位置，只共享活跃状态和官方匿名广播")
+                 ? "Members never see each other's full query history or location. Only activity status is shared — plus a masked alert card in the family group when someone hits a high risk (you can turn this off)."
+                 : "我们绝不展示家人的完整查询历史或位置。默认只共享活跃状态；当有人查到高风险时，群里会出一张脱敏提醒卡片并写明是谁查的（可在群设置里关闭）")
                 .font(.caption)
                 .foregroundColor(AppTheme.textSecondary)
         }

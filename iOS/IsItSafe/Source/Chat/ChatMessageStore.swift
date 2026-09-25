@@ -42,6 +42,19 @@ public protocol ChatMessageStore {
     /// 读取/写入同步状态
     func syncState(groupId: String) async -> ChatSyncState
     func setLastReadSeq(groupId: String, seq: Int64) async
+
+    // MARK: - 生命周期维护（2026-09-07 复核新增）
+
+    /// 清空全部本地消息与游标。
+    /// 用于登出 / 换账号：本地库全账号共用一个文件，不清会让下一个登录者
+    /// 看到上一个账号的家庭聊天记录，并把历史全部算成未读（99+）。
+    func clearAll() async
+    /// 删除某群的本地消息与游标（退群 / 群被解散后不能再留在本地）
+    func deleteGroup(groupId: String) async
+    /// 把"发送中"的僵尸乐观消息标成失败。
+    /// send() 是先落 sending 再发网络，App 被杀时 catch 不会执行，
+    /// 这行会以 sending 永久留在库里 → 气泡永远转圈且无法重发。启动时清扫一次。
+    func resetStuckSending() async
 }
 
 /// Sprint 0 内存实现：验证同步引擎逻辑；持久化实现（GRDB/SQLite）落地后替换即可。
@@ -126,5 +139,24 @@ public actor InMemoryChatStore: ChatMessageStore {
 
     public func setLastReadSeq(groupId: String, seq: Int64) async {
         readSeq[groupId] = max(readSeq[groupId] ?? 0, seq)
+    }
+
+    public func clearAll() async {
+        byGroup = [:]
+        readSeq = [:]
+    }
+
+    public func deleteGroup(groupId: String) async {
+        byGroup.removeValue(forKey: groupId)
+        readSeq.removeValue(forKey: groupId)
+    }
+
+    public func resetStuckSending() async {
+        for (g, list) in byGroup {
+            byGroup[g] = list.map { m in
+                guard m.seq == 0, m.sendState == .sending else { return m }
+                var fixed = m; fixed.sendState = .failed; return fixed
+            }
+        }
     }
 }

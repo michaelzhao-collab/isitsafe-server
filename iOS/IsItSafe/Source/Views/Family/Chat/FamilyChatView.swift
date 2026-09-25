@@ -34,6 +34,12 @@ public struct FamilyChatView: View {
     // T1-6 举报确认
     @State private var reportTarget: ChatMessage?
 
+    // 2026-09-07 复核：历史消息翻页（原来没有任何入口能看更早的消息）
+    @State private var loadingHistory = false
+    @State private var noMoreHistory = false
+    /// 加载历史时列表从顶部增长，要抑制"新消息滚到底"的逻辑
+    @State private var isPrependingHistory = false
+
     // 语音输入态
     @State private var voiceInputMode = false      // true=按住说话，false=文字
     @State private var isRecording = false
@@ -69,12 +75,17 @@ public struct FamilyChatView: View {
             if showEmojiPanel { emojiPanel }
             if showPlusPanel { plusPanel }
         }
+        // MainTabView 的 Tab 栏是 ZStack 覆盖层，不占安全区：与 FamilyGroupView 一样自行预留高度，
+        // 否则输入栏会被 Tab 栏整条盖住（2026-09-07 模拟器实测）。
+        .padding(.bottom, 62)
         .background(AppTheme.background)
         .navigationTitle(groupTitle)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             chat.enterGroup(groupId)
             Task { await chat.refreshBlocked() }
+            // §6.2 长辈模式：按住说话占主位（默认语音输入）
+            if isElder { voiceInputMode = true }
         }
         .overlay { if isRecording { recordingOverlay } }
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .images)
@@ -195,6 +206,7 @@ public struct FamilyChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    loadEarlierRow
                     ForEach(Array(messages.enumerated()), id: \.element.id) { idx, msg in
                         let prev = idx > 0 ? messages[idx - 1] : nil
                         if shouldShowTime(msg, prev: prev) {
@@ -212,6 +224,11 @@ public struct FamilyChatView: View {
             // 同时观察条数与末条 id：新消息 + 乐观→确认(id 变化)都触发滚动到底
             .onChange(of: messages.count) { _, _ in scrollToBottom(proxy) }
             .onChange(of: messages.last?.id) { _, _ in scrollToBottom(proxy) }
+            // 正在看这个群时收到的新消息即视为已读：推进游标（否则角标继续涨、对方看不到"已读"）
+            .onChange(of: messages.last?.seq) { _, seq in
+                guard let seq, seq > 0 else { return }
+                Task { await chat.markRead(groupId: groupId, upToSeq: seq) }
+            }
             .onAppear {
                 DispatchQueue.main.async { scrollToBottom(proxy, animated: false) }
             }
@@ -220,12 +237,65 @@ public struct FamilyChatView: View {
 
     private let bottomAnchor = "chat.bottom"
 
+    /// 2026-09-07 复核：列表只渲染最近若干条，更早的消息没有任何入口能翻上去。
+    /// 这里在顶部放一个显式的「查看更早的消息」按钮（对老人比"滚到顶自动加载"更好理解），
+    /// 点一次向上取一页；服务端没有更多时置灰提示到底了。
+    @ViewBuilder
+    private var loadEarlierRow: some View {
+        if noMoreHistory {
+            if !messages.isEmpty {
+                Text(localized(zh: "没有更早的消息了", en: "No earlier messages"))
+                    .font(.system(size: elderScaled(12)))
+                    .foregroundColor(AppTheme.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+            }
+        } else if !messages.isEmpty {
+            Button(action: loadEarlier) {
+                HStack(spacing: 6) {
+                    if loadingHistory {
+                        ProgressView().scaleEffect(0.7)
+                    } else {
+                        Image(systemName: "arrow.up.circle")
+                    }
+                    Text(loadingHistory
+                         ? localized(zh: "正在加载…", en: "Loading…")
+                         : localized(zh: "查看更早的消息", en: "Load earlier messages"))
+                        .font(.system(size: elderScaled(13), weight: .medium))
+                }
+                .foregroundColor(AppTheme.primary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+            }
+            .disabled(loadingHistory)
+        }
+    }
+
+    private func loadEarlier() {
+        guard !loadingHistory, let oldest = messages.first, oldest.seq > 0 else { return }
+        loadingHistory = true
+        isPrependingHistory = true      // 抑制这轮 messages.count 变化触发的"滚到底"
+        Task {
+            let older = await chat.loadHistory(groupId: groupId, beforeSeq: oldest.seq)
+            await MainActor.run {
+                loadingHistory = false
+                if older.isEmpty { noMoreHistory = true }
+                // 稍后再解除抑制：等这一轮 SwiftUI 更新跑完
+                DispatchQueue.main.async { isPrependingHistory = false }
+            }
+        }
+    }
+
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool = true) {
-        guard let last = messages.last else { return }
+        guard !messages.isEmpty else { return }
+        // 加载历史导致的列表增长不能把用户拽回底部
+        guard !isPrependingHistory else { return }
+        // 滚到列表末尾的占位锚点而不是末条消息 id：末条行的高度会在发送态/已读名单出现时变化，
+        // 按消息 id 定位会让自己刚发的那条被藏在底下。
         if animated {
-            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(last.id, anchor: .bottom) }
+            withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(bottomAnchor, anchor: .bottom) }
         } else {
-            proxy.scrollTo(last.id, anchor: .bottom)
+            proxy.scrollTo(bottomAnchor, anchor: .bottom)
         }
     }
 
@@ -639,10 +709,9 @@ public struct FamilyChatView: View {
             return
         }
         Task {
-            guard let voice = await VoiceMessageComposer.shared.finishAndCompose() else { return }
-            await chat.send(groupId: groupId, type: .voice,
-                            content: voice.transcript.isEmpty ? nil : voice.transcript,
-                            payload: ChatVoicePayload.make(voice))
+            // 2026-09-07 复核：旧路径先上传再发消息，上传失败会静默丢掉整段录音。
+            // 改走 sendVoice —— 先落乐观消息（本地留文件），上传失败标红点可重发。
+            _ = await chat.sendVoice(groupId: groupId)
         }
     }
 
@@ -677,8 +746,20 @@ public struct FamilyChatView: View {
 
     private func avatarColor(for seed: String) -> Color {
         let palette = ["8B9DC3", "E8A2B8", "B8A2E8", "7FBF9E", "E8C07F", "7FA8E8"]
-        let idx = abs(seed.hashValue) % palette.count
+        // 2026-09-07 复核：原来用 seed.hashValue，Swift 的 String hash 每个进程带随机种子，
+        // 同一个人每次启动 App 头像颜色都不一样（实测三次三种色）。改用稳定的 FNV-1a。
+        let idx = Int(Self.stableHash(seed) % UInt64(palette.count))
         return Color(hex: palette[idx])
+    }
+
+    /// FNV-1a：跨进程稳定，不随启动变化
+    static func stableHash(_ s: String) -> UInt64 {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in s.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return hash
     }
 
     private func isPureEmoji(_ s: String) -> Bool {
@@ -697,13 +778,19 @@ public struct FamilyChatView: View {
     }
 
     static func formatTime(_ date: Date) -> String {
+        // 2026-09-07 复核：原来"昨天"写死中文、一周内强制 zh_CN locale 显示星期，
+        // 英文模式下时间胶囊仍是中文。现在按 App 内语言设置切换。
+        let isEN = UserDefaults.standard.string(forKey: "isitsafe.language") == "en"
         let cal = Calendar.current
         let f = DateFormatter()
+        f.locale = Locale(identifier: isEN ? "en_US" : "zh_CN")
         if cal.isDateInToday(date) { f.dateFormat = "HH:mm" }
-        else if cal.isDateInYesterday(date) { f.dateFormat = "'昨天' HH:mm" }
+        else if cal.isDateInYesterday(date) {
+            f.dateFormat = isEN ? "'Yesterday' HH:mm" : "'昨天' HH:mm"
+        }
         else if let days = cal.dateComponents([.day], from: date, to: Date()).day, days < 7 {
-            f.dateFormat = "EEEE HH:mm"; f.locale = Locale(identifier: "zh_CN")
-        } else { f.dateFormat = "yyyy/M/d HH:mm" }
+            f.dateFormat = "EEEE HH:mm"
+        } else { f.dateFormat = isEN ? "MMM d, HH:mm" : "yyyy/M/d HH:mm" }
         return f.string(from: date)
     }
 }

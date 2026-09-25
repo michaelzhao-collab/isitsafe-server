@@ -23,6 +23,10 @@ public struct FamilyGroupSettingsView: View {
     @State private var showLeaveConfirm = false
     @State private var showNotificationSettings = false
     @State private var showRedeemSheet = false
+    /// 2026-09-07 复核：onAppear 回填开关初值时会触发 onChange，必须避免把回填当成用户操作发请求
+    @State private var didLoadPrefs = false
+    /// 2026-09-07 复核：移除成员原来是个 plain 小按钮，误触即踢人且会在群里发系统消息，不可撤销
+    @State private var pendingRemoval: FamilyMember?
 
     private var isEN: Bool { languageCode == "en" }
     private var isOwner: Bool { group.isOwner }
@@ -41,7 +45,37 @@ public struct FamilyGroupSettingsView: View {
         }
         .navigationTitle(isEN ? "Group Settings" : "群设置")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { chatMuted = chat.isMuted(group.id) }
+        .onAppear {
+            chatMuted = chat.isMuted(group.id)
+            // 2026-09-07 复核：原来 shareQueryResults 恒为 true，与服务端真实值无关，
+            // 用户关掉后再进来又显示为开。现在用「我自己那条成员记录」的下发值回填
+            // （老服务端不下发该字段 → nil → 保持默认开，与旧行为一致）。
+            if let me = myMember, let v = me.shareQueryResults { shareQueryResults = v }
+            didLoadPrefs = true
+        }
+        // 2026-09-07 复核：移除成员/改群昵称/开关失败都只写进 vm.redeemError，
+        // 本页没有任何 alert 绑定它 → 服务端 400 时页面毫无反应。这里统一弹错。
+        .alert(isEN ? "Operation failed" : "操作失败", isPresented: Binding(
+            get: { vm.redeemError != nil }, set: { if !$0 { vm.redeemError = nil } })) {
+            Button(isEN ? "OK" : "知道了", role: .cancel) { vm.redeemError = nil }
+        } message: { Text(vm.redeemError ?? "") }
+        .confirmationDialog(
+            pendingRemoval.map { m in
+                isEN ? "Remove \(m.effectiveName) from this family?" : "把「\(m.effectiveName)」移出家庭？"
+            } ?? "",
+            isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(isEN ? "Remove" : "确认移除", role: .destructive) {
+                guard let m = pendingRemoval else { return }
+                pendingRemoval = nil
+                Task { _ = await vm.removeMember(groupId: group.id, userId: m.userId) }
+            }
+            Button(isEN ? "Cancel" : "取消", role: .cancel) { pendingRemoval = nil }
+        } message: {
+            Text(isEN ? "They will be notified in the group. This cannot be undone."
+                      : "群里会显示一条移出提示，操作不可撤销。")
+        }
         .alert(isEN ? "Set nickname (visible to all)" : "设置群昵称（全员可见）", isPresented: Binding(
             get: { editingMember != nil }, set: { if !$0 { editingMember = nil } })) {
             TextField(isEN ? "Nickname" : "群昵称", text: $nicknameDraft)
@@ -90,7 +124,7 @@ public struct FamilyGroupSettingsView: View {
                     // 群主可移除他人（不能移除自己）
                     if isOwner && member.userId != group.ownerUserId {
                         Button(role: .destructive) {
-                            Task { _ = await vm.removeMember(groupId: group.id, userId: member.userId) }
+                            pendingRemoval = member   // 走二次确认，不再点一下就踢人
                         } label: { Text(isEN ? "Remove" : "移除").font(.caption).foregroundColor(AppTheme.riskHigh) }
                             .buttonStyle(.plain)
                     }
@@ -124,7 +158,16 @@ public struct FamilyGroupSettingsView: View {
                         .font(.caption).foregroundColor(AppTheme.textSecondary)
                 }
             }
-            .onChange(of: shareQueryResults) { _, v in Task { _ = await vm.setShareQueryResults(v) } }
+            // 2026-09-07 复核：① onAppear 回填会触发 onChange，用 didLoadPrefs 挡掉；
+            //                  ② 失败时 UI 停在新值、与服务端不一致 → 回滚。
+            .onChange(of: shareQueryResults) { old, v in
+                guard didLoadPrefs else { return }
+                Task {
+                    if await vm.setShareQueryResults(v, groupId: group.id) == false {
+                        await MainActor.run { shareQueryResults = old }
+                    }
+                }
+            }
 
             Toggle(isOn: $chatMuted) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -134,7 +177,14 @@ public struct FamilyGroupSettingsView: View {
                         .font(.caption).foregroundColor(AppTheme.textSecondary)
                 }
             }
-            .onChange(of: chatMuted) { _, v in Task { _ = await chat.setChatMute(groupId: group.id, muted: v) } }
+            .onChange(of: chatMuted) { old, v in
+                guard didLoadPrefs else { return }
+                Task {
+                    if await chat.setChatMute(groupId: group.id, muted: v) == false {
+                        await MainActor.run { chatMuted = old }
+                    }
+                }
+            }
 
             Button { showNotificationSettings = true } label: {
                 settingRow(title: isEN ? "Notification preferences" : "通知偏好设置",
@@ -143,8 +193,10 @@ public struct FamilyGroupSettingsView: View {
             NavigationLink {
                 FamilyProtectionChecklistView(group: group)
             } label: {
+                // NavigationLink 自带右箭头，行内不再画第二个
                 settingRow(title: isEN ? "Protection checklist" : "家庭防护清单",
-                           sub: isEN ? "What you can do for the family" : "我能为这个家做什么")
+                           sub: isEN ? "What you can do for the family" : "我能为这个家做什么",
+                           chevron: false)
             }
         }
     }
@@ -175,6 +227,12 @@ public struct FamilyGroupSettingsView: View {
 
     private var currentUserId: String? { TokenStore.shared.userId }
 
+    /// 我自己在这个群里的成员记录（回填"分享我的查询结果"开关初值用）
+    private var myMember: FamilyMember? {
+        guard let uid = currentUserId else { return nil }
+        return group.members.first { $0.userId == uid }
+    }
+
     private func saveNickname() {
         guard let m = editingMember else { return }
         let name = nicknameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -201,14 +259,16 @@ public struct FamilyGroupSettingsView: View {
             .background(RoundedRectangle(cornerRadius: 5).fill(color.opacity(0.12)))
     }
 
-    private func settingRow(title: String, sub: String?) -> some View {
+    private func settingRow(title: String, sub: String?, chevron: Bool = true) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).foregroundColor(AppTheme.textPrimary)
                 if let sub { Text(sub).font(.caption).foregroundColor(AppTheme.textSecondary) }
             }
             Spacer()
-            Image(systemName: "chevron.right").font(.caption).foregroundColor(AppTheme.textSecondary)
+            if chevron {
+                Image(systemName: "chevron.right").font(.caption).foregroundColor(AppTheme.textSecondary)
+            }
         }
     }
 }

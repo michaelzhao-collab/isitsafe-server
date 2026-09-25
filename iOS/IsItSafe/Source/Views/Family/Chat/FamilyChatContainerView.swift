@@ -26,6 +26,9 @@ public struct FamilyChatContainerView: View {
 
     public var body: some View {
         FamilyChatView(groupId: group.id, groupTitle: group.displayName, members: group.members)
+            // 切换家庭时强制重建：否则 SwiftUI 复用同一个视图，onAppear 不再触发，
+            // 新群不会 enterGroup（不同步 / 不标已读 / 不拉已读名单）。
+            .id(group.id)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if vm.allGroups.count > 1 {

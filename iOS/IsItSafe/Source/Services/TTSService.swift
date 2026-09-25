@@ -26,6 +26,16 @@ public final class TTSService: NSObject, ObservableObject {
     private let synthesizer = AVSpeechSynthesizer()
     private var currentText: String = ""
 
+    /// 文本是否含中日韩字符（用于在没显式指定语言时选音色）
+    static func containsCJK(_ text: String) -> Bool {
+        text.unicodeScalars.contains { s in
+            (0x4E00...0x9FFF).contains(s.value)     // CJK 统一表意文字
+                || (0x3400...0x4DBF).contains(s.value)  // 扩展 A
+                || (0x3040...0x30FF).contains(s.value)  // 日文假名
+                || (0xAC00...0xD7AF).contains(s.value)  // 韩文
+        }
+    }
+
     override init() {
         super.init()
         synthesizer.delegate = self
@@ -51,6 +61,12 @@ public final class TTSService: NSObject, ObservableObject {
             if let l = language {
                 return l == "zh" ? "zh-CN" : "en-US"
             }
+            // 2026-09-07 复核：原来 language 为 nil 时按【设备系统语言】选音色，
+            // 系统语言设成英文的华人老人会用 en-US 音色读中文，基本读不出来。
+            // 改为：优先看正文里有没有中日韩字符，其次才看 App 内语言设置。
+            if Self.containsCJK(trimmed) { return "zh-CN" }
+            let appLang = UserDefaults.standard.string(forKey: "isitsafe.language")
+            if let appLang { return appLang == "en" ? "en-US" : "zh-CN" }
             let pref = Locale.preferredLanguages.first?.lowercased() ?? "zh"
             return pref.hasPrefix("zh") ? "zh-CN" : "en-US"
         }()

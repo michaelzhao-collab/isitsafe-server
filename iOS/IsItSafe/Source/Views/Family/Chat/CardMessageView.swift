@@ -16,7 +16,10 @@ public struct CardMessageView: View {
     let isElder: Bool
     let scale: (CGFloat) -> CGFloat
 
-    @ObservedObject private var tts = TTSService.shared
+    // 只订阅 isSpeaking：TTSService.progress 每个字都在变，@ObservedObject 会让群里所有卡片
+    // 随朗读进度逐字重绘（LazyVStack 全量重排，实测出现过主线程卡死）。
+    @State private var ttsSpeaking = TTSService.shared.isSpeaking
+    private var tts: TTSService { TTSService.shared }
     @ObservedObject private var chat = FamilyChatCoordinator.shared
 
     private var payload: ChatPayload? { message.payload }
@@ -57,6 +60,7 @@ public struct CardMessageView: View {
         }
         .background(RoundedRectangle(cornerRadius: 14).fill(AppTheme.cardBackground))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(stripeColor.opacity(0.25), lineWidth: 1))
+        .onReceive(TTSService.shared.$isSpeaking) { ttsSpeaking = $0 }
     }
 
     // MARK: - 标签 / 颜色
@@ -132,25 +136,35 @@ public struct CardMessageView: View {
 
     private var ttsButton: some View {
         Button {
-            if tts.isSpeaking { tts.stop() }
-            else { tts.speak(title + "。" + summary) }
+            if ttsSpeaking { tts.stop() }
+            // 2026-09-07 复核：不传 language 时 TTSService 按设备系统语言选音色，
+            // 系统语言为英文的华人老人会用 en-US 音色读中文卡片，基本读不出来。
+            // 这里显式传 App 内语言设置。
+            else { tts.speak(title + "。" + summary, language: appLanguage) }
         } label: {
             cardButtonLabel(icon: "speaker.wave.2.fill",
-                            text: tts.isSpeaking ? loc("停止", "Stop") : loc("听 AI 讲", "Listen"),
+                            text: ttsSpeaking ? loc("停止", "Stop") : loc("听 AI 讲", "Listen"),
                             filled: true, color: stripeColor)
         }
     }
 
+    /// 播报卡发起人（可能已退群 → nil）
+    private var actorMember: FamilyMember? { actorUserId.flatMap { membersById[$0] } }
+
+    /// 2026-09-07 复核：发起人退群后 membersById 取不到，原来文案会变成"打电话给 "且点击无动作。
+    /// 现在只有拿得到成员且有号码时才显示按钮，否则降级为 TTS（老人/本人路径已有 TTS，这里给子女）。
+    @ViewBuilder
     private var callButton: some View {
-        Button {
-            let name = actorUserId.flatMap { membersById[$0]?.effectiveName } ?? loc("家人", "family")
-            if let phone = actorUserId.flatMap({ membersById[$0]?.phone }),
-               let url = URL(string: "tel://\(phone)") { UIApplication.shared.open(url) }
-            _ = name
-        } label: {
-            cardButtonLabel(icon: "phone.fill",
-                            text: loc("打电话给", "Call ") + (actorUserId.flatMap { membersById[$0]?.effectiveName } ?? ""),
-                            filled: true, color: AppTheme.riskHigh)
+        if let member = actorMember, let phone = member.phone, !phone.isEmpty {
+            Button {
+                if let url = URL(string: "tel://\(phone)") { UIApplication.shared.open(url) }
+            } label: {
+                cardButtonLabel(icon: "phone.fill",
+                                text: loc("打电话给", "Call ") + member.effectiveName,
+                                filled: true, color: AppTheme.riskHigh)
+            }
+        } else {
+            ttsButton
         }
     }
 
@@ -165,9 +179,7 @@ public struct CardMessageView: View {
 
     private var forwardButton: some View {
         Button {
-            let items = [title + "\n" + summary]
-            let av = UIActivityViewController(activityItems: items, applicationActivities: nil)
-            UIApplication.shared.topController?.present(av, animated: true)
+            Self.presentShareSheet(items: [title + "\n" + summary])
         } label: {
             cardButtonLabel(icon: "square.and.arrow.up", text: loc("转发给朋友", "Forward"), filled: false, color: AppTheme.primary)
         }
@@ -175,11 +187,24 @@ public struct CardMessageView: View {
 
     private var posterButton: some View {
         Button {
-            let av = UIActivityViewController(activityItems: [title], applicationActivities: nil)
-            UIApplication.shared.topController?.present(av, animated: true)
+            Self.presentShareSheet(items: [title])
         } label: {
             cardButtonLabel(icon: "photo.on.rectangle", text: loc("生成分享海报", "Share poster"), filled: false, color: AppTheme.primary)
         }
+    }
+
+    /// 2026-09-07 复核：原来直接 present UIActivityViewController，没设 popover 锚点。
+    /// 工程 TARGETED_DEVICE_FAMILY = "1,2" 支持 iPad，iPad 上分享面板以 popover 呈现，
+    /// 缺 sourceView/sourceRect 会让 UIKit 抛异常直接崩溃。这里统一补锚点（居中）。
+    static func presentShareSheet(items: [Any]) {
+        guard let top = UIApplication.shared.topController else { return }
+        let av = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        if let pop = av.popoverPresentationController {
+            pop.sourceView = top.view
+            pop.sourceRect = CGRect(x: top.view.bounds.midX, y: top.view.bounds.midY, width: 0, height: 0)
+            pop.permittedArrowDirections = []   // 居中弹出，不画箭头
+        }
+        top.present(av, animated: true)
     }
 
     private func cardButtonLabel(icon: String, text: String, filled: Bool, color: Color) -> some View {
@@ -221,7 +246,12 @@ public struct CardMessageView: View {
     }
 
     private func loc(_ zh: String, _ en: String) -> String {
-        (UserDefaults.standard.string(forKey: "isitsafe.language") == "en") ? en : zh
+        appLanguage == "en" ? en : zh
+    }
+
+    /// App 内语言设置（不是设备系统语言）
+    private var appLanguage: String {
+        UserDefaults.standard.string(forKey: "isitsafe.language") ?? "zh"
     }
 }
 

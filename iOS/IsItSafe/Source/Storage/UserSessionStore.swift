@@ -37,5 +37,9 @@ public final class UserSessionStore {
     public func clearSession() {
         TokenStore.shared.clearToken()
         currentUser = nil
+        // 2026-09-07 复核：家庭 IM 的本地库 / WebSocket / 未读角标此前无人清理，
+        // 换账号后下一个登录者会看到上一个账号的家庭聊天记录、99+ 未读，
+        // 且长连接仍绑着旧 token。这里是登出、删账号、401 被动失效三条路径的公共出口。
+        Task { @MainActor in FamilyChatCoordinator.shared.stop() }
     }
 }

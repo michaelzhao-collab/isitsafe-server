@@ -18,6 +18,15 @@ public struct ComposedVoice {
     public let transcript: String // 本地转文字（可能为空）
 }
 
+/// 录好但尚未上传的语音（2026-09-07 复核新增）。
+/// 上传交给 ChatSyncEngine.sendVoice 做，失败时消息以"红点可重发"留在列表里，
+/// 本地文件保留供重传——旧实现是上传失败直接删文件，老人的录音会静默消失。
+public struct RecordedVoice {
+    public let fileURL: URL
+    public let duration: Int
+    public let transcript: String
+}
+
 @MainActor
 public final class VoiceMessageComposer {
     public static let shared = VoiceMessageComposer()
@@ -40,31 +49,38 @@ public final class VoiceMessageComposer {
         recorder.cancel()
     }
 
-    /// 松手结束：停止录音 → 转文字 → 上传 → 返回结果。
+    /// 松手结束：停止录音 → 本地转文字 → 返回待上传的录音（**不上传**）。
     /// 时长过短（< 1s）返回 nil（当作误触，UI 提示"说话时间太短"）。
-    public func finishAndCompose() async -> ComposedVoice? {
+    ///
+    /// 上传交由 `FamilyChatCoordinator.sendVoice` / `ChatSyncEngine.sendVoice` 完成，
+    /// 这样上传失败时能留下一条可重发的消息，而不是把录音悄悄删掉。
+    public func finishRecording() async -> RecordedVoice? {
         let duration = recorder.elapsedSeconds
         guard let fileURL = recorder.stop() else { return nil }
         guard duration >= 1 else {
             try? FileManager.default.removeItem(at: fileURL)
             return nil
         }
-
-        // 1) 本地转文字（失败/无授权则空串，不阻断发送）
+        // 本地转文字（失败/无授权/不支持离线则空串，不阻断发送）
         let transcript = await Self.transcribeFile(fileURL)
+        return RecordedVoice(fileURL: fileURL, duration: duration, transcript: transcript)
+    }
 
-        // 2) 上传 R2
+    /// 旧接口：录音 → 转文字 → 上传后返回结果。保留给尚未迁移的调用方。
+    /// 与旧实现的区别：上传失败**不再删除本地文件**，录音至少还在磁盘上。
+    /// 新代码请改用 `FamilyChatCoordinator.sendVoice(groupId:)`。
+    public func finishAndCompose() async -> ComposedVoice? {
+        guard let recorded = await finishRecording() else { return nil }
         do {
-            let data = try Data(contentsOf: fileURL)
+            let data = try Data(contentsOf: recorded.fileURL)
             let url = try await NetworkManager.shared.uploadAudio(
                 type: "family_voice", audioData: data,
                 mimeType: "audio/mp4", filename: "voice_\(UUID().uuidString).m4a"
             )
-            try? FileManager.default.removeItem(at: fileURL)
-            return ComposedVoice(url: url, duration: duration, transcript: transcript)
+            try? FileManager.default.removeItem(at: recorded.fileURL)
+            return ComposedVoice(url: url, duration: recorded.duration, transcript: recorded.transcript)
         } catch {
-            try? FileManager.default.removeItem(at: fileURL)
-            return nil
+            return nil   // 保留文件：上层可提示失败，磁盘上的录音还在
         }
     }
 
@@ -78,8 +94,13 @@ public final class VoiceMessageComposer {
         guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: lang)), recognizer.isAvailable else {
             return ""
         }
+        // 2026-09-07 复核：原来是 requiresOnDeviceRecognition = supportsOnDeviceRecognition，
+        // 设备不支持离线模型时该值为 false → 录音被送到 Apple 云端识别，
+        // 与隐私文案「转文字在设备本地完成、不出设备」不符。
+        // 改为：不支持离线就直接放弃转文字（语音照发，只是没有文字稿）。
+        guard recognizer.supportsOnDeviceRecognition else { return "" }
         let request = SFSpeechURLRecognitionRequest(url: url)
-        request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
+        request.requiresOnDeviceRecognition = true
         request.shouldReportPartialResults = false
 
         return await withCheckedContinuation { (cont: CheckedContinuation<String, Never>) in
