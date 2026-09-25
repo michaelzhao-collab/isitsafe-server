@@ -5,6 +5,7 @@ import { FamilyCronService } from './family-cron.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { NotificationModule } from '../notification/notification.module';
 import { QuotaModule } from '../quota/quota.module';
+import { ChatModule } from '../chat/chat.module';
 
 /**
  * V3-E 家庭守护模块（一期）
@@ -18,7 +19,7 @@ import { QuotaModule } from '../quota/quota.module';
  * 关怀 cron：每天凌晨 1:00 扫描不活跃成员
  */
 @Module({
-  imports: [PrismaModule, NotificationModule, QuotaModule],
+  imports: [PrismaModule, NotificationModule, QuotaModule, ChatModule],
   controllers: [FamilyController],
   providers: [FamilyService, FamilyCronService],
   exports: [FamilyService],

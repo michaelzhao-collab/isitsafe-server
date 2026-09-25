@@ -11,7 +11,9 @@ function resolveDailyScamCron(): string {
   const expr = process.env.DAILY_SCAM_CRON?.trim();
   if (!expr) return DEFAULT_DAILY_SCAM_CRON;
   try {
-    new CronTime(expr);
+    // 语法合法但永远不会触发的表达式（如 '0 0 31 2 *'）会在 CronJob.start 时抛错拖垮启动，
+    // 所以这里额外算一次下次执行时间。
+    new CronTime(expr).sendAt();
     return expr;
   } catch {
     // eslint-disable-next-line no-console

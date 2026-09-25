@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Put, Query, UseGuards } from '@nestjs/com
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 import { ChatModerationService } from './chat-moderation.service';
+import { parsePositiveInt } from './pagination.util';
 
 /**
  * V5.1 家庭 IM 举报/拉黑管理后台（App Store 1.2 合规：违规处置通道）。
@@ -20,11 +21,12 @@ export class ChatAdminController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
+    // 2026-09-07 复核修复：非数字入参原来会变成 NaN 传给 Prisma → 500
     return this.moderation.adminList({
       type,
       status,
-      page: page ? parseInt(page, 10) : 1,
-      pageSize: pageSize ? parseInt(pageSize, 10) : 30,
+      page: parsePositiveInt(page, 1),
+      pageSize: parsePositiveInt(pageSize, 30, 100),
     });
   }
 

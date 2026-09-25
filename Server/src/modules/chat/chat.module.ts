@@ -6,6 +6,7 @@ import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { ChatRealtimeService } from './chat-realtime.service';
+import { ChatMediaCleanupService } from './chat-media-cleanup.service';
 import { ChatModerationService } from './chat-moderation.service';
 import { ChatAdminController } from './chat-admin.controller';
 import { FamilyEventService } from './family-event.service';
@@ -35,6 +36,8 @@ import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
     ChatService,
     ChatGateway,
     ChatRealtimeService,
+    // 2026-09-07 复核修复：撤回时删除 R2 上的语音/图片对象
+    ChatMediaCleanupService,
     ChatModerationService,
     FamilyEventService,
     DailyScamService,

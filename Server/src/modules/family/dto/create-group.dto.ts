@@ -25,6 +25,15 @@ export class RedeemInviteDto {
 export class UpdatePreferencesDto {
   @IsOptional()
   shareQueryResults?: boolean;
+
+  /**
+   * 2026-09-07 复核：该开关是"按家庭"的（iOS 在群设置页里展示），
+   * 但接口一直没有群维度，服务端只能改用户加入的第一个家庭。
+   * 新增可选 groupId：客户端应传当前家庭；不传时按全局隐私偏好处理（改全部家庭）。
+   */
+  @IsOptional()
+  @IsString()
+  groupId?: string;
 }
 
 export class BroadcastDto {

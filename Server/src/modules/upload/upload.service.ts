@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 /** 上传类型枚举，对应 R2 目录 */
-export const UPLOAD_TYPES = ['avatar', 'report', 'screenshot', 'case', 'knowledge', 'article', 'deepfake'] as const;
+export const UPLOAD_TYPES = ['avatar', 'report', 'screenshot', 'case', 'knowledge', 'article', 'deepfake',
+  // V5.1 家庭群聊的图片与语音消息（2026-09-07 复核：iOS 一直在传 family_image / family_voice，
+  // 但枚举里没有这两个值，上传阶段就 400 —— 家庭群发图片和语音端到端从未成功过）
+  'family_image', 'family_voice'] as const;
 export type UploadType = (typeof UPLOAD_TYPES)[number];
 
 const FOLDER_MAP: Record<UploadType, string> = {
@@ -16,6 +19,9 @@ const FOLDER_MAP: Record<UploadType, string> = {
   article: 'articles',
   // V3-A1 语音深伪上传的 audio 文件（24h 后 cron 自动清理）
   deepfake: 'deepfake',
+  // V5.1 家庭群聊消息附件
+  family_image: 'family/images',
+  family_voice: 'family/voice',
 };
 
 const ALLOWED_MIMES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',

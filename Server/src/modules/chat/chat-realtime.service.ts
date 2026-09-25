@@ -26,11 +26,27 @@ export type RealtimeSignal =
 
 const WS_OPEN = 1;
 
+/**
+ * 2026-09-07 复核修复：判定"在线"的最大静默时长。
+ *
+ * 问题：iOS 进后台被挂起时不会发 FIN，socket 的 readyState 仍是 OPEN，
+ * 服务端据此判定"在线" → 信号写进僵尸 socket、跳过 APNs → 用户在
+ * 心跳硬超时（60s）前发来的消息既收不到信号也收不到推送。
+ *
+ * 修法：在线 = readyState OPEN **且** 最近一次收到该 socket 的帧/pong 在
+ * STALE_MS 内。取值须 > 心跳间隔（20s）留出网络往返余量，35s 给足 1 个
+ * 心跳周期 + 15s 抖动；超过即视为离线走 APNs（socket 本身保留到 60s
+ * 硬超时，客户端唤醒后仍可复用，不会造成额外重连）。
+ */
+const STALE_MS = 35_000;
+
 @Injectable()
 export class ChatRealtimeService {
   private readonly logger = new Logger(ChatRealtimeService.name);
   /** userId → 该用户当前所有活跃连接（多端） */
   private readonly connections = new Map<string, Set<RealtimeSocket>>();
+  /** socket → 最近一次收到入站帧/pong 的时间戳（在线判定用，见 STALE_MS） */
+  private readonly lastSeen = new WeakMap<RealtimeSocket, number>();
 
   add(userId: string, socket: RealtimeSocket): void {
     let set = this.connections.get(userId);
@@ -39,6 +55,7 @@ export class ChatRealtimeService {
       this.connections.set(userId, set);
     }
     set.add(socket);
+    this.lastSeen.set(socket, Date.now());
   }
 
   remove(userId: string, socket: RealtimeSocket): void {
@@ -48,11 +65,26 @@ export class ChatRealtimeService {
     if (set.size === 0) this.connections.delete(userId);
   }
 
+  /** gateway 收到任意入站帧/pong 时调用，刷新该连接的存活时间 */
+  touch(socket: RealtimeSocket): void {
+    this.lastSeen.set(socket, Date.now());
+  }
+
+  /** 该 socket 是否可用于"免推送"的实时投递（OPEN 且未静默超时） */
+  private isFresh(socket: RealtimeSocket, now: number): boolean {
+    if (socket.readyState !== WS_OPEN) return false;
+    const seen = this.lastSeen.get(socket);
+    // 没有记录（理论上 add 时已写入）按新鲜处理，避免误判离线导致重复推送
+    if (seen == null) return true;
+    return now - seen <= STALE_MS;
+  }
+
   isOnline(userId: string): boolean {
     const set = this.connections.get(userId);
     if (!set) return false;
+    const now = Date.now();
     for (const s of set) {
-      if (s.readyState === WS_OPEN) return true;
+      if (this.isFresh(s, now)) return true;
     }
     return false;
   }

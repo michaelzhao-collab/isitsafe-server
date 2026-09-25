@@ -1,3 +1,9 @@
+// 2026-09-07 复核修复：必须在任何模块被导入前加载 .env。
+// 原因：DailyScamService 用 `@Cron(resolveDailyScamCron())`，装饰器参数在
+// 模块「导入阶段」求值，早于 AppModule 里 ConfigModule.forRoot() 加载 dotenv，
+// 导致写在 .env 里的 DAILY_SCAM_CRON 永远读不到（静默回落默认值）。
+// dotenv 默认不覆盖已存在的 process.env，所以 Railway 注入的真实环境变量优先级不变。
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { WsAdapter } from '@nestjs/platform-ws';

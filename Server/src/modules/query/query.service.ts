@@ -3,9 +3,70 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { FamilyService } from '../family/family.service';
 import { FamilyEventService } from '../chat/family-event.service';
+import { normalizeByType } from '../../common/utils/content-normalize';
 
 const CACHE_PREFIX = 'query:';
 const CACHE_TTL = 300; // 5 分钟（admin 更新风险库后最多 5 分钟生效）
+
+/** 命中不了任何风险记录时的统一返回体 */
+const EMPTY_RESULT = { risk_level: 'low' as const, tags: [] as unknown[], records: [] as unknown[] };
+
+/**
+ * 输入是否值得拿去查风险库（2026-09-07 复核修复）。
+ *
+ * 风险库匹配用的是 `contains`，空串会退化成 `ILIKE '%%'` 命中全表并把记录吐出去，
+ * 还会顺带触发家庭播报。控制器层已有 DTO 校验，这里是服务层兜底 ——
+ * ai.service 会用抽取出来的 URL 直接调 queryUrl()，抽取失败时可能是空串。
+ *
+ * 注意：这里 **不抛异常**，只返回 false 让调用方拿到空结果。
+ * 内部调用（AI 分析流程）不应该因为一次抽取失败就整体报错。
+ */
+function isUsableQueryContent(type: 'phone' | 'url' | 'company', content: string): boolean {
+  const s = (content || '').trim();
+  if (!s) return false;
+  if (type === 'phone') {
+    // 至少 5 位数字，与 PhoneQueryDto 保持一致
+    return (s.match(/\d/g) || []).length >= 5;
+  }
+  if (type === 'url') {
+    return s.length >= 4 && /\S\.\S{2,}/.test(s);
+  }
+  return s.length >= 2;
+}
+
+/**
+ * 构造风险库匹配用的候选串（2026-09-07 复核修复）。
+ *
+ * 风险库里的号码存的是 '+86 13800138000' 这种带空格的原始写法，
+ * 所以既不能只用用户原文（'+8613800138000' 匹配不上），也不能改成规范化后精确匹配
+ * （库里存量数据格式不统一，会把现在能查到的都查不到）。
+ *
+ * 折中：原文 + E.164 + 纯数字国内段 三者取并集做 contains，
+ * 是现有行为的超集，不会让原本能命中的查询失效。
+ */
+function matchCandidates(type: 'phone' | 'url' | 'company', content: string): string[] {
+  const raw = (content || '').trim();
+  const set = new Set<string>([raw]);
+  if (type === 'phone') {
+    const e164 = normalizeByType('phone', raw);
+    if (e164) {
+      set.add(e164);
+      // 去掉 "+国家码" 之后的本地号段：'+8613800138000' → '13800138000'
+      const digits = e164.replace(/\D/g, '');
+      if (digits.length > 10) set.add(digits.slice(-11));
+      else if (digits) set.add(digits);
+    }
+  } else if (type === 'url') {
+    const normalized = normalizeByType('url', raw);
+    if (normalized) set.add(normalized);
+    try {
+      set.add(new URL(/^[a-z][a-z0-9+\-.]*:\/\//i.test(raw) ? raw : `https://${raw}`).hostname);
+    } catch {
+      // 不是合法 URL 就只用原文
+    }
+  }
+  return [...set].filter((s) => s.length >= 2);
+}
 
 @Injectable()
 export class QueryService {
@@ -18,11 +79,20 @@ export class QueryService {
     private familyEvent: FamilyEventService,
   ) {}
 
+  /**
+   * 缓存 key 用归一化后的内容：'+86 138…' 与 '138…' 命中同一条缓存，
+   * 与下面 matchCandidates 的并集匹配口径保持一致（结果本来就相同）。
+   */
   private cacheKey(type: string, content: string): string {
-    return `${CACHE_PREFIX}${type}:${content}`;
+    const key =
+      type === 'phone' || type === 'url'
+        ? normalizeByType(type as 'phone' | 'url', content) || content
+        : content;
+    return `${CACHE_PREFIX}${type}:${key}`;
   }
 
   async queryPhone(phone: string, userId?: string, imCapable = false) {
+    if (!isUsableQueryContent('phone', phone)) return { ...EMPTY_RESULT };
     const cached = await this.redis.get(this.cacheKey('phone', phone));
     const result = cached
       ? JSON.parse(cached)
@@ -39,6 +109,11 @@ export class QueryService {
 
   async queryUrl(url: string, userId?: string, imCapable = false) {
     console.log('[QUERY_URL] 输入 content=' + JSON.stringify(url?.slice(0, 200)) + ' （本接口仅查风险库，不调用豆包）');
+    // 内部调用（ai.service 抽取 URL 失败）可能传空串，直接返回低风险，不查库不播报
+    if (!isUsableQueryContent('url', url)) {
+      console.log('[QUERY_URL] 输入无效，跳过风险库查询');
+      return { ...EMPTY_RESULT };
+    }
     const cached = await this.redis.get(this.cacheKey('url', url));
     if (cached) {
       const result = JSON.parse(cached);
@@ -52,6 +127,7 @@ export class QueryService {
   }
 
   async queryCompany(name: string, userId?: string) {
+    if (!isUsableQueryContent('company', name)) return { ...EMPTY_RESULT };
     const cached = await this.redis.get(this.cacheKey('company', name));
     if (cached) return JSON.parse(cached);
     return this.lookupAndCache('company', name);
@@ -64,8 +140,12 @@ export class QueryService {
     content: string,
     verboseLog = false,
   ) {
+    const candidates = matchCandidates(type, content);
     const items = await this.prisma.riskData.findMany({
-      where: { type, content: { contains: content, mode: 'insensitive' } },
+      where: {
+        type,
+        OR: candidates.map((c) => ({ content: { contains: c, mode: 'insensitive' as const } })),
+      },
       take: 20,
     });
     const result = {
@@ -117,7 +197,12 @@ export class QueryService {
           title: maskForFamily(params.contentType, params.content),
           summary: 'AI 判定高风险，请不要按对方要求操作、不要转账。',
           riskLevel: 'high',
-          refId: `${params.contentType}:${params.content}`,
+          // 2026-09-07 复核修复：refId 原来直接拼原始输入，'+86 139…' 与 '139…'
+          // 被当成两个不同目标，24h 去重失效 → 家人重复收到同一号码的播报卡。
+          // 与旧 broadcast 的 content_hash 一样走 normalizeByType，两条路径口径统一。
+          refId: `${params.contentType}:${
+            normalizeByType(params.contentType, params.content) || params.content
+          }`,
         })
         .catch((err) => this.logger.warn(`[AutoBroadcastCard] failed: ${err?.message ?? err}`));
     }

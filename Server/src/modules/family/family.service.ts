@@ -4,11 +4,14 @@ import {
   ForbiddenException,
   BadRequestException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { RedisService } from '../../redis/redis.service';
 import { EntitlementService } from '../quota/entitlement.service';
+import { ChatService } from '../chat/chat.service';
 import { randomBytes, createHash } from 'crypto';
 import { regionToTimezone, daysDiffInTz, localHour } from '../../common/utils/region-timezone';
 import { normalizeByType } from '../../common/utils/content-normalize';
@@ -32,7 +35,13 @@ const FREE_MAX_OWNED_GROUPS = 1;
 const PAID_MAX_OWNED_GROUPS = 3;
 
 const INVITE_CODE_TTL_DAYS = 7;
-const INVITE_CODE_MAX_USES = 4;
+/**
+ * 2026-09-07 复核：这里原本定义了 INVITE_CODE_MAX_USES = 4 但从未被使用，
+ * 读代码的人会误以为邀请码有次数限制。已删除该常量：
+ * 家庭邀请码本来就是"一码多人用"（群主发一次到家族群，几个家人各自兑换），
+ * 名额已由 getMaxMembersFor 的人数上限把关，再加次数限制反而是行为变更。
+ * 有效期仍由 INVITE_CODE_TTL_DAYS 控制。
+ */
 
 /// 邀请链接基址（后端下发给客户端，客户端不再写死域名）；可用环境变量覆盖
 const INVITE_SHARE_BASE_URL =
@@ -55,12 +64,75 @@ const BROADCAST_FREE_DAILY_LIMIT = 1;
  */
 @Injectable()
 export class FamilyService {
+  private readonly logger = new Logger(FamilyService.name);
+
   constructor(
     private prisma: PrismaService,
     private notification: NotificationService,
     private redis: RedisService,
     private entitlement: EntitlementService,
+    private chat: ChatService,
   ) {}
+
+  /**
+   * V5.1 群生命周期系统消息（入群 / 退群 / 被移出）。fire-and-forget：
+   * 家庭 DB 是事实源，系统消息失败不能让家庭操作回滚。
+   */
+  private postLifecycleSystemMessage(groupId: string, text: string): void {
+    this.chat
+      .postSystemMessage(groupId, 'system', { content: text })
+      .catch((err) => this.logger.warn(`[FamilyLifecycle] system message failed: ${err?.message ?? err}`));
+  }
+
+  /**
+   * 用户离开某个家庭（主动退 / 被移出 / 家庭解散）后，修正 user 表上的单值冗余字段。
+   *
+   * 2026-09-07 复核：原来三处都无条件写 `familyGroupId: null, userLevel: 'personal'`，
+   * 多家庭用户退出 B 家后，A 家的身份在 user 表被一并抹成 personal。
+   * 现在：
+   *   - familyGroupId 指向的不是正在离开的这个组 → 完全不动；
+   *   - 指向的就是这个组 → 若用户还在别的家庭，改指向其中之一（保持 family_member），
+   *     否则才真正清空并降回 personal。
+   * 注：user.familyGroupId / userLevel 是多家庭之前留下的单值冗余字段，
+   *     真正的事实源是 family_members 表；这里只做尽量不误伤的维护。
+   */
+  private async repointUserPrimaryGroup(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    leavingGroupId: string,
+  ): Promise<void> {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { familyGroupId: true },
+    });
+    if (user?.familyGroupId !== leavingGroupId) return; // 指向别的家庭，别动
+
+    const remaining = await tx.familyMember.findFirst({
+      where: { userId, groupId: { not: leavingGroupId } },
+      orderBy: { joinedAt: 'asc' },
+      select: { groupId: true },
+    });
+    await tx.user.update({
+      where: { id: userId },
+      data: remaining
+        ? { familyGroupId: remaining.groupId, userLevel: 'family_member' }
+        : { familyGroupId: null, userLevel: 'personal' },
+    });
+  }
+
+  /** 群昵称 > 用户昵称 > 手机尾号 */
+  private async lifecycleName(groupId: string, userId: string): Promise<string> {
+    const m = await this.prisma.familyMember.findUnique({
+      where: { groupId_userId: { groupId, userId } },
+      select: { displayName: true, user: { select: { nickname: true, phone: true } } },
+    });
+    return (
+      m?.displayName?.trim() ||
+      m?.user?.nickname?.trim() ||
+      (m?.user?.phone ? `尾号${m.user.phone.slice(-4)}` : '') ||
+      '家人'
+    );
+  }
 
   // ====================================================================
   // 心跳：用户主动打开 App 时上报
@@ -228,15 +300,36 @@ export class FamilyService {
     return groups;
   }
 
-  async leaveGroup(userId: string) {
-    const member = await this.prisma.familyMember.findFirst({
-      where: { userId },
-      include: { group: true },
-    });
+  /**
+   * 退出家庭组。
+   *
+   * 2026-09-07 复核（已实测复现）：原来签名是 leaveGroup(userId)，controller 把路径上的
+   * :id 丢掉了，service 用 findFirst({ userId }) 取 joinedAt 最早的成员记录 —— 用户同时在
+   * A、B 两个家庭时，调 groups/B/leave 实际退出的是 A。现在按 groupId 精确定位。
+   * groupId 保持可选：万一线上还有不传的老调用，退回旧行为但打 warn 便于观测。
+   */
+  async leaveGroup(userId: string, groupId?: string) {
+    if (!groupId) {
+      this.logger.warn(
+        `[FamilyLeave] leaveGroup called without groupId (userId=${userId}); ` +
+          'falling back to earliest membership — caller should pass groupId',
+      );
+    }
+    const member = groupId
+      ? await this.prisma.familyMember.findUnique({
+          where: { groupId_userId: { groupId, userId } },
+          include: { group: true },
+        })
+      : await this.prisma.familyMember.findFirst({
+          where: { userId },
+          orderBy: { joinedAt: 'asc' },
+          include: { group: true },
+        });
     if (!member) throw new NotFoundException('Not in any family group');
     if (member.role === 'owner') {
       throw new ForbiddenException('Owner cannot leave; dissolve the group instead');
     }
+    const leavingName = await this.lifecycleName(member.groupId, userId);
     await this.prisma.$transaction(async (tx) => {
       await tx.familyMember.delete({ where: { id: member.id } });
       // V4-P3 主动离群也清掉自己跟此组里所有人的 mute 关系
@@ -249,11 +342,10 @@ export class FamilyService {
           ],
         },
       });
-      await tx.user.update({
-        where: { id: userId },
-        data: { familyGroupId: null, userLevel: 'personal' },
-      });
+      // 2026-09-07 复核：只在冗余字段确实指向本组时才改，避免误伤其它家庭的身份
+      await this.repointUserPrimaryGroup(tx, userId, member.groupId);
     });
+    this.postLifecycleSystemMessage(member.groupId, `${leavingName} 退出了家庭`);
   }
 
   async dissolveGroup(userId: string, groupId: string) {
@@ -280,12 +372,16 @@ export class FamilyService {
       .filter((m) => m.userId !== userId)
       .map((m) => ({ userId: m.userId, language: (m.user.language || 'zh') as string }));
 
+    const memberUserIds = group.members.map((m) => m.userId);
+
     await this.prisma.$transaction(async (tx) => {
-      // 所有成员降回 personal
-      await tx.user.updateMany({
-        where: { familyGroupId: groupId },
-        data: { familyGroupId: null, userLevel: 'personal' },
-      });
+      // 删组之前先逐个修正冗余字段：2026-09-07 复核 —— 原来是
+      // `updateMany where familyGroupId=groupId → null/personal`，把还在别的家庭里的
+      // 成员也一并降级了。repointUserPrimaryGroup 会改指向其仍有效的家庭。
+      // 必须在 delete 之前跑，否则级联删除后查不到"还在哪些家庭"。
+      for (const uid of memberUserIds) {
+        await this.repointUserPrimaryGroup(tx, uid, groupId);
+      }
       // 删除组（级联删除成员、care_notices、broadcasts）
       await tx.familyGroup.delete({ where: { id: groupId } });
     });
@@ -366,6 +462,7 @@ export class FamilyService {
     if (targetUserId === ownerUserId) {
       throw new BadRequestException('Owner cannot remove themselves; dissolve the group instead');
     }
+    const removedName = await this.lifecycleName(groupId, targetUserId);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.familyMember.deleteMany({
@@ -382,11 +479,10 @@ export class FamilyService {
           ],
         },
       });
-      await tx.user.update({
-        where: { id: targetUserId },
-        data: { familyGroupId: null, userLevel: 'personal' },
-      });
+      // 2026-09-07 复核：同 leaveGroup，多家庭下不要把别的家庭身份一起抹掉
+      await this.repointUserPrimaryGroup(tx, targetUserId, groupId);
     });
+    this.postLifecycleSystemMessage(groupId, `${removedName} 已被群主移出家庭`);
   }
 
   // ====================================================================
@@ -466,8 +562,9 @@ export class FamilyService {
       throw new ConflictException('You are already a member of this family group');
     }
 
-    const memberCount = await this.prisma.familyMember.count({ where: { groupId: group.id } });
+    // 预检：快速失败 + 给出友好的 x/y 文案（真正的把关在下面的事务里）
     const maxMembers = await this.getMaxMembersFor(group.ownerUserId, opts.imCapable ?? false);
+    const memberCount = await this.prisma.familyMember.count({ where: { groupId: group.id } });
     if (memberCount >= maxMembers) {
       throw new BadRequestException(
         `Family group is full (${memberCount}/${maxMembers})`,
@@ -486,8 +583,20 @@ export class FamilyService {
       });
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const member = await tx.familyMember.create({
+    const member = await this.prisma.$transaction(async (tx) => {
+      // 2026-09-07 复核：名额校验原来完全在事务外，两人同时兑换最后一个名额会双双通过
+      // （DB 上没有任何人数约束兜底）。这里先对 group 行取排他锁（Postgres 下
+      // UPDATE 即 FOR UPDATE），锁内重新计数，把并发串行化。
+      await tx.familyGroup.update({
+        where: { id: group.id },
+        data: { lastSeq: { increment: 0 } },
+        select: { id: true },
+      });
+      const liveCount = await tx.familyMember.count({ where: { groupId: group.id } });
+      if (liveCount >= maxMembers) {
+        throw new BadRequestException(`Family group is full (${liveCount}/${maxMembers})`);
+      }
+      const created = await tx.familyMember.create({
         data: {
           groupId: group.id,
           userId,
@@ -503,23 +612,60 @@ export class FamilyService {
           parentConsentAt: opts.parentConsent && !u?.parentConsentAt ? new Date() : undefined,
         },
       });
-      return member;
+      return created;
     });
+    this.postLifecycleSystemMessage(group.id, `${await this.lifecycleName(group.id, userId)} 加入了家庭`);
+    return member;
   }
 
   // ====================================================================
   // 隐私偏好
   // ====================================================================
-  async updatePreferences(userId: string, dto: { shareQueryResults?: boolean }) {
-    const member = await this.prisma.familyMember.findFirst({ where: { userId } });
-    if (!member) throw new NotFoundException('Not in any family group');
+  /**
+   * 同步"我的查询结果是否自动播报给家人"开关。
+   *
+   * 2026-09-07 复核：原来是 findFirst({ userId }) → 只改 joinedAt 最早的那个家庭。
+   * 用户在群设置里点开关，改的却可能是另一个家庭，且 UI 无从察觉。
+   * 现在：
+   *   - 传了 groupId → 只改该家庭（iOS 群设置页应该传，见下方 controller）；
+   *   - 没传 groupId → 视为"全局隐私偏好"，一次性改掉全部 membership 并打 warn。
+   *     选"全部"而不是"第一个"，是因为这是隐私开关：用户关掉时，
+   *     在所有家庭都关掉才符合预期，比随机改一个家庭安全。
+   */
+  async updatePreferences(
+    userId: string,
+    dto: { shareQueryResults?: boolean; groupId?: string },
+  ) {
+    if (dto.groupId) {
+      const member = await this.prisma.familyMember.findUnique({
+        where: { groupId_userId: { groupId: dto.groupId, userId } },
+      });
+      if (!member) throw new NotFoundException('Not a member of this family group');
+      return this.prisma.familyMember.update({
+        where: { id: member.id },
+        data: { shareQueryResults: dto.shareQueryResults ?? member.shareQueryResults },
+      });
+    }
 
-    return this.prisma.familyMember.update({
-      where: { id: member.id },
-      data: {
-        shareQueryResults: dto.shareQueryResults ?? member.shareQueryResults,
-      },
+    const members = await this.prisma.familyMember.findMany({
+      where: { userId },
+      orderBy: { joinedAt: 'asc' },
     });
+    if (members.length === 0) throw new NotFoundException('Not in any family group');
+    if (members.length > 1) {
+      this.logger.warn(
+        `[FamilyPrefs] updatePreferences without groupId for userId=${userId} ` +
+          `across ${members.length} groups — applying to all; caller should pass groupId`,
+      );
+    }
+    if (dto.shareQueryResults !== undefined) {
+      await this.prisma.familyMember.updateMany({
+        where: { userId },
+        data: { shareQueryResults: dto.shareQueryResults },
+      });
+    }
+    // 返回体保持旧形状（单个成员对象），避免破坏现有客户端解析
+    return this.prisma.familyMember.findUnique({ where: { id: members[0].id } });
   }
 
   // ====================================================================
@@ -559,9 +705,68 @@ export class FamilyService {
     quotaRemaining: number;
     skipReason?: 'duplicate' | 'quota_exceeded' | 'no_group' | 'in_progress' | 'disabled_by_user';
   }> {
+    // 2026-09-07 复核：这里原来是 findFirst({ userId }) —— 只往 joinedAt 最早的那个家庭
+    // 播报。多家庭用户（自己家 + 父母家）高风险查询时，另一个家庭的家人永远收不到提醒。
+    // 现在遍历全部 membership 逐个投递；AI 分类用下面的 classifyOnce 记忆化，
+    // 保证无论几个家庭都只花一次 AI 的钱（原有"单条最坏 1 次 AI"的成本约束不变）。
+    const memberships = await this.prisma.familyMember.findMany({
+      where: { userId: params.triggeredByUserId },
+      orderBy: { joinedAt: 'asc' },
+      include: { group: { include: { members: true } } },
+    });
+    if (memberships.length === 0) {
+      return {
+        delivered: false,
+        resultLabel: 'unknown',
+        quotaRemaining: 0,
+        skipReason: 'no_group',
+      };
+    }
+
+    const rawClassifier = params.classifier ?? this.defaultClassifier.bind(this);
+    let classified: Awaited<ReturnType<typeof rawClassifier>> | null = null;
+    const classifyOnce = async (content: string) => {
+      if (!classified) classified = await rawClassifier(content);
+      return classified;
+    };
+
+    const results = [] as Array<
+      Awaited<ReturnType<FamilyService['createBroadcastForMember']>>
+    >;
+    for (const m of memberships) {
+      results.push(
+        await this.createBroadcastForMember(m, { ...params, classifier: classifyOnce }),
+      );
+    }
+
+    // 返回体保持单个结果的旧形状（调用方都只看 delivered / skipReason）：
+    // 优先返回任意一个成功投递的；全失败时返回第一个，保留其 skipReason。
+    return results.find((r) => r.delivered) ?? results[0];
+  }
+
+  /** 单个家庭组的广播投递（createBroadcast 的按组实现） */
+  private async createBroadcastForMember(
+    member: { groupId: string; shareQueryResults: boolean; group: { members: { userId: string }[] } },
+    params: {
+      triggeredByUserId: string;
+      contentType: 'phone' | 'url' | 'sms' | 'voice';
+      content: string;
+      source: 'manual_share' | 'auto_query';
+      classifier?: (content: string) => Promise<{
+        label: 'scam' | 'safe' | 'unknown';
+        contentDisplay: string;
+        resultDetail: Record<string, unknown>;
+      }>;
+    },
+  ): Promise<{
+    delivered: boolean;
+    broadcastId?: string;
+    resultLabel: 'scam' | 'safe' | 'unknown';
+    quotaRemaining: number;
+    skipReason?: 'duplicate' | 'quota_exceeded' | 'no_group' | 'in_progress' | 'disabled_by_user';
+  }> {
     // ────────────────────────────────────────────────
     // 流程（S1-2 改造）：
-    //   ① 查家庭组（必须先有 groupId 才能算锁 key）
     //   ② 计算 content_hash + ymd
     //   ③ Redis SETNX 抢锁；抢不到说明同秒并发，直接返 in_progress
     //      （另一个请求会完成 AI + 入库 + 推送，对端无需重复工作）
@@ -575,20 +780,6 @@ export class FamilyService {
     // 同秒触发同号码会双扣费且都拿到结果（DB UNIQUE 也是后加的）。改造后
     // 单条最坏花 1 次 AI 钱。
     // ────────────────────────────────────────────────
-
-    // ① 查家庭组
-    const member = await this.prisma.familyMember.findFirst({
-      where: { userId: params.triggeredByUserId },
-      include: { group: { include: { members: true } } },
-    });
-    if (!member) {
-      return {
-        delivered: false,
-        resultLabel: 'unknown',
-        quotaRemaining: 0,
-        skipReason: 'no_group',
-      };
-    }
 
     // ①.5 S2-3：auto_query 必须尊重成员的"我触发的查询触发广播" 开关
     if (params.source === 'auto_query' && !member.shareQueryResults) {
@@ -658,6 +849,7 @@ export class FamilyService {
       }
 
       // ⑤ AI 分类（确认要花钱了才调）
+      // 多家庭时上层传的是记忆化过的 classifyOnce，这里重复调用不会重复花 AI 的钱
       const classifier = params.classifier ?? this.defaultClassifier.bind(this);
       const classification = await classifier(params.content);
 
@@ -835,20 +1027,34 @@ export class FamilyService {
       throw new BadRequestException('Use /api/user/v3/elder-mode for yourself');
     }
     // 同家庭组检查
-    const currentMember = await this.prisma.familyMember.findFirst({
+    //
+    // 2026-09-07 复核：原来先 findFirst 取调用者的第一个家庭，再要求 target 也在**那个**
+    // 家庭里。多家庭下（子女自己建了家、又加入父母家）会对第二个家庭的家人误报
+    // "不在你的家庭"。改为：找出两人共同所在的家庭，只要有任意一个共同家庭里
+    // 调用者是 owner/guardian 就放行。
+    const myMemberships = await this.prisma.familyMember.findMany({
       where: { userId: currentUserId },
+      select: { groupId: true, role: true },
     });
-    if (!currentMember) {
+    if (myMemberships.length === 0) {
       throw new ForbiddenException('Not in any family group');
     }
-    const targetMember = await this.prisma.familyMember.findFirst({
-      where: { userId: targetUserId, groupId: currentMember.groupId },
+    const sharedGroups = await this.prisma.familyMember.findMany({
+      where: {
+        userId: targetUserId,
+        groupId: { in: myMemberships.map((m) => m.groupId) },
+      },
+      select: { groupId: true },
     });
-    if (!targetMember) {
+    if (sharedGroups.length === 0) {
       throw new NotFoundException('Target user not in your family group');
     }
-    // 权限检查：仅 owner / guardian 可以远程切换
-    if (currentMember.role === 'ward') {
+    // 权限检查：仅 owner / guardian 可以远程切换（任一共同家庭里满足即可）
+    const sharedIds = new Set(sharedGroups.map((g) => g.groupId));
+    const canToggle = myMemberships.some(
+      (m) => sharedIds.has(m.groupId) && m.role !== 'ward',
+    );
+    if (!canToggle) {
       throw new ForbiddenException('Only owner/guardian can toggle elder mode for others');
     }
     await this.prisma.user.update({
@@ -871,12 +1077,20 @@ export class FamilyService {
     userId: string,
     limit = 50,
     excludeOwn = true,
+    groupId?: string,
   ) {
-    const member = await this.prisma.familyMember.findFirst({ where: { userId } });
-    if (!member) return [];
+    // 2026-09-07 复核：原来 findFirst({ userId }) → inbox 只显示第一个家庭的广播，
+    // 多家庭用户永远看不到其它家庭的官方消息。改为默认聚合全部家庭；
+    // 传 groupId 时只看该家庭（客户端按群分栏时用）。
+    const members = await this.prisma.familyMember.findMany({
+      where: { userId, ...(groupId ? { groupId } : {}) },
+      select: { groupId: true },
+    });
+    if (members.length === 0) return [];
+    const groupIds = members.map((m) => m.groupId);
     return this.prisma.familyBroadcast.findMany({
       where: {
-        groupId: member.groupId,
+        groupId: { in: groupIds },
         ...(excludeOwn ? { triggeredByUserId: { not: userId } } : {}),
       },
       orderBy: { createdAt: 'desc' },
@@ -1279,6 +1493,11 @@ export class FamilyService {
         // S5-12：family 内的命名（display_name 全员可见，myAlias 仅自己可见）
         displayName: m.displayName ?? null,
         myAlias: aliasMap.get(m.id) ?? null,
+        // 2026-09-07 复核：表里一直有 share_query_results，但从不下发，
+        // 导致 iOS 群设置页的"分享我的查询结果"开关永远显示为开（本地写死 true）。
+        // 隐私考虑：只对"我自己"这条返回真实值，看别人是 null——
+        // 别人有没有关掉自动播报不该暴露给其他家庭成员。
+        shareQueryResults: m.userId === currentUserId ? m.shareQueryResults : null,
       };
     });
 

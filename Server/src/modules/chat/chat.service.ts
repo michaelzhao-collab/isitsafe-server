@@ -8,6 +8,7 @@ import {
 import { FamilyMessage, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ChatRealtimeService } from './chat-realtime.service';
+import { ChatMediaCleanupService } from './chat-media-cleanup.service';
 import { NotificationService } from '../notification/notification.service';
 import { SendMessageDto } from './dto/chat.dto';
 
@@ -40,7 +41,14 @@ export class ChatService {
     private prisma: PrismaService,
     private realtime: ChatRealtimeService,
     private notification: NotificationService,
+    private mediaCleanup: ChatMediaCleanupService,
   ) {}
+
+  /** 按 id 取单条消息视图（供事件去重时回传原卡片） */
+  async messageView(id: string): Promise<MessageView | null> {
+    const m = await this.prisma.familyMessage.findUnique({ where: { id } });
+    return m ? this.toView(m) : null;
+  }
 
   private toView(m: FamilyMessage): MessageView {
     return {
@@ -189,9 +197,11 @@ export class ChatService {
     if (offline.length === 0) return;
 
     // 尊重推送总开关（pushAllEnabled）+ 群聊免打扰（chatMuted）：都不发聊天横幅
-    const pushable = await this.filterChatMuted(
-      groupId,
-      await this.filterPushEnabled(offline),
+    // 2026-09-07 复核修复：再过滤「接收人拉黑了发送者」——原来拉黑只在客户端隐藏气泡，
+    // 推送照发，锁屏仍会弹出被拉黑者的消息，与"拉黑"语义相悖。
+    const pushable = await this.filterBlockedBySender(
+      senderId,
+      await this.filterChatMuted(groupId, await this.filterPushEnabled(offline)),
     );
     if (pushable.length === 0) return;
 
@@ -239,13 +249,41 @@ export class ChatService {
   }
 
   /**
+   * 过滤掉「已拉黑发送者」的接收人（2026-09-07 复核修复）。
+   * senderId 为 null（系统卡片）时不过滤：官方卡片不受个人拉黑影响。
+   */
+  async filterBlockedBySender(senderId: string | null, userIds: string[]): Promise<string[]> {
+    if (!senderId || userIds.length === 0) return userIds;
+    const blocks = await this.prisma.imModeration.findMany({
+      where: { type: 'block', targetId: senderId, reporterId: { in: userIds } },
+      select: { reporterId: true },
+    });
+    if (blocks.length === 0) return userIds;
+    const blockedSet = new Set(blocks.map((b) => b.reporterId));
+    return userIds.filter((id) => !blockedSet.has(id));
+  }
+
+  /**
    * 给卡片类消息发离线推送（供 FamilyEventService 调用）。
    * 排除发起人；尊重 pushAllEnabled；只推离线成员。
+   *
+   * 2026-09-07 复核修复：新增 bypassMute。需求文档明确"高风险强提醒不受免打扰影响"，
+   * 但原实现对所有卡片无条件过滤 chatMuted，导致子女开了群免打扰后，
+   * 老人发出的高风险求助卡完全收不到推送——这是产品的核心闭环。
+   * 注意：bypassMute 只跳过群内免打扰，仍然尊重系统级推送总开关 pushAllEnabled。
    */
-  async notifyCardToOffline(groupId: string, title: string, excludeUserId: string | null) {
+  async notifyCardToOffline(
+    groupId: string,
+    title: string,
+    excludeUserId: string | null,
+    opts: { bypassMute?: boolean } = {},
+  ) {
     const memberIds = await this.memberUserIds(groupId);
     const offline = memberIds.filter((id) => id !== excludeUserId && !this.realtime.isOnline(id));
-    const pushable = await this.filterChatMuted(groupId, await this.filterPushEnabled(offline));
+    const pushEnabled = await this.filterPushEnabled(offline);
+    const pushable = opts.bypassMute
+      ? pushEnabled
+      : await this.filterChatMuted(groupId, pushEnabled);
     if (pushable.length === 0) return;
     const group = await this.prisma.familyGroup.findUnique({
       where: { id: groupId }, select: { name: true },
@@ -439,10 +477,19 @@ export class ChatService {
     if (Date.now() - msg.createdAt.getTime() > RECALL_WINDOW_MS) {
       throw new BadRequestException('超过 2 分钟，无法撤回');
     }
+    // 2026-09-07 复核修复：先留存 payload，置空后再异步删 R2 对象。
+    // 原来只清 payload，语音/图片文件仍公开可访问，撤回形同虚设。
+    const mediaPayload = msg.type === 'voice' || msg.type === 'image' ? msg.payload : null;
     const updated = await this.prisma.familyMessage.update({
       where: { id: messageId },
       data: { status: 'recalled', content: null, payload: Prisma.DbNull },
     });
+    if (mediaPayload) {
+      // fire-and-forget：对象存储删除失败不能影响撤回结果
+      void this.mediaCleanup
+        .deleteMessageMedia(mediaPayload)
+        .catch((e) => this.logger.warn(`recall media cleanup failed: ${String(e)}`));
+    }
     const memberIds = await this.memberUserIds(groupId);
     this.realtime.signalUsers(memberIds, { op: 'recall', groupId, messageId });
     return this.toView(updated);

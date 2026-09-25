@@ -73,8 +73,13 @@ export class FamilyEventService {
 
     // 卡片离线推送：risk_alert 由旧 broadcast 路径推（双写期），其余卡片在此推离线成员
     if (input.cardType !== 'risk_alert') {
+      // 2026-09-07 复核修复：高风险求助卡是"强提醒"，需求文档写明不受群免打扰影响。
+      // 原来所有卡片都被 chatMuted 过滤掉，子女一旦开免打扰就完全收不到老人的求助。
+      const strong = input.cardType === 'help_request' && input.riskLevel === 'high';
       await this.chat
-        .notifyCardToOffline(input.groupId, input.title, input.actorUserId ?? null)
+        .notifyCardToOffline(input.groupId, input.title, input.actorUserId ?? null, {
+          bypassMute: strong,
+        })
         .catch(() => undefined);
     }
 
@@ -93,15 +98,25 @@ export class FamilyEventService {
     if (!event) throw new NotFoundException('event not found');
     await this.assertMember(userId, event.groupId);
 
-    const updated = await this.prisma.familyEvent.update({
-      where: { id: eventId },
+    // 2026-09-07 复核修复：原来无条件 update，任何成员都能反复改写已处置的事件，
+    // handledBy/handledAt 变成"最后一个点的人"，处置率统计也失真。
+    // 改为只对 open 事件生效（条件更新天然解决两个子女同时点击的竞态：先到者胜）。
+    const claimed = await this.prisma.familyEvent.updateMany({
+      where: { id: eventId, status: 'open' },
       data: { status: action, handledBy: userId, handledAt: new Date() },
     });
+    if (claimed.count === 0) {
+      // 已被别人处置：返回当前状态而不是报错，避免后点的子女看到一个莫名的失败提示
+      const current = await this.prisma.familyEvent.findUnique({ where: { id: eventId } });
+      return current ?? event;
+    }
+
+    const updated = await this.prisma.familyEvent.findUnique({ where: { id: eventId } });
     // 更新卡片消息 payload 的处置态，让所有端渲染横幅（改消息 → 客户端 update）
     if (event.imMsgId) {
       await this.updateCardStatus(event.groupId, event.imMsgId, action, userId);
     }
-    return updated;
+    return updated ?? event;
   }
 
   /** 老人求助：AI 结论快照由客户端带上（已在端上展示过） */
@@ -114,6 +129,24 @@ export class FamilyEventService {
     refId?: string;
   }) {
     await this.assertMember(userId, input.groupId);
+    // 同一用户对同一 refId（conversationId）24h 内重复求助：不再发第二张卡，回传原事件+原卡片。
+    // 客户端按钮发送后置灰只能防单次点击，App 重开 / 请求重试仍会重复，这里在服务端兜底。
+    if (input.refId) {
+      const dup = await this.prisma.familyEvent.findFirst({
+        where: {
+          groupId: input.groupId,
+          actorUserId: userId,
+          cardType: 'help_request',
+          refId: input.refId,
+          createdAt: { gte: new Date(Date.now() - 24 * 3600 * 1000) },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (dup) {
+        const message = dup.imMsgId ? await this.chat.messageView(dup.imMsgId) : null;
+        return { event: dup, message, deduplicated: true };
+      }
+    }
     return this.emit({
       groupId: input.groupId,
       cardType: 'help_request',
@@ -167,9 +200,12 @@ export class FamilyEventService {
     });
     if (memberships.length === 0) return 0;
 
-    const actorName = await this.resolveName(memberships[0].groupId, userId);
     let sent = 0;
     for (const m of memberships) {
+      // 2026-09-07 复核修复（实测）：群昵称是「群内」概念，原来只解析第一个群的昵称
+      // 然后套用到所有群 —— 老人在「张家」叫"爸爸"、在「小强的家」叫"老张"，
+      // 结果两个群的播报卡都写成"爸爸：…"。必须逐群解析。
+      const actorName = await this.resolveName(m.groupId, userId);
       // 当日同 refId 去重：已发过就跳过
       if (input.refId) {
         const dup = await this.prisma.familyEvent.findFirst({

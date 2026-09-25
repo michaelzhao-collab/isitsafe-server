@@ -13,6 +13,12 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { DailyScamService } from './daily-scam.service';
+import {
+  CreateDailyScamDto,
+  ReviewDailyScamDto,
+  UpdateDailyScamDto,
+} from './dto/daily-scam.dto';
+import { parsePositiveInt } from './pagination.util';
 
 /**
  * V5.1 每日一骗"明日一骗"审核队列后台（决策 #5：人工确认才发）。
@@ -29,41 +35,23 @@ export class DailyScamAdminController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
+    // 2026-09-07 复核修复：非数字入参原来会变成 NaN 传给 Prisma → 500
     return this.dailyScam.list({
       status,
-      page: page ? parseInt(page, 10) : 1,
-      pageSize: pageSize ? parseInt(pageSize, 10) : 30,
+      page: parsePositiveInt(page, 1),
+      pageSize: parsePositiveInt(pageSize, 30, 100),
     });
   }
 
+  // 2026-09-07 复核修复：以下 @Body() 原为内联 TS 类型，全局 ValidationPipe
+  // 对非 class 不生效，等于零校验。改用 DTO 类补上 @IsIn / @Matches 等约束。
   @Post()
-  create(
-    @Body()
-    body: {
-      title: string;
-      summary: string;
-      riskLevel?: string;
-      refType?: string | null;
-      refId?: string | null;
-      deepLink?: string | null;
-      scheduledDate: string;
-    },
-  ) {
+  create(@Body() body: CreateDailyScamDto) {
     return this.dailyScam.create(body);
   }
 
   @Put(':id')
-  update(
-    @Param('id') id: string,
-    @Body()
-    body: {
-      title?: string;
-      summary?: string;
-      riskLevel?: string;
-      deepLink?: string | null;
-      scheduledDate?: string;
-    },
-  ) {
+  update(@Param('id') id: string, @Body() body: UpdateDailyScamDto) {
     return this.dailyScam.update(id, body);
   }
 
@@ -71,7 +59,7 @@ export class DailyScamAdminController {
   @Post(':id/review')
   review(
     @Param('id') id: string,
-    @Body() body: { action: 'approve' | 'reject' },
+    @Body() body: ReviewDailyScamDto,
     @CurrentUser('sub') adminId: string,
   ) {
     return this.dailyScam.review(id, body.action, adminId);

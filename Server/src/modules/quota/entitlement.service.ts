@@ -60,14 +60,25 @@ export class EntitlementService {
     }
 
     // 2) 自己不付费，但在家庭组里 → 看 owner
-    const member = await this.prisma.familyMember.findFirst({
+    //
+    // 2026-09-07 复核：这里原来是 findFirst（= joinedAt 最早的那个家庭），
+    // 多家庭场景下会误判——用户先加入了一个免费家庭、后来又加入 Pro 家庭时，
+    // 只看第一个家庭就把人判成 free 并限额。改为遍历全部 membership，
+    // 只要有任意一个家庭的 owner 持有 family 订阅就享受权益（取权益最高者）。
+    const memberships = await this.prisma.familyMember.findMany({
       where: { userId },
       include: { group: { select: { ownerUserId: true } } },
     });
-    if (member && member.group.ownerUserId !== userId) {
-      const ownerSub = await this.findActiveSubscriptionWithTier(
-        member.group.ownerUserId,
-      );
+    // 去重 owner，避免同一 owner 的多个家庭重复查订阅
+    const ownerIds = [
+      ...new Set(
+        memberships
+          .map((m) => m.group.ownerUserId)
+          .filter((ownerId) => ownerId !== userId),
+      ),
+    ];
+    for (const ownerId of ownerIds) {
+      const ownerSub = await this.findActiveSubscriptionWithTier(ownerId);
       if (ownerSub?.tier === 'family') {
         return {
           tier: 'family_member',

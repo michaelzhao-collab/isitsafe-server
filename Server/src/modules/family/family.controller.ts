@@ -62,8 +62,11 @@ export class FamilyController {
   }
 
   @Post('groups/:id/leave')
-  async leaveGroup(@CurrentUser('sub') userId: string) {
-    await this.family.leaveGroup(userId);
+  async leaveGroup(@CurrentUser('sub') userId: string, @Param('id') groupId: string) {
+    // 2026-09-07 复核（已实测）：这里原来没接 @Param('id')，service 用 findFirst 取最早
+    // 加入的家庭 —— 多家庭用户点"退出 B 家"实际退的是 A 家。iOS 一直传的是正确的
+    // groupId（/groups/{id}/leave），只是服务端把它丢了。
+    await this.family.leaveGroup(userId, groupId);
     return { success: true };
   }
 
@@ -167,9 +170,15 @@ export class FamilyController {
 
   // ====== 官方广播 ======
   @Get('broadcasts')
-  async getBroadcasts(@CurrentUser('sub') userId: string, @Query('limit') limit?: string) {
-    const n = limit ? parseInt(limit, 10) : 50;
-    return this.family.getMyBroadcasts(userId, Math.min(n, 100));
+  async getBroadcasts(
+    @CurrentUser('sub') userId: string,
+    @Query('limit') limit?: string,
+    @Query('groupId') groupId?: string,
+  ) {
+    // 2026-09-07 复核：不传 groupId 时聚合我全部家庭的广播（原来只返回第一个家庭）
+    const parsed = limit ? parseInt(limit, 10) : 50;
+    const n = Number.isFinite(parsed) && parsed > 0 ? parsed : 50;
+    return this.family.getMyBroadcasts(userId, Math.min(n, 100), true, groupId);
   }
 
   /**

@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -19,6 +19,19 @@ export class ChatModerationService {
     const msg = await this.prisma.familyMessage.findUnique({ where: { id: input.messageId } });
     if (!msg || msg.groupId !== input.groupId) throw new NotFoundException('Message not found');
 
+    // 2026-09-07 复核修复：同一人对同一条消息重复举报（误触/网络重试）会堆出多行，
+    // 后台待处理队列被同一件事刷屏。已有未处置记录时直接幂等返回。
+    const existingReport = await this.prisma.imModeration.findFirst({
+      where: {
+        type: 'report',
+        reporterId,
+        imMsgId: input.messageId,
+        status: 'pending',
+      },
+      select: { id: true },
+    });
+    if (existingReport) return { success: true };
+
     await this.prisma.imModeration.create({
       data: {
         type: 'report',
@@ -31,9 +44,21 @@ export class ChatModerationService {
     return { success: true };
   }
 
-  /** 拉黑某成员（仅本地记录；渲染层据此隐藏其消息） */
+  /** 拉黑某成员（仅本地记录；渲染层与推送据此过滤其消息） */
   async block(reporterId: string, targetUserId: string) {
     if (reporterId === targetUserId) throw new ForbiddenException('Cannot block yourself');
+    // 2026-09-07 复核修复：原来无条件 create，重复调用产生多行，
+    // blockedUserIds 会返回重复 id，admin 列表也出现同一对关系的多条记录。
+    const existing = await this.prisma.imModeration.findFirst({
+      where: { type: 'block', reporterId, targetId: targetUserId },
+      select: { id: true },
+    });
+    if (existing) return { success: true };
+
+    // 校验目标用户存在，避免脏 id 进库（admin 列表会显示成空昵称）
+    const target = await this.prisma.user.count({ where: { id: targetUserId } });
+    if (!target) throw new NotFoundException('User not found');
+
     await this.prisma.imModeration.create({
       data: { type: 'block', reporterId, targetId: targetUserId },
     });
@@ -54,7 +79,8 @@ export class ChatModerationService {
       where: { type: 'block', reporterId },
       select: { targetId: true },
     });
-    return rows.map((r) => r.targetId).filter((x): x is string => !!x);
+    // 去重：历史数据里可能已有重复行（block 加去重之前产生的）
+    return Array.from(new Set(rows.map((r) => r.targetId).filter((x): x is string => !!x)));
   }
 
   /** 管理后台：举报列表 */
@@ -153,7 +179,7 @@ export class ChatModerationService {
   /** admin 处置：更新举报/拉黑记录状态 pending → reviewed | actioned */
   async adminUpdateStatus(id: string, status: string) {
     const valid = ['pending', 'reviewed', 'actioned'];
-    if (!valid.includes(status)) throw new NotFoundException('invalid status');
+    if (!valid.includes(status)) throw new BadRequestException('invalid status');
     const row = await this.prisma.imModeration.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('moderation not found');
     return this.prisma.imModeration.update({ where: { id }, data: { status } });

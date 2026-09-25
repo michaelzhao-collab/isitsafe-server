@@ -11,6 +11,7 @@ import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { FamilyEventService } from './family-event.service';
+import { parsePositiveInt } from './pagination.util';
 
 class HelpRequestDto {
   @IsString() groupId!: string;
@@ -69,6 +70,7 @@ export class FamilyEventController {
     @Param('groupId') groupId: string,
     @Query('limit') limit?: string,
   ) {
-    return this.events.listEvents(userId, groupId, limit ? parseInt(limit, 10) : 50);
+    // 2026-09-07 复核修复：limit=abc 原来变成 NaN 传给 Prisma take → 500
+    return this.events.listEvents(userId, groupId, parsePositiveInt(limit, 50, 100));
   }
 }
