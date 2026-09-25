@@ -1,19 +1,29 @@
 import { Controller, Post, Get, Body, UseGuards, Req, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { EmailCodeService } from './email-code.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
-import {
-  LoginEmailDto,
-  RefreshTokenDto,
-  AppleLoginDto,
-  SocialLoginDto,
-} from './dto/login.dto';
+import { LoginEmailDto, RefreshTokenDto, AppleLoginDto, SocialLoginDto, SendEmailCodeDto } from './dto/login.dto';
 
 @Controller('auth')
 @UseGuards(JwtAuthGuard)
 export class AuthController {
-  constructor(private auth: AuthService) {}
+  constructor(private auth: AuthService,
+    private emailCode: EmailCodeService,
+  ) {}
+
+  /**
+   * 2026-09-08 邮箱验证码登录：请求发送验证码。
+   * 无需鉴权；限流在 EmailCodeService（邮箱 60s 冷却 / 邮箱每小时 5 次 / IP 每小时 20 次）。
+   */
+  @Public()
+  @Post('email/send-code')
+  async sendEmailCode(@Body() dto: SendEmailCodeDto, @Req() req: any) {
+    const ip = req.ip || req.connection?.remoteAddress;
+    const result = await this.emailCode.sendLoginCode(dto.email, { ip, language: dto.language });
+    return { success: true, ...result };
+  }
 
   /** 统一登录/注册：手机号 + 密码（>= 8 位），新用户自动注册；邮箱登录保留为内部兜底 */
   @Public()

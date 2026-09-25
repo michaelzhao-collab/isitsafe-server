@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   UnauthorizedException,
   HttpException,
   HttpStatus,
@@ -9,6 +10,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
+import { EmailCodeService } from './email-code.service';
 import { randomUUID, createPublicKey } from 'crypto';
 import * as nodeJwt from 'jsonwebtoken';
 import * as bcrypt from 'bcrypt';
@@ -21,11 +23,29 @@ import {
   AppleLoginDto,
   SocialLoginDto,
 } from './dto/login.dto';
+import {
+  ACCESS_TOKEN_MAX_TTL_SEC,
+  revokedBeforeKey,
+} from '../../common/token-revocation.util';
 
 const LOCK_KEY = 'auth:lock:';
 const ATTEMPTS_KEY = 'auth:attempts:';
 const REFRESH_PREFIX = 'refresh:';
 const E164_RE = /^\+[1-9]\d{6,14}$/;
+
+/**
+ * 密码错误 与 旧版无密码账号 必须返回 **完全相同** 的响应（2026-09-07 复核修复）。
+ *
+ * 取舍说明：真正做到"与不存在的手机号完全一致"是不可能的 —— 手机号不存在时会自动注册并
+ * 登录成功（201），存在时不可能也返回 201。账号存在性本来就可被推断，这不是本次引入的。
+ * 能做到、也必须做到的是：**不让攻击者区分"密码错了"和"这个账号还没设密码（可被接管）"**，
+ * 否则等于给出一份"可接管账号"清单。所以两条路径共用同一条文案 + 同样计入失败锁定。
+ *
+ * 文案里带上"旧版账号请联系客服"是刻意的：本项目没有可用的短信验证码通道
+ * （阿里云 sendSms 目前是 stub），旧账号用户没有任何自助找回路径，必须给出人工兜底指引。
+ */
+const EMAIL_CODE_FAILED_MESSAGE = '验证码错误或已过期';
+const LOGIN_FAILED_MESSAGE = '手机号或密码错误；如为旧版账号请联系客服找回';
 
 type AppleJwk = {
   kty: string;
@@ -45,12 +65,14 @@ type AppleIdTokenPayload = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private appleKeysCache: { at: number; keys: AppleJwk[] } | null = null;
   private ensuredIdentityTable = false;
 
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
+    private emailCode: EmailCodeService,
     private jwt: JwtService,
     private config: ConfigService,
     private geoIp: GeoIpService,
@@ -98,6 +120,14 @@ export class AuthService {
   }
 
   /**
+   * 应急开关：允许"旧版无密码账号用任意密码首次设密码并登录"（见 LOGIN_FAILED_MESSAGE 注释）。
+   * 默认关闭；生产环境也可开启（供运营临时帮存量用户恢复），用完务必关掉。
+   */
+  private get allowLegacyPasswordClaim() {
+    return process.env.ALLOW_LEGACY_PASSWORD_CLAIM === 'true';
+  }
+
+  /**
    * 统一登录/注册入口：手机号 + 密码（>= 8 位）；新用户自动创建账号。
    * 邮箱登录暂时保留（内部/兜底使用）。
    */
@@ -124,10 +154,26 @@ export class AuthService {
           const ok = await bcrypt.compare(password, existing.passwordHash);
           if (!ok) {
             await this.recordFailedLogin(body.phone);
-            throw new BadRequestException('手机号或密码错误');
+            throw new BadRequestException(LOGIN_FAILED_MESSAGE);
           }
+        } else if (!this.allowLegacyPasswordClaim) {
+          // 安全修复（2026-09-07 复核，实测可复现）：
+          // 原逻辑对"存在但 passwordHash 为空"的旧版 OTP 账号，会把请求里的 **任意** 密码
+          // 直接写成该账号的密码并签发 token —— 只要知道手机号就能接管账号，并把真机主锁在门外。
+          //
+          // 现在默认拒绝，且响应与"密码错误"完全一致（同文案 + 同样计入失败锁定），
+          // 避免攻击者枚举出哪些手机号是"可接管"的旧账号。
+          //
+          // ALLOW_LEGACY_PASSWORD_CLAIM=true 可恢复旧行为。与邮箱登录开关不同，
+          // 这个开关在生产环境同样生效 —— 因为在短信验证码通道就绪前，
+          // 运营需要一个临时通道帮存量旧用户恢复登录（用完请立刻关闭）。
+          await this.recordFailedLogin(body.phone);
+          throw new BadRequestException(LOGIN_FAILED_MESSAGE);
         } else {
-          // 旧版 OTP 账号：首次设置密码
+          // 旧版 OTP 账号：首次设置密码（仅在显式开启应急开关时走到这里）
+          this.logger.warn(
+            `[LegacyPasswordClaim] 旧账号首次设密码放行（ALLOW_LEGACY_PASSWORD_CLAIM=true）userId=${existing.id}`,
+          );
           const hash = await bcrypt.hash(password, this.BCRYPT_ROUNDS);
           await this.prisma.user.update({ where: { id: existing.id }, data: { passwordHash: hash } });
         }
@@ -150,14 +196,28 @@ export class AuthService {
       }
     }
     if (body.email) {
-      await this.checkLock(body.email);
+      // 2026-09-08 邮箱验证码登录。
+      // 背景：这个分支原来不做任何校验，凭邮箱就能拿到该账号 token（2026-09-07 复核实测可复现，
+      // Apple 登录用户的 email 也在库里 → 等于可接管），当时先整体关闭。
+      // 现在改为必须带一次性验证码，校验通过才签发 token；新邮箱自动注册，与手机号登录一致。
+      const email = this.emailCode.normalizeEmail(body.email);
+      await this.checkLock(email);
+
+      const code = (body.code ?? '').trim();
+      const ok = code ? await this.emailCode.verifyLoginCode(email, code) : false;
+      if (!ok) {
+        // 不区分"没发过码/码错了/码过期了"，避免被用来探测状态
+        await this.recordFailedLogin(email);
+        throw new BadRequestException(EMAIL_CODE_FAILED_MESSAGE);
+      }
+
       const user = await this.prisma.user.upsert({
-        where: { email: body.email },
-        create: { email: body.email, country: null },
+        where: { email },
+        create: { email, country: null },
         update: {},
       });
       await this.recordLogin(user.id);
-      await this.clearAttempts(body.email);
+      await this.clearAttempts(email);
       return this.issueTokens(user);
     }
     throw new UnauthorizedException('请提供 phone 或 email');
@@ -271,12 +331,27 @@ export class AuthService {
   }
 
   async recordFailedLogin(identifier: string) {
+    // 2026-09-07 复核修复：这里原本没有 try/catch，Redis 抖动时 incr 抛错会一路冒泡成 500，
+    // 用户看到的是"服务异常"而不是"密码错误"，失败计数也丢了。
+    // 现在 Redis 故障时降级为"不计数"，调用方继续抛 400，登录功能本身不受影响。
     const key = ATTEMPTS_KEY + identifier;
-    const client = this.redis.getClient();
-    const count = await client.incr(key);
-    if (count === 1) await client.expire(key, this.lockMinutes * 60);
+    let count = 0;
+    try {
+      const client = this.redis.getClient();
+      count = await client.incr(key);
+      if (count === 1) await client.expire(key, this.lockMinutes * 60);
+    } catch (e) {
+      this.logger.warn(
+        `[LoginThrottle] Redis 不可用，跳过失败计数：${e instanceof Error ? e.message : String(e)}`,
+      );
+      return;
+    }
     if (count >= this.maxAttempts) {
-      await this.redis.set(LOCK_KEY + identifier, '1', this.lockMinutes * 60);
+      try {
+        await this.redis.set(LOCK_KEY + identifier, '1', this.lockMinutes * 60);
+      } catch {
+        // 锁写不进去也要照常返回 429，避免无限次尝试
+      }
       throw new HttpException('Too many failed attempts. Try again later.', HttpStatus.TOO_MANY_REQUESTS);
     }
   }
@@ -345,8 +420,32 @@ export class AuthService {
   }
 
   async logout(userId: string) {
-    await this.redis.del(REFRESH_PREFIX + userId);
+    try {
+      await this.redis.del(REFRESH_PREFIX + userId);
+    } catch {
+      // Redis 不可用时忽略：下面的吊销同样会降级
+    }
+    await this.revokeIssuedTokens(userId);
     return { success: true };
+  }
+
+  /**
+   * 让该用户此刻之前签发的所有 access token 立即失效（2026-09-07 复核修复）。
+   *
+   * 原来 logout 只删 refresh token，access token 还有最长 7 天有效期，
+   * 退出登录 / 手机丢失后旧 token 仍能访问全部接口。
+   * 校验在 JwtStrategy 里做，见 common/token-revocation.util.ts。
+   */
+  private async revokeIssuedTokens(userId: string): Promise<void> {
+    try {
+      const nowSec = Math.floor(Date.now() / 1000);
+      await this.redis.set(revokedBeforeKey(userId), String(nowSec), ACCESS_TOKEN_MAX_TTL_SEC);
+    } catch (e) {
+      // 降级：Redis 挂了就吊销不了，但不能因此让登出接口失败
+      this.logger.warn(
+        `[TokenRevocation] 写入吊销时间戳失败 userId=${userId}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   async deleteAccount(userId: string) {
@@ -372,7 +471,13 @@ export class AuthService {
       await tx.user.delete({ where: { id: userId } });
     });
 
-    await this.redis.del(REFRESH_PREFIX + userId);
+    try {
+      await this.redis.del(REFRESH_PREFIX + userId);
+    } catch {
+      // 账号已删，Redis 清理失败不影响结果
+    }
+    // 注销后同样吊销已签发的 access token，否则删号前发出的 token 还能用到过期
+    await this.revokeIssuedTokens(userId);
     return { success: true };
   }
 

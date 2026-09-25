@@ -32,6 +32,17 @@ export class LoginEmailDto {
   code?: string;
 }
 
+/** 2026-09-08 邮箱验证码登录：请求发码 */
+export class SendEmailCodeDto {
+  @IsEmail({}, { message: '邮箱格式不正确' })
+  email: string;
+
+  /** 邮件正文语言，zh | en，缺省 zh */
+  @IsString()
+  @IsOptional()
+  language?: string;
+}
+
 export class LoginSmsDto {
   @IsString()
   @Matches(E164_REGEX, { message: 'Invalid phone number' })

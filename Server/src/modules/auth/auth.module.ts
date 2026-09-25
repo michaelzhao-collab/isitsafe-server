@@ -7,9 +7,12 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GeoIpService } from './geoip.service';
 import { getJwtSecret } from '../../common/jwt-secret.util';
+import { MailModule } from '../mail/mail.module';
+import { EmailCodeService } from './email-code.service';
 
 @Module({
   imports: [
+    MailModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -21,7 +24,7 @@ import { getJwtSecret } from '../../common/jwt-secret.util';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, GeoIpService],
+  providers: [AuthService, JwtStrategy, GeoIpService, EmailCodeService],
   exports: [AuthService, GeoIpService],
 })
 export class AuthModule {}
