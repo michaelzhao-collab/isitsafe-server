@@ -24,6 +24,19 @@ check() {
   fi
 }
 
+# 该路由自 2026-05-27 加入起就是 POST；用 GET 探测会得到 404，不是回归
+check_post() {
+  local desc="$1"
+  local expected_status="$2"
+  local url="$3"
+  local actual=$(curl -sS -o /dev/null -w "%{http_code}" -X POST -H 'content-type: application/json' -d '{}' "$url")
+  if [[ "$actual" == "$expected_status" ]]; then
+    echo -e "${G}✓${N} $desc → $actual"
+  else
+    echo -e "${R}✗${N} $desc → expected $expected_status got $actual ($url)"
+  fi
+}
+
 echo "Base URL: $BASE_URL"
 echo "===================="
 
@@ -34,7 +47,7 @@ check "V1 knowledge list（老路由保留）"   200 "$BASE_URL/api/knowledge?la
 
 # V3 接口（验证路由注册）
 check "V3 family/me（未授权 401）"        401 "$BASE_URL/api/v3/family/groups/me"
-check "V3 user/v3/heartbeat（未授权 401）" 401 "$BASE_URL/api/user/v3/heartbeat"
+check_post "V3 user/v3/heartbeat（未授权 401，POST）" 401 "$BASE_URL/api/user/v3/heartbeat"
 check "V3 family/broadcasts（未授权 401）" 401 "$BASE_URL/api/v3/family/broadcasts?limit=10"
 
 # Universal Link 文件（无需鉴权）
