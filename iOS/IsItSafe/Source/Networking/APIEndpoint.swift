@@ -12,6 +12,8 @@ public enum APIEndpoint {
     case authLogin
     case authAppleLogin
     case authSendCode
+    /// 邮箱验证码登录：发送 6 位验证码（无需鉴权）
+    case authSendEmailCode
     case authRegionHint
     case authLogout
     case authDeleteAccount
@@ -169,6 +171,7 @@ public enum APIEndpoint {
         case .authLogin: return "/api/auth/login"
         case .authAppleLogin: return "/api/auth/apple/login"
         case .authSendCode: return "/api/auth/send-sms-code"
+        case .authSendEmailCode: return "/api/auth/email/send-code"
         case .authRegionHint: return "/api/auth/region-hint"
         case .authLogout: return "/api/auth/logout"
         case .authDeleteAccount: return "/api/auth/delete-account"
@@ -283,7 +286,7 @@ public enum APIEndpoint {
              .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeStream,
              .v3BreachListTargets, .v3BreachListAlerts:
             return .GET
-        case .authLogin, .authAppleLogin, .authSendCode, .authLogout, .authDeleteAccount, .authRefreshToken, .aiAnalyze, .aiAnalyzeScreenshot,
+        case .authLogin, .authAppleLogin, .authSendCode, .authSendEmailCode, .authLogout, .authDeleteAccount, .authRefreshToken, .aiAnalyze, .aiAnalyzeScreenshot,
              .queryPhone, .queryURL, .queryCompany, .reportSubmit, .subscriptionVerify, .messageMarkRead, .feedbackSubmit,
              .v3UserHeartbeat, .v3UserRegisterDevice,
              .chatSendMessage, .chatRecall, .chatReport, .chatBlock,

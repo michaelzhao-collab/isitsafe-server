@@ -20,16 +20,25 @@ private enum PhoneLoginField: Hashable {
     case password
 }
 
+/// 邮箱登录 sheet 内的可聚焦字段，与手机号 sheet 各用一套 FocusState，避免互相抢焦点
+private enum EmailLoginField: Hashable {
+    case email
+    case code
+}
+
 public struct LoginView: View {
     @StateObject private var vm = LoginViewModel()
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppStateViewModel
     @EnvironmentObject private var router: AppRouter
     @State private var showPhoneLogin = false
+    /// 邮箱 + 验证码登录入口（与手机号登录并列）
+    @State private var showEmailLogin = false
     @State private var showCountryPicker = false
     @State private var agreementWebSheet: AgreementWebSheet?
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @FocusState private var focusedField: PhoneLoginField?
+    @FocusState private var emailFocusedField: EmailLoginField?
     @State private var keyboardHeight: CGFloat = 0
     @State private var showPassword = false
 
@@ -62,6 +71,9 @@ public struct LoginView: View {
                     CountryPickerSheet(selected: $vm.selectedCountry)
                 }
         }
+        .fullScreenCover(isPresented: $showEmailLogin) {
+            emailLoginSheet
+        }
         .sheet(item: $agreementWebSheet) { sheet in
             NavigationStack {
                 InAppWebView(
@@ -76,7 +88,21 @@ public struct LoginView: View {
             }
         }
         .onChange(of: appState.isLoggedIn) { _, loggedIn in
-            if loggedIn { showPhoneLogin = false }
+            if loggedIn {
+                showPhoneLogin = false
+                showEmailLogin = false
+            }
+        }
+        .onChange(of: showEmailLogin) { _, presented in
+            // 与手机号 sheet 同样的处理：进入时多档触发聚焦，退出时清焦点
+            if presented {
+                // 上次残留的验证码/提示对本次没意义，清掉避免误导
+                vm.emailCode = ""
+                vm.codeSentHint = nil
+                scheduleEmailFocusBurst()
+            } else {
+                emailFocusedField = nil
+            }
         }
         .onChange(of: showPhoneLogin) { _, presented in
             // 触发组 B：cover 刚被请求展示时（在 sheet 内部 onAppear 之前）
@@ -134,6 +160,32 @@ public struct LoginView: View {
                 .background(vm.agreementAccepted ? AppTheme.primary : Color.gray)
                 // 与系统 Sign in with Apple 按钮保持接近的圆角
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .disabled(!vm.agreementAccepted)
+
+            // 邮箱 + 验证码登录：与手机号登录同尺寸同层级；用描边样式区分两个并列入口
+            Button {
+                guard vm.canAttemptLogin else {
+                    vm.errorMessage = languageCode == "en"
+                        ? "Please read and agree to the Terms of Service and Privacy Policy first"
+                        : "请先阅读并同意服务协议和隐私政策"
+                    return
+                }
+                showEmailLogin = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "envelope.fill")
+                        .font(.title3)
+                    Text(languageCode == "en" ? "Sign in with Email" : "邮箱登录")
+                        .font(.headline)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .foregroundColor(vm.agreementAccepted ? AppTheme.primary : Color.gray)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(vm.agreementAccepted ? AppTheme.primary : Color.gray, lineWidth: 1.5)
+                )
             }
             .disabled(!vm.agreementAccepted)
 
@@ -361,6 +413,149 @@ public struct LoginView: View {
             .onAppear {
                 // 触发组 A：sheet 内部 onAppear
                 scheduleFocusBurst(label: "onAppear")
+            }
+        }
+    }
+
+    // MARK: - 邮箱 + 验证码（登录/注册）
+    private var emailLoginSheet: some View {
+        NavigationStack {
+            Form {
+                Section(languageCode == "en" ? "Email & Code" : "邮箱 + 验证码") {
+                    // 邮箱
+                    TextField(
+                        languageCode == "en" ? "Email address" : "邮箱地址",
+                        text: $vm.email
+                    )
+                    .font(.body)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .textContentType(.emailAddress)
+                    .focused($emailFocusedField, equals: .email)
+                    .frame(minHeight: 46)
+                    if let emailError = vm.emailInputError, !emailError.isEmpty {
+                        Text(emailError)
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                    }
+
+                    // 验证码 + 获取/重新发送
+                    HStack(spacing: 10) {
+                        TextField(
+                            languageCode == "en" ? "6-digit code" : "6 位验证码",
+                            text: $vm.emailCode
+                        )
+                        .font(.body)
+                        .keyboardType(.numberPad)
+                        .textContentType(.oneTimeCode)
+                        .focused($emailFocusedField, equals: .code)
+                        // 填满 6 位自动提交，省掉老人再找一次按钮
+                        .onChange(of: vm.emailCode) { _, newValue in
+                            if newValue.count == 6, vm.canLoginWithEmailCode {
+                                vm.loginWithEmailCode()
+                            }
+                        }
+                        Button {
+                            vm.sendEmailCode()
+                            // 发完把焦点移到验证码框
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                emailFocusedField = .code
+                            }
+                        } label: {
+                            Group {
+                                if vm.isSendingCode {
+                                    ProgressView()
+                                } else if vm.resendCountdown > 0 {
+                                    Text(languageCode == "en"
+                                         ? "Resend(\(vm.resendCountdown)s)"
+                                         : "重新发送(\(vm.resendCountdown)s)")
+                                } else {
+                                    Text(languageCode == "en" ? "Get code" : "获取验证码")
+                                }
+                            }
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(vm.canSendEmailCode ? AppTheme.primary : AppTheme.textSecondary)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!vm.canSendEmailCode)
+                    }
+                    .frame(minHeight: 46)
+                    if let codeError = vm.codeInputError, !codeError.isEmpty {
+                        Text(codeError)
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                    }
+                    if let hint = vm.codeSentHint, !hint.isEmpty {
+                        Text(hint)
+                            .font(.caption2)
+                            .foregroundColor(AppTheme.textSecondary)
+                    }
+                }
+                if !vm.agreementAccepted {
+                    Text(languageCode == "en"
+                         ? "Please agree to the Terms and Privacy Policy on the login page first."
+                         : "请先在登录页勾选同意服务协议和隐私政策")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+                Section {
+                    VStack(spacing: 10) {
+                        Button {
+                            vm.loginWithEmailCode()
+                        } label: {
+                            Group {
+                                if vm.isLoggingIn {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .frame(maxWidth: .infinity)
+                                } else {
+                                    Text(languageCode == "en" ? "Sign in / Register" : "登录 / 注册")
+                                        .frame(maxWidth: .infinity)
+                                }
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(height: 44)
+                            .background((vm.canLoginWithEmailCode && !vm.isLoggingIn) ? AppTheme.primary : AppTheme.primary.opacity(0.35))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .disabled(!vm.canLoginWithEmailCode || vm.isLoggingIn)
+                        .buttonStyle(.plain)
+                        Text(languageCode == "en"
+                             ? "The code is valid for 10 minutes. Check your spam folder if it doesn't arrive."
+                             : "验证码 10 分钟内有效；如未收到请查看垃圾邮件")
+                            .font(.caption)
+                            .foregroundColor(AppTheme.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 8, trailing: 16))
+                }
+            }
+            .navigationTitle(languageCode == "en" ? "Sign in / Register" : "登录 / 注册")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(languageCode == "en" ? "Cancel" : "取消") { showEmailLogin = false }
+                }
+            }
+            .onAppear {
+                scheduleEmailFocusBurst()
+            }
+        }
+    }
+
+    /// 与 scheduleFocusBurst 同样的多档触发策略，只是目标是邮箱输入框
+    private func scheduleEmailFocusBurst() {
+        let delays: [Double] = [0.05, 0.15, 0.30, 0.50, 0.80, 1.20, 1.80]
+        for d in delays {
+            DispatchQueue.main.asyncAfter(deadline: .now() + d) {
+                // 用户已经切到验证码框时不要把焦点抢回来
+                if emailFocusedField == nil {
+                    emailFocusedField = .email
+                }
             }
         }
     }
