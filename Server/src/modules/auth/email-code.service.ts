@@ -105,7 +105,9 @@ export class EmailCodeService {
     await client.set(cooldownKey, '1', 'EX', RESEND_COOLDOWN_SEC);
 
     // 4) 发信。发送失败要把验证码作废，否则用户收不到却占着一个有效码
-    const isEn = (opts.language || '').toLowerCase().startsWith('en');
+    // 2026-09-27 产品要求：默认英文。客户端会按 App 内语言显式传 zh/en；
+    // 未传（第三方调用 / 脚本）时用英文，只有明确 zh 才发中文。
+    const isEn = !(opts.language || '').toLowerCase().startsWith('zh');
     const sent = await this.mail.send({
       to: email,
       subject: isEn ? `${code} is your StarLens AI sign-in code` : `${code} 是你的星识安全助手登录验证码`,
