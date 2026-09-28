@@ -1,3 +1,8 @@
-# 家庭邀请链接 /i/{code}：已装 App 的用户由 iOS Universal Link 直接拉起 App（不经过这里）；
-# 未装 App 的用户浏览器打开 → 重写到邀请落地页（200 rewrite，保留原始路径供 JS 取邀请码）
-/i/* /i.html 200
+# 家庭邀请链接 /i/{code}：
+# - 已装 App：iOS Universal Link（AASA paths=/i/*）直接拉起 App，不经过这里
+# - 未装 App：浏览器打开 → 200 rewrite 到落地页，保留原始路径供 JS 取邀请码
+#
+# 2026-09-27 复核修复：落地页原名 i.html，其 clean-URL 路径 /i 与邀请前缀 /i/ 冲突，
+# 被 Cloudflare Pages 规范化成 308 → /i，邀请码被抹掉，所有分享给未装 App 家人的链接都打不开。
+# 改名为 invite.html（clean-URL 为 /invite，不与 /i/ 冲突）即可保留路径。
+/i/* /invite.html 200
