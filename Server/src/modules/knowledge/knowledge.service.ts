@@ -88,9 +88,13 @@ export class KnowledgeService {
     language = 'zh',
     opts: { includeAllStatuses?: boolean; status?: string; excludeReportedByUserId?: string | null } = {},
   ) {
+    // 2026-09-27 复核修复：page=abc → NaN → skip=NaN → Prisma 500；pageSize 无上限可拖整表
+    page = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+    pageSize = Number.isFinite(pageSize) && pageSize > 0 ? Math.min(Math.floor(pageSize), 50) : 20;
     const skip = (page - 1) * pageSize;
     const where: any = { language };
     if (category) where.category = category;
+    if (search && search.length > 64) search = search.slice(0, 64);
     if (search) {
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },
@@ -148,10 +152,14 @@ export class KnowledgeService {
     language = 'zh',
     opts: { excludeReportedByUserId?: string | null } = {},
   ) {
+    // 2026-09-27 复核修复：page=abc → NaN → skip=NaN → Prisma 500；pageSize 无上限可拖整表
+    page = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+    pageSize = Number.isFinite(pageSize) && pageSize > 0 ? Math.min(Math.floor(pageSize), 50) : 20;
     const skip = (page - 1) * pageSize;
     // iOS V2 列表仅展示已上架内容（draft / archived 不可见）
     const where: any = { language, status: 'published' };
     if (category) where.category = category;
+    if (search && search.length > 64) search = search.slice(0, 64);
     if (search) {
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },

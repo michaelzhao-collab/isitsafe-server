@@ -246,12 +246,13 @@ export class BreachService {
           stubBreaches = [];
         }
       } else {
-        this.logger.warn('[BreachScan] decrypt failed, using stub');
-        stubBreaches = this.stubBreachesFor(target.targetValueLookup);
+        // 2026-09-27 复核修复：解密失败不能编造泄露记录吓唬用户（原会凭空报"LinkedIn 2021 泄露"）
+        this.logger.warn('[BreachScan] decrypt failed');
+        stubBreaches = process.env.BREACH_ALLOW_STUB === 'true' ? this.stubBreachesFor(target.targetValueLookup) : [];
       }
     } else {
-      // 配置未齐 → stub 演示
-      stubBreaches = this.stubBreachesFor(target.targetValueLookup);
+      // 2026-09-27 复核修复：HIBP 未配置时不产生编造告警，仅显式 BREACH_ALLOW_STUB=true 才演示
+      stubBreaches = process.env.BREACH_ALLOW_STUB === 'true' ? this.stubBreachesFor(target.targetValueLookup) : [];
     }
 
     const isRealHibp = !!(hibpKey && target.targetValueEncrypted);

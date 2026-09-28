@@ -148,9 +148,15 @@ export class DeepfakeService {
         this.logger.warn(`[Deepfake] Volcengine failed: ${err?.message}`);
       }
     }
-    // Fallback: stub
-    const stub = this.stubAnalyze(fileUrl, durationSec);
-    return { result: stub, providerName: 'stub_v1', raw: { stub: true } };
+    // 2026-09-27 复核修复：未接入真实检测引擎时，绝不返回编造的"疑似 AI 合成"+假证据
+    // （原 stub 按 URL 末字符编造 score 和"呼吸节奏不自然"等描述，会误导用户）。
+    // 生产默认抛错 → 主流程标 status='failed'，客户端显示"检测失败/暂未开通"，好过假结论。
+    // 仅在显式 DEEPFAKE_ALLOW_STUB=true（本地/测试）时才用 stub。
+    if (process.env.DEEPFAKE_ALLOW_STUB === 'true') {
+      const stub = this.stubAnalyze(fileUrl, durationSec);
+      return { result: stub, providerName: 'stub_v1', raw: { stub: true } };
+    }
+    throw new Error('No deepfake provider configured');
   }
 
   /**
@@ -304,9 +310,10 @@ export class DeepfakeService {
       );
     }
 
-    const score = check.resultScore ?? 50;
+    // 2026-09-27 复核修复：resultScore 是 0~1 概率，原按 0~100 阈值判定 → 永远判"真人"
+    const score = typeof check.resultScore === 'number' ? check.resultScore : 0.5;
     const label: 'scam' | 'safe' | 'unknown' =
-      score >= 70 ? 'scam' : score < 30 ? 'safe' : 'unknown';
+      score >= 0.7 ? 'scam' : score < 0.3 ? 'safe' : 'unknown';
     const contentDisplay =
       label === 'scam'
         ? '一段语音被识别为高度疑似 AI 合成，请家人警惕'
@@ -324,7 +331,7 @@ export class DeepfakeService {
         label,
         contentDisplay,
         resultDetail: {
-          confidence: typeof score === 'number' ? score / 100 : 0.5,
+          confidence: score, // 已是 0~1
           score,
           provider: check.aiProvider ?? 'unknown',
           taskId,
