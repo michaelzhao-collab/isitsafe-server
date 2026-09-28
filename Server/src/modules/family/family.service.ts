@@ -44,6 +44,9 @@ const INVITE_CODE_TTL_DAYS = 7;
  */
 
 /// 邀请链接基址（后端下发给客户端，客户端不再写死域名）；可用环境变量覆盖
+// 2026-09-27 复核：邀请链接用 ?code= 查询参数形式。
+// 原 /i/{code} 路径形式被 Cloudflare Pages 的 clean-URL 规范化成 308→/invite，邀请码被抹掉
+// （改文件名也不行，线上实测仍 308）。/i?code={code} 稳定 200 且落地页能取到码。
 const INVITE_SHARE_BASE_URL =
   process.env.INVITE_SHARE_BASE_URL || 'https://www.starlensai.com/i';
 
@@ -530,7 +533,11 @@ export class FamilyService {
       where: { id: groupId },
       data: { inviteCode: code, inviteCodeExpiresAt: expiresAt },
     });
-    return { code, expiresAt, shareLink: `${INVITE_SHARE_BASE_URL}/${code}` };
+    // base 以 /i 结尾时拼成 /i?code=xxx；允许 INVITE_SHARE_BASE_URL 覆盖
+    const shareLink = INVITE_SHARE_BASE_URL.includes('?')
+      ? `${INVITE_SHARE_BASE_URL}${encodeURIComponent(code)}`
+      : `${INVITE_SHARE_BASE_URL}?code=${encodeURIComponent(code)}`;
+    return { code, expiresAt, shareLink };
   }
 
   /**

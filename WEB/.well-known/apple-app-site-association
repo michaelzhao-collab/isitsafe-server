@@ -9,8 +9,15 @@
         ],
         "components": [
           {
+            "/": "/i",
+            "?": {
+              "code": "*"
+            },
+            "comment": "family invite via ?code= (2026-09-27)"
+          },
+          {
             "/": "/i/*",
-            "comment": "V3-E family invite code redemption"
+            "comment": "legacy path-form invite, kept for old links"
           }
         ]
       }
