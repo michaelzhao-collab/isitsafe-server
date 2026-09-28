@@ -1,3 +1,5 @@
+import { Throttle } from '@nestjs/throttler';
+import { clientIp } from '../../common/client-ip.util';
 import { Controller, Post, Get, Body, UseGuards, Req, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { EmailCodeService } from './email-code.service';
@@ -18,21 +20,23 @@ export class AuthController {
    * 无需鉴权；限流在 EmailCodeService（邮箱 60s 冷却 / 邮箱每小时 5 次 / IP 每小时 20 次）。
    */
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('email/send-code')
   async sendEmailCode(@Body() dto: SendEmailCodeDto, @Req() req: any) {
-    const ip = req.ip || req.connection?.remoteAddress;
+    const ip = clientIp(req);
     const result = await this.emailCode.sendLoginCode(dto.email, { ip, language: dto.language });
     return { success: true, ...result };
   }
 
   /** 统一登录/注册：手机号 + 密码（>= 8 位），新用户自动注册；邮箱登录保留为内部兜底 */
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('login')
   async login(
     @Body() body: { phone?: string; email?: string; password?: string; code?: string; smsCode?: string },
     @Req() req: any,
   ) {
-    const ip = req.ip || req.connection?.remoteAddress;
+    const ip = clientIp(req);
     if (body.phone) {
       return this.auth.loginPhone(
         { phone: body.phone, password: body.password, code: body.code, smsCode: body.smsCode },
@@ -46,6 +50,7 @@ export class AuthController {
 
   /** Apple 登录：客户端传 identityToken，服务端校验后签发本系统 token */
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('apple/login')
   async appleLogin(@Body() dto: AppleLoginDto, @Req() req: any) {
     return this.auth.loginApple(dto, req);
@@ -53,6 +58,7 @@ export class AuthController {
 
   /** 统一第三方登录入口（当前支持 apple；google 预留） */
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('social/login')
   async socialLogin(@Body() dto: SocialLoginDto, @Req() req: any) {
     return this.auth.loginSocial(dto, req);

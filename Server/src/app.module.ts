@@ -2,6 +2,8 @@ import { Module, Controller, Get } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { CfThrottlerGuard } from './common/throttler/cf-throttler.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { UploadModule } from './modules/upload/upload.module';
@@ -47,7 +49,9 @@ class PublicConfigController {
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    // 2026-09-27 复核：默认每 IP 120 次/分钟（真实 IP 见 CfThrottlerGuard）。
+    // 家庭/办公室 NAT 出口共用一个 IP，故留足余量；敏感端点用 @Throttle 单独收紧。
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
     PrismaModule,
     RedisModule,
     AuthModule,
@@ -77,5 +81,6 @@ class PublicConfigController {
     OnboardingModule,
   ],
   controllers: [PublicConfigController],
+  providers: [{ provide: APP_GUARD, useClass: CfThrottlerGuard }],
 })
 export class AppModule {}

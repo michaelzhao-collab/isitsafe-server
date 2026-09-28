@@ -13,6 +13,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // V5.1 自建 IM：启用原生 ws 适配器，家庭群聊网关挂在 /chat（同一 HTTP server）
   app.useWebSocketAdapter(new WsAdapter(app));
+  // 2026-09-27 复核：信任 1 跳代理，让兜底 req.ip 剥离一层内网地址。
+  // 真实客户端 IP 主要靠 CfThrottlerGuard 读 CF-Connecting-IP，不依赖此跳数。
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

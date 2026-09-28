@@ -11,6 +11,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { clientIp } from '../client-ip.util';
 import { RedisService } from '../../redis/redis.service';
 import { MembershipService } from '../../modules/membership/membership.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
@@ -44,7 +45,7 @@ export class AiRateLimitGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const userId = request.user?.sub as string | undefined;
-    const ip = request.ip || request.connection?.remoteAddress || 'unknown';
+    const ip = clientIp(request); // 2026-09-27 复核：真实客户端 IP，否则全站共用一个桶
 
     const client = this.redis.getClient();
 

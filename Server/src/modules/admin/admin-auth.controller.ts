@@ -1,3 +1,4 @@
+import { Throttle } from '@nestjs/throttler';
 import { BadRequestException, Body, Controller, Ip, Post, UseGuards } from '@nestjs/common';
 import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -15,6 +16,7 @@ export class AdminAuthController {
 
   /** 管理后台登录：账号 + 密码 + Cloudflare Turnstile 人机验证 */
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 2026-09-27 复核：admin 登录暴破防护
   @Post('login')
   async login(
     @Body() body: { username: string; password: string; turnstileToken?: string },
