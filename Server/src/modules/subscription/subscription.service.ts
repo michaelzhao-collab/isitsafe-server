@@ -8,9 +8,10 @@ import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma, Subscription } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { createPublicKey } from 'crypto';
+import { createPublicKey, X509Certificate } from 'crypto';
 import axios from 'axios';
 import * as nodeJwt from 'jsonwebtoken';
+import { APPLE_ROOT_CA_G3_PEM } from './apple-root-ca';
 
 type PaymentMethod = 'Apple' | 'Google';
 
@@ -386,23 +387,58 @@ export class SubscriptionService {
   // alg 通常为 ES256（P-256 椭圆曲线），苹果 2021 年后统一使用此算法
   // StoreKit 2 Transaction JWS 不含 iss/aud 标准字段，改为验证 payload.bundleId
   private verifyAppleJwsWithX5c(token: string, x5c: string[], alg: string): Record<string, any> {
-    const leafPem = [
-      '-----BEGIN CERTIFICATE-----',
-      ...(x5c[0].match(/.{1,64}/g) ?? [x5c[0]]),
-      '-----END CERTIFICATE-----',
-    ].join('\n');
+    // 2026-09-27 复核修复：先把 x5c 证书链验到内置的 Apple Root CA G3，
+    // 再用叶证书公钥验 JWS 签名。原实现只取 x5c[0] 当公钥、不验链，
+    // 任何自签证书都能伪造收据/退款通知 → 白拿会员 / 降级他人。
+    const pemFromDer = (b64: string): string =>
+      ['-----BEGIN CERTIFICATE-----', ...(b64.match(/.{1,64}/g) ?? [b64]), '-----END CERTIFICATE-----'].join('\n');
+
+    if (!Array.isArray(x5c) || x5c.length === 0) {
+      throw new BadRequestException('Apple receipt x5c chain missing');
+    }
+
+    let certs: X509Certificate[];
+    try {
+      certs = x5c.map((c) => new X509Certificate(pemFromDer(c)));
+    } catch (e: any) {
+      throw new BadRequestException(`Apple receipt certificate parse failed: ${e?.message}`);
+    }
+
+    const now = new Date();
+    for (const cert of certs) {
+      if (new Date(cert.validFrom) > now || new Date(cert.validTo) < now) {
+        throw new BadRequestException('Apple receipt certificate expired or not yet valid');
+      }
+    }
+
+    // 逐级验证：certs[i] 由 certs[i+1] 签发
+    for (let i = 0; i < certs.length - 1; i++) {
+      if (!certs[i].verify(certs[i + 1].publicKey) || !certs[i].checkIssued(certs[i + 1])) {
+        throw new BadRequestException('Apple receipt certificate chain invalid');
+      }
+    }
+
+    // 链尾必须是我们信任的 Apple Root CA G3（相等），或由它签发
+    const appleRoot = new X509Certificate(APPLE_ROOT_CA_G3_PEM);
+    const root = certs[certs.length - 1];
+    const trusted =
+      root.fingerprint256 === appleRoot.fingerprint256 ||
+      (root.verify(appleRoot.publicKey) && root.checkIssued(appleRoot));
+    if (!trusted) {
+      throw new BadRequestException('Apple receipt chain not anchored to Apple Root CA G3');
+    }
 
     const algorithms = alg === 'RS256' ? ['RS256'] : ['ES256'];
     let payload: Record<string, any>;
     try {
-      payload = nodeJwt.verify(token, leafPem, {
+      // 用已验链的叶证书公钥验 JWS 签名
+      payload = nodeJwt.verify(token, certs[0].publicKey, {
         algorithms: algorithms as nodeJwt.Algorithm[],
       }) as Record<string, any>;
     } catch (e: any) {
       console.warn('[APPLE_X5C_VERIFY_FAILED]', { alg, message: e?.message });
       throw new BadRequestException(`Apple receipt verification failed: ${e?.message}`);
     }
-
     // 验证 bundleId 与服务器配置一致（StoreKit 2 用 bundleId 而非 aud）
     const bundleId = this.appleBundleId;
     const tokenBundleId = payload.bundleId;
@@ -410,7 +446,6 @@ export class SubscriptionService {
       console.warn('[APPLE_X5C_BUNDLE_MISMATCH]', { expected: bundleId, got: tokenBundleId });
       throw new BadRequestException('Apple receipt bundle ID mismatch');
     }
-
     return payload;
   }
 
@@ -568,6 +603,12 @@ export class SubscriptionService {
     let purchaseDate: Date | null = null;
     let status = 'active';
 
+    if (paymentMethod !== 'Apple') {
+      // 2026-09-27 复核修复：非 Apple 支付分支此前完全不校验收据，
+      // 传 {paymentMethod:'Google', receipt:'任意'} 即可拿会员。iOS 无 Google 支付，
+      // 该分支未接入前一律拒绝（DTO 层也已限制，这里是纵深兜底）。
+      throw new BadRequestException('Unsupported payment method');
+    }
     if (paymentMethod === 'Apple') {
       const trimmed = (receipt || '').trim();
       if (!trimmed) {
