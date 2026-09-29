@@ -336,8 +336,12 @@ export class AiService {
         risk_db_hit_record_count: recordCount,
       }, language);
       console.log('[AI_FLOW] 6.RESULT URL 最终返回 risk_db_hit=' + urlFinal.risk_db_hit);
-      const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
-      await this.redis.set(cacheKey, JSON.stringify(urlFinal), ttl);
+      // 2026-09-27 复核：带 context 的结果不写缓存（读侧 hasContext 时也不读）。
+      // 否则用伪造上下文骗出的 low 会以不含 context 的 key 写入，污染所有后续无 context 查询。
+      if (!hasContext) {
+        const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
+        await this.redis.set(cacheKey, JSON.stringify(urlFinal), ttl);
+      }
       await this.writeQuery(userId, conversationId, parsed, urlFinal, provider, false, input.imageUrl);
       // V4-P0：URL 路径采样
       this.sampleAsync({
@@ -419,7 +423,8 @@ export class AiService {
     }, language);
     console.log('[AI_FLOW] 6.RESULT 最终返回 risk_level=' + final.risk_level + ' reasonsLen=' + (final.reasons?.length ?? 0) + ' adviceLen=' + (final.advice?.length ?? 0));
 
-    if (!final.is_conversational) {
+    // 2026-09-27 复核：带 context 的结果不写缓存（与读侧 hasContext 对齐），防注入结论污染缓存
+    if (!final.is_conversational && !hasContext) {
       const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
       await this.redis.set(cacheKey, JSON.stringify(final), ttl);
     }

@@ -59,15 +59,15 @@ export class AiProviderService {
     const { apiKey, baseUrl } = await this.getDoubaoConfig();
     if (!apiKey) throw new Error('DOUBAO_API_KEY not configured');
     const model = this.config.get('DOUBAO_MODEL', 'doubao-seed-2-0-pro-260215');
-    // 官方文档：使用 /api/v3/responses，请求体为 model + input（input 为消息数组，content 可为 input_text 数组）
-    const fullText = `${systemPrompt}\n\n${prompt}`;
+    // 官方文档：/api/v3/responses 的 input 为消息数组，支持 system/user 角色。
+    // 2026-09-27 复核（提示注入防护）：原来把 systemPrompt 和用户内容合并成单条 user 消息，
+    // 用户内容里的"系统提示"更易被模型误当指令。改为 system 与 user 分离，配合 systemPrompt
+    // 里的安全边界声明与 ⟦INPUT⟧ 定界符，降低注入成功率（deepseek/openai 路径本就是分离的）。
     const body = {
       model,
       input: [
-        {
-          role: 'user',
-          content: [{ type: 'input_text', text: fullText }],
-        },
+        { role: 'system', content: [{ type: 'input_text', text: systemPrompt }] },
+        { role: 'user', content: [{ type: 'input_text', text: prompt }] },
       ],
     };
     const requestUrl = `${baseUrl}/responses`;
