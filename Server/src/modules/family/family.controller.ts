@@ -48,8 +48,13 @@ export class FamilyController {
 
   // ====== 家庭组 CRUD ======
   @Post('groups')
-  async createGroup(@CurrentUser('sub') userId: string, @Body() dto: CreateFamilyGroupDto) {
-    const group = await this.family.createGroup(userId, dto.name);
+  async createGroup(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: CreateFamilyGroupDto,
+    @Headers('x-app-language') langHeader?: string,
+  ) {
+    const lang = (langHeader || '').toLowerCase().startsWith('en') ? 'en' : 'zh';
+    const group = await this.family.createGroup(userId, dto.name, lang);
     return { id: group.id, name: group.name };
   }
 

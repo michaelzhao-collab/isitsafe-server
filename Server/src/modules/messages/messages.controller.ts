@@ -45,12 +45,18 @@ export class MessagesController {
       },
     });
     const total = await this.prisma.appMessage.count({ where });
+    // 2026-10-06：全员公告（如欢迎语）在用户注册前就已创建，新用户看到的是公告创建日（如 2026/04/01）。
+    // 展示时间取 max(公告创建时间, 用户注册时间)：对该用户而言，它是注册时「收到」的。
+    const me = await this.prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
     const items = messages.map((m) => ({
       id: m.id,
       title: m.title,
       content: m.content,
       link: m.link,
-      createdAt: m.createdAt.toISOString(),
+      createdAt: (m.targetUserId == null && me && me.createdAt > m.createdAt
+        ? me.createdAt
+        : m.createdAt
+      ).toISOString(),
       read: m.readBy.length > 0,
     }));
     return { items, total, page: parseInt(page, 10), pageSize: parseInt(pageSize, 10) };

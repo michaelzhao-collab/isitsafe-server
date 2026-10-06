@@ -229,7 +229,7 @@ export class FamilyService {
   // ====================================================================
   // 家庭组 CRUD
   // ====================================================================
-  async createGroup(userId: string, name?: string) {
+  async createGroup(userId: string, name?: string, lang: 'zh' | 'en' = 'zh') {
     // S5-10 多家庭：免费用户最多创建 1 个家庭组，Pro 最多 3 个
     const ownedCount = await this.prisma.familyGroup.count({
       where: { ownerUserId: userId },
@@ -244,7 +244,7 @@ export class FamilyService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       // 1) 创建组
       const group = await tx.familyGroup.create({
         data: {
@@ -273,6 +273,15 @@ export class FamilyService {
 
       return group;
     });
+    // 2026-10-06：原来建群后群聊完全空白，用户不知道下一步做什么。发一条引导系统消息（事务外，失败不影响建群）。
+    // 建群时群里只有创建者一人，按其 App 语言发
+    this.postLifecycleSystemMessage(
+      created.id,
+      lang === 'en'
+        ? 'Family group created. Invite your family to join, then share any suspicious links, calls or messages here so everyone can check them together.'
+        : '家庭群已创建。邀请家人加入后，遇到可疑的链接、电话或消息，可以发到群里让家人一起把关。',
+    );
+    return created;
   }
 
   async getMyGroup(userId: string, imCapable = false) {
