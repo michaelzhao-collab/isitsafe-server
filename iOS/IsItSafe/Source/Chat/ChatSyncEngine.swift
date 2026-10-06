@@ -11,6 +11,7 @@
 //
 
 import Foundation
+import UIKit
 
 /// 传输层抽象（便于把引擎与 NetworkManager 解耦、可单测）
 public protocol ChatTransport: Sendable {
@@ -50,6 +51,7 @@ public struct NetworkChatTransport: ChatTransport {
 /// 媒体上传抽象（语音失败重传需要在引擎内重新上传，故与 transport 一样做成可注入）
 public protocol ChatMediaUploader: Sendable {
     func uploadVoice(data: Data, filename: String) async throws -> String
+    func uploadImage(data: Data, filename: String) async throws -> String
 }
 
 /// 用 NetworkManager 实现的媒体上传
@@ -58,6 +60,11 @@ public struct NetworkChatMediaUploader: ChatMediaUploader {
     public func uploadVoice(data: Data, filename: String) async throws -> String {
         try await NetworkManager.shared.uploadAudio(
             type: "family_voice", audioData: data, mimeType: "audio/mp4", filename: filename
+        )
+    }
+    public func uploadImage(data: Data, filename: String) async throws -> String {
+        try await NetworkManager.shared.uploadFile(
+            type: "family_image", imageData: data, mimeType: "image/jpeg", filename: filename
         )
     }
 }
@@ -162,7 +169,7 @@ public actor ChatSyncEngine {
         onGroupChanged?(groupId)
 
         do {
-            let url = try await uploadVoiceFile(fileURL)
+            let url = try await uploadMediaFile(.voice, fileURL)
             payload["url"] = .string(url)
             payload.removeValue(forKey: Self.localPathKey)   // 上传成功，本地路径不再需要
             let body = ChatSendRequest(clientMsgId: clientMsgId, type: ChatMessageType.voice.rawValue,
@@ -184,9 +191,78 @@ public actor ChatSyncEngine {
         }
     }
 
+    /// 发图片：与语音相同的「乐观上屏 → 上传 → 发送」。
+    /// 2026-10-06：原来先上传再上屏，选完图要等上传结束才看到气泡（用户以为点了没反应）。
+    /// fileURL 是已压缩好的 JPEG（放在 outbox 目录），payload 先带本地路径，气泡直接显示本地图。
+    public func sendImage(groupId: String, fileURL: URL, width: Int, height: Int) async -> ChatMessage {
+        let clientMsgId = UUID().uuidString
+        var payload: [String: JSONValue] = [
+            Self.localPathKey: .string(fileURL.path),
+            "w": .number(Double(width)),
+            "h": .number(Double(height)),
+        ]
+        let optimistic = ChatMessage(
+            id: "local:\(clientMsgId)", groupId: groupId, seq: 0, senderId: currentUserId(),
+            type: .image, content: nil,
+            payload: ChatPayload(payload), eventId: nil, clientMsgId: clientMsgId,
+            status: "normal", version: 1, createdAt: Date(), sendState: .sending
+        )
+        await store.insertOptimistic(optimistic)
+        onGroupChanged?(groupId)
+
+        do {
+            let url = try await uploadMediaFile(.image, fileURL)
+            payload["url"] = .string(url)
+            payload.removeValue(forKey: Self.localPathKey)
+            let body = ChatSendRequest(clientMsgId: clientMsgId, type: ChatMessageType.image.rawValue,
+                                       content: nil, payload: payload)
+            // 先写缓存再确认：确认后气泡立刻切到远端 url，此时缓存必须已就绪，否则又去 CDN 下载
+            Self.cacheSentImage(fileURL, url: url)
+            let server = try await withRetry(times: 3) {
+                try await self.transport.send(groupId: groupId, body: body)
+            }
+            await store.confirmOptimistic(clientMsgId: clientMsgId, with: server)
+            onGroupChanged?(groupId)
+            try? FileManager.default.removeItem(at: fileURL)
+            return server
+        } catch {
+            await store.markFailed(clientMsgId: clientMsgId)
+            onGroupChanged?(groupId)
+            var failed = optimistic
+            failed.sendState = .failed
+            return failed
+        }
+    }
+
+    /// 自己发的图：上传成功后把本地文件存进 ChatImageCache（按远端 url），
+    /// 气泡切到远端 url 时直接命中缓存，不用再从 CDN 下载一遍。
+    /// outbox 文件由调用方在发送成功后删除（发送失败还要留着重发）。
+    private static func cacheSentImage(_ fileURL: URL, url: String) {
+        if let data = try? Data(contentsOf: fileURL), let img = UIImage(data: data) {
+            ChatImageCache.shared.setImage(img, forKey: url)
+        }
+    }
+
+    /// payload 里存的是绝对路径，而 App 更新后沙盒容器路径会变：原路径不存在时按文件名到 Caches/ChatOutbox 下找
+    nonisolated static func resolveLocalFile(_ path: String) -> URL {
+        let url = URL(fileURLWithPath: path)
+        if FileManager.default.fileExists(atPath: url.path) { return url }
+        if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            let alt = caches.appendingPathComponent("ChatOutbox").appendingPathComponent(url.lastPathComponent)
+            if FileManager.default.fileExists(atPath: alt.path) { return alt }
+        }
+        return url
+    }
+
     /// 读文件 + 上传（带退避重试）
-    private func uploadVoiceFile(_ fileURL: URL) async throws -> String {
+    private func uploadMediaFile(_ type: ChatMessageType, _ fileURL: URL) async throws -> String {
         let data = try Data(contentsOf: fileURL)
+        if type == .image {
+            let filename = "img_\(UUID().uuidString).jpg"
+            return try await withRetry(times: 2) {
+                try await self.uploader.uploadImage(data: data, filename: filename)
+            }
+        }
         let filename = "voice_\(UUID().uuidString).m4a"
         return try await withRetry(times: 2) {
             try await self.uploader.uploadVoice(data: data, filename: filename)
@@ -198,14 +274,16 @@ public actor ChatSyncEngine {
     public func resend(_ message: ChatMessage) async -> ChatMessage {
         guard let clientMsgId = message.clientMsgId, message.seq == 0 else { return message }
 
-        // 语音消息上次卡在"上传失败"：payload 里只有本地路径没有 url，必须先重新上传，
-        // 否则重发的是一条没有音频地址的空语音（服务端 payload 校验也会拒绝）。
+        // 语音/图片消息上次卡在"上传失败"：payload 里只有本地路径没有 url，必须先重新上传，
+        // 否则重发的是一条没有地址的空消息（服务端 payload 校验也会拒绝）。
         var outgoingPayload = message.payload?.raw
-        if message.type == .voice,
+        // 本地文件等发送确认后再删：store 里的 payload 仍只有本地路径，若这次发送失败，下次重发还要靠它重新上传
+        var uploadedFile: URL?
+        if message.type == .voice || message.type == .image,
            let localPath = message.payload?.string(Self.localPathKey),
            message.payload?.string("url") == nil {
-            let fileURL = URL(fileURLWithPath: localPath)
-            guard let url = try? await uploadVoiceFile(fileURL) else {
+            let fileURL = Self.resolveLocalFile(localPath)
+            guard let url = try? await uploadMediaFile(message.type, fileURL) else {
                 await store.markFailed(clientMsgId: clientMsgId)
                 onGroupChanged?(message.groupId)
                 var stillFailed = message
@@ -216,7 +294,8 @@ public actor ChatSyncEngine {
             patched["url"] = .string(url)
             patched.removeValue(forKey: Self.localPathKey)
             outgoingPayload = patched
-            try? FileManager.default.removeItem(at: fileURL)
+            if message.type == .image { Self.cacheSentImage(fileURL, url: url) }
+            uploadedFile = fileURL
         }
 
         let body = ChatSendRequest(clientMsgId: clientMsgId, type: message.type.rawValue,
@@ -227,6 +306,7 @@ public actor ChatSyncEngine {
             }
             await store.confirmOptimistic(clientMsgId: clientMsgId, with: server)
             onGroupChanged?(message.groupId)
+            if let uploadedFile { try? FileManager.default.removeItem(at: uploadedFile) }
             return server
         } catch {
             await store.markFailed(clientMsgId: clientMsgId)

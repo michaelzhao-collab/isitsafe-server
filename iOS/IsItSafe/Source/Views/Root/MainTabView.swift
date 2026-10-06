@@ -16,6 +16,7 @@ public struct MainTabView: View {
     @StateObject private var tabBarVisibility = TabBarVisibility.shared
     @StateObject private var elderMode = ElderModeService.shared
     @ObservedObject private var familyChat = FamilyChatCoordinator.shared
+    @ObservedObject private var inviteClipboard = InviteClipboardService.shared
 
     public init() {}
 
@@ -47,10 +48,46 @@ public struct MainTabView: View {
         }
         // V3-E Universal Link 跳转：router 设置 pendingTabIndex 时自动切 Tab
         .onChange(of: router.pendingTabIndex) { _, newIdx in
-            if let idx = newIdx, idx >= 0 && idx <= 3 {
-                selectedTab = idx
-                router.pendingTabIndex = nil
+            applyPendingTab(newIdx)
+        }
+        // 2026-09-27 复核：冷启动经邀请链接/推送进入时，pendingTabIndex 在 MainTabView 出现前
+        // 已被设好，onChange 不会对初始值触发 → 永远停在 Tab 0。这里出现时消费一次。
+        .onAppear {
+            applyPendingTab(router.pendingTabIndex)
+            inviteClipboard.checkIfNeeded()
+        }
+        // 2026-10-06 剪贴板延迟绑定：在 MainTabView 而非首页挂载，长辈模式（ElderHomeView）也能生效
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            inviteClipboard.checkIfNeeded()
+        }
+        .alert(
+            languageCode == "en" ? "Family invitation" : "家庭邀请",
+            isPresented: Binding(
+                get: { inviteClipboard.detectedCode != nil },
+                set: { if !$0 { inviteClipboard.finish() } }
+            ),
+            presenting: inviteClipboard.detectedCode
+        ) { code in
+            Button(languageCode == "en" ? "Join" : "加入") {
+                inviteClipboard.finish()
+                router.pendingInviteCode = code
+                router.pendingInviteAutoJoin = true
+                router.pendingTabIndex = 2
             }
+            Button(languageCode == "en" ? "Cancel" : "取消", role: .cancel) {
+                inviteClipboard.finish()
+            }
+        } message: { code in
+            Text(languageCode == "en"
+                 ? "Found a family invite code \(code) on your clipboard. Join this family group?\nBy joining you confirm you are at least 13, or have a parent/guardian's consent."
+                 : "检测到家庭邀请码 \(code)，是否加入该家庭？\n加入即表示你已年满 13 岁，或已获得监护人同意。")
+        }
+    }
+
+    private func applyPendingTab(_ idx: Int?) {
+        if let idx, idx >= 0 && idx <= 3 {
+            selectedTab = idx
+            router.pendingTabIndex = nil
         }
     }
 

@@ -26,12 +26,20 @@ public final class ElderModeService: ObservableObject {
     }
 
     /// 从服务端 user 同步状态（登录后调用）
+    /// 2026-09-27 复核：nil（服务端未开或字段缺失）视为 false —— 否则会继承上一个账号
+    /// 在本机留下的本地开关，子女在父母手机登录会得到长辈界面。
     public func syncFromServer(_ serverValue: Bool?) {
-        guard let value = serverValue else { return }
+        let value = serverValue ?? false
         if isEnabled != value {
             isEnabled = value
             UserDefaults.standard.set(value, forKey: Self.localKey)
         }
+    }
+
+    /// 换账号/登出时清除设备级长辈模式状态（2026-09-27 复核）
+    public func reset() {
+        isEnabled = false
+        UserDefaults.standard.set(false, forKey: Self.localKey)
     }
 
     /// 本地切换 + 上报服务端

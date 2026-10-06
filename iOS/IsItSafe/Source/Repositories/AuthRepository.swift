@@ -32,8 +32,10 @@ public final class AuthRepository {
         try await network.request(endpoint: .authRegionHint)
     }
 
-    public func logout() async throws -> LogoutResponse {
-        try await network.request(endpoint: .authLogout)
+    public func logout(deviceToken: String? = nil) async throws -> LogoutResponse {
+        struct LogoutBody: Encodable { let deviceToken: String? }
+        let body = deviceToken.map { LogoutBody(deviceToken: $0) }
+        return try await network.request(endpoint: .authLogout, body: body)
     }
 
     public func deleteAccount() async throws -> LogoutResponse {

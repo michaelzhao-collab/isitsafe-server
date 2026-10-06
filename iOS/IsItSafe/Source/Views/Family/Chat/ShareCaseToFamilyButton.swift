@@ -49,8 +49,10 @@ public struct ShareCaseToFamilyButton: View {
             return
         }
         Task {
-            let ok = await chat.shareCase(groupId: gid, refType: refType, refId: refId,
-                                          title: title, summary: summary, riskLevel: "none")
+            let ok = await FamilyShareTarget.send(chat, gid: gid) { target in
+                await chat.shareCase(groupId: target, refType: refType, refId: refId,
+                                     title: title, summary: summary, riskLevel: "none")
+            }
             if ok { sent = true }
         }
     }

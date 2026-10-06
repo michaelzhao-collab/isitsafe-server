@@ -18,6 +18,11 @@ struct IsItSafeApp: App {
     @AppStorage("app.fontScale") private var fontScale: Double = 1.0
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
+    init() {
+        // 剪贴板邀请检测窗口起点：必须在登录前记录，才能区分「新装」与「老用户升级」
+        InviteClipboardService.recordLaunch()
+    }
+
     @State private var isSplashVisible = true
     @Environment(\.scenePhase) private var scenePhase
 
@@ -41,9 +46,9 @@ struct IsItSafeApp: App {
                         .environmentObject(router)
                 }
                 .onAppear {
-                    // 每次启动按系统语言同步：中文系统 -> zh；其他 -> en
-                    let preferred = Locale.preferredLanguages.first?.lowercased() ?? "en"
-                    languageCode = preferred.hasPrefix("zh") ? "zh" : "en"
+                    // 2026-09-27 复核：原来每次冷启动无条件按系统语言覆盖 languageCode，
+                    // 把用户在 App 内手动选的语言冲掉。默认语言的初始化已由 AppSettingsStore.init
+                    // 在「首次启动且未设置」时完成，这里不再覆盖。
                     // 启动时触发网络预热
                     Task { await AuthService.shared.refreshTokenIfNeeded() }
                     // V5：推送权限不在冷启动弹（首页首次出结果 / 进入情报 / 家庭 tab 时再弹），

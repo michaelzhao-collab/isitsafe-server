@@ -50,4 +50,15 @@ public final class NotificationCenterForwarder: NSObject, UNUserNotificationCent
     ) {
         completionHandler([.banner, .sound, .badge])
     }
+
+    /// 2026-09-27 复核：点开通知的路由。原来没实现，家庭卡片/播报/关怀点开只落首页。
+    public func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        Task { @MainActor in AppRouter.shared.handlePushOpen(userInfo) }
+        completionHandler()
+    }
 }

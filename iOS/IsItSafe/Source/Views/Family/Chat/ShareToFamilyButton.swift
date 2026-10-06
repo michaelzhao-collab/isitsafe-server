@@ -27,6 +27,22 @@ enum FamilyShareTarget {
         }
         return saved
     }
+
+    /// 发送并给出反馈：成功 → 选中该群并跳家庭 Tab；失败 → toast。2026-10-06：原来失败被吞掉，按钮点了毫无反应。
+    /// 不做「换一个群重发」：超时可能服务端其实已写入，换群重发会让内容进到用户没选的另一个家庭。
+    /// 失效的选中群由 groupId(_:) 剔除，登出时也会清掉选中群。
+    @MainActor
+    static func send(_ chat: FamilyChatCoordinator, gid: String, _ op: (String) async -> Bool) async -> Bool {
+        let ok = await op(gid)
+        if ok {
+            UserDefaults.standard.set(gid, forKey: selectedGroupIdKey)
+            AppRouter.shared.pendingTabIndex = 2
+        } else {
+            let en = (UserDefaults.standard.string(forKey: "isitsafe.language") ?? "zh") == "en"
+            AppStateViewModel.shared.showError(en ? "Failed to send. Please try again." : "发送失败，请稍后重试")
+        }
+        return ok
+    }
 }
 
 public struct ShareToFamilyButton: View {
@@ -41,6 +57,7 @@ public struct ShareToFamilyButton: View {
     @ObservedObject private var router = AppRouter.shared
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var sent = false
+    @State private var sending = false
 
     public init(title: String, summary: String, riskLevel: String, conversationId: String?, elder: Bool = false) {
         self.title = title
@@ -53,7 +70,11 @@ public struct ShareToFamilyButton: View {
     public var body: some View {
         Button(action: tap) {
             HStack(spacing: 8) {
-                Image(systemName: sent ? "checkmark.circle.fill" : "person.2.fill")
+                if sending {
+                    ProgressView()
+                } else {
+                    Image(systemName: sent ? "checkmark.circle.fill" : "person.2.fill")
+                }
                 Text(labelText)
                     .font(.system(size: elder ? 17 : 14, weight: .semibold))
             }
@@ -63,7 +84,7 @@ public struct ShareToFamilyButton: View {
             .background(RoundedRectangle(cornerRadius: 12)
                 .stroke(sent ? AppTheme.riskLow.opacity(0.5) : AppTheme.primary.opacity(0.5), lineWidth: 1.5))
         }
-        .disabled(sent)
+        .disabled(sent || sending)
     }
 
     private var labelText: String {
@@ -78,11 +99,15 @@ public struct ShareToFamilyButton: View {
             router.pendingTabIndex = 2
             return
         }
+        sending = true
         Task {
-            let ok = await chat.sendHelpRequest(
-                groupId: gid, title: title, summary: summary,
-                riskLevel: normalizedRisk, refType: "conversation", refId: conversationId
-            )
+            let ok = await FamilyShareTarget.send(chat, gid: gid) { target in
+                await chat.sendHelpRequest(
+                    groupId: target, title: title, summary: summary,
+                    riskLevel: normalizedRisk, refType: "conversation", refId: conversationId
+                )
+            }
+            sending = false
             if ok { sent = true }
         }
     }

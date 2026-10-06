@@ -77,8 +77,15 @@ private final class TLSValidationDelegate: NSObject, URLSessionDelegate {
 }
 
 public final class NetworkManager {
+    /// 2026-09-27 复核：登出/删号时清空磁盘 HTTP 缓存（含上一账号的家庭成员手机号等）
+    public func clearURLCache() {
+        httpCache?.removeAllCachedResponses()
+        ChatImageCache.shared.clearAll()
+    }
+
     public static let shared = NetworkManager()
     private let session: URLSession
+    private var httpCache: URLCache?
     private let decoder: JSONDecoder
     private let forcedNetworkPrintPrefix = "NETWORK"
 
@@ -90,7 +97,9 @@ public final class NetworkManager {
         // 仅对 V2 详情类接口有显著收益；列表/会变化的接口因为带 Cache-Control: must-revalidate，每次仍会发起请求。
         let mem = 10 * 1024 * 1024   // 10MB 内存
         let disk = 50 * 1024 * 1024  // 50MB 磁盘
-        config.urlCache = URLCache(memoryCapacity: mem, diskCapacity: disk, diskPath: "isitsafe-http-cache")
+        let cache = URLCache(memoryCapacity: mem, diskCapacity: disk, diskPath: "isitsafe-http-cache")
+        self.httpCache = cache
+        config.urlCache = cache
         config.requestCachePolicy = .useProtocolCachePolicy
         // 使用 TLSValidationDelegate 做证书校验（填入 pinnedHashes 后自动启用固定）
         session = URLSession(configuration: config, delegate: TLSValidationDelegate(), delegateQueue: nil)

@@ -93,6 +93,11 @@ public final class PushService {
     }
 
     /// 登出时清理本地状态，下次登录会重新上报
+    /// 2026-09-27 复核：登出时把本机 token 传给服务端解绑（在 access token 吊销前）
+    public var currentDeviceToken: String? {
+        storage.string(forKey: lastTokenKey)
+    }
+
     public func clearOnLogout() {
         queue.async {
             self.inFlightToken = nil

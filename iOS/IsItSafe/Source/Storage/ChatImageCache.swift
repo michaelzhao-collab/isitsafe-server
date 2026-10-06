@@ -26,6 +26,12 @@ public final class ChatImageCache {
 
     private init() {}
 
+    /// 2026-09-27 复核：换账号/登出时清空聊天图片缓存（用户上传的私密家庭群图片）
+    public func clearAll() {
+        guard let dir = cacheDirectory else { return }
+        try? fileManager.removeItem(at: dir)
+    }
+
     /// 将 URL 转为安全的文件名（稳定哈希）
     private func keyToFilename(_ key: String) -> String {
         let data = Data(key.utf8)

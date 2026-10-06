@@ -96,6 +96,12 @@ public struct HomeContainerView: View {
     /// 探测到了再弹我们自己的 alert，用户点"允许"再走 .string 拿真内容（此时系统才弹一次）。
     /// 注意：detectPatterns 没有原生 async 版本，用 withCheckedContinuation 包装。
     private func checkClipboardWithoutPrompt() async {
+        // 2026-10-06：剪贴板是家庭邀请时由 InviteClipboardService 弹「是否加入」，这里跳过，避免连弹两个框
+        let skip = await MainActor.run { () -> Bool in
+            InviteClipboardService.shared.checkIfNeeded()
+            return InviteClipboardService.shared.clipboardIsDetectedInvite
+        }
+        if skip { return }
         let patterns: Set<UIPasteboard.DetectionPattern> = [.probableWebURL, .number]
         let detected: Set<UIPasteboard.DetectionPattern> = await withCheckedContinuation { cont in
             UIPasteboard.general.detectPatterns(for: patterns) { result in
@@ -236,7 +242,9 @@ public struct HomeContainerView: View {
         }
         .alert(languageCode == "en" ? "Clipboard" : "剪贴板", isPresented: $showClipboardAlert) {
             Button(languageCode == "en" ? "Allow" : "允许") {
-                if let str = UIPasteboard.general.string, !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                // 邀请检测刚读过同一份内容时复用，避免系统「允许粘贴」框再弹一次
+                if let str = InviteClipboardService.shared.cachedText() ?? UIPasteboard.general.string,
+                   !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     homeVm.inputText = str
                     isInputFocused = true
                 }

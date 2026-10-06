@@ -101,7 +101,12 @@ public final class AppStateViewModel: ObservableObject {
                 subscriptionActive = status.isPremium ?? status.active
             }
         } catch {
-            await MainActor.run { subscriptionActive = false }
+            // 2026-09-27 复核：原来任何错误（含离线/超时）都置 false → 地铁里打开 App 的
+            // 年费用户被当免费用户拦"今日次数已用完"。网络类错误保留上次已知状态，
+            // 只有服务端明确返回未订阅（上面 do 分支）才会改。
+            if case APIError.unauthorized = error {
+                await MainActor.run { subscriptionActive = false }
+            }
         }
     }
 

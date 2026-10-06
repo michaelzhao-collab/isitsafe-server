@@ -57,6 +57,8 @@ public struct FamilyView: View {
             if loggedIn { vm.refresh(); presentRedeemIfPossible() }
         }
         .onChange(of: router.isShowingLogin) { _, showing in
+            // 用户在确认框点了「加入」却放弃登录：撤销自动兑换授权，之后再遇到邀请码一律走兑换页由用户确认
+            if !showing, AuthInterceptor.token() == nil { router.pendingInviteAutoJoin = false }
             // 登录弹层关掉且本地已有 token → 刷新家庭；如果之前攒着邀请码，这时补弹兑换页
             if !showing, AuthInterceptor.token() != nil {
                 vm.refresh()
@@ -86,6 +88,26 @@ public struct FamilyView: View {
         guard router.pendingInviteCode != nil else { return }
         guard AuthInterceptor.token() != nil else {
             router.showLogin()
+            return
+        }
+        // 剪贴板邀请：用户已在确认框同意加入 → 直接兑换；失败再落回兑换页让用户看到原因、可重试
+        // 本函数会被 onAppear / 登录态变化 / 登录弹层关闭 / pendingInviteCode 变化多处重复调用，
+        // 所以开始兑换时立刻把码取走置空，后续重复调用直接在开头 guard 掉，不会再弹兑换页。
+        if router.pendingInviteAutoJoin, let code = router.pendingInviteCode {
+            router.pendingInviteAutoJoin = false
+            router.pendingInviteCode = nil
+            Task {
+                // 确认框文案已包含「年满 13 岁或已获监护人同意」，与兑换页默认勾选一致
+                let ok = await vm.redeemInvite(code: code, parentConsent: true)
+                if ok {
+                    AppStateViewModel.shared.showSuccess(languageCode == "en" ? "Joined the family group" : "已加入家庭")
+                } else {
+                    if let err = vm.redeemError { AppStateViewModel.shared.showError(err) }
+                    // 失败：把码放回去，落到普通兑换页（需用户再点确认），可看到原因并重试
+                    router.pendingInviteCode = code
+                    showRedeemSheet = true
+                }
+            }
             return
         }
         showRedeemSheet = true

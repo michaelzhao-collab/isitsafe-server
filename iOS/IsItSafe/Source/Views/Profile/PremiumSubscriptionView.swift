@@ -144,6 +144,11 @@ public struct PremiumSubscriptionView: View {
     }
 
     private func formatPrice(_ api: MembershipPlanResponse) -> String {
+        // 2026-09-27 复核：优先显示 App Store 本地化价（各区实际扣款价，如日/港台分级价），
+        // 服务端配置价（¥9.99/USD 2.99）仅在 StoreKit 产品未加载时兜底。
+        if let local = IAPManager.shared.displayPrice(for: api.productId) {
+            return local
+        }
         if api.currency.uppercased() == "CNY" || api.currency == "¥" {
             return String(format: "¥%.2f", api.price)
         }

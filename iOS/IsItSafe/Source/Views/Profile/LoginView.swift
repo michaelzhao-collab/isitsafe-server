@@ -478,7 +478,9 @@ public struct LoginView: View {
                             .foregroundColor(vm.canSendEmailCode ? AppTheme.primary : AppTheme.textSecondary)
                         }
                         .buttonStyle(.plain)
-                        .disabled(!vm.canSendEmailCode)
+                        // 只在发送中/倒计时时禁用：邮箱无效时仍可点，由 sendEmailCode 给出红字提示，
+                        // 否则按钮静默不响应，用户以为坏了
+                        .disabled(vm.isSendingCode || vm.resendCountdown > 0)
                     }
                     .frame(minHeight: 46)
                     if let codeError = vm.codeInputError, !codeError.isEmpty {
@@ -490,6 +492,12 @@ public struct LoginView: View {
                         Text(hint)
                             .font(.caption2)
                             .foregroundColor(AppTheme.textSecondary)
+                    }
+                    // 发送/登录失败的错误：原来只显示在 fullScreenCover 底下的登录页上，sheet 里看不到
+                    if let msg = vm.errorMessage, !msg.isEmpty {
+                        Text(msg)
+                            .font(.caption2)
+                            .foregroundColor(.red)
                     }
                 }
                 if !vm.agreementAccepted {

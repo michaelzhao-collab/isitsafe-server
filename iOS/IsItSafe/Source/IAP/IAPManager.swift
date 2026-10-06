@@ -93,6 +93,17 @@ public final class IAPManager: ObservableObject {
         }
     }
 
+    /// 2026-09-27 复核：返回 App Store 本地化价格串（如 ¥68 / JP¥1,600），
+    /// 拿不到（产品未加载）返回 nil，调用方回退服务端配置价。
+    public func displayPrice(for productId: String) -> String? {
+        products[productId]?.displayPrice
+    }
+
+    /// 该产品当前是否符合首购优惠资格（StoreKit 判定，比服务端标记准）
+    public func isEligibleForIntroOffer(_ productId: String) -> Bool {
+        products[productId]?.subscription?.introductoryOffer != nil
+    }
+
     public func fetchProducts() async -> [Product] {
         await fetchProducts(ids: ProductIdentifiers.all)
     }

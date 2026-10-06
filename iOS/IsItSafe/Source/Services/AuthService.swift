@@ -83,10 +83,11 @@ public final class AuthService {
     }
 
     public func logout() async throws {
-        _ = try? await repo.logout()
+        // 2026-09-27 复核：先取本机推送 token 随登出请求解绑，再清本地缓存（顺序不能反）
+        let deviceToken = PushService.shared.currentDeviceToken
+        _ = try? await repo.logout(deviceToken: deviceToken)
         sessionStore.clearSession()
         AppSettingsStore.shared.resetFreeQueryCount()
-        // V3-S1-5：登出清理 push 缓存，下次登录会重新上报
         PushService.shared.clearOnLogout()
     }
 
@@ -127,7 +128,11 @@ public final class AuthService {
             tokenStore.saveToken(access: res.accessToken, refresh: res.refreshToken)
             _ = try await repo.userInfo()
         } catch {
-            sessionStore.clearSession()
+            // 2026-09-27 复核：原来任何 error（含网络超时/离线）都清 session → 用户被无故登出。
+            // 只有服务端明确判定 refresh token 失效（401）才清；网络类错误保留登录态，下次重试。
+            if case APIError.unauthorized = error {
+                sessionStore.clearSession()
+            }
         }
     }
 
@@ -148,16 +153,20 @@ public final class AuthService {
         let secondsLeft = exp.timeIntervalSinceNow
         guard secondsLeft <= Self.proactiveRefreshThreshold else { return }
 
-        // 复用进行中的 refresh，避免并发刷新
-        if let existing = await MainActor.run(body: { inFlightRefresh }) {
-            await existing.value
-            return
-        }
-        let task = Task<Void, Never> { [weak self] in
-            await self?.refreshTokenIfNeeded()
-        }
-        await MainActor.run { inFlightRefresh = task }
+        // 2026-09-27 复核：原来「读 inFlightRefresh → 判 nil → 写」分两次 MainActor.run，
+        // 中间可被抢占 → 两个并发调用都看到 nil → 各起一个刷新任务 → 第二个用已轮换的
+        // refresh token 必 401 → clearSession 把用户登出。现在 get-or-create 原子完成。
+        let task = getOrCreateRefreshTask()
         await task.value
-        await MainActor.run { inFlightRefresh = nil }
+        if inFlightRefresh == task { inFlightRefresh = nil }
+    }
+
+    /// 原子地取得或创建刷新任务：在同一个 MainActor 调用内完成读+判+写
+    @MainActor
+    private func getOrCreateRefreshTask() -> Task<Void, Never> {
+        if let existing = inFlightRefresh { return existing }
+        let task = Task<Void, Never> { [weak self] in await self?.refreshTokenIfNeeded() }
+        inFlightRefresh = task
+        return task
     }
 }

@@ -329,23 +329,16 @@ public final class FamilyChatCoordinator: ObservableObject {
         await recomputeUnread(groupId: groupId)
     }
 
-    /// 发图片：先上传 R2，再发 image 消息（payload 带宽高，气泡占位不跳动）
+    /// 发图片：先把 JPEG 写进 outbox 目录，交给引擎「乐观上屏 → 上传 → 发送」
+    /// （2026-10-06：原来先上传再上屏，选完图要等上传结束才看到气泡）
     @discardableResult
     public func sendImage(groupId: String, imageData: Data, width: Int, height: Int) async -> ChatMessage? {
-        do {
-            let url = try await NetworkManager.shared.uploadFile(
-                type: "family_image", imageData: imageData,
-                mimeType: "image/jpeg", filename: "img_\(UUID().uuidString).jpg"
-            )
-            let payload: [String: JSONValue] = [
-                "url": .string(url),
-                "w": .number(Double(width)),
-                "h": .number(Double(height)),
-            ]
-            return await engine.send(groupId: groupId, type: .image, content: nil, payload: payload)
-        } catch {
-            return nil
-        }
+        guard let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("ChatOutbox", isDirectory: true) else { return nil }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let fileURL = dir.appendingPathComponent("img_\(UUID().uuidString).jpg")
+        do { try imageData.write(to: fileURL) } catch { return nil }
+        return await engine.sendImage(groupId: groupId, fileURL: fileURL, width: width, height: height)
     }
 
     /// 发语音：结束录音 → 乐观上屏 → 上传 → 发送。

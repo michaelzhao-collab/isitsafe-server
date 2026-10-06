@@ -221,3 +221,49 @@ public enum ChatSignal: Decodable {
         }
     }
 }
+
+// MARK: - 系统消息本地化（2026-10-06）
+
+extension ChatMessage {
+    /// 群生命周期系统消息（入群/退群/被移出/建群）按当前 App 语言渲染。
+    /// 新消息：服务端 payload 带 { kind, name }；旧消息只有中文 content，按固定句式识别后翻译；
+    /// 都不匹配时原样返回 content。
+    public func localizedSystemText(isEnglish en: Bool) -> String {
+        let content = self.content ?? ""
+        if let kind = payload?.string("kind") {
+            let name = payload?.string("name") ?? ""
+            if let text = Self.lifecycleText(kind: kind, name: name, en: en) { return text }
+        }
+        // 旧消息兜底：识别服务端历史固定句式
+        let patterns: [(suffix: String, kind: String)] = [
+            (" 加入了家庭", "member_joined"),
+            (" 退出了家庭", "member_left"),
+            (" 已被群主移出家庭", "member_removed"),
+        ]
+        for p in patterns where content.hasSuffix(p.suffix) {
+            let name = String(content.dropLast(p.suffix.count))
+            if !name.isEmpty, let text = Self.lifecycleText(kind: p.kind, name: name, en: en) { return text }
+        }
+        if content.hasPrefix("家庭群已创建。") || content.hasPrefix("Family group created.") {
+            return Self.lifecycleText(kind: "group_created", name: "", en: en) ?? content
+        }
+        return content
+    }
+
+    private static func lifecycleText(kind: String, name: String, en: Bool) -> String? {
+        switch kind {
+        case "member_joined":
+            return en ? "\(name) joined the family" : "\(name) 加入了家庭"
+        case "member_left":
+            return en ? "\(name) left the family" : "\(name) 退出了家庭"
+        case "member_removed":
+            return en ? "\(name) was removed by the owner" : "\(name) 已被群主移出家庭"
+        case "group_created":
+            return en
+                ? "Family group created. Invite your family to join, then share any suspicious links, calls or messages here so everyone can check them together."
+                : "家庭群已创建。邀请家人加入后，遇到可疑的链接、电话或消息，可以发到群里让家人一起把关。"
+        default:
+            return nil
+        }
+    }
+}

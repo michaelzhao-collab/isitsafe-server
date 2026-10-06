@@ -72,8 +72,8 @@ public struct FamilyChatView: View {
             messageList
             Divider()
             inputBar
-            if showEmojiPanel { emojiPanel }
-            if showPlusPanel { plusPanel }
+            if showEmojiPanel { emojiPanel.transition(.move(edge: .bottom)) }
+            if showPlusPanel { plusPanel.transition(.move(edge: .bottom)) }
         }
         // MainTabView 的 Tab 栏是 ZStack 覆盖层，不占安全区：与 FamilyGroupView 一样自行预留高度，
         // 否则输入栏会被 Tab 栏整条盖住（2026-09-07 模拟器实测）。
@@ -160,16 +160,20 @@ public struct FamilyChatView: View {
     }
 
     private func handlePickedPhoto(_ item: PhotosPickerItem) async {
-        guard let data = try? await item.loadTransferable(type: Data.self),
-              let image = UIImage(data: data) else { return }
-        // 压缩到长边 1920
-        let resized = Self.resize(image, maxSide: 1920)
-        guard let jpeg = resized.jpegData(compressionQuality: 0.8) else { return }
-        await chat.sendImage(groupId: groupId, imageData: jpeg,
-                             width: Int(resized.size.width), height: Int(resized.size.height))
+        guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+        // 2026-10-06：解码 + 缩放 + JPEG 编码原来跑在主线程，大图（4800 万像素）会卡住界面好几秒，
+        // 用户感觉「点了没反应」。挪到后台线程。
+        let prepared: (Data, Int, Int)? = await Task.detached(priority: .userInitiated) {
+            guard let image = UIImage(data: data) else { return nil }
+            let resized = Self.resize(image, maxSide: 1920)   // 压缩到长边 1920
+            guard let jpeg = resized.jpegData(compressionQuality: 0.8) else { return nil }
+            return (jpeg, Int(resized.size.width), Int(resized.size.height))
+        }.value
+        guard let (jpeg, w, h) = prepared else { return }
+        await chat.sendImage(groupId: groupId, imageData: jpeg, width: w, height: h)
     }
 
-    static func resize(_ image: UIImage, maxSide: CGFloat) -> UIImage {
+    nonisolated static func resize(_ image: UIImage, maxSide: CGFloat) -> UIImage {
         let w = image.size.width, h = image.size.height
         let longest = max(w, h)
         guard longest > maxSide else { return image }
@@ -351,11 +355,14 @@ public struct FamilyChatView: View {
     private func systemRow(_ msg: ChatMessage) -> some View {
         HStack {
             Spacer()
-            Text(msg.content ?? "")
+            // 2026-10-06：按当前 App 语言渲染（入群/退群/被移出/建群），群里中英文用户各看各的语言
+            Text(msg.localizedSystemText(isEnglish: languageIsEnglish))
                 .font(.system(size: elderScaled(12)))
                 .foregroundColor(AppTheme.textSecondary)
+                .multilineTextAlignment(.center)
                 .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(Capsule().fill(AppTheme.textSecondary.opacity(0.12)))
+                .background(RoundedRectangle(cornerRadius: 12).fill(AppTheme.textSecondary.opacity(0.12)))
+                .padding(.horizontal, 24)
             Spacer()
         }
         .padding(.vertical, 4)
@@ -485,14 +492,10 @@ public struct FamilyChatView: View {
         let maxSide: CGFloat = 200
         let ratio = w > 0 && h > 0 ? w / h : 1
         let (bw, bh): (CGFloat, CGFloat) = ratio >= 1 ? (maxSide, maxSide / ratio) : (maxSide * ratio, maxSide)
-        let urlStr = msg.payload?.string("url") ?? ""
-        AsyncImage(url: URL(string: urlStr)) { phase in
-            switch phase {
-            case .success(let img): img.resizable().scaledToFill()
-            case .failure: Image(systemName: "photo").foregroundColor(AppTheme.textSecondary)
-            default: ProgressView()
-            }
-        }
+        return ChatImageView(
+            localPath: msg.payload?.string("localPath"),
+            remoteURL: msg.payload?.string("url")
+        )
         .frame(width: bw, height: bh)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
@@ -609,8 +612,7 @@ public struct FamilyChatView: View {
                     .background(RoundedRectangle(cornerRadius: 10).fill(AppTheme.cardBackground))
                     .onSubmit(sendDraft)
                 Button {
-                    showPlusPanel = false
-                    showEmojiPanel.toggle()
+                    togglePanel(emoji: true)
                 } label: {
                     Image(systemName: "face.smiling")
                         .font(.system(size: elderScaled(24)))
@@ -618,8 +620,7 @@ public struct FamilyChatView: View {
                 }
                 if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Button {
-                        showEmojiPanel = false
-                        showPlusPanel.toggle()
+                        togglePanel(emoji: false)
                     } label: {
                         Image(systemName: "plus.circle")
                             .font(.system(size: elderScaled(26)))
@@ -639,6 +640,21 @@ public struct FamilyChatView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(AppTheme.tabBarBackground)
+    }
+
+    /// 2026-10-06：+ / 😊 面板原来在键盘还没收起时就插入布局，输入栏先被键盘顶着、键盘收起后才落到面板上方，
+    /// 看起来「加号跟着面板滞后一拍」。现在先收键盘，再让面板与输入栏同一个动画一起出现。
+    private func togglePanel(emoji: Bool) {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        withAnimation(.easeOut(duration: 0.22)) {
+            if emoji {
+                showPlusPanel = false
+                showEmojiPanel.toggle()
+            } else {
+                showEmojiPanel = false
+                showPlusPanel.toggle()
+            }
+        }
     }
 
     /// 按住说话按钮：长辈模式占主位（更高），上滑取消
@@ -773,6 +789,10 @@ public struct FamilyChatView: View {
         isElder ? base * 1.2 : base
     }
 
+    private var languageIsEnglish: Bool {
+        UserDefaults.standard.string(forKey: "isitsafe.language") == "en"
+    }
+
     private func localized(zh: String, en: String) -> String {
         (UserDefaults.standard.string(forKey: "isitsafe.language") == "en") ? en : zh
     }
@@ -792,5 +812,64 @@ public struct FamilyChatView: View {
             f.dateFormat = "EEEE HH:mm"
         } else { f.dateFormat = isEN ? "MMM d, HH:mm" : "yyyy/M/d HH:mm" }
         return f.string(from: date)
+    }
+}
+
+/// 群聊图片气泡的取图顺序：本地待发文件 → 本地缓存（自己发过的图 / 看过的图）→ 网络。
+/// 2026-10-06：原来直接用 AsyncImage 加载远端 url，上传中没有图可显示；远端加载失败后也无法重试。
+private struct ChatImageView: View {
+    let localPath: String?
+    let remoteURL: String?
+
+    @State private var image: UIImage?
+    @State private var failed = false
+    @State private var attempt = 0
+
+    var body: some View {
+        ZStack {
+            AppTheme.cardBackground
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else if failed {
+                Button { failed = false; attempt += 1 } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                        Text(AppSettingsStore.shared.languageCode == "en" ? "Tap to retry" : "点击重试")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(AppTheme.textSecondary)
+                }
+            } else {
+                ProgressView()
+            }
+        }
+        .task(id: "\(localPath ?? "")|\(remoteURL ?? "")|\(attempt)") { await load() }
+    }
+
+    private func load() async {
+        let local = localPath, remote = remoteURL ?? ""
+        if let img = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+            if let local, let img = UIImage(contentsOfFile: ChatSyncEngine.resolveLocalFile(local).path) { return img }
+            return ChatImageCache.shared.getImage(forKey: remote)
+        }.value {
+            image = img
+            return
+        }
+        guard let url = URL(string: remote), url.scheme?.hasPrefix("http") == true else {
+            // 只有本地路径（上传中/上传失败）且本地文件已不在（被系统清理）：显示失败，不要一直转圈
+            failed = true
+            return
+        }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 20
+        do {
+            let (data, resp) = try await URLSession.shared.data(for: req)
+            guard (resp as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? false,
+                  let img = UIImage(data: data) else { failed = true; return }
+            ChatImageCache.shared.setImage(img, forKey: remote)
+            image = img
+        } catch {
+            if !Task.isCancelled { failed = true }
+        }
     }
 }
