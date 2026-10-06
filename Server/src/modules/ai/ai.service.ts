@@ -24,6 +24,7 @@ import { QueryService } from '../query/query.service';
 import { IntentClassifierService, Intent } from './intent/intent-classifier.service';
 import { IntentResponseService } from './intent/intent-response.service';
 import { AiEvaluationService } from '../ai-evaluation/ai-evaluation.service';
+import { isOwnFamilyInvite, ownFamilyInviteResult } from './own-invite';
 
 const CACHE_PREFIX = 'cache:ai:';
 const INTENT_CACHE_PREFIX = 'cache:intent:';
@@ -183,6 +184,14 @@ export class AiService {
     const parsed = this.parser.parse(input.content, isScreenshot);
     console.log('[AI_FLOW] 1.PARSED inputType=' + parsed.inputType + ' normalizedContent=' + JSON.stringify(parsed.normalizedContent.slice(0, 200)) + ' originalLen=' + parsed.originalContent.length);
     const provider = await this.provider.getDefaultProvider();
+
+    // 2026-10-06：本 App 自己的家庭邀请文案 → 固定结论，不调大模型（模型不认识自家域名，会判成诱导注册）
+    if (!isScreenshot && isOwnFamilyInvite(parsed.originalContent)) {
+      const own = ensureFullResult(ownFamilyInviteResult(language), language);
+      console.log('[AI_FLOW] OWN_FAMILY_INVITE 命中自家邀请模板，跳过大模型');
+      await this.writeQuery(userId, conversationId, parsed, own, provider, false, input.imageUrl);
+      return { ...own, conversation_id: conversationId };
+    }
 
     // ====== V3 #5 意图分流（非 URL / 非截图、非 scam_detection 时早返回）======
     // URL 与截图天然属于 scam_detection 场景（用户在让我们判断风险），跳过分类
