@@ -843,6 +843,7 @@ private struct ChatImageView: View {
                 ProgressView()
             }
         }
+        .tapToViewImage(image)
         .task(id: "\(localPath ?? "")|\(remoteURL ?? "")|\(attempt)") { await load() }
     }
 

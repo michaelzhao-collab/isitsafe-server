@@ -10,6 +10,8 @@ import UniformTypeIdentifiers
 
 public struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    /// 观察长辈模式：切换失败回退时开关要跟着拨回（原来 Binding 读单例但不观察，回退靠碰巧刷新）
+    @ObservedObject private var elderMode = ElderModeService.shared
     @EnvironmentObject private var appState: AppStateViewModel
     @State private var showUserAgreement = false
     @State private var showPrivacyPolicy = false
@@ -249,9 +251,9 @@ public struct SettingsView: View {
             }
             Spacer()
             Toggle("", isOn: Binding(
-                get: { ElderModeService.shared.isEnabled },
+                get: { elderMode.isEnabled },
                 set: { v in
-                    Task { await ElderModeService.shared.toggle(enabled: v) }
+                    Task { await elderMode.toggle(enabled: v) }
                 }
             ))
             .labelsHidden()

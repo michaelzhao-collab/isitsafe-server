@@ -8,7 +8,6 @@
 import SwiftUI
 
 public struct BreachMonitorView: View {
-    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var appState: AppStateViewModel
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var targets: [BreachTargetItem] = []
@@ -22,8 +21,9 @@ public struct BreachMonitorView: View {
 
     public init() {}
 
+    /// 2026-10-06：本页由「我的」页 navigationDestination 推入，系统已提供返回按钮。
+    /// 原来页内又包了一层 NavigationStack 并手写「Back」→ 顶部出现两个返回按钮。
     public var body: some View {
-        NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
                     statusBanner
@@ -39,14 +39,6 @@ public struct BreachMonitorView: View {
             .navigationTitle("Dark Web Monitor")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button { dismiss() } label: {
-                        HStack {
-                            Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold))
-                            Text("Back")
-                        }.foregroundColor(AppTheme.primary)
-                    }
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { tryShowAdd() } label: {
                         Image(systemName: "plus")
@@ -63,7 +55,6 @@ public struct BreachMonitorView: View {
                 })
             }
             .refreshable { await reload() }
-        }
     }
 
     private var statusBanner: some View {

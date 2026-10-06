@@ -29,7 +29,14 @@ public final class ElderModeService: ObservableObject {
     /// 2026-09-27 复核：nil（服务端未开或字段缺失）视为 false —— 否则会继承上一个账号
     /// 在本机留下的本地开关，子女在父母手机登录会得到长辈界面。
     public func syncFromServer(_ serverValue: Bool?) {
+        // 用户正在切换（请求未回）时不让旧数据把开关拨回去
+        guard inFlight == 0 else { return }
         let value = serverValue ?? false
+        // 已上报成功但缓存还没刷新成新值（重拉 userinfo 失败）：在看到一致的值之前忽略旧值
+        if let expected = expectedServerValue {
+            guard value == expected else { return }
+            expectedServerValue = nil
+        }
         if isEnabled != value {
             isEnabled = value
             UserDefaults.standard.set(value, forKey: Self.localKey)
@@ -42,13 +49,30 @@ public final class ElderModeService: ObservableObject {
         UserDefaults.standard.set(false, forKey: Self.localKey)
     }
 
+    /// 进行中的切换请求数；generation 标记最近一次切换，只有它负责回退
+    private var inFlight = 0
+    private var generation = 0
+    /// 服务端已确认的目标值，等缓存同步到这个值之前不接受旧值
+    private var expectedServerValue: Bool?
+
     /// 本地切换 + 上报服务端
+    ///
+    /// 2026-10-06：长辈模式「点了不生效」。AppStateViewModel.refreshLoginState() 用本地缓存的 user
+    /// （登录时存的，elder_mode_enabled 还是旧值）调 syncFromServer，而它在进「我的」/设置页、回前台时都会触发 →
+    /// 刚打开就被旧缓存拨回关闭。现在：请求期间忽略同步；成功后重拉 userinfo 让缓存变成新值；
+    /// 失败则回退（否则界面显示已开、实际下一次同步又被关掉）。
     public func toggle(enabled: Bool) async {
+        let previous = isEnabled
         // 乐观更新：立即生效
         isEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: Self.localKey)
+        // 未登录：只有本地状态，无需上报
+        guard AuthInterceptor.token() != nil else { return }
 
-        // 上报服务端（失败保留本地状态，下次登录会从服务端覆盖）
+        generation += 1
+        let myGeneration = generation
+        inFlight += 1
+        defer { inFlight -= 1 }
         struct ToggleRequest: Encodable { let enabled: Bool }
         struct ToggleResponse: Decodable { let success: Bool; let enabled: Bool }
         do {
@@ -56,10 +80,18 @@ public final class ElderModeService: ObservableObject {
                 endpoint: .v3UserElderMode,
                 body: ToggleRequest(enabled: enabled)
             )
+            expectedServerValue = enabled
+            _ = try? await AuthService.shared.fetchUserInfo()
         } catch {
+            // 期间用户又切了一次：以最新那次为准，这次失败不回退、不提示
+            guard myGeneration == generation else { return }
             #if DEBUG
             print("[ElderMode] server toggle failed: \(error)")
             #endif
+            isEnabled = previous
+            UserDefaults.standard.set(previous, forKey: Self.localKey)
+            let en = AppSettingsStore.shared.languageCode == "en"
+            AppStateViewModel.shared.showError(en ? "Couldn't switch Elder Mode. Please try again." : "长辈模式切换失败，请稍后重试")
         }
     }
 

@@ -43,7 +43,7 @@ public struct KnowledgeRow: View {
             // 底部：缩略图（如果有）+ 来源
             HStack(spacing: 8) {
                 if let thumb = item.thumbnailURL, !thumb.isEmpty {
-                    CachedNetworkImageView(urlString: thumb, maxWidth: 44, maxHeight: 44)
+                    CachedNetworkImageView(urlString: thumb, maxWidth: 44, maxHeight: 44, cornerRadius: 8)
                         .frame(width: 44, height: 44)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 }

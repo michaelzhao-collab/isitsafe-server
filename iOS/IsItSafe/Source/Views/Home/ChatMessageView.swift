@@ -92,13 +92,15 @@ public struct ChatMessageView: View {
     @ViewBuilder
     private var userMessageImage: some View {
         if let img = turn.userImage {
+            let size = CachedNetworkImageView.fittedSize(img.size, maxWidth: 200, maxHeight: 160)
             Image(uiImage: img)
                 .resizable()
                 .scaledToFit()
-                .frame(maxWidth: 200, maxHeight: 160)
+                .frame(width: size.width, height: size.height)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .tapToViewImage(img)
         } else if let urlString = turn.imageUrl, !urlString.isEmpty {
-            CachedNetworkImageView(urlString: urlString, maxWidth: 200, maxHeight: 160)
+            CachedNetworkImageView(urlString: urlString, maxWidth: 200, maxHeight: 160, tapToView: true)
         }
     }
 

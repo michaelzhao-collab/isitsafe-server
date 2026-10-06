@@ -34,13 +34,16 @@ public struct UserInfoResponse: Codable {
     /// ISO 3166-2 地区码（用于 F 模块海外可见性 + B 情报本地化）
     public let regionCode: String?
 
+    // 2026-10-06：NetworkManager 用 .convertFromSnakeCase，会先把 JSON 的 elder_mode_enabled 转成 elderModeEnabled
+    // 再匹配 CodingKey；原来这里又显式写成 "elder_mode_enabled" → 永远对不上，长辈模式恒为 nil（=关），
+    // 监护人远程开启也从未生效。CodingKey 必须写驼峰。本地缓存用默认编解码器，同一套 key 前后一致。
     enum CodingKeys: String, CodingKey {
         case id, phone, email, country, role, avatar, nickname, wechatNickname, gender, birthday, createdAt
-        case lastLogin = "last_login"
-        case subscriptionStatus = "subscriptionStatus"
-        case subscriptionExpire = "subscriptionExpire"
-        case elderModeEnabled = "elder_mode_enabled"
+        case lastLogin
+        case subscriptionStatus
+        case subscriptionExpire
+        case elderModeEnabled
         case language
-        case regionCode = "region_code"
+        case regionCode
     }
 }

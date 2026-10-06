@@ -12,22 +12,34 @@ public struct CachedNetworkImageView: View {
     let urlString: String
     let maxWidth: CGFloat
     let maxHeight: CGFloat
+    /// 点击全屏看图。默认关：列表缩略图（如知识库）点击应进入详情，不能被看图抢走
+    let tapToView: Bool
+    let cornerRadius: CGFloat
 
     @State private var loadedImage: UIImage?
     @State private var loadFailed = false
 
-    public init(urlString: String, maxWidth: CGFloat = 200, maxHeight: CGFloat = 160) {
+    public init(urlString: String, maxWidth: CGFloat = 200, maxHeight: CGFloat = 160,
+                tapToView: Bool = false, cornerRadius: CGFloat = 12) {
         self.urlString = urlString
         self.maxWidth = maxWidth
         self.maxHeight = maxHeight
+        self.tapToView = tapToView
+        self.cornerRadius = cornerRadius
     }
 
     public var body: some View {
         Group {
             if let img = loadedImage {
+                // 2026-10-06：按原图比例算出确切尺寸再裁圆角。原来圆角加在外层 max 框上，
+                // 竖图缩放后比框窄，圆角落在图片外的空白处 → 看起来是直角
+                let size = Self.fittedSize(img.size, maxWidth: maxWidth, maxHeight: maxHeight)
                 Image(uiImage: img)
                     .resizable()
                     .scaledToFit()
+                    .frame(width: size.width, height: size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                    .tapToViewImage(tapToView ? img : nil)
             } else if loadFailed {
                 VStack(spacing: 6) {
                     Image(systemName: "photo")
@@ -39,17 +51,23 @@ public struct CachedNetworkImageView: View {
                 }
                 .frame(width: maxWidth, height: maxHeight)
                 .background(Color(.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             } else {
                 ProgressView()
                     .frame(width: maxWidth, height: maxHeight)
             }
         }
-        .frame(maxWidth: maxWidth, maxHeight: maxHeight)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityLabel(loadFailed ? Text(failureCaption) : Text("图片"))
         .task(id: urlString) {
             await loadAndCache()
         }
+    }
+
+    /// 等比缩放到不超过 maxWidth × maxHeight 的确切尺寸
+    static func fittedSize(_ size: CGSize, maxWidth: CGFloat, maxHeight: CGFloat) -> CGSize {
+        guard size.width > 0, size.height > 0 else { return CGSize(width: maxWidth, height: maxHeight) }
+        let scale = min(maxWidth / size.width, maxHeight / size.height, 1)
+        return CGSize(width: size.width * scale, height: size.height * scale)
     }
 
     private var failureCaption: String {
