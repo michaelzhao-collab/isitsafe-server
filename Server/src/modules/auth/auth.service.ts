@@ -419,13 +419,20 @@ export class AuthService {
     }
   }
 
-  async logout(userId: string) {
+  async logout(userId: string, deviceToken?: string) {
     try {
       await this.redis.del(REFRESH_PREFIX + userId);
     } catch {
       // Redis 不可用时忽略：下面的吊销同样会降级
     }
     await this.revokeIssuedTokens(userId);
+    // 解绑本机推送 token —— 只删「归属于当前用户且 token 匹配」的记录，不误删他人设备
+    const dt = (deviceToken || '').trim();
+    if (dt) {
+      await this.prisma.userDevice
+        .deleteMany({ where: { deviceToken: dt, userId } })
+        .catch(() => undefined);
+    }
     return { success: true };
   }
 

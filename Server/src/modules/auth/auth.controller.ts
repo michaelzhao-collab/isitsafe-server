@@ -73,8 +73,13 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  async logout(@CurrentUser('sub') userId: string) {
-    return this.auth.logout(userId);
+  async logout(
+    @CurrentUser('sub') userId: string,
+    @Body() body: { deviceToken?: string },
+  ) {
+    // 2026-09-27 复核：随登出解绑本机推送 token（在 access token 被吊销前完成）。
+    // 否则父母手机上子女登出后、父母未登录期间，子女家庭群消息横幅仍弹在这台手机。
+    return this.auth.logout(userId, body?.deviceToken);
   }
 
   @Post('delete-account')
