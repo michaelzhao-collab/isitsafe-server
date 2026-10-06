@@ -103,7 +103,8 @@ public final class AuthService {
 
     public func fetchUserInfo() async throws -> UserInfoResponse {
         let user = try await repo.userInfo()
-        sessionStore.updateUser(user)
+        // 请求在途时用户已登出（token 被清）：不把旧账号资料写回本地缓存
+        if tokenStore.accessToken != nil { sessionStore.updateUser(user) }
         return user
     }
 
@@ -126,7 +127,9 @@ public final class AuthService {
         do {
             let res = try await repo.refreshToken(refreshToken: refresh)
             tokenStore.saveToken(access: res.accessToken, refresh: res.refreshToken)
-            _ = try await repo.userInfo()
+            // 2026-10-06：原来在这里 await 拉 userinfo（结果还被丢弃）。主动刷新发生在业务请求之前，
+            // 于是 AI 分析等请求要多等一个来回才发出。改为后台拉取并更新本地缓存，不阻塞调用方。
+            Task { _ = try? await self.fetchUserInfo() }
         } catch {
             // 2026-09-27 复核：原来任何 error（含网络超时/离线）都清 session → 用户被无故登出。
             // 只有服务端明确判定 refresh token 失效（401）才清；网络类错误保留登录态，下次重试。

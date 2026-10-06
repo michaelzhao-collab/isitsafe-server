@@ -58,7 +58,9 @@ public struct FamilyChatContainerView: View {
                 }
             }
             .navigationDestination(isPresented: $showSettings) {
+                // 底导是盖在页面上的覆盖层：不隐藏会挡住列表底部的「解散家庭」（2026-10-06 真机）
                 FamilyGroupSettingsView(group: group, vm: vm)
+                    .mainTabBarHidden()
             }
             .sheet(isPresented: $showInviteSheet) {
                 InviteFamilySheet(group: group, vm: vm)

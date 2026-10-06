@@ -79,7 +79,7 @@ public enum AppTheme {
     // MARK: - 会员页
     /// 会员页头部深蓝 #1A237E
     public static let premiumHeader = Color(hex: "1A237E")
-    /// 为什么选择 Premium 浅蓝卡片背景（仅浅色模式用；深色用 cardBackground）
+    /// 浅蓝提示底色（多以带透明度方式用于提示条；会员页已改为统一白卡片，不再使用）
     public static let premiumWhyCard = Color(hex: "E0EEF8")
     /// 会员页当前状态卡片：浅色模式用浅灰 #F2F2F7，深色模式用深灰 #2C2C2E
     /// 之前固定 #2C2C2E 在浅色模式下显得突兀

@@ -94,7 +94,10 @@ public struct FamilyGroupSettingsView: View {
                 Task { if await vm.leaveGroup(groupId: group.id) { dismiss() } }
             }
         }
-        .navigationDestination(isPresented: $showNotificationSettings) { NotificationSettingsView() }
+        .navigationDestination(isPresented: $showNotificationSettings) {
+            // 子页面也要隐藏：设置页 onDisappear 会把底导放出来
+            NotificationSettingsView().mainTabBarHidden()
+        }
         .sheet(isPresented: $showRedeemSheet) { RedeemInviteSheet(vm: vm) }
     }
 
@@ -191,7 +194,7 @@ public struct FamilyGroupSettingsView: View {
                            sub: isEN ? "Care alerts / risk alerts / daily scam" : "关怀提醒 / 风险提醒 / 每日一骗")
             }
             NavigationLink {
-                FamilyProtectionChecklistView(group: group)
+                FamilyProtectionChecklistView(group: group).mainTabBarHidden()
             } label: {
                 // NavigationLink 自带右箭头，行内不再画第二个
                 settingRow(title: isEN ? "Protection checklist" : "家庭防护清单",

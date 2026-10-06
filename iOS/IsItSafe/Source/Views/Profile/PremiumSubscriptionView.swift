@@ -23,7 +23,6 @@ struct PremiumPlanItem: Identifiable {
 // MARK: - 主视图
 public struct PremiumSubscriptionView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var appState: AppStateViewModel
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @StateObject private var subscriptionVM = SubscriptionViewModel()
@@ -106,10 +105,10 @@ public struct PremiumSubscriptionView: View {
                     tagColor = AppTheme.primary
                 } else if api.firstPurchaseOnly == true, api.introPrice != nil {
                     tag = languageCode == "en" ? "First-purchase offer" : "首购优惠"
-                    tagColor = .pink
+                    tagColor = AppTheme.primary  // 2026-10-06 统一配色：标签不再分粉/橙
                 } else if api.period.lowercased() == "yearly" {
                     tag = languageCode == "en" ? "Save 45%" : "省45%"
-                    tagColor = .orange
+                    tagColor = AppTheme.primary
                 } else {
                     tag = nil
                     tagColor = .clear
@@ -208,7 +207,7 @@ public struct PremiumSubscriptionView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .background(AppTheme.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .padding(.horizontal, 20)
         .padding(.top, 24)
@@ -331,28 +330,30 @@ public struct PremiumSubscriptionView: View {
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                benefitCard(icon: "magnifyingglass", iconColor: AppTheme.primary, title: languageCode == "en" ? "Unlimited AI checks" : "无限AI查询", subtitle: languageCode == "en" ? "No usage caps" : "彻底解锁额度限制")
-                benefitCard(icon: "wand.and.stars", iconColor: .purple, title: languageCode == "en" ? "Advanced AI" : "高级AI模型", subtitle: languageCode == "en" ? "High-performance engine" : "高性能推理引擎")
-                benefitCard(icon: "shield.exclamationmark", iconColor: .red, title: languageCode == "en" ? "Live risk database" : "实时数据库", subtitle: languageCode == "en" ? "Global risk data in real time" : "秒级同步全球风险")
-                benefitCard(icon: "bolt.fill", iconColor: .green, title: languageCode == "en" ? "Priority analysis" : "优先分析速度", subtitle: languageCode == "en" ? "Dedicated cloud processing" : "云端GPU专属通道")
-                benefitCard(icon: "clock.arrow.circlepath", iconColor: .orange, title: languageCode == "en" ? "Unlimited history" : "无限历史记录", subtitle: languageCode == "en" ? "Saved in the cloud" : "云端保存永不丢失")
-                benefitCard(icon: "nosignature", iconColor: .purple, title: languageCode == "en" ? "No ads" : "清爽无广告", subtitle: languageCode == "en" ? "Clean experience" : "极致纯净体验")
+                benefitCard(icon: "magnifyingglass", title: languageCode == "en" ? "Unlimited AI checks" : "无限AI查询", subtitle: languageCode == "en" ? "No usage caps" : "彻底解锁额度限制")
+                benefitCard(icon: "wand.and.stars", title: languageCode == "en" ? "Advanced AI" : "高级AI模型", subtitle: languageCode == "en" ? "High-performance engine" : "高性能推理引擎")
+                benefitCard(icon: "shield.exclamationmark", title: languageCode == "en" ? "Live risk database" : "实时数据库", subtitle: languageCode == "en" ? "Global risk data in real time" : "秒级同步全球风险")
+                benefitCard(icon: "bolt.fill", title: languageCode == "en" ? "Priority analysis" : "优先分析速度", subtitle: languageCode == "en" ? "Dedicated cloud processing" : "云端GPU专属通道")
+                benefitCard(icon: "clock.arrow.circlepath", title: languageCode == "en" ? "Unlimited history" : "无限历史记录", subtitle: languageCode == "en" ? "Saved in the cloud" : "云端保存永不丢失")
+                benefitCard(icon: "nosignature", title: languageCode == "en" ? "No ads" : "清爽无广告", subtitle: languageCode == "en" ? "Clean experience" : "极致纯净体验")
             }
         }
         .padding(20)
         .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
     }
 
-    private func benefitCard(icon: String, iconColor: Color, title: String, subtitle: String, showNotActivated: Bool = true) -> some View {
+    /// 2026-10-06：权益图标原来每个一种颜色（蓝/紫/红/绿/橙），整页颜色过杂 → 统一为品牌蓝图标 + 浅蓝底
+    private func benefitCard(icon: String, title: String, subtitle: String, showNotActivated: Bool = true) -> some View {
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 24))
-                    .foregroundColor(.white)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(AppTheme.primary)
                     .frame(width: 44, height: 44)
-                    .background(iconColor)
+                    .background(AppTheme.primary.opacity(0.12))
                     .clipShape(Circle())
                 Text(title)
                     .font(.subheadline.weight(.semibold))
@@ -407,32 +408,27 @@ public struct PremiumSubscriptionView: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
                 benefitCard(
                     icon: "person.3.fill",
-                    iconColor: AppTheme.primary,
                     title: languageCode == "en" ? "10 members/group" : "最多 10 人/家",
                     // 与服务端 FREE_MAX_FAMILY_MEMBERS_IM（新版客户端免费 5 人）/ PAID_MAX_FAMILY_MEMBERS（10 人）一致
                     subtitle: languageCode == "en" ? "Free 5, Pro 10 — multi-gen" : "免费 5 人，多代家庭"
                 )
                 benefitCard(
                     icon: "infinity",
-                    iconColor: .green,
                     title: languageCode == "en" ? "Shared AI checks" : "全家共享 AI",
                     subtitle: languageCode == "en" ? "Owner pays, all get Pro" : "owner 付费全家 Pro"
                 )
                 benefitCard(
                     icon: "megaphone.fill",
-                    iconColor: .red,
                     title: languageCode == "en" ? "Unlimited broadcasts" : "官方提醒不限次",
                     subtitle: languageCode == "en" ? "Free 1/day, Pro unlimited" : "免费 1 条/天"
                 )
                 benefitCard(
                     icon: "house.fill",
-                    iconColor: .orange,
                     title: languageCode == "en" ? "Up to 3 groups" : "最多 3 个家庭",
                     subtitle: languageCode == "en" ? "Manage spouse / parents" : "管伴侣 / 父母家"
                 )
                 benefitCard(
                     icon: "heart.text.square",
-                    iconColor: .purple,
                     title: languageCode == "en" ? "SMS care escalation" : "关怀短信升级",
                     subtitle: languageCode == "en" ? "Reach silent elderly users" : "长辈 2 天没看 → 短信"
                 )
@@ -440,6 +436,7 @@ public struct PremiumSubscriptionView: View {
         }
         .padding(20)
         .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
     }
@@ -464,8 +461,8 @@ public struct PremiumSubscriptionView: View {
             }
         }
         .padding(20)
-        .background(colorScheme == .dark ? AppTheme.cardBackground : AppTheme.premiumWhyCard)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 20)
         .padding(.bottom, 24)
     }
@@ -505,6 +502,7 @@ public struct PremiumSubscriptionView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 20)
         .padding(.bottom, 24)
     }
