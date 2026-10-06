@@ -6,3 +6,7 @@
 # 被 Cloudflare Pages 规范化成 308 → /i，邀请码被抹掉，所有分享给未装 App 家人的链接都打不开。
 # 改名为 invite.html（clean-URL 为 /invite，不与 /i/ 冲突）即可保留路径。
 /i/* /invite.html 200
+
+# 2026-10-06：现行邀请链接是 /i?code=XXX（9828c9b4），但只配了 /i/* → /i 本身落到首页，未装 App 的家人看不到邀请码。
+# 200 rewrite 保留查询串，落地页 JS 从 ?code= 取码。
+/i /invite.html 200
