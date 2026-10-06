@@ -18,7 +18,7 @@ import { normalizeByType } from '../../common/utils/content-normalize';
 
 /**
  * 家庭组容量上限（S5-7 按 owner 订阅动态）
- *   免费：3 人 / Pro：10 人
+ *   免费：5 人（V5.1 新版客户端；老版本客户端仍为 3 人）/ Pro：10 人
  */
 /// 老版本客户端的免费家庭人数上限（保持不变，服务端部署对老用户零影响）
 const FREE_MAX_FAMILY_MEMBERS = 3;

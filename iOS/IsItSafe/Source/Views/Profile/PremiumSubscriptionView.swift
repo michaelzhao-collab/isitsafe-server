@@ -409,7 +409,8 @@ public struct PremiumSubscriptionView: View {
                     icon: "person.3.fill",
                     iconColor: AppTheme.primary,
                     title: languageCode == "en" ? "10 members/group" : "最多 10 人/家",
-                    subtitle: languageCode == "en" ? "Free 3, Pro 10 — multi-gen" : "免费 3 人，多代家庭"
+                    // 与服务端 FREE_MAX_FAMILY_MEMBERS_IM（新版客户端免费 5 人）/ PAID_MAX_FAMILY_MEMBERS（10 人）一致
+                    subtitle: languageCode == "en" ? "Free 5, Pro 10 — multi-gen" : "免费 5 人，多代家庭"
                 )
                 benefitCard(
                     icon: "infinity",

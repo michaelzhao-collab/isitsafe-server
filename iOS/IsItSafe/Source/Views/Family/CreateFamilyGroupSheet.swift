@@ -13,6 +13,9 @@ public struct CreateFamilyGroupSheet: View {
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     @State private var name: String = ""
     @State private var submitting = false
+    @ObservedObject private var appState = AppStateViewModel.shared
+
+    private var maxMembers: Int { appState.subscriptionActive ? 10 : 5 }
 
     public init(vm: FamilyViewModel) {
         self.vm = vm
@@ -127,9 +130,10 @@ public struct CreateFamilyGroupSheet: View {
                 sfIcon: "person.2.fill",
                 iconColor: AppTheme.primary,
                 title: languageCode == "en" ? "Family network" : "关系网络",
+                // 上限按建群者自己的订阅：免费 5 人 / Pro 或家庭包 10 人（与服务端 getMaxMembersFor 一致）
                 desc: languageCode == "en"
-                    ? "Up to 5 members · invite via WeChat or SMS link"
-                    : "最多 5 位家人 · 微信或短信发邀请链接"
+                    ? "Up to \(maxMembers) members · invite via WeChat or SMS link"
+                    : "最多 \(maxMembers) 位家人 · 微信或短信发邀请链接"
             )
             feature(
                 sfIcon: "heart.fill",

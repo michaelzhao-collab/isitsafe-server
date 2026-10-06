@@ -278,7 +278,7 @@ public struct FamilyGroupView: View {
     }
 
     private var memberCountText: String {
-        // group.maxMembers 由 server 端按 owner 订阅状态动态下发：免费 3 / Pro 10
+        // group.maxMembers 由 server 端按 owner 订阅状态动态下发：免费 5（老版本客户端 3）/ Pro 10
         if languageCode == "en" {
             return "\(group.memberCount) / \(group.maxMembers) members"
         }

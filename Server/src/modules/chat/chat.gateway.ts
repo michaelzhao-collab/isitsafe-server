@@ -28,7 +28,7 @@ import { PrismaService } from '../../prisma/prisma.service';
  * （STALE_MS=35s）。心跳越密，iOS 挂起后被识别为离线、转走 APNs 的
  * 延迟越短。20s 是 35s 阈值下能容纳一次丢包/重传的最大值。
  * 成本：每连接每分钟 3 帧 ping/pong（原 2 帧），单帧仅 2 字节控制帧，
- * 家庭群规模（每户 ≤5 人）下开销可忽略。
+ * 家庭群规模（每户 ≤10 人）下开销可忽略。
  */
 const HEARTBEAT_INTERVAL_MS = 20_000;
 const HEARTBEAT_TIMEOUT_MS = 60_000;
