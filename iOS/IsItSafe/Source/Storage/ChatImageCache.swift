@@ -9,7 +9,8 @@ import CryptoKit
 import Foundation
 import UIKit
 
-public final class ChatImageCache {
+/// 无可变状态（只读写 Caches 目录文件），后台 actor 与主线程都会用 → 不绑定主线程
+nonisolated public final class ChatImageCache: @unchecked Sendable {
     public static let shared = ChatImageCache()
     private let fileManager = FileManager.default
     private let subdir = "ChatImages"
@@ -46,7 +47,7 @@ public final class ChatImageCache {
               let data = image.jpegData(compressionQuality: 0.85),
               let dir = cacheDirectory else { return }
         let fileURL = dir.appendingPathComponent(keyToFilename(key))
-        try? data.write(to: fileURL)
+        try? data.write(to: fileURL, options: .atomic)  // 原子写：后台与主线程并发读时不会读到写了一半的文件
         trimIfNeeded()
     }
 

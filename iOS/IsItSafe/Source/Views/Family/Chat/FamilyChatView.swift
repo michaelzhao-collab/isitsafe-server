@@ -492,7 +492,7 @@ public struct FamilyChatView: View {
         let maxSide: CGFloat = 200
         let ratio = w > 0 && h > 0 ? w / h : 1
         let (bw, bh): (CGFloat, CGFloat) = ratio >= 1 ? (maxSide, maxSide / ratio) : (maxSide * ratio, maxSide)
-        return ChatImageView(
+        ChatImageView(
             localPath: msg.payload?.string("localPath"),
             remoteURL: msg.payload?.string("url")
         )
@@ -706,8 +706,11 @@ public struct FamilyChatView: View {
                     return
                 }
                 isRecording = true
+                // 计时器挂在主 RunLoop 上，回调必在主线程
                 recordTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-                    recordSeconds = VoiceMessageComposer.shared.elapsedSeconds
+                    MainActor.assumeIsolated {
+                        recordSeconds = VoiceMessageComposer.shared.elapsedSeconds
+                    }
                 }
             }
         }
@@ -849,10 +852,11 @@ private struct ChatImageView: View {
 
     private func load() async {
         let local = localPath, remote = remoteURL ?? ""
-        if let img = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+        let cachedImage = await Task.detached(priority: .userInitiated) { () -> UIImage? in
             if let local, let img = UIImage(contentsOfFile: ChatSyncEngine.resolveLocalFile(local).path) { return img }
             return ChatImageCache.shared.getImage(forKey: remote)
-        }.value {
+        }.value
+        if let img = cachedImage {
             image = img
             return
         }

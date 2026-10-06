@@ -7,7 +7,7 @@
 
 import Foundation
 
-public final class AuthInterceptor {
+nonisolated public final class AuthInterceptor {
     public static func token() -> String? {
         TokenStore.shared.accessToken
     }

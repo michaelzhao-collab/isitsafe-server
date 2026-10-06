@@ -22,7 +22,7 @@ public protocol ChatTransport: Sendable {
 }
 
 /// 用 NetworkManager 实现的传输层
-public struct NetworkChatTransport: ChatTransport {
+nonisolated public struct NetworkChatTransport: ChatTransport {
     public init() {}
 
     public func send(groupId: String, body: ChatSendRequest) async throws -> ChatMessage {
@@ -55,7 +55,7 @@ public protocol ChatMediaUploader: Sendable {
 }
 
 /// 用 NetworkManager 实现的媒体上传
-public struct NetworkChatMediaUploader: ChatMediaUploader {
+nonisolated public struct NetworkChatMediaUploader: ChatMediaUploader {
     public init() {}
     public func uploadVoice(data: Data, filename: String) async throws -> String {
         try await NetworkManager.shared.uploadAudio(

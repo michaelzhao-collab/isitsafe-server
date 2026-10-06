@@ -8,7 +8,7 @@
 import Foundation
 
 /// 消息类型；与后端 MESSAGE_TYPES 对齐
-public enum ChatMessageType: String, Codable {
+nonisolated public enum ChatMessageType: String, Codable {
     case text
     case voice
     case image
@@ -24,14 +24,14 @@ public enum ChatMessageType: String, Codable {
 }
 
 /// 本地发送状态（仅客户端使用，不来自服务端）
-public enum ChatSendState: String, Codable {
+nonisolated public enum ChatSendState: String, Codable {
     case sending    // 已上屏、等待服务端确认
     case sent       // 已确认、拿到 seq
     case failed     // 发送失败，可点击重发
 }
 
 /// 一条群聊消息（服务端权威 + 本地态）
-public struct ChatMessage: Codable, Identifiable, Equatable {
+nonisolated public struct ChatMessage: Codable, Identifiable, Equatable {
     public var id: String                 // 服务端消息 id；乐观消息用 clientMsgId 占位
     public var groupId: String
     public var seq: Int64                  // 服务端 seq；乐观消息未确认时为 0
@@ -102,7 +102,7 @@ public struct ChatMessage: Codable, Identifiable, Equatable {
 
 /// 弱类型 payload：voice{url,duration,transcript} / image{url,w,h,thumb} / card 全量
 /// 用 JSON 透传，具体渲染层各自取字段，避免为每种卡片建强类型（后端可演进）
-public struct ChatPayload: Codable, Equatable {
+nonisolated public struct ChatPayload: Codable, Equatable {
     public var raw: [String: JSONValue]
 
     public init(_ raw: [String: JSONValue] = [:]) { self.raw = raw }
@@ -132,7 +132,7 @@ public struct ChatPayload: Codable, Equatable {
 // MARK: - 请求 / 响应 DTO
 
 /// 发送请求体
-public struct ChatSendRequest: Encodable {
+nonisolated public struct ChatSendRequest: Encodable {
     public let clientMsgId: String
     public let type: String
     public let content: String?
@@ -140,26 +140,26 @@ public struct ChatSendRequest: Encodable {
 }
 
 /// 拉取响应体
-public struct ChatPullResponse: Decodable {
+nonisolated public struct ChatPullResponse: Decodable {
     public let messages: [ChatMessage]
     public let lastSeq: Int64
 }
 
 /// 已读游标请求
-public struct ChatReadCursorRequest: Encodable {
+nonisolated public struct ChatReadCursorRequest: Encodable {
     public let seq: Int64
 }
-public struct ChatReadCursorResponse: Decodable {
+nonisolated public struct ChatReadCursorResponse: Decodable {
     public let lastReadSeq: Int64
 }
 
 /// 撤回请求
-public struct ChatRecallRequest: Encodable {
+nonisolated public struct ChatRecallRequest: Encodable {
     public let messageId: String
 }
 
 /// 未读汇总项
-public struct ChatUnreadItem: Decodable, Identifiable {
+nonisolated public struct ChatUnreadItem: Decodable, Identifiable {
     public let groupId: String
     public let lastSeq: Int64
     public let lastReadSeq: Int64
@@ -180,13 +180,13 @@ public struct ChatUnreadItem: Decodable, Identifiable {
 }
 
 /// V5.1 §7-4 群成员已读游标项（GET /chat/groups/:groupId/read-states）
-public struct ChatReadState: Decodable {
+nonisolated public struct ChatReadState: Decodable {
     public let userId: String
     public let lastReadSeq: Int64
 }
 
 /// WebSocket 下行信号
-public enum ChatSignal: Decodable {
+nonisolated public enum ChatSignal: Decodable {
     case new(groupId: String, seq: Int64)
     case update(groupId: String, seq: Int64, messageId: String)
     case recall(groupId: String, messageId: String)
@@ -224,7 +224,7 @@ public enum ChatSignal: Decodable {
 
 // MARK: - 系统消息本地化（2026-10-06）
 
-extension ChatMessage {
+nonisolated extension ChatMessage {
     /// 群生命周期系统消息（入群/退群/被移出/建群）按当前 App 语言渲染。
     /// 新消息：服务端 payload 带 { kind, name }；旧消息只有中文 content，按固定句式识别后翻译；
     /// 都不匹配时原样返回 content。

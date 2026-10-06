@@ -8,7 +8,8 @@
 import Foundation
 import Security
 
-public final class TokenStore {
+/// 只是 Keychain 的薄封装、无内存状态；聊天同步 actor 在后台读 token → 不绑定主线程
+nonisolated public final class TokenStore: @unchecked Sendable {
     public static let shared = TokenStore()
     private let accessTokenKey = "isitsafe.accessToken"
     private let refreshTokenKey = "isitsafe.refreshToken"

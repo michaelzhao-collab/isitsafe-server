@@ -9,7 +9,7 @@ import Foundation
 
 /// 任意 JSON 值（用于解码 TipTap 原始 JSON 树后再二次解析）。
 /// 后端 contentBlocks 是 JSON 文档对象，前端按 type 字段判断类型解析。
-public indirect enum JSONValue: Codable {
+nonisolated public indirect enum JSONValue: Codable {
     case null
     case bool(Bool)
     case number(Double)

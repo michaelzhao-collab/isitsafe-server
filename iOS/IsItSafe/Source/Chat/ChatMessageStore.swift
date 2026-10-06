@@ -14,7 +14,7 @@
 import Foundation
 
 /// 每群同步锚点
-public struct ChatSyncState: Equatable {
+nonisolated public struct ChatSyncState: Equatable {
     public var localLastSeq: Int64      // 本地已落库的最大 seq
     public var lastReadSeq: Int64       // 我的已读游标
     public init(localLastSeq: Int64 = 0, lastReadSeq: Int64 = 0) {

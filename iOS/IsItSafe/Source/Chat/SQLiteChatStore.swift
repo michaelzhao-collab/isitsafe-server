@@ -12,10 +12,12 @@ import Foundation
 import SQLite3
 
 /// SQLite 传入字符串需拷贝，用 TRANSIENT
-private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+nonisolated private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
 public actor SQLiteChatStore: ChatMessageStore {
-    private var db: OpaquePointer?
+    /// 只在 init 赋值一次。项目默认 MainActor 隔离会把 actor 的同步 init 也推断到主线程，
+    /// 在 init 里给隔离属性赋值就报警告；句柄以 SQLITE_OPEN_FULLMUTEX 打开，本身线程安全 → nonisolated(unsafe)
+    nonisolated(unsafe) private let db: OpaquePointer?
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
@@ -289,10 +291,10 @@ public actor SQLiteChatStore: ChatMessageStore {
 }
 
 // 绑定辅助（顶层函数，供 actor 内闭包调用）
-private func bindText(_ st: OpaquePointer?, _ idx: Int32, _ value: String) {
+nonisolated private func bindText(_ st: OpaquePointer?, _ idx: Int32, _ value: String) {
     sqlite3_bind_text(st, idx, value, -1, SQLITE_TRANSIENT)
 }
-private func bindTextOpt(_ st: OpaquePointer?, _ idx: Int32, _ value: String?) {
+nonisolated private func bindTextOpt(_ st: OpaquePointer?, _ idx: Int32, _ value: String?) {
     if let value { sqlite3_bind_text(st, idx, value, -1, SQLITE_TRANSIENT) }
     else { sqlite3_bind_null(st, idx) }
 }
