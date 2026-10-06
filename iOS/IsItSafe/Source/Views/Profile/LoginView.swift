@@ -610,7 +610,9 @@ public struct LoginView: View {
                     vm.errorMessage = languageCode == "en" ? "Apple sign-in is currently unavailable." : "苹果登录暂时不可用"
                 case .notInteractive:
                     vm.errorMessage = languageCode == "en" ? "Apple sign-in is not available in current context." : "当前场景暂不支持苹果登录"
-                @unknown default:
+                default:
+                    // iOS 26 SDK 新增了通行密钥等错误码（matchedExcludedCredential / credentialImport 等），
+                    // 原 @unknown default 不覆盖「已知但未列出」的 case → 编译器提示 switch 不完整
                     vm.errorMessage = languageCode == "en" ? "Apple sign-in failed. Please try again." : "苹果登录失败，请重试"
                 }
             } else {

@@ -44,7 +44,8 @@ public final class ChatVoicePlayer: ObservableObject {
         endObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime, object: p.currentItem, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.stop() }
+            // queue: .main → 回调必在主线程
+            MainActor.assumeIsolated { self?.stop() }
         }
         p.play()
     }

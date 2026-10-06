@@ -47,7 +47,7 @@ public final class SpeechRecognitionService {
                 try session.setCategory(
                     .playAndRecord,
                     mode: .spokenAudio,
-                    options: [.duckOthers, .defaultToSpeaker, .allowBluetooth]
+                    options: [.duckOthers, .defaultToSpeaker, .allowBluetoothHFP]
                 )
                 try session.setActive(true, options: .notifyOthersOnDeactivation)
             } catch {

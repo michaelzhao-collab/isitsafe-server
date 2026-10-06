@@ -94,7 +94,6 @@ public struct HomeContainerView: View {
     /// iOS 17+ 读 UIPasteboard.string 会强制弹"允许粘贴"权限框。
     /// 改用 detectPatterns 只探测剪贴板里有没有 URL / 数字（不读内容、不弹框）。
     /// 探测到了再弹我们自己的 alert，用户点"允许"再走 .string 拿真内容（此时系统才弹一次）。
-    /// 注意：detectPatterns 没有原生 async 版本，用 withCheckedContinuation 包装。
     private func checkClipboardWithoutPrompt() async {
         // 2026-10-06：剪贴板是家庭邀请时由 InviteClipboardService 弹「是否加入」，这里跳过，避免连弹两个框
         let skip = await MainActor.run { () -> Bool in
@@ -102,15 +101,8 @@ public struct HomeContainerView: View {
             return InviteClipboardService.shared.clipboardIsDetectedInvite
         }
         if skip { return }
-        let patterns: Set<UIPasteboard.DetectionPattern> = [.probableWebURL, .number]
-        let detected: Set<UIPasteboard.DetectionPattern> = await withCheckedContinuation { cont in
-            UIPasteboard.general.detectPatterns(for: patterns) { result in
-                switch result {
-                case .success(let s): cont.resume(returning: s)
-                case .failure: cont.resume(returning: [])
-                }
-            }
-        }
+        // iOS 15+ 新接口（旧 detectPatterns(for:completionHandler:) 已废弃），同样只探测不读内容、不弹系统框
+        let detected = (try? await UIPasteboard.general.detectedPatterns(for: [\.probableWebURL, \.number])) ?? []
         if !detected.isEmpty {
             await MainActor.run { showClipboardAlert = true }
         }

@@ -137,17 +137,26 @@ public final class IAPManager: ObservableObject {
         }
     }
 
+    private static let isSimulator: Bool = {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }()
+
     public func purchase(productId: String, completion: @escaping (Result<String, Error>) -> Void) {
         Task {
-            #if targetEnvironment(simulator)
-            await MainActor.run {
-                completion(.failure(APIError.unknown(localized(
-                    zh: "模拟器无法完成 App 内购买，请在真机登录沙盒账号后测试订阅。",
-                    en: "In-App Purchase isn’t available in the Simulator. Test subscription on a device with a sandbox Apple ID."
-                ))))
+            // 运行时判断（而非 #if 内直接 return）：模拟器编译时 return 之后的真机购买代码会被判为「永不执行」并告警
+            if Self.isSimulator {
+                await MainActor.run {
+                    completion(.failure(APIError.unknown(localized(
+                        zh: "模拟器无法完成 App 内购买，请在真机登录沙盒账号后测试订阅。",
+                        en: "In-App Purchase isn’t available in the Simulator. Test subscription on a device with a sandbox Apple ID."
+                    ))))
+                }
+                return
             }
-            return
-            #endif
             #if DEBUG
             print("IAP purchase start productId:", productId)
             #endif

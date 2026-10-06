@@ -312,8 +312,9 @@ public final class LoginViewModel: ObservableObject {
         resendTimer = nil
         resendCountdown = max(0, seconds)
         guard resendCountdown > 0 else { return }
+        // 计时器挂在主 RunLoop（本方法在主线程调用），回调必在主线程
         let timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] t in
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 guard let self else { t.invalidate(); return }
                 if self.resendCountdown > 0 { self.resendCountdown -= 1 }
                 if self.resendCountdown == 0 {
