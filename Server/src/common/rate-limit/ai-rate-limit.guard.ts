@@ -15,6 +15,7 @@ import { clientIp } from '../client-ip.util';
 import { RedisService } from '../../redis/redis.service';
 import { MembershipService } from '../../modules/membership/membership.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { AI_V2 } from '../ai-flags';
 
 const PREFIX_MINUTE = 'rate:ai:';
 const PREFIX_DAY = 'ai:query:';
@@ -63,6 +64,19 @@ export class AiRateLimitGuard implements CanActivate {
     const dayKey = `${PREFIX_DAY}${dayIdentifier}:${dateKey()}`;
     const isPremium = userId ? await this.membership.isPremiumByUserId(userId) : false;
     if (!isPremium) {
+      if (AI_V2) {
+        // 2026-10-06 V2：这里只检查不计数。计数挪到 AiService 成功返回检测结果之后
+        // （原来进门就扣：打招呼、知识问答、调用失败、命中缓存都算一次，真遇到可疑信息反而被拦在付费墙外）
+        const dayCount = Number((await client.get(dayKey)) ?? 0);
+        if (dayCount >= MAX_FREE_PER_DAY) {
+          throw new HttpException(
+            { message: '今日免费次数已用完，开通会员可无限使用' },
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
+        request.aiQuotaKey = dayKey;
+        return true;
+      }
       const dayCount = await client.incr(dayKey);
       if (dayCount === 1) await client.expire(dayKey, 86400 * 2);
       if (dayCount > MAX_FREE_PER_DAY) {

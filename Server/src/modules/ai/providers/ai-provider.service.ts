@@ -7,6 +7,7 @@
  * 备用也失败则向上抛原始错误。如需强制使用特定 provider，传入 provider 参数。
  */
 import { Injectable, Logger } from '@nestjs/common';
+import { AI_DEBUG_LOG, DEFAULT_DOUBAO_MODEL } from '../../../common/ai-flags';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { SettingsService, AiProviderName } from '../../settings/settings.service';
@@ -58,13 +59,17 @@ export class AiProviderService {
   async analyzeWithDoubao(prompt: string, systemPrompt: string): Promise<AiCallResult> {
     const { apiKey, baseUrl } = await this.getDoubaoConfig();
     if (!apiKey) throw new Error('DOUBAO_API_KEY not configured');
-    const model = this.config.get('DOUBAO_MODEL', 'doubao-seed-2-0-pro-260215');
+    // 2026-10-06：默认切到 seed-2.1-lite（2.0 官方标「即将下线」；31 场景实测 lite 速度/判定与 2.0-pro 持平、更便宜）
+    const model = this.config.get('DOUBAO_MODEL', DEFAULT_DOUBAO_MODEL);
+    // 深度思考默认关闭：开着时每次先「想」300–570 token，单次 8–15 秒；关掉后 2.5–6 秒，31 场景判定不变。DOUBAO_THINKING=enabled 可恢复
+    const thinkingType = this.config.get('DOUBAO_THINKING', 'disabled');
     // 官方文档：/api/v3/responses 的 input 为消息数组，支持 system/user 角色。
     // 2026-09-27 复核（提示注入防护）：原来把 systemPrompt 和用户内容合并成单条 user 消息，
     // 用户内容里的"系统提示"更易被模型误当指令。改为 system 与 user 分离，配合 systemPrompt
     // 里的安全边界声明与 ⟦INPUT⟧ 定界符，降低注入成功率（deepseek/openai 路径本就是分离的）。
     const body = {
       model,
+      thinking: { type: thinkingType },
       input: [
         { role: 'system', content: [{ type: 'input_text', text: systemPrompt }] },
         { role: 'user', content: [{ type: 'input_text', text: prompt }] },
@@ -72,28 +77,29 @@ export class AiProviderService {
     };
     const requestUrl = `${baseUrl}/responses`;
     console.log('[DOUBAO] REQUEST URL=' + requestUrl + ' model=' + model + ' systemPromptLen=' + systemPrompt.length + ' userPromptLen=' + prompt.length);
-    console.log('[DOUBAO] ========== 提交给豆包的完整内容（未解析） ==========');
-    console.log('[DOUBAO] SYSTEM_PROMPT_FULL:\n' + systemPrompt);
-    console.log('[DOUBAO] USER_PROMPT_FULL:\n' + prompt);
-    console.log('[DOUBAO] ========== 以上为提交内容结束 ==========');
+    if (AI_DEBUG_LOG) {
+      // 含用户原文（个人信息），默认不打；排障时 Railway 设 AI_DEBUG_LOG=true
+      console.log('[DOUBAO] SYSTEM_PROMPT_FULL:\n' + systemPrompt);
+      console.log('[DOUBAO] USER_PROMPT_FULL:\n' + prompt);
+    }
     // 火山引擎/豆包官方文档未明确单次请求超时秒数，此处与客户端统一使用 300 秒，避免长推理被中途断开
-    const DOUBAO_REQUEST_TIMEOUT_MS = 300 * 1000;
+    // 2026-10-06：检测实测关闭思考后 p90 约 5.4 秒；本方法还被情报翻译 / 情报内容生成复用（输出更长），
+    // 取 45 秒兼顾两者（原 300 秒会让用户干等 5 分钟）。可用 DOUBAO_TIMEOUT_MS 覆盖
+    const DOUBAO_REQUEST_TIMEOUT_MS = Number(this.config.get('DOUBAO_TIMEOUT_MS', '45000'));
     const start = Date.now();
     const res = await axios.post(requestUrl, body, {
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       timeout: DOUBAO_REQUEST_TIMEOUT_MS,
     });
     const latencyMs = Date.now() - start;
-    try {
-      console.log('[DOUBAO] API_RESPONSE_RAW_BODY (接口原始 JSON):\n' + JSON.stringify(res.data, null, 2));
-    } catch (_) {}
+    if (AI_DEBUG_LOG) {
+      try { console.log('[DOUBAO] API_RESPONSE_RAW_BODY:\n' + JSON.stringify(res.data, null, 2)); } catch (_) {}
+    }
     const content = this.extractDoubaoResponseContent(res.data);
     const usage = res.data?.usage ?? res.data?.output?.usage;
     const tokens = usage?.total_tokens ?? null;
     console.log('[DOUBAO] RESPONSE latencyMs=' + latencyMs + ' tokens=' + (tokens ?? 'null'));
-    console.log('[DOUBAO] ========== 豆包返回的完整原始内容（未解析） ==========');
-    console.log('[DOUBAO] RAW_FULL:\n' + (content ?? '(empty)'));
-    console.log('[DOUBAO] ========== 以上为豆包返回结束 ==========');
+    if (AI_DEBUG_LOG) console.log('[DOUBAO] RAW_FULL:\n' + (content ?? '(empty)'));
     if (!content) throw new Error('Invalid Doubao response: no content in ' + JSON.stringify(res.data?.output ?? res.data).slice(0, 200));
     return {
       raw: content,
@@ -167,9 +173,7 @@ export class AiProviderService {
     const content = res.data?.choices?.[0]?.message?.content;
     const usage = res.data?.usage;
     console.log('[DEEPSEEK] RESPONSE latencyMs=' + latencyMs + ' tokens=' + (usage?.total_tokens ?? 'null'));
-    console.log('[DEEPSEEK] ========== DeepSeek 返回的完整原始内容（未解析） ==========');
-    console.log('[DEEPSEEK] RAW_FULL:\n' + (content ?? '(empty)'));
-    console.log('[DEEPSEEK] ========== 以上为 DeepSeek 返回结束 ==========');
+    if (AI_DEBUG_LOG) console.log('[DEEPSEEK] RAW_FULL:\n' + (content ?? '(empty)'));
     if (!content) throw new Error('Invalid DeepSeek response: no content');
     return {
       raw: content,

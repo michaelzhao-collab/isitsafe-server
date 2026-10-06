@@ -468,6 +468,8 @@ export class AuthService {
       // (Cascade 的 family_members / user_activities / intel_deliveries / deepfake_checks /
       //  breach_targets / breach_alerts / auth_identities / user_devices 会自动随 user 删除)
       await tx.query.deleteMany({ where: { userId } });
+      // 2026-10-06：AI 评测样本存了用户原文 + userId，注销时一并删除（原来漏删）
+      await tx.aiEvaluationSample.deleteMany({ where: { userId } });
       await tx.report.deleteMany({ where: { userId } });
       await tx.subscription.deleteMany({ where: { userId } });
       await tx.userMessageRead.deleteMany({ where: { userId } });

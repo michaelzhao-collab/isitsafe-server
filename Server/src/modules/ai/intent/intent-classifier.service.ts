@@ -16,6 +16,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
+import { AI_V2 } from '../../../common/ai-flags';
 import { AiProviderService } from '../providers/ai-provider.service';
 
 export type Intent =
@@ -27,6 +28,8 @@ export type Intent =
 export interface IntentContext {
   /** 上一轮的 intent，用于"那这个呢"类延续 */
   lastIntent?: Intent;
+  /** 是否允许第 7 层调大模型兜底（V2 默认不允许：规则没命中一律进主检测流程） */
+  allowAi?: boolean;
   /** 是否有附件（图片 OCR、语音转写）— 强提示 scam_detection */
   hasAttachment?: boolean;
   /** OCR / 语音转写的文本（如果有，并入 content 做规则匹配）*/
@@ -131,7 +134,7 @@ export class IntentClassifierService {
   private static readonly HELP_KEYWORDS_ZH = [
     '被骗了', '被骗', '上当了', '上当', '被骗子骗', '中招了',
     '钱被转', '钱被划', '钱被骗', '钱被划走', '钱被骗走', '钱给他了', '钱给她了',
-    '已经转', '转账了', '转走了', '转给他', '转给她', '转给骗子',
+    '已经转', '转账了', '转走了', '转给他', '转给她', '转给骗子', '我转了', '我已转',
     '怎么追回', '追回', '挽回', '挽回损失',
     '报警', '报案', '96110', '打 110', '拨打反诈', '反诈电话',
     '账号被盗', '卡被盗', '卡盗刷', '刷我卡',
@@ -157,9 +160,46 @@ export class IntentClassifierService {
     return /(还没|没转|没给|准备|打算|想要|想转|想给|即将|计划|要不要|该不该|要转|要给|要不|可不可以|能不能|可以转|该怎么办|怎么办呢)/i.test(content);
   }
 
+  /** V2：上下文继承只允许停在「检测 / 求助」上。上一轮是闲聊或知识时新内容必须重新判断，
+   *  否则「你好」之后的「转账给他了」「我把验证码告诉他了」会被当成闲聊 */
+  private canInherit(last: Intent): boolean {
+    return !AI_V2 || last === 'scam_detection' || last === 'help_request';
+  }
+  /** V2：已经发生的求助信号（被骗 / 转了 / 告诉了验证码…） */
+  private static readonly HELP_DONE_RE =
+    /(被骗|上当|中招|钱被|已经转|转了|转给|转走|给他了|给她了|告诉了|泄露|盗刷|被盗|got scammed|been scammed|was scammed|sent money|transferred|paid the scammer|account hacked|card stolen)/i;
+  /** 转述 / 粘贴来的通知口吻（【标题】、称呼「您」、让人联系点击、带链接或长号码）→ 是待鉴别的样本，不是本人求助 */
+  private static readonly PASTED_NOTICE_RE =
+    /【|尊敬的|您的(账户|账号|包裹|快递|订单|银行卡|社保|医保|会员|资金|积分)|您(涉嫌|已|被|需|将|名下)|你的(账户|账号|卡|银行卡|包裹|社保|医保|信息)|你(已|被|涉嫌|名下|需)|您好[，,]?\s*(我是|这里是|我们是)|这里是|不配合|我们将|配合|回电|马上|立即|请联系|请点击|请拨打|请扫|请添加|请加|领取|扫码|QQ|微信|http|www\.|\d{7,}|\byour (account|order|package|parcel|card|payment)\b|suspended|on hold|click here/i;
+  /** 向对方要钱的动作（转我 / 借我 / 急需你…）：本人求助不会向 App 要钱，这是冒充熟人话术 */
+  private static readonly ASKING_MONEY_RE = /(转|借|打|汇)(我|给我|过来)\s*\d*|先借我|急需你|给我转|给我打/;
+  /** 英文冒充口吻（I am your bank rep… / this is the police… / call me now） */
+  private static readonly IMPERSONATE_EN_RE =
+    /\b(i am|i'm|this is|we are) (your|the|an?) (bank|police|irs|officer|customer|support|agent|rep|son|daughter|grandson|granddaughter|boss|manager)\b|\bcall (me|us|this number)\b/i;
+  /** 第一人称（本人在说自己的事） */
+  private static readonly FIRST_PERSON_RE = /我|咱|\b(i|i'm|my|me)\b/i;
+  /** 短句寒暄规则不得吞掉的敏感词（「早上好，社保卡已冻结」9 个字也不能算寒暄） */
+  private static readonly SENSITIVE_RE = /冻结|退款|中奖|转账|验证码|保证金|客服|公安|警察|涉嫌|异常|链接|账户|账号|密码|银行卡|被骗|上当/;
+
   private matchesHelp(lower: string, content: string): boolean {
-    // 优先排除"还没发生"场景，避免把预防性问题塞进 help_request
-    if (this.hasPlanningOrNegationMarker(content)) return false;
+    if (AI_V2) {
+      const C = IntentClassifierService;
+      const done = C.HELP_DONE_RE.test(content);
+      // 本人第一人称说「已经发生」（我被骗了 / 我转了…），且不是冒充口吻（我是客服 / 我是公安…）→ 直接算求助，
+      // 不受下面「通知口吻」排除影响（复核 S1：原来一个「您」字把「您好，我被骗了怎么办」判成闲聊）
+      const impersonating = C.SCAM_IMPERSONATE_ZH.some((kw) => content.includes(kw)) || C.IMPERSONATE_EN_RE.test(content);
+      // 冒充口吻（我是公安 / 我是你儿子 / 这里是社保局…）与向对方要钱（转我 5000）一律不是本人求助，交给检测
+      if (impersonating || C.ASKING_MONEY_RE.test(content)) return false;
+      const firstPersonDone = done && C.FIRST_PERSON_RE.test(content);
+      // 含「紧急 / 报警 / 资金已追回 / 请添加客服」的粘贴短信是要鉴别的样本（二次诈骗尤其如此），先走检测
+      if (!firstPersonDone && C.PASTED_NOTICE_RE.test(content)) return false;
+      // 「我被骗了该怎么办」：已发生 + 问怎么办仍是求助；只有「还没转 / 准备转」才排除
+      if (!done && this.hasPlanningOrNegationMarker(content)) return false;
+      if (done && /(还没|没转|没给|准备|打算|想转|想给|即将|计划)/.test(content)) return false;
+    } else if (this.hasPlanningOrNegationMarker(content)) {
+      // 优先排除"还没发生"场景，避免把预防性问题塞进 help_request
+      return false;
+    }
     for (const kw of IntentClassifierService.HELP_KEYWORDS_ZH) {
       if (content.includes(kw)) return true;
     }
@@ -195,7 +235,8 @@ export class IntentClassifierService {
   private static readonly SCAM_IMPERSONATE_ZH = [
     '涉嫌洗钱', '涉嫌违法', '涉嫌犯罪', '协助调查',
     '我是 公安', '我是公安', '我是警察', '我是警官', '我是法官', '我是检察官',
-    '我是 XX 客服', '我是客服', '我是银行', '我是国家反诈',
+    '我是 XX 客服', '我是客服', '我是银行', '我是国家反诈', '我是反诈', '我是社保', '我是检察', '我是法院', '我是税务',
+    '我是你儿子', '我是你女儿', '我是你领导', '我是你老板', '我是你朋友', '我是你同学', '我是你孙子', '我是你孙女', '我是您的专属',
     '安全账户', '资金清查', '资金审查', '信用修复',
     '冻结账户', '账户冻结', '解冻账户',
     '您的快递异常', '快递异常', '包裹异常', '包裹有问题',
@@ -225,6 +266,59 @@ export class IntentClassifierService {
     '老师让我', '客服让我', '群里让我',
   ];
 
+  // 3.6 诈骗情境（2026-10-06）：首页「试试问我」大量规则没命中 → 多调一次大模型分类（真机明显变慢），
+  //     或被误判成闲聊（返回聊天文字而不是风险卡）。分两档，避免把闲聊 / 知识提问抢成检测：
+  //     - STRONG：几乎只出现在诈骗场景里的说法，命中即算
+  //     - AMBIGUOUS：日常也常用的词（链接/积分/验证码/transfer/package…），须同时出现「遭遇/询问」锚点，
+  //       且不是对 App 本身说的话（「你们的积分」「没收到验证码」「send you a link」）
+  //     知识类提问（教我/有哪些/套路/how do/tips…）整层跳过，交给第 4 层。
+  private static readonly SCAM_STRONG_ZH = [
+    // 「先付/先交」单独太短（「先付房租」「先交作业」），须带对象
+    '先付款', '先付费', '先交钱', '先交费', '先转账', '先充值', '要先交', '要先付', '让我先', '要我先',
+    '保证金', '手术费', '保释', '礼品卡', '涉案', '指定账户', '怎么核实', '核实一下', '激活费', '解冻费', '认证费', '清关费',
+    '返佣', '垫付', '赔我', '要赔', '手机丢了', '换号了', '能点吗', '声音像', '可疑',
+    '待取件', '即将失效', '即将过期', '炒股群', '带单', '共享屏幕', '屏幕共享', '远程控制',
+  ];
+  private static readonly SCAM_AMBIGUOUS_ZH = [
+    '链接', '截图', '积分', '验证码', '贷款', '借钱', '服务费', '手续费', '理赔', '中签',
+    '兼职', '微信号', 'QQ号', '转账', '包裹', '快递',
+  ];
+  /** 遭遇 / 询问锚点：描述别人对我做了什么，或在问真假 */
+  // 不用单字「他/她/说/吗」和问号：「其他快递」「顺丰快递几点下班？」「我妈说转账给我」都会误中
+  private static readonly SCAM_ANCHOR_ZH =
+    /对方|有人|他说|她说|他让|她让|他要|她要|让我|要我|叫我|收到短信|收到电话|收到消息|收到邮件|短信说|电话说|打来|发来|加我|自称|陌生|客服说|通知说|是真的吗|靠谱吗|能信吗|是骗|说我|招聘|先付\s*\d|先交\s*\d/;
+  /** 对 App 本身说的话 / 自己的打算 → 不是在描述可疑遭遇 */
+  private static readonly SELF_CONTEXT_ZH = [
+    '你们', '没收到', '收不到', '发给你', '给你', '我的积分', '我想', '我在考虑', '我打算', '怎么用', '怎么操作',
+  ];
+  private static readonly SCAM_STRONG_EN = [
+    'safe account', 'verification code', 'upfront', 'up-front', 'fee first', 'pay a fee',
+    'share my screen', 'remote control', 'insider', 'trading group', 'task-rebate', 'rebate',
+    'side gig', 'gig work', 'won a prize', 'collect 8 cards', 'split 1m', 'wire money', 'wire transfer',
+    'is it a scam', 'is this a scam', 'a scam?', 'scam?', 'is it legit', 'is this legit', 'legit?',
+    'is it real', 'is this real', 'trustworthy', 'expiring soon', 'points are expiring',
+    'waiting for pickup', 'international call', 'trading app', 'gift card', 'call this number',
+    'safe to click', 'is the link', 'is this link', 'this sms', 'this text message',
+  ];
+  private static readonly SCAM_AMBIGUOUS_EN = [
+    'link', 'click', 'transfer', 'deposit', 'package', 'parcel', 'courier',
+    'sms', 'text message', 'sounds like', 'suspicious', 'legit', 'invest', 'investment', 'refund',
+    'compensation', 'screenshot', 'wechat id', 'borrow money', 'official', 'bank rep',
+    'bank card', 'prize', 'job offer',
+  ];
+  // 不用 ? / he / she / should i：「When will my package arrive?」「Should I invest in index funds?」都会误中
+  private static readonly SCAM_ANCHOR_EN =
+    /\b(someone|somebody|caller|stranger|asked me|asks me|told me|tells me|wants me|want me|says|said|saying|got a text|got an? (email|call|message)|received an?|texted me|called me|claims|offers|is it legit|is it real|is this|is it|check if)\b/;
+  private static readonly SELF_CONTEXT_EN = [
+    'this app', 'your app', 'with you', 'to you', 'send you', 'thanks', 'thank you',
+    'how do i', 'which button', 'trust you', 'official app', 'the app',
+  ];
+  /** 知识类提问的额外信号（补充第 4 层词表，用于让 3.6 让路） */
+  private static readonly KNOWLEDGE_EXTRA_ZH = ['套路', '手法', '常见', '怎么骗', '注意什么', '防骗', '有几种'];
+  private static readonly KNOWLEDGE_EXTRA_EN = [
+    'how do', 'how does', 'how can i', 'why do', 'tips', 'common', 'list', 'types of', 'examples of',
+  ];
+
   // 3.5 平台 + 退款异常
   private static readonly SCAM_PLATFORM_ZH = [
     '淘宝退款', '京东退款', '拼多多退款', '抖音退款', '美团退款',
@@ -247,6 +341,32 @@ export class IntentClassifierService {
     }
     for (const kw of IntentClassifierService.SCAM_PLATFORM_ZH) {
       if (content.includes(kw)) return true;
+    }
+    return this.matchesScamSituation(lower, content);
+  }
+
+  /** 3.6 诈骗情境：知识类提问整层让给第 4 层；歧义词须有锚点且不是对 App 说的话 */
+  private matchesScamSituation(lower: string, content: string): boolean {
+    const C = IntentClassifierService;
+    const has = (kw: string) => content.includes(kw);
+    const hasEn = (kw: string) => C.hasWord(lower, kw);
+    const knowledgeTriggers = C.KNOWLEDGE_TRIGGER_ZH.filter((kw) => kw !== '看看' && kw !== '告诉我');
+    const askingKnowledge =
+      [...C.KNOWLEDGE_DEFINE_ZH, ...C.KNOWLEDGE_HOW_ZH, ...C.KNOWLEDGE_INFO_ZH, ...C.KNOWLEDGE_TERMS,
+        ...knowledgeTriggers, ...C.KNOWLEDGE_EXTRA_ZH].some(has) ||
+      [...C.KNOWLEDGE_EN, ...C.KNOWLEDGE_EXTRA_EN].some((kw) => lower.includes(kw));
+    // 「how do I know if / how can I tell if …」是在问眼前这件事，不是科普
+    const checkingThis = /\bhow (do|can) i (know|tell) if\b/.test(lower);
+    if (askingKnowledge && !checkingThis) return false;
+
+    if (C.SCAM_STRONG_ZH.some(has) || C.SCAM_STRONG_EN.some(hasEn)) return true;
+
+    if (C.SCAM_AMBIGUOUS_ZH.some(has) && C.SCAM_ANCHOR_ZH.test(content) && !C.SELF_CONTEXT_ZH.some(has)) {
+      return true;
+    }
+    if (C.SCAM_AMBIGUOUS_EN.some(hasEn) && C.SCAM_ANCHOR_EN.test(lower)
+      && !C.SELF_CONTEXT_EN.some((kw) => lower.includes(kw))) {
+      return true;
     }
     return false;
   }
@@ -311,7 +431,8 @@ export class IntentClassifierService {
     for (const term of IntentClassifierService.KNOWLEDGE_TERMS) {
       if (content.includes(term) || lower.includes(term.toLowerCase())) return true;
     }
-    for (const kw of IntentClassifierService.KNOWLEDGE_EN) {
+    // 2026-10-06：英文科普句式（how do scammers… / tips / types of…）也算知识提问；第 3 层（检测）在前，具体对象不会被抢
+    for (const kw of [...IntentClassifierService.KNOWLEDGE_EN, 'how do ', 'how does ', 'how can i ', 'why do ', 'tips', 'types of', 'examples of']) {
       if (lower.includes(kw)) return true;
     }
     return false;
@@ -350,18 +471,26 @@ export class IntentClassifierService {
     '跟我聊天', '陪我聊', '陪我说话',
   ];
 
+  /** 英文整词匹配（短语按空格整体匹配）；kw 为小写 */
+  private static hasWord(lower: string, kw: string): boolean {
+    const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(^|[^a-z])${escaped}($|[^a-z])`).test(lower);
+  }
+
   private matchesGeneralChat(lower: string, content: string): boolean {
     for (const kw of IntentClassifierService.CHAT_GREETING_ZH) {
       if (content.includes(kw)) return true;
     }
+    // 2026-10-06：英文必须整词匹配。原来 includes 子串匹配 → 'hi' 命中 "this"/"which"，
+    // 任何含 this 的英文问题（如 "Is the link in this SMS safe?"）都被判成打招呼闲聊
     for (const kw of IntentClassifierService.CHAT_GREETING_EN) {
-      if (lower.includes(kw)) return true;
+      if (IntentClassifierService.hasWord(lower, kw)) return true;
     }
     for (const kw of IntentClassifierService.CHAT_THANKS_ZH) {
       if (content.includes(kw)) return true;
     }
     for (const kw of IntentClassifierService.CHAT_THANKS_EN) {
-      if (lower.includes(kw)) return true;
+      if (IntentClassifierService.hasWord(lower, kw)) return true;
     }
     for (const kw of IntentClassifierService.CHAT_EMOTION_ZH) {
       if (content.includes(kw)) return true;
@@ -412,10 +541,11 @@ export class IntentClassifierService {
       if (text.includes('help_request')) return 'help_request';
       if (text.includes('knowledge_query')) return 'knowledge_query';
       if (text.includes('general_chat')) return 'general_chat';
-      return 'general_chat';
+      // 看不懂 / 调用失败一律按检测处理（fail-closed）：误进检测只是多出一张卡，误进闲聊是漏掉警告
+      return 'scam_detection';
     } catch (err: any) {
       this.logger.warn(`[Intent] AI fallback failed: ${err?.message ?? err}`);
-      return 'general_chat';
+      return 'scam_detection';
     }
   }
 
@@ -425,13 +555,14 @@ export class IntentClassifierService {
   async classify(content: string, ctx: IntentContext = {}): Promise<{
     intent: Intent;
     via: 'rule_short' | 'rule_strong' | 'rule_help' | 'rule_scam'
-      | 'rule_knowledge' | 'rule_chat' | 'rule_ctx' | 'ai' | 'ai_fail';
+      | 'rule_knowledge' | 'rule_chat' | 'rule_ctx' | 'rule_default' | 'ai' | 'ai_fail';
   }> {
     // 附件文本并入（OCR / 语音转写）
     const merged = ctx.attachmentText
       ? `${content}\n${ctx.attachmentText}`
       : content;
-    const lower = merged.toLowerCase();
+    // 全角问号统一成半角，'scam？' 与 'scam?' 同等匹配
+    const lower = merged.toLowerCase().replace(/？/g, '?');
 
     // 附件 → 强提示 scam_detection（图片/语音上传几乎不会是闲聊）
     if (ctx.hasAttachment) {
@@ -446,8 +577,8 @@ export class IntentClassifierService {
 
     // 第 6 层（避免无意义短句跑完全部规则）
     if (this.isTooShortOrTrivial(content)) {
-      // 但是上下文继承优先
-      if (ctx.lastIntent && content.length < 20) {
+      // 但是上下文继承优先（V2：只继承检测/求助，见 canInherit）
+      if (ctx.lastIntent && content.length < 20 && this.canInherit(ctx.lastIntent)) {
         return { intent: ctx.lastIntent, via: 'rule_ctx' };
       }
       return { intent: 'general_chat', via: 'rule_short' };
@@ -468,17 +599,27 @@ export class IntentClassifierService {
       return { intent: 'knowledge_query', via: 'rule_knowledge' };
     }
 
-    // 第 5 层
-    if (this.matchesGeneralChat(lower, merged)) {
+    // 第 5 层（V2：寒暄规则只对短句生效。原来子串匹配整段文本，「您好，我是学校老师，孩子需交资料费」
+    // 「烦死了，网上女友让我充值才能提现」都因开头的寒暄被确定性判成闲聊）
+    const trimmed = merged.trim();
+    const shortEnough = /[一-龥]/.test(trimmed) ? trimmed.length <= 12 : trimmed.split(/\s+/).length <= 4;
+    const chatAllowed = !AI_V2 || (shortEnough
+      && !IntentClassifierService.SENSITIVE_RE.test(trimmed)
+      && !IntentClassifierService.HELP_DONE_RE.test(trimmed));
+    if (chatAllowed && this.matchesGeneralChat(lower, merged)) {
       return { intent: 'general_chat', via: 'rule_chat' };
     }
 
     // 上下文继承（前 6 层都没命中 + 有 lastIntent + 较短）
-    if (ctx.lastIntent && content.length < 30) {
+    if (ctx.lastIntent && content.length < 30 && this.canInherit(ctx.lastIntent)) {
       return { intent: ctx.lastIntent, via: 'rule_ctx' };
     }
 
-    // 第 7 层 AI 兜底
+    // 第 7 层：V2 不再单独调大模型判意图（多一次串行调用；失败或含糊时还偏向闲聊）。
+    // 规则没命中一律进主检测流程，由主提示词在同一次调用里区分「诈骗 / 闲聊 / 知识」（is_conversational）。
+    if (AI_V2 || ctx.allowAi === false) {
+      return { intent: 'scam_detection', via: 'rule_default' };
+    }
     const ai = await this.aiClassify(content);
     return { intent: ai, via: 'ai' };
   }

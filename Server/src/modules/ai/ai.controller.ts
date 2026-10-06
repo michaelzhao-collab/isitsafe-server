@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -18,8 +18,10 @@ export class AiController {
   async analyze(
     @Body() dto: AnalyzeTextDto,
     @CurrentUser('sub') userId?: string,
+    @Req() req?: any,
   ) {
-    console.log('[AI_API] POST /api/ai/analyze contentLen=' + (dto?.content?.length ?? 0) + ' language=' + (dto?.language ?? 'auto') + ' preview=' + JSON.stringify((dto?.content ?? '').slice(0, 80)));
+    // 2026-10-06：不再把用户原文片段打进日志（短信 / 手机号 / 卡号属于个人信息）
+    console.log('[AI_API] POST /api/ai/analyze contentLen=' + (dto?.content?.length ?? 0) + ' language=' + (dto?.language ?? 'auto'));
     return this.ai.analyze(
       {
         content: dto.content,
@@ -27,6 +29,7 @@ export class AiController {
         country: dto.country,
         conversationId: dto.conversation_id,
         context: dto.context,
+        quotaKey: req?.aiQuotaKey ?? null,
       },
       userId ?? null,
     );
@@ -36,6 +39,7 @@ export class AiController {
   async analyzeScreenshot(
     @Body() dto: AnalyzeScreenshotDto,
     @CurrentUser('sub') userId?: string,
+    @Req() req?: any,
   ) {
     return this.ai.analyzeScreenshot(
       userId ?? null,
@@ -44,6 +48,7 @@ export class AiController {
       dto.imageUrl,
       dto.conversation_id,
       dto.context,
+      req?.aiQuotaKey ?? null,
     );
   }
 }

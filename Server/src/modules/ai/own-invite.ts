@@ -30,15 +30,15 @@ export function ownFamilyInviteResult(language: 'zh' | 'en'): AnalyzeResult {
   const zh = language !== 'en';
   return {
     intent: 'scam_detection',
-    verdict: 'safe',
     risk_level: 'low',
     score: 10,
     confidence: 95,
     risk_type: [],
     risk_db_hit: false,
     summary: zh
-      ? '这是星识安全助手（StarLens AI）官方生成的家庭组邀请，链接 starlensai.com 是本 App 的官方网站。'
-      : 'This is an official StarLens AI family group invitation. starlensai.com is the official website of this app.',
+      // 2026-10-06 复核：邀请码任何注册用户都能生成，骗子也可以。不说「安全」，只说明链接是真的 + 只接受认识的家人
+      ? '这是本 App（星识安全助手）生成的真实家庭组邀请链接。但邀请码任何人都能生成——只接受你认识的家人发来的，不认识的人发的不要加入。'
+      : 'This is a genuine StarLens AI family invite link. Anyone with the app can generate one, so only accept it from a family member you actually know.',
     reasons: zh
       ? [
           '链接域名 starlensai.com 是星识安全助手的官方域名，不是仿冒网站。',

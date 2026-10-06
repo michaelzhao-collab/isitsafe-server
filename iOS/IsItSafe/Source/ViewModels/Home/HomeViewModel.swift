@@ -9,7 +9,8 @@ import SwiftUI
 import UIKit
 
 public final class HomeViewModel: ObservableObject {
-    public static let minAnalyzingDuration: TimeInterval = 3
+    /// 2026-10-06：原来强制至少转 3 秒（命中缓存也要等）；服务端单次已压到 3–6 秒，不再人为拖长
+    public static let minAnalyzingDuration: TimeInterval = 0
 
     @Published public var inputText = ""
     @Published public var pendingImage: UIImage?
@@ -287,8 +288,9 @@ public final class HomeViewModel: ObservableObject {
                     self.state = .success(d)
                     // V5：出 AI 结果后申请推送权限（仅 notDetermined 时弹框，已授权/已拒绝不打扰）
                     PushService.shared.promptIfNeeded()
-                    // 非会员：成功后记录次数（失败/网络错误不计）
-                    if !self.appState.subscriptionActive {
+                    // 非会员：成功后记录次数（失败/网络错误不计）。
+                    // 2026-10-06：与服务端口径一致，闲聊 / 知识 / 求助回答不计次，只有真正的检测结果才扣
+                    if !self.appState.subscriptionActive, !d.isNonDetection, !d.isConversational {
                         AppSettingsStore.shared.incrementFreeQueryCount()
                     }
                     if let cid = d.conversationId, !cid.isEmpty { self.currentConversationId = cid }

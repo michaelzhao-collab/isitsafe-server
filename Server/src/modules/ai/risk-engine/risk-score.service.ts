@@ -6,6 +6,7 @@
 import { Injectable } from '@nestjs/common';
 import { RiskLevel } from '../ai.types';
 import type { KnowledgeCaseHit } from '../rag/rag-keyword.service';
+import { AI_V2 } from '../../../common/ai-flags';
 
 const DB_SCORE = { high: 90, medium: 50, low: 20 } as const;
 const RAG_HIT_SCORE = 5;
@@ -47,6 +48,46 @@ export class RiskScoreService {
    * >=80 high; 50-79 medium; <50 low; unknown 且 DB 未命中 -> unknown
    */
   compute(
+    aiLevel: string,
+    confidence: number,
+    dbHit: { riskLevel: string } | null,
+    ragHits: KnowledgeCaseHit[],
+  ): { score: number; risk_level: RiskLevel } {
+    return AI_V2 ? this.computeV2(aiLevel, confidence, dbHit) : this.computeV1(aiLevel, confidence, dbHit, ragHits);
+  }
+
+  /**
+   * 2026-10-06 V2：大模型给的等级是下限，风险库命中只能往上提；相似案例（检索还不可靠，见复核报告）不参与。
+   * V1 在有 RAG 命中时 score = AI*0.6 + RAG*0.1：high/85 → 52 medium、medium/60 → 35 low，
+   * 模型已判定的诈骗被展示成低风险，是反诈产品最危险的一类错误。
+   * 分数只做展示：按等级分段，段内按置信度浮动。
+   */
+  private computeV2(
+    aiLevel: string,
+    confidence: number,
+    dbHit: { riskLevel: string } | null,
+  ): { score: number; risk_level: RiskLevel } {
+    const rank: Record<RiskLevel, number> = { unknown: 0, low: 1, medium: 2, high: 3 };
+    const norm = (v: string | null | undefined): RiskLevel => {
+      const s = (v ?? '').toLowerCase();
+      return (['high', 'medium', 'low', 'unknown'] as RiskLevel[]).includes(s as RiskLevel) ? (s as RiskLevel) : 'unknown';
+    };
+    let level = norm(aiLevel);
+    const db = dbHit ? norm(dbHit.riskLevel) : 'unknown';
+    // 风险库 low 只表示「库内有记录但等级低」，不作为抬高依据
+    if ((db === 'high' || db === 'medium') && rank[db] > rank[level]) level = db;
+    const c = Math.max(0, Math.min(100, Number.isFinite(confidence) ? confidence : 50));
+    let score: number;
+    switch (level) {
+      case 'high': score = 75 + Math.round(c * 0.25); break;              // 75–100
+      case 'medium': score = 50 + Math.round(c * 0.24); break;            // 50–74
+      case 'low': score = Math.max(5, 30 - Math.round(c * 0.25)); break;  // 越确定越低：5–30
+      default: score = 50;
+    }
+    return { score, risk_level: level };
+  }
+
+  private computeV1(
     aiLevel: string,
     confidence: number,
     dbHit: { riskLevel: string } | null,

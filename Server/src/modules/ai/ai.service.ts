@@ -24,12 +24,13 @@ import { QueryService } from '../query/query.service';
 import { IntentClassifierService, Intent } from './intent/intent-classifier.service';
 import { IntentResponseService } from './intent/intent-response.service';
 import { AiEvaluationService } from '../ai-evaluation/ai-evaluation.service';
+import { AI_V2, AI_DEBUG_LOG, PROMPT_VERSION, DEFAULT_DOUBAO_MODEL } from '../../common/ai-flags';
 import { isOwnFamilyInvite, ownFamilyInviteResult } from './own-invite';
 
 const CACHE_PREFIX = 'cache:ai:';
 const INTENT_CACHE_PREFIX = 'cache:intent:';
-const TTL_DEFAULT = 90 * 24 * 3600;       // 90 天
-const TTL_HIGH_RISK = 365 * 24 * 3600;    // 365 天
+const TTL_DEFAULT = 7 * 24 * 3600;        // 7 天（2026-10-06：原 90 天，风险库 / 提示词更新后旧结论拖太久）
+const TTL_HIGH_RISK = 14 * 24 * 3600;     // 14 天（原 365 天）
 // F5: 非 scam 意图缓存：聊天 / 知识类问答短期复用，避免重复 AI 调用
 // 1h 内同语言同内容直接走缓存（help_request 不缓存，紧急场景始终调 AI 给最新建议）
 const TTL_INTENT_NON_SCAM = 3600;
@@ -70,6 +71,8 @@ export interface AnalyzeInput {
   conversationId?: string;
   /** 上轮对话内容，用于追问时提供上下文（最多1轮：[{role:'user',content},{role:'assistant',content}]）*/
   context?: Array<{ role: string; content: string }>;
+  /** V2：免费额度计数 key（guard 放行时附上；会员为 null）。成功返回一条检测结果后才扣 */
+  quotaKey?: string | null;
 }
 
 export interface AnalyzeResult extends AiOutputSchema {
@@ -158,7 +161,7 @@ export class AiService {
       parsedResult: args.parsedResult,
       intent: args.intent,
       intentVia: args.intentVia,
-      promptVersion: 'baseline',
+      promptVersion: PROMPT_VERSION,
       modelProvider: args.modelProvider,
       latencyMs: args.latencyMs,
       tokensUsed: args.tokensUsed ?? null,
@@ -174,7 +177,7 @@ export class AiService {
   ): Promise<AnalyzeResult> {
     const startedAtMs = Date.now();
     const conversationId = (input.conversationId && input.conversationId.trim()) || randomUUID();
-    console.log('[AI_FLOW] ========== 开始 AI 分析（会调用豆包） ========== content=' + JSON.stringify(input.content?.slice(0, 300)) + ' conversationId=' + conversationId);
+    console.log('[AI_FLOW] ========== 开始 AI 分析 ========== contentLen=' + (input.content?.length ?? 0) + ' conversationId=' + conversationId + (AI_DEBUG_LOG ? ' content=' + JSON.stringify(input.content?.slice(0, 300)) : ''));
     // 回答语言：按用户提问语言决定（不传则根据内容检测：含中文→中文回答，否则英文回答）
     const language = input.language ?? detectLanguageFromContent(input.content);
     console.log('[AI_FLOW] language=' + language + ' (input.language=' + (input.language ?? 'auto') + ')');
@@ -182,24 +185,27 @@ export class AiService {
     const isScreenshot = input.isScreenshot ?? false;
 
     const parsed = this.parser.parse(input.content, isScreenshot);
-    console.log('[AI_FLOW] 1.PARSED inputType=' + parsed.inputType + ' normalizedContent=' + JSON.stringify(parsed.normalizedContent.slice(0, 200)) + ' originalLen=' + parsed.originalContent.length);
+    console.log('[AI_FLOW] 1.PARSED inputType=' + parsed.inputType + ' originalLen=' + parsed.originalContent.length + (AI_DEBUG_LOG ? ' normalizedContent=' + JSON.stringify(parsed.normalizedContent.slice(0, 200)) : ''));
     const provider = await this.provider.getDefaultProvider();
 
     // 2026-10-06：本 App 自己的家庭邀请文案 → 固定结论，不调大模型（模型不认识自家域名，会判成诱导注册）
     if (!isScreenshot && isOwnFamilyInvite(parsed.originalContent)) {
       const own = ensureFullResult(ownFamilyInviteResult(language), language);
       console.log('[AI_FLOW] OWN_FAMILY_INVITE 命中自家邀请模板，跳过大模型');
-      await this.writeQuery(userId, conversationId, parsed, own, provider, false, input.imageUrl);
+      await this.writeQuery(userId, conversationId, parsed, own, provider, false, input.imageUrl, { intent: 'scam_detection', via: 'own_invite' });
+      await this.consumeQuota(input.quotaKey, own);
       return { ...own, conversation_id: conversationId };
     }
 
     // ====== V3 #5 意图分流（非 URL / 非截图、非 scam_detection 时早返回）======
     // URL 与截图天然属于 scam_detection 场景（用户在让我们判断风险），跳过分类
+    let routeVia: string = parsed.inputType === 'url' ? 'url_flow' : isScreenshot ? 'screenshot' : 'unclassified';
     if (parsed.inputType !== 'url' && !isScreenshot) {
       try {
         // F6：从上一轮 assistant 响应推断 lastIntent，支持"那这个呢"延续
         const lastIntent = this.inferLastIntent(input.context);
         const intentRes = await this.intentClassifier.classify(parsed.originalContent, { lastIntent });
+        routeVia = intentRes.via;
         console.log('[AI_FLOW] 1.5 INTENT intent=' + intentRes.intent + ' via=' + intentRes.via);
         if (intentRes.intent !== 'scam_detection') {
           const nonScamIntent = intentRes.intent as Exclude<Intent, 'scam_detection'>;
@@ -218,7 +224,7 @@ export class AiService {
               try {
                 const obj = ensureFullResult(JSON.parse(cached) as AnalyzeResult, language);
                 console.log('[AI_FLOW] INTENT_CACHE_HIT intent=' + nonScamIntent);
-                await this.writeQuery(userId, conversationId, parsed, obj, provider, true, input.imageUrl);
+                await this.writeQuery(userId, conversationId, parsed, obj, provider, true, input.imageUrl, { intent: nonScamIntent, via: 'cache' });
                 return { ...obj, conversation_id: conversationId };
               } catch {}
             }
@@ -239,7 +245,7 @@ export class AiService {
           if (canCache) {
             await this.redis.set(intentCacheKey, JSON.stringify(intentFinal), TTL_INTENT_NON_SCAM);
           }
-          await this.writeQuery(userId, conversationId, parsed, intentFinal, provider, false, input.imageUrl);
+          await this.writeQuery(userId, conversationId, parsed, intentFinal, provider, false, input.imageUrl, { intent: nonScamIntent, via: intentRes.via });
           // V4-P0：intent 非 scam 路径采样（system/user 用 intent prompt 的近似快照）
           this.sampleAsync({
             conversationId,
@@ -264,14 +270,16 @@ export class AiService {
       }
     }
 
+    // 2026-10-06：key 加入提示词版本与模型，提示词 / 模型一改旧结论自动失效（原来后台改风险库、改提示词都对已缓存结果无效）
     const cacheKey = CACHE_PREFIX + hashForCache({
       input_type: parsed.inputType,
       normalized_content: parsed.normalizedContent,
       language,
       country,
       provider,
+      pv: PROMPT_VERSION,
+      model: process.env.DOUBAO_MODEL ?? DEFAULT_DOUBAO_MODEL,
     });
-    console.log('[AI_FLOW] CACHE_KEY(用于判断是否命中缓存): ' + cacheKey);
 
     const hasContext = Array.isArray(input.context) && input.context.length > 0;
     if (!hasContext) {
@@ -280,7 +288,8 @@ export class AiService {
         try {
           const obj = ensureFullResult(JSON.parse(cached) as AnalyzeResult, language);
           console.log('[AI_FLOW] CACHE_HIT 未调豆包，直接使用缓存 risk_level=' + (obj?.risk_level ?? '?'));
-          await this.writeQuery(userId, conversationId, parsed, obj, provider, true, input.imageUrl);
+          await this.writeQuery(userId, conversationId, parsed, obj, provider, true, input.imageUrl, { intent: 'scam_detection', via: 'cache' });
+          await this.consumeQuota(input.quotaKey, obj);
           return { ...obj, conversation_id: conversationId };
         } catch {}
       }
@@ -296,7 +305,7 @@ export class AiService {
       console.log('[AI_FLOW] URL 风险库匹配后 结果: ' + JSON.stringify({ risk_level: urlResult.risk_level, tags: urlResult.tags, recordsCount: recordCount }));
 
       const riskTypes = await this.getRiskTypeOptions(language);
-      const urlSystemPrompt = this.prompts.buildUrlSystemPrompt(language, riskTypes);
+      const urlSystemPrompt = this.prompts.buildUrlSystemPrompt(language, riskTypes, { includeOwnDomain: /starlens/i.test(parsed.originalContent) });
       const urlUserPrompt = this.prompts.buildUrlUserPrompt(
         parsed.originalContent,
         extractedUrl,
@@ -309,9 +318,9 @@ export class AiService {
       let urlParsedAi: AiOutputSchema;
       try {
         urlAiResult = await this.provider.analyze(urlUserPrompt, urlSystemPrompt, provider);
-        console.log('[AI_FLOW] URL 豆包返回原始(未解析): ' + (urlAiResult?.raw ?? '(null)'));
+        if (AI_DEBUG_LOG) console.log('[AI_FLOW] URL 豆包返回原始(未解析): ' + (urlAiResult?.raw ?? '(null)'));
         urlParsedAi = parseAndValidateAiOutput(urlAiResult.raw, language);
-        console.log('[AI_FLOW] URL 解析后的完整结果: ' + JSON.stringify(urlParsedAi));
+        if (AI_DEBUG_LOG) console.log('[AI_FLOW] URL 解析后的完整结果: ' + JSON.stringify(urlParsedAi));
       } catch (e) {
         console.log('[AI_FLOW] URL_AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
         urlParsedAi = parseAndValidateAiOutput('', language);
@@ -347,11 +356,13 @@ export class AiService {
       console.log('[AI_FLOW] 6.RESULT URL 最终返回 risk_db_hit=' + urlFinal.risk_db_hit);
       // 2026-09-27 复核：带 context 的结果不写缓存（读侧 hasContext 时也不读）。
       // 否则用伪造上下文骗出的 low 会以不含 context 的 key 写入，污染所有后续无 context 查询。
-      if (!hasContext) {
+      // 2026-10-06：大模型失败 / 解析失败的「无法确定」不进缓存（原来被缓存 90 天、所有用户共享）
+      if (!hasContext && urlAiResult && !isAiParseFallbackOutput(urlParsedAi)) {
         const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
         await this.redis.set(cacheKey, JSON.stringify(urlFinal), ttl);
       }
-      await this.writeQuery(userId, conversationId, parsed, urlFinal, provider, false, input.imageUrl);
+      await this.writeQuery(userId, conversationId, parsed, urlFinal, provider, false, input.imageUrl, { intent: 'scam_detection', via: 'url_flow' });
+      await this.consumeQuota(input.quotaKey, urlFinal);
       // V4-P0：URL 路径采样
       this.sampleAsync({
         conversationId,
@@ -378,10 +389,10 @@ export class AiService {
     console.log('[AI_FLOW] 2.风险库匹配后 结果: ' + (dbCheck ? JSON.stringify(dbCheck) : 'null'));
     const keywords = this.rag.keywordExtract(parsed.originalContent);
     const ragCases = await this.rag.searchKnowledgeCases(keywords, 5, language);
-    console.log('[AI_FLOW] 3.RAG keywords=' + JSON.stringify(keywords) + ' casesCount=' + ragCases.length);
+    console.log('[AI_FLOW] 3.RAG casesCount=' + ragCases.length + (AI_DEBUG_LOG ? ' keywords=' + JSON.stringify(keywords) : ''));
 
     const riskTypes = await this.getRiskTypeOptions(language);
-    const systemPrompt = this.prompts.buildSystemPrompt(language, riskTypes);
+    const systemPrompt = this.prompts.buildSystemPrompt(language, riskTypes, { includeOwnDomain: /starlens/i.test(parsed.originalContent) });
     const userPrompt = this.prompts.buildUserPrompt(
       parsed.originalContent,
       parsed.inputType,
@@ -397,9 +408,9 @@ export class AiService {
     let parsedAi: AiOutputSchema;
     try {
       aiResult = await this.provider.analyze(userPrompt, systemPrompt, provider);
-      console.log('[AI_FLOW] 豆包返回原始(未解析): ' + (aiResult?.raw ?? '(null)'));
+      if (AI_DEBUG_LOG) console.log('[AI_FLOW] 豆包返回原始(未解析): ' + (aiResult?.raw ?? '(null)'));
       parsedAi = parseAndValidateAiOutput(aiResult.raw, language);
-      console.log('[AI_FLOW] 解析后的完整结果: ' + JSON.stringify(parsedAi));
+      if (AI_DEBUG_LOG) console.log('[AI_FLOW] 解析后的完整结果: ' + JSON.stringify(parsedAi));
     } catch (e) {
       console.log('[AI_FLOW] 4.AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
       parsedAi = parseAndValidateAiOutput('', language);
@@ -433,12 +444,15 @@ export class AiService {
     console.log('[AI_FLOW] 6.RESULT 最终返回 risk_level=' + final.risk_level + ' reasonsLen=' + (final.reasons?.length ?? 0) + ' adviceLen=' + (final.advice?.length ?? 0));
 
     // 2026-09-27 复核：带 context 的结果不写缓存（与读侧 hasContext 对齐），防注入结论污染缓存
-    if (!final.is_conversational && !hasContext) {
+    // 2026-10-06：大模型失败 / 解析失败的「无法确定」不进缓存（原来被缓存 90 天、所有用户共享）
+    if (!final.is_conversational && !hasContext && aiResult && !isAiParseFallbackOutput(parsedAi)) {
       const ttl = risk_level === 'high' ? TTL_HIGH_RISK : TTL_DEFAULT;
       await this.redis.set(cacheKey, JSON.stringify(final), ttl);
     }
 
-    await this.writeQuery(userId, conversationId, parsed, final, provider, false, input.imageUrl);
+    await this.writeQuery(userId, conversationId, parsed, final, provider, false, input.imageUrl,
+      { intent: final.is_conversational ? 'conversational' : 'scam_detection', via: routeVia });
+    await this.consumeQuota(input.quotaKey, final);
     // V4-P0：scam_detection 主流程采样
     this.sampleAsync({
       conversationId,
@@ -451,7 +465,7 @@ export class AiService {
       aiRawResponse: aiResult?.raw ?? '',
       parsedResult: final,
       intent: 'scam_detection',
-      intentVia: 'main_flow',
+      intentVia: routeVia,
       modelProvider: provider,
       latencyMs: Date.now() - startedAtMs,
       tokensUsed: aiResult?.tokens ?? null,
@@ -585,6 +599,7 @@ export class AiService {
     aiProvider: string,
     fromCache: boolean,
     imageUrl?: string,
+    route?: { intent?: string; via?: string },
   ) {
     await this.prisma.query.create({
       data: {
@@ -593,7 +608,8 @@ export class AiService {
         inputType: parsed.inputType,
         content: parsed.originalContent,
         imageUrl: imageUrl ?? null,
-        resultJson: result as any,
+        // 2026-10-06：意图与分流依据先记在 result_json 里（_route），供审计误路由；单独建列需走迁移，待确认
+        resultJson: (route ? { ...result, _route: route } : result) as any,
         riskLevel: result.risk_level,
         confidence: result.confidence,
         aiProvider: fromCache ? null : aiProvider,
@@ -613,6 +629,21 @@ export class AiService {
     });
   }
 
+  /** V2：免费额度在「成功返回一条检测结果」后才扣；闲聊 / 知识问答、调用失败、解析失败都不扣（V1 在 guard 里进门就扣） */
+  private async consumeQuota(quotaKey: string | null | undefined, result: AnalyzeResult): Promise<void> {
+    if (!AI_V2 || !quotaKey) return;
+    if (result.intent && result.intent !== 'scam_detection') return;
+    if (result.is_conversational) return; // 主提示词判成闲聊 / 科普回答的也不扣（复核 M2）
+    if (isAiParseFallbackOutput(result)) return;
+    try {
+      const c = this.redis.getClient();
+      const n = await c.incr(quotaKey);
+      if (n === 1) await c.expire(quotaKey, 86400 * 2);
+    } catch {
+      // Redis 不可用时放行，不影响结果返回
+    }
+  }
+
   async analyzeScreenshot(
     userId: string | null,
     imageBase64OrText: string,
@@ -620,13 +651,14 @@ export class AiService {
     imageUrl?: string,
     conversationId?: string,
     context?: Array<{ role: string; content: string }>,
+    quotaKey?: string | null,
   ): Promise<AnalyzeResult> {
     const looksLikeBase64 =
       imageBase64OrText.startsWith('data:image') ||
       /^[A-Za-z0-9+/=]{100,}$/.test(imageBase64OrText.trim());
     if (!looksLikeBase64 && imageBase64OrText.trim().length > 0) {
       return this.analyze(
-        { content: imageBase64OrText.trim(), language, isScreenshot: true, imageUrl: imageUrl, conversationId, context },
+        { content: imageBase64OrText.trim(), language, isScreenshot: true, imageUrl: imageUrl, conversationId, context, quotaKey },
         userId,
       );
     }
@@ -663,7 +695,7 @@ export class AiService {
       };
     }
     return this.analyze(
-      { content: text, language, isScreenshot: true, imageUrl, conversationId, context },
+      { content: text, language, isScreenshot: true, imageUrl, conversationId, context, quotaKey },
       userId,
     );
   }

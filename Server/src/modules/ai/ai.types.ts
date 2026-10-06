@@ -1,3 +1,4 @@
+import { AI_DEBUG_LOG } from '../../common/ai-flags';
 /**
  * 强制统一 AI 输出 JSON schema（与规范一致）
  */
@@ -54,7 +55,12 @@ function normalizeRiskLevel(value: string | undefined): RiskLevel {
   const zh = value.trim();
   if (ZH_TO_EN[zh]) return ZH_TO_EN[zh];
   const validLevels: RiskLevel[] = ['high', 'medium', 'low', 'unknown'];
-  return validLevels.includes(s as RiskLevel) ? (s as RiskLevel) : 'unknown';
+  if (validLevels.includes(s as RiskLevel)) return s as RiskLevel;
+  // "High Risk" / "中风险" 之类带修饰的写法（2026-10-06）
+  if (/high|高/.test(s)) return 'high';
+  if (/medium|mid|中/.test(s)) return 'medium';
+  if (/\blow\b|低/.test(s)) return 'low';
+  return 'unknown';
 }
 
 /** 与 parse 失败兜底文案一致，供 URL+风险库命中时判断是否替换展示 */
@@ -81,16 +87,27 @@ export function isAiParseFallbackOutput(o: AiOutputSchema): boolean {
 
 function tryParseJsonObject(raw: string): Record<string, unknown> {
   const stripped = raw.replace(/```json\s?/gi, '').replace(/```\s?/g, '').trim();
-  try {
-    return JSON.parse(stripped) as Record<string, unknown>;
-  } catch {
-    const start = stripped.indexOf('{');
-    const end = stripped.lastIndexOf('}');
-    if (start >= 0 && end > start) {
-      return JSON.parse(stripped.slice(start, end + 1)) as Record<string, unknown>;
-    }
-    throw new Error('no json object');
+  const attempts = [stripped];
+  const start = stripped.indexOf('{');
+  const end = stripped.lastIndexOf('}');
+  if (start >= 0 && end > start) attempts.push(stripped.slice(start, end + 1));
+  for (const a of attempts) {
+    try { return JSON.parse(a) as Record<string, unknown>; } catch {}
   }
+  // 2026-10-06：模型偶尔在 JSON 字符串里直接换行（控制字符），标准 JSON 不允许 → 原来整条判成
+  // 「无法确定风险」还被缓存 90 天。控制字符换成空格后重试（token 之间的换行本就是空白，字符串内换行变空格不影响语义）
+  for (const a of attempts) {
+    try { return JSON.parse(a.replace(/[\u0000-\u001F]+/g, ' ')) as Record<string, unknown>; } catch {}
+  }
+  throw new Error('no json object');
+}
+
+/** 2026-10-06：模型可能返回 0.92（小数）或 "90"（字符串）；原来小数原样进评分引擎 → high 被算成 low，字符串一律当 50 */
+function normalizeConfidence(v: unknown): number {
+  let n = typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v) : NaN;
+  if (!Number.isFinite(n)) return 50;
+  if (n > 0 && n <= 1) n = n * 100;
+  return Math.round(Math.max(0, Math.min(100, n)));
 }
 
 /** 校验并兜底：无效则返回 unknown + 低置信度；支持豆包返回中文 risk_level
@@ -114,7 +131,7 @@ export function parseAndValidateAiOutput(raw: string, language: 'zh' | 'en' = 'z
   try {
     const obj = tryParseJsonObject(String(raw ?? ''));
     const level = normalizeRiskLevel((obj.risk_level as string) ?? undefined);
-    const confidence = typeof obj.confidence === 'number' ? Math.max(0, Math.min(100, obj.confidence)) : 50;
+    const confidence = normalizeConfidence(obj.confidence);
     const risk_type = Array.isArray(obj.risk_type) ? obj.risk_type.map(String) : [isZh ? '未知风险' : 'Unknown risk'];
     const summary = typeof obj.summary === 'string' ? obj.summary : fallbackSummary;
     const is_conversational = obj.is_conversational === true;
@@ -127,7 +144,7 @@ export function parseAndValidateAiOutput(raw: string, language: 'zh' | 'en' = 'z
     }
     return { risk_level: level, confidence, risk_type, summary, reasons, advice, is_conversational };
   } catch (e) {
-    console.log('[AI_PARSE] 解析失败，使用兜底 fallback | raw 前500字: ' + String(raw).slice(0, 500) + ' | error: ' + (e instanceof Error ? e.message : String(e)));
+    console.log('[AI_PARSE] 解析失败，使用兜底 fallback | rawLen=' + String(raw ?? '').length + ' | error: ' + (e instanceof Error ? e.message : String(e)) + (AI_DEBUG_LOG ? ' | raw 前500字: ' + String(raw).slice(0, 500) : ''));
     return fallback;
   }
 }
