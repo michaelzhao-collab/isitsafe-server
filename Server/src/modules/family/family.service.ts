@@ -81,9 +81,17 @@ export class FamilyService {
    * V5.1 群生命周期系统消息（入群 / 退群 / 被移出）。fire-and-forget：
    * 家庭 DB 是事实源，系统消息失败不能让家庭操作回滚。
    */
-  private postLifecycleSystemMessage(groupId: string, text: string): void {
+  /**
+   * 2026-10-06：payload 带结构化 { kind, name }，新版 iOS 按查看者自己的 App 语言渲染；
+   * content 保留中文（或建群者语言）文本，供旧版 App 原样显示。
+   */
+  private postLifecycleSystemMessage(
+    groupId: string,
+    text: string,
+    payload: { kind: 'member_joined' | 'member_left' | 'member_removed' | 'group_created'; name?: string },
+  ): void {
     this.chat
-      .postSystemMessage(groupId, 'system', { content: text })
+      .postSystemMessage(groupId, 'system', { content: text, payload, noPush: payload.kind === 'group_created' })
       .catch((err) => this.logger.warn(`[FamilyLifecycle] system message failed: ${err?.message ?? err}`));
   }
 
@@ -280,6 +288,7 @@ export class FamilyService {
       lang === 'en'
         ? 'Family group created. Invite your family to join, then share any suspicious links, calls or messages here so everyone can check them together.'
         : '家庭群已创建。邀请家人加入后，遇到可疑的链接、电话或消息，可以发到群里让家人一起把关。',
+      { kind: 'group_created' },
     );
     return created;
   }
@@ -357,7 +366,10 @@ export class FamilyService {
       // 2026-09-07 复核：只在冗余字段确实指向本组时才改，避免误伤其它家庭的身份
       await this.repointUserPrimaryGroup(tx, userId, member.groupId);
     });
-    this.postLifecycleSystemMessage(member.groupId, `${leavingName} 退出了家庭`);
+    this.postLifecycleSystemMessage(member.groupId, `${leavingName} 退出了家庭`, {
+      kind: 'member_left',
+      name: leavingName,
+    });
   }
 
   async dissolveGroup(userId: string, groupId: string) {
@@ -494,7 +506,10 @@ export class FamilyService {
       // 2026-09-07 复核：同 leaveGroup，多家庭下不要把别的家庭身份一起抹掉
       await this.repointUserPrimaryGroup(tx, targetUserId, groupId);
     });
-    this.postLifecycleSystemMessage(groupId, `${removedName} 已被群主移出家庭`);
+    this.postLifecycleSystemMessage(groupId, `${removedName} 已被群主移出家庭`, {
+      kind: 'member_removed',
+      name: removedName,
+    });
   }
 
   // ====================================================================
@@ -630,7 +645,11 @@ export class FamilyService {
       });
       return created;
     });
-    this.postLifecycleSystemMessage(group.id, `${await this.lifecycleName(group.id, userId)} 加入了家庭`);
+    const joinedName = await this.lifecycleName(group.id, userId);
+    this.postLifecycleSystemMessage(group.id, `${joinedName} 加入了家庭`, {
+      kind: 'member_joined',
+      name: joinedName,
+    });
     return member;
   }
 

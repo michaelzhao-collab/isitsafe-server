@@ -297,27 +297,43 @@
         cells.appendChild(b);
       });
 
+      // 写剪贴板：必须在用户点击的同一个事件里调用（iOS Safari 不允许页面加载时自动写）
+      function copyText(text, cb) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () { cb(true); }, function () { cb(false); });
+          return;
+        }
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta);
+        cb(ok);
+      }
+
       if (!code) {
         btn.disabled = true;
         document.getElementById('noCodeHint').style.display = 'block';
       } else {
         btn.addEventListener('click', function () {
-          function done(ok) {
+          copyText(code, function (ok) {
             btn.textContent = ok ? t.copied : t.copyFail;
             btn.classList.add('done');
             setTimeout(function () { btn.textContent = t.copy; btn.classList.remove('done'); }, 2600);
-          }
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(code).then(function () { done(true); }, function () { done(false); });
-          } else {
-            var ta = document.createElement('textarea');
-            ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
-            document.body.appendChild(ta); ta.select();
-            var ok = false;
-            try { ok = document.execCommand('copy'); } catch (e) {}
-            document.body.removeChild(ta);
-            done(ok);
-          }
+          });
+        });
+
+        // 2026-10-06 剪贴板延迟绑定：点「下载」时顺带复制完整邀请链接。
+        // App 首次启动用 detectPatterns 静默识别「剪贴板里是链接」，确认是我们的邀请后弹框询问是否加入。
+        // 复制完再跳 App Store；writeText 是异步的，等它完成（最多 800ms）再跳，避免页面卸载打断写入。
+        var cta = document.getElementById('ctaStore');
+        cta.addEventListener('click', function (e) {
+          e.preventDefault();
+          var href = cta.href, gone = false;
+          function go() { if (!gone) { gone = true; location.href = href; } }
+          copyText('https://www.starlensai.com/i?code=' + code, go);
+          setTimeout(go, 800);
         });
       }
     })();

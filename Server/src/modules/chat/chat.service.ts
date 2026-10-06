@@ -155,7 +155,7 @@ export class ChatService {
   async postSystemMessage(
     groupId: string,
     type: 'card' | 'system',
-    input: { content?: string | null; payload?: Record<string, unknown>; eventId?: string },
+    input: { content?: string | null; payload?: Record<string, unknown>; eventId?: string; noPush?: boolean },
   ): Promise<MessageView> {
     const created = await this.prisma.$transaction(async (tx) => {
       const grp = await tx.familyGroup.update({
@@ -175,14 +175,14 @@ export class ChatService {
         },
       });
     });
-    this.emitNew(groupId, created, null).catch((e) =>
+    this.emitNew(groupId, created, null, input.noPush).catch((e) =>
       this.logger.warn(`emitNew(system) failed: ${String(e)}`),
     );
     return this.toView(created);
   }
 
   /** 扇出"有新消息"信号（不含消息体）；对离线成员发 APNs 离线推送 */
-  private async emitNew(groupId: string, msg: FamilyMessage, senderId: string | null) {
+  private async emitNew(groupId: string, msg: FamilyMessage, senderId: string | null, noPush = false) {
     const memberIds = await this.memberUserIds(groupId);
     const recipients = memberIds.filter((id) => id !== senderId);
     this.realtime.signalUsers(recipients, {
@@ -193,6 +193,8 @@ export class ChatService {
 
     // 卡片类由 family-event 侧决定推送（求助/案例卡在那边推，风险播报走旧 broadcast），聊天消息在此发离线推送
     if (msg.type === 'card') return;
+    // 2026-10-06：建群引导消息的唯一接收人是建群者本人，刚建完群 WS 常未连上会被判离线 → 给自己推一条横幅
+    if (noPush) return;
     const offline = recipients.filter((id) => !this.realtime.isOnline(id));
     if (offline.length === 0) return;
 
