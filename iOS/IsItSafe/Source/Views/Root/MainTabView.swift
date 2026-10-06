@@ -10,6 +10,8 @@ public struct MainTabView: View {
     @State private var selectedTab = 0
     @StateObject private var homeVm = HomeViewModel()
     @StateObject private var historyVm = HistoryViewModel()
+    /// 家庭页 VM 放在这里：底导 switch 切页会销毁页面，VM 放页面里则每次切回都从 .loading 重新加载
+    @StateObject private var familyVm = FamilyViewModel()
     @EnvironmentObject private var appState: AppStateViewModel
     @EnvironmentObject private var router: AppRouter
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
@@ -104,7 +106,7 @@ public struct MainTabView: View {
             case 1:
                 IntelCaseRootView().dynamicTypeSize(.xLarge)
             case 2:
-                FamilyView().dynamicTypeSize(.xLarge)
+                FamilyView(vm: familyVm).dynamicTypeSize(.xLarge)
             case 3:
                 ProfileView().dynamicTypeSize(.xLarge)
             default:
@@ -117,7 +119,7 @@ public struct MainTabView: View {
             case 1:
                 IntelCaseRootView()
             case 2:
-                FamilyView()
+                FamilyView(vm: familyVm)
             case 3:
                 ProfileView()
             default:

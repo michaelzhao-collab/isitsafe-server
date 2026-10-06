@@ -14,7 +14,9 @@
 import SwiftUI
 
 public struct FamilyView: View {
-    @StateObject private var vm = FamilyViewModel()
+    /// 2026-10-06：由 MainTabView 持有并传入（与 homeVm 同理）。原来是本页 @StateObject，
+    /// 而底导用 switch 切页会销毁页面 → 每次切回家庭 Tab 都新建 VM（初始 .loading）→ 转圈 + 心跳、拉群两次串行请求。
+    @ObservedObject var vm: FamilyViewModel
     @EnvironmentObject private var router: AppRouter
     @EnvironmentObject private var appState: AppStateViewModel
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
@@ -23,7 +25,9 @@ public struct FamilyView: View {
     @State private var showCreateSheet = false
     @State private var showRedeemSheet = false
 
-    public init() {}
+    public init(vm: FamilyViewModel) {
+        self.vm = vm
+    }
 
     public var body: some View {
         NavigationStack {
