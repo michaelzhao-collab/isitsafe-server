@@ -62,8 +62,8 @@ public struct RiskAnalysisResult: Codable {
 
     /// 是否为非检测意图（chat / knowledge / help）——iOS 渲染时走文本气泡而非风险卡
     public var isNonDetection: Bool {
-        guard let i = intent else { return false }
-        return i != "scam_detection"
+        if let i = intent, i != "scam_detection" { return true }
+        return isConversational ?? false
     }
 
     /// 显式 init（新字段默认为 nil，老调用站无需改动）

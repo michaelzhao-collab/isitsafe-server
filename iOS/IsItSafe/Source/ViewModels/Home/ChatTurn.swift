@@ -15,13 +15,17 @@ public struct ChatTurn: Identifiable {
     /// 历史记录中的图片 CDN 地址，无 userImage 时用此加载展示
     public var imageUrl: String?
     public var status: TurnStatus
+    /// 冷启动写死的 3 组示例问答（LocalDefaultQAContent）。2026-10-07：这些不是真实对话，
+    /// 不能作为 context 发给服务端——否则新用户首问就被当成「追问」，首轮翻卡与缓存全部失效
+    public var isLocalDefault: Bool
 
-    public init(id: UUID = UUID(), userText: String? = nil, userImage: UIImage? = nil, imageUrl: String? = nil, status: TurnStatus) {
+    public init(id: UUID = UUID(), userText: String? = nil, userImage: UIImage? = nil, imageUrl: String? = nil, status: TurnStatus, isLocalDefault: Bool = false) {
         self.id = id
         self.userText = userText
         self.userImage = userImage
         self.imageUrl = imageUrl
         self.status = status
+        self.isLocalDefault = isLocalDefault
     }
 
     /// 从服务端 row id（cuid/字符串）生成稳定 UUID，避免历史回放时 ForEach 因 id 变化整行重绘

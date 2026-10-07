@@ -52,11 +52,12 @@ public struct AppEnvironment {
         enableLogging: true
     )
 
-    /// 生产环境（正式域名）。与后端调用豆包的超时保持一致（300 秒），避免 AI 长推理时客户端先超时
+    /// 生产环境（正式域名）。2026-10-07：后端豆包调用已改为 45 秒超时（关闭思考后 p90 约 5.4 秒），
+    /// 客户端 75 秒足够覆盖「服务端超时 + 网络往返」；原 300 秒会让「正在分析」在网络半挂时转 5 分钟
     public static let productionCN = AppEnvironment(
         type: .productionCN,
         baseURL: "https://api.starlensai.com",
-        timeout: 300,
+        timeout: 75,
         enableLogging: false
     )
 
@@ -64,7 +65,7 @@ public struct AppEnvironment {
     public static let productionGlobal = AppEnvironment(
         type: .productionGlobal,
         baseURL: "https://api.starlensai.com",
-        timeout: 300,
+        timeout: 75,
         enableLogging: false
     )
 

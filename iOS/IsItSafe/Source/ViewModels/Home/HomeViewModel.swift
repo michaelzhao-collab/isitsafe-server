@@ -171,16 +171,17 @@ public final class HomeViewModel: ObservableObject {
     }
 
     /// 取本会话内所有历史轮次作为上下文。
-    /// 最近 10 轮（user+assistant 一对算一轮）、总字符 ≤ 4000，超过则按"最近优先"裁剪。
+    /// 最近 10 轮（user+assistant 一对算一轮）、总字符 ≤ 8000，超过则按"最近优先"裁剪。
     /// 同时把 chat / knowledge / help / scam 所有意图的结果都带进去，让追问能延续。
+    /// 2026-10-07：冷启动的 3 组本地示例问答不算历史（否则新用户首问被服务端当成追问）；上限与服务端 sanitizeContext 对齐（20 条 / 8000 字）
     private func buildContext() -> [[String: String]]? {
         guard turns.count > 1 else { return nil }
-        // 排除当前最后一轮（正在分析），从倒数第二轮向前取
-        let history = turns.dropLast()
-        // 上限：50 轮 user+assistant 对 = 最多 100 条 message
-        // 总字符 24000（DeepSeek 128K 上下文充足），单条裁到 800 字防单轮膨胀
-        let maxTurns = 50
-        let maxChars = 24000
+        // 排除当前最后一轮（正在分析），从倒数第二轮向前取；本地示例问答不参与
+        let history = turns.dropLast().filter { !$0.isLocalDefault }
+        guard !history.isEmpty else { return nil }
+        // 上限：10 轮 user+assistant 对 = 最多 20 条 message；总字符 8000，单条裁到 800 字防单轮膨胀
+        let maxTurns = 10
+        let maxChars = 8000
         var collected: [[String: String]] = []
         var charBudget = maxChars
         for t in history.reversed() {
@@ -233,6 +234,10 @@ public final class HomeViewModel: ObservableObject {
     /// 由服务端分类、风险库、RAG、豆包后返回完整 summary/reasons/advice，避免只走 query 导致无原因建议、无豆包日志。
     private func runAnalysisForLastTurn(content: String, isScreenshot: Bool) {
         let index = turns.count - 1
+        // 2026-10-07：按 turn.id 回写，不按下标。用户在等待期间「新建对话」再发一条时，旧响应原来会覆盖新会话的同下标轮次、
+        // 还把旧 conversationId 写回；现在找不到原 turn 就整体丢弃
+        guard index >= 0 else { return }
+        let turnId = turns[index].id
         let start = Date()
         Task {
             var imageUrl: String?
@@ -253,12 +258,15 @@ public final class HomeViewModel: ObservableObject {
                 if isScreenshot {
                     viewData = try await aiService.analyzeScreenshot(content: content, language: uiLang, imageUrl: imageUrl, conversationId: cid, context: ctx)
                 } else {
-                    viewData = try await aiService.analyzeText(content: content, language: uiLang, country: nil, conversationId: cid, context: ctx)
+                    // 2026-10-07：传地区码让服务端给对的反诈热线（原来恒为 nil，海外用户拿到 96110 / 英文用户拿到 911）
+                    let country = Self.currentCountryCode()
+                    viewData = try await aiService.analyzeText(content: content, language: uiLang, country: country, conversationId: cid, context: ctx)
                 }
                 result = .analysis(viewData)
             } catch {
                 if case APIError.tooManyRequests = error {
-                    // 服务端兜底：本地计数未拦截到时（如多设备/清数据），仍弹框
+                    // 服务端兜底：本地计数未拦截到时（如多设备/清数据），仍弹框。
+                    // 2026-10-07：ResponseValidator 只把「今日额度用完」(code 10006) 映射成 tooManyRequests，每分钟限流走普通错误文案
                     await MainActor.run { self.showDailyQuotaAlert = true }
                     result = .failure("")
                 } else {
@@ -270,7 +278,9 @@ public final class HomeViewModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: UInt64((Self.minAnalyzingDuration - elapsed) * 1_000_000_000))
             }
             await MainActor.run {
-                if index < self.turns.count {
+                // 原 turn 已不在（用户新建了对话 / 切了历史）→ 丢弃这次响应，不污染当前会话
+                guard let index = self.turns.firstIndex(where: { $0.id == turnId }) else { return }
+                do {
                     let t = self.turns[index]
                     if let url = imageUrl, !url.isEmpty, let img = t.userImage {
                         ChatImageCache.shared.setImage(img, forKey: url)
@@ -289,8 +299,11 @@ public final class HomeViewModel: ObservableObject {
                     // V5：出 AI 结果后申请推送权限（仅 notDetermined 时弹框，已授权/已拒绝不打扰）
                     PushService.shared.promptIfNeeded()
                     // 非会员：成功后记录次数（失败/网络错误不计）。
-                    // 2026-10-06：与服务端口径一致，闲聊 / 知识 / 求助回答不计次，只有真正的检测结果才扣
-                    if !self.appState.subscriptionActive, !d.isNonDetection, !d.isConversational {
+                    // 与服务端 quotaCounts 口径一致：知识 / 求助 / 闲聊不计；高 / 中风险即使标了闲聊也计；unknown（无法确定）不计
+                    let isDetectionIntent = d.intent == nil || d.intent == "scam_detection"
+                    let isHighOrMedium = d.riskLevel == "high" || d.riskLevel == "medium"
+                    let counts = isDetectionIntent && (isHighOrMedium || (!d.isConversational && d.riskLevel != "unknown"))
+                    if !self.appState.subscriptionActive, counts {
                         AppSettingsStore.shared.incrementFreeQueryCount()
                     }
                     if let cid = d.conversationId, !cid.isEmpty { self.currentConversationId = cid }
@@ -306,6 +319,14 @@ public final class HomeViewModel: ObservableObject {
                 self.historyRefreshTrigger += 1
             }
         }
+    }
+
+    /// 地区码：优先用服务端账号资料里的 country（登录时已带 ISO 码），没有则取系统区域设置
+    private static func currentCountryCode() -> String? {
+        if let c = UserSessionStore.shared.currentUser?.country?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty {
+            return c
+        }
+        return Locale.current.region?.identifier
     }
 
     public func reset() {

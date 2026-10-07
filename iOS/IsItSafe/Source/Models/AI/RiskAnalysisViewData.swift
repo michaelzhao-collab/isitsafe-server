@@ -33,9 +33,11 @@ public struct RiskAnalysisViewData {
     public let freeText: String?
 
     /// 是否走非检测渲染（聊天气泡 / 知识列表 / 应急步骤），而非红黄绿风险卡
+    /// 2026-10-07：与 RiskAnalysisResult.isNonDetection 统一——intent 非检测，或服务端标了 is_conversational，都走气泡。
+    /// 服务端对 scam_detection 路径也可能下发 is_conversational=true（追问 / 闲聊），原来 intent 一旦非空就忽略它，会渲染成一张灰色「未知」卡
     public var isNonDetection: Bool {
-        guard let i = intent else { return isConversational }
-        return i != "scam_detection"
+        if let i = intent, i != "scam_detection" { return true }
+        return isConversational
     }
 
     public init(from result: RiskAnalysisResult) {

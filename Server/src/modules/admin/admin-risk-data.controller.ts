@@ -15,6 +15,8 @@ import { RedisService } from '../../redis/redis.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 import { normalizeContent } from '../../common/utils/normalize';
+import { queryCacheKey } from '../query/query.service';
+import { RISK_DB_VERSION_KEY } from '../../common/ai-flags';
 
 const QUERY_CACHE_PREFIX = 'query:';
 
@@ -34,6 +36,11 @@ export class AdminRiskDataController {
       if (norm && norm !== content) {
         await this.redis.del(`${QUERY_CACHE_PREFIX}${type}:${norm}`);
       }
+      // 2026-10-07 复核：QueryService 的 key 走 normalizeByType（url 带协议、phone 是 E.164），
+      // 上面两个 key 实际都删不中（DEL … NO SUCH KEY）；用同一个函数再删一次
+      await this.redis.del(queryCacheKey(type, content));
+      // AI 结论缓存（cache:ai:*）按风险库版本号失效：版本号进 key，这里 +1 即可让所有旧结论过期
+      await this.redis.getClient().incr(RISK_DB_VERSION_KEY);
     } catch {
       // Redis 不可用时忽略
     }

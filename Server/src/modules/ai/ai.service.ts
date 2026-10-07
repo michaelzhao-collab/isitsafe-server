@@ -26,6 +26,17 @@ import { IntentResponseService } from './intent/intent-response.service';
 import { AiEvaluationService } from '../ai-evaluation/ai-evaluation.service';
 import { AI_V2, AI_DEBUG_LOG, PROMPT_VERSION, DEFAULT_DOUBAO_MODEL } from '../../common/ai-flags';
 import { isOwnFamilyInvite, ownFamilyInviteResult } from './own-invite';
+import { RISK_DB_VERSION_KEY } from '../../common/ai-flags';
+import { normalizeUrl } from '../../common/utils/content-normalize';
+import {
+  extractUrls,
+  extractPhones,
+  stripForeignContacts,
+  filterActions,
+  sanitizeContext,
+  impersonatedRelativeAskingMoney,
+} from './contact-guard';
+import { getRegionHotline } from './hotlines';
 
 const CACHE_PREFIX = 'cache:ai:';
 const INTENT_CACHE_PREFIX = 'cache:intent:';
@@ -170,12 +181,33 @@ export class AiService {
 
   /**
    * 主流程：解析 → DB → RAG → AI → 得分 → 缓存 → 写 queries + ai_logs → 返回
+   *
+   * 2026-10-07：额度结算统一放在这一层（guard 进门已 +1 占位，结果不该计数或抛错时退回），
+   * 内部各条返回路径不再各自扣额度，避免漏算 / 重复。
    */
   async analyze(
     input: AnalyzeInput,
     userId: string | null,
   ): Promise<AnalyzeResult> {
+    let result: AnalyzeResult;
+    try {
+      result = await this.analyzeInner(input, userId);
+    } catch (e) {
+      await this.refundQuota(input.quotaKey);
+      throw e;
+    }
+    await this.settleQuota(input.quotaKey, result);
+    return result;
+  }
+
+  private async analyzeInner(
+    input: AnalyzeInput,
+    userId: string | null,
+  ): Promise<AnalyzeResult> {
     const startedAtMs = Date.now();
+    // 2026-10-07 复核 P2-C/P2-I：context 只有 @IsArray 校验，null 元素会让提示词拼接 500，任意 role 都被渲染成「助手分析结果」，
+    // 100 条 / 24000 字也不截断。这里统一清洗：只留 user/assistant 字符串，最近 20 条、单条 800 字、总 8000 字
+    input.context = sanitizeContext(input.context);
     const conversationId = (input.conversationId && input.conversationId.trim()) || randomUUID();
     console.log('[AI_FLOW] ========== 开始 AI 分析 ========== contentLen=' + (input.content?.length ?? 0) + ' conversationId=' + conversationId + (AI_DEBUG_LOG ? ' content=' + JSON.stringify(input.content?.slice(0, 300)) : ''));
     // 回答语言：按用户提问语言决定（不传则根据内容检测：含中文→中文回答，否则英文回答）
@@ -193,7 +225,6 @@ export class AiService {
       const own = ensureFullResult(ownFamilyInviteResult(language), language);
       console.log('[AI_FLOW] OWN_FAMILY_INVITE 命中自家邀请模板，跳过大模型');
       await this.writeQuery(userId, conversationId, parsed, own, provider, false, input.imageUrl, { intent: 'scam_detection', via: 'own_invite' });
-      await this.consumeQuota(input.quotaKey, own);
       return { ...own, conversation_id: conversationId };
     }
 
@@ -235,12 +266,13 @@ export class AiService {
             nonScamIntent,
             language,
             input.context,
+            country,
           );
           // F7: 非 scam 不写 score / risk_db_hit，避免污染后台统计
-          const intentFinal = ensureFullResult({
+          const intentFinal = this.guardContacts(ensureFullResult({
             ...intentOutput,
             risk_level: intentOutput.risk_level ?? 'unknown',
-          }, language);
+          }, language), parsed.originalContent, language, country);
           console.log('[AI_FLOW] INTENT 早返回 intent=' + intentFinal.intent + ' summary=' + intentFinal.summary?.slice(0, 60));
           if (canCache) {
             await this.redis.set(intentCacheKey, JSON.stringify(intentFinal), TTL_INTENT_NON_SCAM);
@@ -271,14 +303,17 @@ export class AiService {
     }
 
     // 2026-10-06：key 加入提示词版本与模型，提示词 / 模型一改旧结论自动失效（原来后台改风险库、改提示词都对已缓存结果无效）
+    // 2026-10-07 复核 P1-16：URL 不再整串小写（bit.ly/AbC 与 bit.ly/abc 是两个短链），改用 normalizeUrl（只小写主机名）；
+    // 并加入风险库版本号（后台改库 +1），否则后台把某链接标 high 后旧的 low 结论还会再活 7–14 天
     const cacheKey = CACHE_PREFIX + hashForCache({
       input_type: parsed.inputType,
-      normalized_content: parsed.normalizedContent,
+      normalized_content: parsed.inputType === 'url' ? normalizeUrl(parsed.originalContent) : parsed.normalizedContent,
       language,
       country,
       provider,
       pv: PROMPT_VERSION,
       model: process.env.DOUBAO_MODEL ?? DEFAULT_DOUBAO_MODEL,
+      dbv: await this.riskDbVersion(),
     });
 
     const hasContext = Array.isArray(input.context) && input.context.length > 0;
@@ -289,7 +324,6 @@ export class AiService {
           const obj = ensureFullResult(JSON.parse(cached) as AnalyzeResult, language);
           console.log('[AI_FLOW] CACHE_HIT 未调豆包，直接使用缓存 risk_level=' + (obj?.risk_level ?? '?'));
           await this.writeQuery(userId, conversationId, parsed, obj, provider, true, input.imageUrl, { intent: 'scam_detection', via: 'cache' });
-          await this.consumeQuota(input.quotaKey, obj);
           return { ...obj, conversation_id: conversationId };
         } catch {}
       }
@@ -319,7 +353,7 @@ export class AiService {
       try {
         urlAiResult = await this.provider.analyze(urlUserPrompt, urlSystemPrompt, provider);
         if (AI_DEBUG_LOG) console.log('[AI_FLOW] URL 豆包返回原始(未解析): ' + (urlAiResult?.raw ?? '(null)'));
-        urlParsedAi = this.enforceCardForRisk(parseAndValidateAiOutput(urlAiResult.raw, language), hasContext);
+        urlParsedAi = this.enforceCardForRisk(parseAndValidateAiOutput(urlAiResult.raw, language), hasContext, parsed.originalContent);
         if (AI_DEBUG_LOG) console.log('[AI_FLOW] URL 解析后的完整结果: ' + JSON.stringify(urlParsedAi));
       } catch (e) {
         console.log('[AI_FLOW] URL_AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
@@ -345,14 +379,14 @@ export class AiService {
         dbHit,
         [],
       );
-      const urlFinal = ensureFullResult({
+      const urlFinal = this.guardContacts(ensureFullResult({
         ...urlParsedAi,
         risk_level,
         score,
         risk_db_hit: recordCount > 0,
         risk_db_hit_level: recordCount > 0 ? urlResult.risk_level : undefined,
         risk_db_hit_record_count: recordCount,
-      }, language);
+      }, language), parsed.originalContent, language, country);
       console.log('[AI_FLOW] 6.RESULT URL 最终返回 risk_db_hit=' + urlFinal.risk_db_hit);
       // 2026-09-27 复核：带 context 的结果不写缓存（读侧 hasContext 时也不读）。
       // 否则用伪造上下文骗出的 low 会以不含 context 的 key 写入，污染所有后续无 context 查询。
@@ -362,7 +396,6 @@ export class AiService {
         await this.redis.set(cacheKey, JSON.stringify(urlFinal), ttl);
       }
       await this.writeQuery(userId, conversationId, parsed, urlFinal, provider, false, input.imageUrl, { intent: 'scam_detection', via: 'url_flow' });
-      await this.consumeQuota(input.quotaKey, urlFinal);
       // V4-P0：URL 路径采样
       this.sampleAsync({
         conversationId,
@@ -385,10 +418,17 @@ export class AiService {
 
     console.log('[AI_FLOW] 2.风险库匹配前 inputType=' + parsed.inputType + ' contentLen=' + parsed.originalContent.length);
     const dbCheck = await this.riskService.checkRisk(parsed.inputType, parsed.originalContent);
-    const dbHit = dbCheck ? { riskLevel: dbCheck.risk_level } : null;
-    console.log('[AI_FLOW] 2.风险库匹配后 结果: ' + (dbCheck ? JSON.stringify(dbCheck) : 'null'));
-    const keywords = this.rag.keywordExtract(parsed.originalContent);
-    const ragCases = await this.rag.searchKnowledgeCases(keywords, 5, language);
+    // 2026-10-07 复核 P1-12：原来文本 / 截图 / company 只按「整段原文完全相等」查库，截图路径的 type 在库里根本不存在，
+    // 风险库对这三条路径命中率为 0。现在把原文里的全部链接与号码抽出来逐个查（最多各 5 个），取最高等级
+    const embedded = AI_V2 ? await this.lookupEmbeddedContacts(parsed.originalContent) : null;
+    const rankOf = (l?: string | null) => ({ high: 3, medium: 2, low: 1 } as Record<string, number>)[l ?? ''] ?? 0;
+    const dbLevel: string | null = rankOf(embedded?.level) > rankOf(dbCheck?.risk_level) ? embedded!.level : (dbCheck?.risk_level ?? null);
+    const dbHit = dbLevel ? { riskLevel: dbLevel } : null;
+    console.log('[AI_FLOW] 2.风险库匹配后 结果: ' + (dbCheck ? JSON.stringify(dbCheck) : 'null') + ' embedded=' + (embedded ? JSON.stringify({ level: embedded.level, hits: embedded.hits }) : 'skip'));
+    // 2026-10-07 复核 P1-14：RAG 取的是「无排序前 15 行」且含未审核草稿，评分器 V2 已忽略它，但 5 条案例仍要多花约 1k token 还可能带偏模型；
+    // 检索修好前 V2 不再注入
+    const keywords = AI_V2 ? [] : this.rag.keywordExtract(parsed.originalContent);
+    const ragCases = AI_V2 ? [] : await this.rag.searchKnowledgeCases(keywords, 5, language);
     console.log('[AI_FLOW] 3.RAG casesCount=' + ragCases.length + (AI_DEBUG_LOG ? ' keywords=' + JSON.stringify(keywords) : ''));
 
     const riskTypes = await this.getRiskTypeOptions(language);
@@ -398,7 +438,8 @@ export class AiService {
       parsed.inputType,
       language,
       ragCases,
-      dbCheck?.risk_level ?? null,
+      // 风险库 low 只表示「库里有一条低等级记录」，不是危险信号，不告诉模型（P1-15）
+      dbLevel === 'high' || dbLevel === 'medium' ? dbLevel : null,
       country,
       input.context,
     );
@@ -409,7 +450,7 @@ export class AiService {
     try {
       aiResult = await this.provider.analyze(userPrompt, systemPrompt, provider);
       if (AI_DEBUG_LOG) console.log('[AI_FLOW] 豆包返回原始(未解析): ' + (aiResult?.raw ?? '(null)'));
-      parsedAi = this.enforceCardForRisk(parseAndValidateAiOutput(aiResult.raw, language), hasContext);
+      parsedAi = this.enforceCardForRisk(parseAndValidateAiOutput(aiResult.raw, language), hasContext, parsed.originalContent);
       if (AI_DEBUG_LOG) console.log('[AI_FLOW] 解析后的完整结果: ' + JSON.stringify(parsedAi));
     } catch (e) {
       console.log('[AI_FLOW] 4.AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
@@ -427,7 +468,7 @@ export class AiService {
       );
     }
 
-    const { score, risk_level } = this.scoreEngine.compute(
+    let { score, risk_level } = this.scoreEngine.compute(
       parsedAi.risk_level,
       parsedAi.confidence,
       dbHit,
@@ -435,12 +476,27 @@ export class AiService {
     );
     console.log('[AI_FLOW] 5.SCORE_ENGINE AI原始=' + parsedAi.risk_level + ' confidence=' + parsedAi.confidence + ' => score=' + score + ' risk_level=' + risk_level);
 
-    const final = ensureFullResult({
+    // 2026-10-07：「妈，我手机掉水里了，这是我新号，先转 3000」lite 稳定只给 medium（60 条评测里唯一偏松的一条），
+    // 「冒充熟人 + 换号/出事借口 + 要钱」三者同时出现用确定性规则兜底到 high；第一人称已核实的不命中
+    const extraReasons: string[] = [];
+    if (AI_V2 && !isAiParseFallbackOutput(parsedAi) && risk_level !== 'high' && impersonatedRelativeAskingMoney(parsed.originalContent)) {
+      risk_level = 'high';
+      score = Math.max(score, 80);
+      extraReasons.push(language === 'zh'
+        ? '以亲友口吻称换号或遇急事并要求转账，是「冒充熟人借钱」的典型话术'
+        : 'Claims to be a relative with a new number or an emergency and asks for money — the classic "impersonated relative" scam pattern');
+      console.log('[AI_FLOW] 5.1 RULE_FLOOR impersonated_relative → high');
+    }
+
+    const final = this.guardContacts(ensureFullResult({
       ...parsedAi,
+      ...(extraReasons.length ? { reasons: [...extraReasons, ...(parsedAi.reasons ?? [])].slice(0, 5), is_conversational: false } : {}),
       risk_level,
       score,
-      risk_db_hit: false,
-    }, language);
+      risk_db_hit: !!dbHit,
+      risk_db_hit_level: dbHit ? (dbHit.riskLevel as RiskLevel) : undefined,
+      risk_db_hit_record_count: (embedded?.hits ?? 0) + (dbCheck ? 1 : 0),
+    }, language), parsed.originalContent, language, country);
     console.log('[AI_FLOW] 6.RESULT 最终返回 risk_level=' + final.risk_level + ' reasonsLen=' + (final.reasons?.length ?? 0) + ' adviceLen=' + (final.advice?.length ?? 0));
 
     // 2026-09-27 复核：带 context 的结果不写缓存（与读侧 hasContext 对齐），防注入结论污染缓存
@@ -452,7 +508,6 @@ export class AiService {
 
     await this.writeQuery(userId, conversationId, parsed, final, provider, false, input.imageUrl,
       { intent: final.is_conversational ? 'conversational' : 'scam_detection', via: routeVia });
-    await this.consumeQuota(input.quotaKey, final);
     // V4-P0：scam_detection 主流程采样
     this.sampleAsync({
       conversationId,
@@ -635,26 +690,85 @@ export class AiService {
    * 仅对首轮内容生效：追问（带 context）时模型常回显上文的 high，那是在回答「怎么办」，不能翻成卡、也不扣额度。
    * （曾加过「summary 写了典型诈骗就提到 high」的正则，复核实测对否定句误升、对断言漏判，已去掉。）
    */
-  private enforceCardForRisk(o: AiOutputSchema, hasContext: boolean): AiOutputSchema {
-    if (!hasContext && o.is_conversational && (o.risk_level === 'high' || o.risk_level === 'medium')) {
+  private static readonly PASTED_LIKE_RE = /【|尊敬的|您的|您好[，,]?\s*(我是|这里是|我们是)|请(点击|联系|拨打|登录|添加|扫)|click here|your (account|order|package|parcel|card|payment)|suspended|on hold/i;
+  private static readonly FOLLOWUP_QUESTION_RE = /(怎么办|怎么处理|还有别的办法|对吗|可以吗|行吗|吗[？?]?\s*$|呢[？?]?\s*$|^(what|how|should|can|could|do|is|are|did)\b|\?\s*$)/i;
+
+  private enforceCardForRisk(o: AiOutputSchema, hasContext: boolean, content: string): AiOutputSchema {
+    if (!o.is_conversational || (o.risk_level !== 'high' && o.risk_level !== 'medium')) return o;
+    // 2026-10-07 复核 P1-A：iOS 从第 2 轮起每条都带 context，而「诈骗原文在上文、当前句是追问」时 lite 稳定给 high + is_conversational=true，
+    // 只按首轮翻卡等于只保护会话第一条。改为：首轮一律翻卡；追问时只有当前这条本身像一段粘贴来的内容才翻卡——
+    // 含链接 / 域名，或（≥40 字且带通知口吻且不是在问「怎么办」）。「我已经打了银行电话…还有别的办法吗」这类追问不翻、不扣额度（复核 P1-3）
+    const c = content.trim();
+    const hasLink = /https?:\/\/|www\.|[a-z0-9-]+\.(com|cn|net|org|top|xyz|cc|vip|club|site|online|shop|link|ly|me|co|io)(\/|\b)/i.test(c);
+    const pastedLike = c.length >= 40 && AiService.PASTED_LIKE_RE.test(c) && !AiService.FOLLOWUP_QUESTION_RE.test(c);
+    if (!hasContext || hasLink || pastedLike) {
       return { ...o, is_conversational: false };
     }
     return o;
   }
 
-  /** V2：免费额度在「成功返回一条检测结果」后才扣；闲聊 / 知识问答、调用失败、解析失败都不扣（V1 在 guard 里进门就扣） */
-  private async consumeQuota(quotaKey: string | null | undefined, result: AnalyzeResult): Promise<void> {
+  /** 该结果是否占用一次免费额度：检测结果（含高/中风险的追问回答）算；闲聊 / 知识 / 求助 / 失败 / 无法识别不算 */
+  private quotaCounts(result: AnalyzeResult): boolean {
+    if (result.intent && result.intent !== 'scam_detection') return false;
+    if (isAiParseFallbackOutput(result)) return false;
+    if (result.risk_level === 'high' || result.risk_level === 'medium') return true; // 2026-10-07 复核 P1-A：标了闲聊也算
+    if (result.is_conversational) return false;
+    return result.risk_level !== 'unknown';
+  }
+
+  /** guard 进门已 +1；结果不该计数时退回 */
+  private async settleQuota(quotaKey: string | null | undefined, result: AnalyzeResult): Promise<void> {
     if (!AI_V2 || !quotaKey) return;
-    if (result.intent && result.intent !== 'scam_detection') return;
-    if (result.is_conversational) return; // 主提示词判成闲聊 / 科普回答的也不扣（复核 M2）
-    if (isAiParseFallbackOutput(result)) return;
+    if (this.quotaCounts(result)) return;
+    await this.refundQuota(quotaKey);
+  }
+
+  private async refundQuota(quotaKey: string | null | undefined): Promise<void> {
+    if (!AI_V2 || !quotaKey) return;
     try {
       const c = this.redis.getClient();
-      const n = await c.incr(quotaKey);
-      if (n === 1) await c.expire(quotaKey, 86400 * 2);
+      const n = await c.decr(quotaKey);
+      if (n < 0) await c.set(quotaKey, '0', 'EX', 86400 * 2);
     } catch {
-      // Redis 不可用时放行，不影响结果返回
+      // Redis 不可用时忽略
     }
+  }
+
+  private async riskDbVersion(): Promise<string> {
+    try {
+      return (await this.redis.get(RISK_DB_VERSION_KEY)) ?? '0';
+    } catch {
+      return '0';
+    }
+  }
+
+  /** 原文里的全部链接 / 号码逐个查风险库（phone / url 两张子表），返回最高等级与命中条数 */
+  private async lookupEmbeddedContacts(content: string): Promise<{ level: string | null; hits: number }> {
+    const rank: Record<string, number> = { high: 3, medium: 2, low: 1 };
+    let best: string | null = null;
+    let hits = 0;
+    const consider = (r: { risk_level: string; records?: unknown[] } | null | undefined) => {
+      const n = r?.records?.length ?? 0;
+      if (n === 0) return;
+      hits += n;
+      if ((rank[r!.risk_level] ?? 0) > (rank[best ?? ''] ?? 0)) best = r!.risk_level;
+    };
+    try {
+      for (const u of extractUrls(content, 5)) consider(await this.queryService.queryUrl(u));
+      for (const p of extractPhones(content, 5)) consider(await this.queryService.queryPhone(p));
+    } catch (e) {
+      console.log('[AI_FLOW] EMBEDDED_LOOKUP_ERROR ' + (e instanceof Error ? e.message : String(e)));
+    }
+    return { level: best, hits };
+  }
+
+  /** 服务端硬兜底：抹掉模型编造的号码 / 链接，按钮只留白名单（P0-8） */
+  private guardContacts<T extends AnalyzeResult>(result: T, inputText: string, language: 'zh' | 'en', country: string): T {
+    const hotline = getRegionHotline(country, language);
+    const { result: stripped, stats } = stripForeignContacts(result, inputText, language, hotline.allowedDigits);
+    if (stats.phones || stats.urls) console.log('[AI_FLOW] CONTACT_STRIPPED phones=' + stats.phones + ' urls=' + stats.urls);
+    const actions = filterActions(stripped.actions, inputText, hotline.allowedDigits);
+    return { ...stripped, actions: stripped.actions ? actions : stripped.actions };
   }
 
   async analyzeScreenshot(
@@ -668,7 +782,8 @@ export class AiService {
   ): Promise<AnalyzeResult> {
     const looksLikeBase64 =
       imageBase64OrText.startsWith('data:image') ||
-      /^[A-Za-z0-9+/=]{100,}$/.test(imageBase64OrText.trim());
+      // 2026-10-07：100 位阈值会把 OCR 出的长串无空格字母数字当成 base64 → 固定「无法识别」；一张图的 base64 至少几 KB
+      /^[A-Za-z0-9+/=]{2000,}$/.test(imageBase64OrText.trim());
     if (!looksLikeBase64 && imageBase64OrText.trim().length > 0) {
       return this.analyze(
         { content: imageBase64OrText.trim(), language, isScreenshot: true, imageUrl: imageUrl, conversationId, context, quotaKey },
@@ -678,6 +793,7 @@ export class AiService {
     const text = await this.parser.ocrFromImage(imageBase64OrText);
     if (!text?.trim()) {
       const isZh = (language ?? 'zh') !== 'en';
+      await this.refundQuota(quotaKey); // 无法识别不占额度
       return {
         risk_level: 'unknown',
         confidence: 0,

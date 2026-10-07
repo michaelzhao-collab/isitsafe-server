@@ -4,8 +4,45 @@ import { RedisService } from '../../redis/redis.service';
 import { FamilyService } from '../family/family.service';
 import { FamilyEventService } from '../chat/family-event.service';
 import { normalizeByType } from '../../common/utils/content-normalize';
+import { hostOf, extractUrls } from '../ai/contact-guard';
+
+/** URL 的路径部分（小写、去末尾斜杠；无路径返回 '/'） */
+function pathOf(url: string): string {
+  const raw = (url ?? '').trim();
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`);
+    const p = (u.pathname || '/').toLowerCase();
+    return p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p;
+  } catch {
+    return '/';
+  }
+}
 
 const CACHE_PREFIX = 'query:';
+
+/** 两级公共后缀（没有 psl 依赖，只列常见的；其余按「最后两段」算可注册域名） */
+const TWO_LEVEL_PUBLIC_SUFFIXES = new Set([
+  'com.cn', 'net.cn', 'org.cn', 'gov.cn', 'edu.cn', 'ac.cn', 'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'me.uk',
+  'com.au', 'net.au', 'org.au', 'gov.au', 'com.hk', 'org.hk', 'gov.hk', 'com.tw', 'org.tw', 'gov.tw', 'com.sg', 'gov.sg',
+  'co.jp', 'ne.jp', 'or.jp', 'co.kr', 'com.br', 'com.my', 'co.nz', 'com.tr', 'co.in', 'co.za', 'com.mx', 'com.ar',
+]);
+
+/** 可注册域名：m.evil.cn → evil.cn；a.b.icbc.com.cn → icbc.com.cn */
+export function registrableDomain(host: string): string {
+  const labels = (host || '').toLowerCase().split('.').filter(Boolean);
+  if (labels.length <= 2) return labels.join('.');
+  const lastTwo = labels.slice(-2).join('.');
+  return TWO_LEVEL_PUBLIC_SUFFIXES.has(lastTwo) ? labels.slice(-3).join('.') : lastTwo;
+}
+
+/** 供 admin 后台删缓存用：与 cacheKey() 口径一致 */
+export function queryCacheKey(type: string, content: string): string {
+  const key =
+    type === 'phone' || type === 'url'
+      ? normalizeByType(type as 'phone' | 'url', content) || content
+      : content;
+  return `${CACHE_PREFIX}${type}:${key}`;
+}
 const CACHE_TTL = 300; // 5 分钟（admin 更新风险库后最多 5 分钟生效）
 
 /** 命中不了任何风险记录时的统一返回体 */
@@ -84,11 +121,7 @@ export class QueryService {
    * 与下面 matchCandidates 的并集匹配口径保持一致（结果本来就相同）。
    */
   private cacheKey(type: string, content: string): string {
-    const key =
-      type === 'phone' || type === 'url'
-        ? normalizeByType(type as 'phone' | 'url', content) || content
-        : content;
-    return `${CACHE_PREFIX}${type}:${key}`;
+    return queryCacheKey(type, content);
   }
 
   async queryPhone(phone: string, userId?: string, imCapable = false) {
@@ -141,17 +174,51 @@ export class QueryService {
     verboseLog = false,
   ) {
     const candidates = matchCandidates(type, content);
-    const items = await this.prisma.riskData.findMany({
-      where: {
-        type,
-        OR: candidates.map((c) => ({ content: { contains: c, mode: 'insensitive' as const } })),
-      },
-      take: 20,
+    // 2026-10-07 复核 P1-13：URL 原来用「库行 contains 查询串」，方向反了——
+    // 查 apple.com 会命中库里的 apple.com-verify.cn（官网被判 high），而库里存 evil.cn 查 m.evil.cn 却不命中。
+    // 现在：按可注册域名粗取（contains 仅做缩小范围），再在内存里按「主机名相等或为其子域」精确过滤。
+    const urlHost = type === 'url' ? hostOf(content) : '';
+    const urlRegistrable = urlHost ? registrableDomain(urlHost) : '';
+    // 粗取：可注册域名 + 原有候选（原串 / 归一化串 / 主机名）。IDN 行（诈骗.中国）存的是原文，punycode 对不上，所以原串也要在候选里
+    const coarse = Array.from(new Set([...(urlRegistrable ? [urlRegistrable] : []), ...candidates])).filter((c) => c.length >= 2);
+    const whereOr = coarse.map((c) => ({ content: { contains: c, mode: 'insensitive' as const } }));
+    let items = await this.prisma.riskData.findMany({
+      where: { type, OR: whereOr },
+      take: 50,
     });
+    if (type === 'url' && urlHost) {
+      const qPath = pathOf(content);
+      items = items.filter((row) => {
+        const rowContent = String(row.content ?? '').trim();
+        // 行内容可能带备注（「evil8.cn 这是个钓鱼站」）：取其中第一个链接
+        const rowUrl = hostOf(rowContent) ? rowContent : (extractUrls(rowContent, 1)[0] ?? '');
+        const rowHost = hostOf(rowUrl);
+        if (!rowHost) return rowContent.toLowerCase() === content.trim().toLowerCase();
+        const hostMatch = urlHost === rowHost || urlHost.endsWith('.' + rowHost);
+        if (!hostMatch) return false;
+        // 复核 P1-1：行带路径（bit.ly/scam123、docs.google.com/forms/d/x）只覆盖该路径前缀，不能把整个短链 / 网盘主机判成 high
+        const rowPath = pathOf(rowUrl);
+        if (rowPath && rowPath !== '/') return qPath === rowPath || qPath.startsWith(rowPath.endsWith('/') ? rowPath : rowPath + '/') || qPath.startsWith(rowPath);
+        return true;
+      });
+    }
+    if (type === 'phone') {
+      // 复核 P0-1：phone 原来是 contains，「50000」会命中 13950000123。改成去非数字后相等；都 ≥11 位时比较末 11 位（+86 前缀差异）
+      const qd = content.replace(/\D/g, '');
+      items = items.filter((row) => {
+        const rd = String(row.content ?? '').replace(/\D/g, '');
+        if (!rd || !qd) return false;
+        if (rd === qd) return true;
+        return rd.length >= 11 && qd.length >= 11 && rd.slice(-11) === qd.slice(-11);
+      });
+    }
+    // 多条命中取最高等级（原来 findMany 无排序，items[0] 是随机的一条）
+    const rank: Record<string, number> = { high: 3, medium: 2, low: 1 };
+    items.sort((a, b) => (rank[b.riskLevel] ?? 0) - (rank[a.riskLevel] ?? 0));
     const result = {
       risk_level: items.length ? (items[0].riskLevel as 'high' | 'medium' | 'low') : 'low',
       tags: items.flatMap((i) => (Array.isArray(i.tags) ? i.tags : [])),
-      records: items,
+      records: items.slice(0, 20),
     };
     if (verboseLog) {
       console.log(

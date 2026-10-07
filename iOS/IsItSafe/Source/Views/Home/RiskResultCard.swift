@@ -77,8 +77,9 @@ public struct RiskResultCard: View {
                 }
 
                 // V5.1 求助闭环：把这条 AI 结论发到家庭群，让家人把关
+                // 2026-10-07：标题用 summary；verdict 是 'scam'|'safe'|'unknown' 英文枚举，历史数据回放时会把 "safe" 直接当标题发到家庭群
                 ShareToFamilyButton(
-                    title: data.verdict ?? data.summary,
+                    title: data.summary,
                     summary: data.summary,
                     riskLevel: data.riskLevel,
                     conversationId: data.conversationId,

@@ -32,7 +32,13 @@ public final class ResponseValidator {
         case 404:
             throw APIError.notFound
         case 429:
-            throw APIError.tooManyRequests
+            // 2026-10-07：429 有三个来源——今日免费额度用完（服务端 code 10006）、每用户每分钟 20 次、全站每 IP 120 次/分。
+            // 原来一律压成 tooManyRequests，首页把它们全弹成「今日额度已用完 + 开通会员」，会员快速连发也会看到订阅弹窗
+            let msg = parseMessage(from: data)
+            let code = parseBusinessCode(from: data)
+            let isDailyQuota = code == 10006 || (msg?.contains("今日") ?? false) || (msg?.lowercased().contains("daily") ?? false)
+            if isDailyQuota { throw APIError.tooManyRequests }
+            throw APIError.serverError(statusCode: 429, message: msg ?? "请求过于频繁，请稍后再试")
         case 400...499:
             let msg = parseMessage(from: data)
             if let code = parseBusinessCode(from: data) {

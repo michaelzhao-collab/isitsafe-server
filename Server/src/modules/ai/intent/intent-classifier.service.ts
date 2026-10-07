@@ -102,7 +102,9 @@ export class IntentClassifierService {
     return sum % 10 === 0;
   }
 
-  private hasStrongSignal(content: string): boolean {
+  hasStrongSignal(content: string): boolean {
+    // 2026-10-07：整条就是一个 5 位以上的号码（95588 / 400-820-8820 / +1 650…）也是强信号
+    if (/^\+?[\d\s\-()]{5,20}$/.test(content.trim()) && (content.match(/\d/g) ?? []).length >= 5) return true;
     if (IntentClassifierService.RE_URL.test(content)) return true;
     if (IntentClassifierService.RE_WWW.test(content)) return true;
     // 短链

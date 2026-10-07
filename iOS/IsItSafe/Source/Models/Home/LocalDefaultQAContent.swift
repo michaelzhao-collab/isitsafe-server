@@ -98,9 +98,9 @@ public enum LocalDefaultQAContent {
         )
 
         return [
-            ChatTurn(userText: q1, userImage: nil, status: .done(.analysis(r1))),
-            ChatTurn(userText: q2, userImage: nil, status: .done(.analysis(r2))),
-            ChatTurn(userText: q3, userImage: nil, status: .done(.analysis(r3)))
+            ChatTurn(userText: q1, userImage: nil, status: .done(.analysis(r1)), isLocalDefault: true),
+            ChatTurn(userText: q2, userImage: nil, status: .done(.analysis(r2)), isLocalDefault: true),
+            ChatTurn(userText: q3, userImage: nil, status: .done(.analysis(r3)), isLocalDefault: true)
         ]
     }
 

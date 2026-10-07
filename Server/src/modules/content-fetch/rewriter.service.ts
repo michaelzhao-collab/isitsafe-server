@@ -61,8 +61,9 @@ export class RewriterService {
   async rewrite(item: RawItem): Promise<RewrittenItem> {
     const system = this.buildSystemPrompt();
     const user = this.buildUserPrompt(item);
-    // 用 DeepSeek（按需要可走 settings 选择 provider；此处默认 deepseek）
-    const ai = await this.aiProvider.analyze(user, system, 'deepseek');
+    // 2026-10-07 复核：原来写死 'deepseek'，Railway 未配 DEEPSEEK_API_KEY 时每条先失败再走 fallback（没配 fallback 就整条失败）。
+    // 改为跟检测链路用同一个默认 provider（豆包 lite 实测可解析，4.6 秒 / 条）
+    const ai = await this.aiProvider.analyze(user, system);
     const parsed = this.safeJsonParse(ai?.raw ?? '');
     this.validate(parsed);
     return parsed;

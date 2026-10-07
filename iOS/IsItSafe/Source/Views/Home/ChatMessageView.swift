@@ -259,15 +259,36 @@ private struct ActionButtonsStack: View {
         }
     }
 
+    /// 2026-10-07 复核 P0-8：按钮值来自模型输出，原来 call 拨任意号、open_url 打开任意 scheme（tel/sms/itms-services/钓鱼 https）。
+    /// 服务端已做白名单过滤，这里是客户端第二道：call 只允许各地区反诈 / 报警热线，open_url 只允许 https 且域名在白名单。
+    private static let allowedCallNumbers: Set<String> = [
+        "96110", "110", "12321", "12377", "12315",      // 中国大陆
+        "18222", "999",                                  // 香港
+        "165",                                           // 台湾
+        "1799",                                          // 新加坡 ScamShield
+        "997",                                           // 马来西亚 NSRC
+        "18773824357", "911",                            // 美国 FTC
+        "03001232040", "101",                            // 英国 Action Fraud
+        "18884958501",                                   // 加拿大 CAFC
+        "1800595160", "000",                             // 澳大利亚 IDCARE
+    ]
+    private static let allowedUrlHosts: [String] = [
+        "starlensai.com", "starlens.ai", "reportfraud.ftc.gov", "ftc.gov", "actionfraud.police.uk",
+        "scamwatch.gov.au", "scamshield.gov.sg", "antifraud.ca", "adcc.gov.hk", "gov.cn", "12321.cn",
+    ]
+
     private func handle(action: RiskAnalysisResult.ResponseAction) {
         switch action.type {
         case "call":
-            if let v = action.value,
-               let url = URL(string: "tel://\(v.filter { $0.isNumber || $0 == "+" })") {
+            let digits = (action.value ?? "").filter { $0.isNumber }
+            if Self.allowedCallNumbers.contains(digits), let url = URL(string: "tel://\(digits)") {
                 UIApplication.shared.open(url)
             }
         case "open_url":
-            if let v = action.value, let url = URL(string: v) {
+            if let v = action.value, let url = URL(string: v),
+               url.scheme?.lowercased() == "https",
+               let host = url.host?.lowercased(),
+               Self.allowedUrlHosts.contains(where: { host == $0 || host.hasSuffix("." + $0) }) {
                 UIApplication.shared.open(url)
             }
         case "call_family", "family_broadcast":

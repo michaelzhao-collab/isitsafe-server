@@ -52,6 +52,10 @@ export function detectType(content: string, isScreenshot = false): InputType {
   if (/^[\d\s\-+]{7,15}$/.test(original.replace(/\s/g, '')) || /^1[3-9]\d{9}$/.test(original.replace(/\D/g, ''))) {
     return 'phone';
   }
+  // 2026-10-07 复核 P2-24：95588 / 10086 / 12345 这类 5–6 位服务号也是号码（原来落到 text，再被当成「过短无意义」判成闲聊）
+  if (/^\d{5,6}$/.test(original.replace(/[\s\-]/g, ''))) {
+    return 'phone';
+  }
   const lower = original.toLowerCase();
   if (COMPANY_KEYWORDS.some((k) => lower.includes(k))) {
     return 'company';

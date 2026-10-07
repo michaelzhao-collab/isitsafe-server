@@ -12,6 +12,7 @@ import { AiProviderService } from '../providers/ai-provider.service';
 import { AiOutputSchema } from '../ai.types';
 import { getPromptForIntent, Language } from './intent-prompts';
 import type { Intent } from './intent-classifier.service';
+import { getRegionHotline, normalizeCountry, RegionHotline } from '../hotlines';
 
 interface IntentResponse {
   summary?: string;
@@ -37,8 +38,10 @@ export class IntentResponseService {
     intent: Exclude<Intent, 'scam_detection'>,
     language: Language = 'zh',
     context?: Array<{ role: string; content: string }>,
+    country?: string,
   ): Promise<AiOutputSchema> {
-    const prompt = getPromptForIntent(intent, language);
+    const hotline = getRegionHotline(country, language);
+    const prompt = this.localizeHotline(getPromptForIntent(intent, language), hotline, country, language);
     // 拼上下文：前 N 轮 user/assistant 用纯文本形式注入 user prompt 前
     // 避免 "需要" 这种短句续问完全丢上下文
     const contextPrefix = this.buildContextPrefix(context, language);
@@ -50,7 +53,7 @@ export class IntentResponseService {
       parsed = this.safeJsonParse((r?.raw ?? '').trim());
     } catch (err: any) {
       this.logger.warn(`[IntentResponse] ${intent} AI failed: ${err?.message ?? err}`);
-      parsed = this.fallbackResponse(intent, language);
+      parsed = this.fallbackResponse(intent, language, hotline);
     }
 
     return this.toAiOutputSchema(parsed, intent, language);
@@ -166,11 +169,50 @@ export class IntentResponseService {
     };
   }
 
+  /**
+   * 2026-10-07 复核 P2-23：提示词里写死的 96110 / 「Call 911」按地区替换。
+   * 英文：示例按钮 "Call 911" → 地区热线（没有可拨号码的地区删掉按钮示例）；中文：非中国大陆且有热线的地区把 96110 换成当地号码。
+   * 国内 zh 用户（country 为空或 CN）提示词原样不动。
+   */
+  private localizeHotline(
+    prompt: { system: string; user: (input: string) => string },
+    hotline: RegionHotline,
+    country: string | undefined,
+    language: Language,
+  ): { system: string; user: (input: string) => string } {
+    let system = prompt.system;
+    const code = normalizeCountry(country);
+    if (language === 'en') {
+      const line = /\s*,?\s*\{"label": "Call 911", "type": "call", "value": "911"\}/g;
+      system = hotline.dial
+        ? system.replace(line, (m) => m.replace('Call 911', hotline.label).replace('"911"', `"${hotline.dial}"`))
+        : system.replace(line, '');
+      // 复核：整句替换而不是只换数字，否则会出现「0300 123 2040 in US」「Call FTC emergency」这类错文
+      const fraudLine = hotline.dial ? `${hotline.dial} (${hotline.label.replace(/^Call /, '')})` : 'your local police or anti-fraud authority';
+      system = system
+        .replace('Call fraud hotline (911 in US / local equivalent) NOW', `Call ${fraudLine} NOW`)
+        .replace('Also call 911 emergency: report it as fraud, get a case number', 'Also report to the local police: say it is fraud, get a case number')
+        .replace('Call 911 emergency directly — all 911 lines accept fraud reports', `Call ${fraudLine} directly — report it as fraud`)
+        .replace(/\b911\b/g, hotline.dial ?? 'your local police');
+    } else if (code && code !== 'CN') {
+      // 中文但不在中国大陆：96110 / 110 / 公安 / 派出所 都不适用。有当地热线就换号码，没有就换成「当地警方」
+      system = system
+        .replace(/96110/g, hotline.dial ?? '当地警方或反诈机构')
+        .replace(/拨打 110/g, hotline.dial ? `拨打当地报警电话` : '拨打当地报警电话')
+        .replace(/要求公安启动紧急冻结通道（公安有权直接冻结对方账户，比银行权限更大）/g, '请求警方协助冻结对方账户')
+        .replace(/派出所/g, '当地警局')
+        .replace(/用'国家反诈中心'App[^"」]*?，App 内部直连公安/g, '向当地反诈机构在线举报');
+    }
+    return { system, user: prompt.user };
+  }
+
   private fallbackResponse(
     intent: Exclude<Intent, 'scam_detection'>,
     language: Language,
+    hotline: RegionHotline,
   ): IntentResponse {
     const isZh = language === 'zh';
+    const callAction = hotline.dial ? [{ label: hotline.label, type: 'call', value: hotline.dial }] : [];
     switch (intent) {
       case 'general_chat':
         return {
@@ -185,12 +227,12 @@ export class IntentResponseService {
             ? [
                 '诈骗常见手段：冒充客服 / 钓鱼链接 / 投资骗局',
                 '识别要点：不轻信、不点击、不转账',
-                '遇到时拨打 96110 反诈热线',
+                hotline.text,
               ]
             : [
                 'Common scams: fake CS, phishing, fake investment',
                 "Don't trust strangers, don't click links, don't transfer",
-                'Call fraud hotline 911',
+                hotline.text,
               ],
           // knowledge action 暂时不下发：iOS 端跳转无法精准定位到对应案例，体验差
           // 待后续把 knowledge action 带上 caseId 后再恢复
@@ -201,24 +243,18 @@ export class IntentResponseService {
           steps: isZh
             ? [
                 '5 分钟内：给银行打电话止付（卡背面客服电话）',
-                '30 分钟内：拨打 96110 反诈热线',
-                '1 小时内：派出所现场报案',
+                `30 分钟内：${hotline.dial ? `拨打 ${hotline.dial} 反诈 / 报案热线` : '向当地警方或反诈机构报案'}`,
+                '1 小时内：到就近警局 / 派出所现场报案',
                 '后续：不要相信任何"包追回"的电话，那是二次诈骗',
               ]
             : [
                 'Within 5 min: call bank to freeze card',
-                'Within 30 min: call fraud hotline 911',
+                `Within 30 min: ${hotline.dial ? `call ${hotline.dial} (anti-fraud / police line)` : 'report to your local police or anti-fraud authority'}`,
                 'Within 1 hour: file police report',
                 "Later: ignore 'we can recover money' calls — those are second scams",
               ],
-          actions: [
-            {
-              label: isZh ? '一键拨打 96110' : 'Call 911',
-              type: 'call',
-              value: isZh ? '96110' : '911',
-            },
-            // call_family 由 iOS 端按用户家庭组状态过滤；fallback 不主动加，避免没家庭的用户看到迷惑
-          ],
+          // call_family 由 iOS 端按用户家庭组状态过滤；fallback 不主动加，避免没家庭的用户看到迷惑
+          actions: callAction,
         };
     }
   }

@@ -12,11 +12,11 @@ public final class AppSettingsStore {
     private let freeQueryDateKey = "isitsafe.freeQueryDate"
     private let freeQueryCountKey = "isitsafe.freeQueryCount"
     private static let maxFreeQueriesKey = "isitsafe.maxFreeQueriesPerDay"
-    /// 每日免费次数上限，从服务端 /api/config 同步，默认 5
+    /// 每日免费次数上限，从服务端 /api/config 同步；默认 7（与 Railway FREE_DAILY_LIMIT 一致，原默认 5 会在首启拉配置失败时提前拦住第 6、7 次）
     public static var maxFreeQueriesPerDay: Int {
         get {
             let v = UserDefaults.standard.integer(forKey: maxFreeQueriesKey)
-            return v > 0 ? v : 5
+            return v > 0 ? v : 7
         }
         set { UserDefaults.standard.set(newValue, forKey: maxFreeQueriesKey) }
     }
@@ -52,8 +52,12 @@ public final class AppSettingsStore {
 
     // MARK: - 免费每日次数
 
+    /// 服务端额度按 UTC 日切（ai-rate-limit.guard dateKey），这里跟着用 UTC——
+    /// 原来按设备时区，北京用户 0–8 点用完 7 次后，8 点服务端已放行但本地还「今日额度已用完」误拦最长 16 小时
     private static func todayString() -> String {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: Date())
     }

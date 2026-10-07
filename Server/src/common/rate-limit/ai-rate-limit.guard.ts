@@ -65,12 +65,19 @@ export class AiRateLimitGuard implements CanActivate {
     const isPremium = userId ? await this.membership.isPremiumByUserId(userId) : false;
     if (!isPremium) {
       if (AI_V2) {
-        // 2026-10-06 V2：这里只检查不计数。计数挪到 AiService 成功返回检测结果之后
-        // （原来进门就扣：打招呼、知识问答、调用失败、命中缓存都算一次，真遇到可疑信息反而被拦在付费墙外）
-        const dayCount = Number((await client.get(dayKey)) ?? 0);
-        if (dayCount >= MAX_FREE_PER_DAY) {
+        // ValidationPipe 在 guard 之后才跑：content 缺失 / 为空的请求会 400，此时服务层没机会退回额度，所以这里先粗查，不合法就不占位直接放行给 pipe 报 400
+        const body = request.body ?? {};
+        if (typeof body.content !== 'string' || !body.content.trim()) return true;
+        // 2026-10-06 V2：打招呼、知识问答、调用失败不算次数；2026-10-07 复核 P2-B：原来「只读不写、成功后再加」
+        // 在模型返回前的 ~5 秒里并发 20 条全部放行（单日实际约 24 次）。现在进门先 +1 占位，
+        // AiService 在结果不该计数（闲聊 / 知识 / 失败 / 抛错）时再 -1 退回。
+        const dayCount = await client.incr(dayKey);
+        if (dayCount === 1) await client.expire(dayKey, 86400 * 2);
+        if (dayCount > MAX_FREE_PER_DAY) {
+          await client.decr(dayKey);
           throw new HttpException(
-            { message: '今日免费次数已用完，开通会员可无限使用' },
+            // code 10006：客户端据此区分「今日额度用完」与「每分钟限流 / 全站限流」（iOS 原来把所有 429 都当额度用完）
+            { message: '今日免费次数已用完，开通会员可无限使用', code: 10006 },
             HttpStatus.TOO_MANY_REQUESTS,
           );
         }
