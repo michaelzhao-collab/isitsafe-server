@@ -319,7 +319,7 @@ export class AiService {
       try {
         urlAiResult = await this.provider.analyze(urlUserPrompt, urlSystemPrompt, provider);
         if (AI_DEBUG_LOG) console.log('[AI_FLOW] URL 豆包返回原始(未解析): ' + (urlAiResult?.raw ?? '(null)'));
-        urlParsedAi = parseAndValidateAiOutput(urlAiResult.raw, language);
+        urlParsedAi = this.enforceCardForRisk(parseAndValidateAiOutput(urlAiResult.raw, language), hasContext);
         if (AI_DEBUG_LOG) console.log('[AI_FLOW] URL 解析后的完整结果: ' + JSON.stringify(urlParsedAi));
       } catch (e) {
         console.log('[AI_FLOW] URL_AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
@@ -409,7 +409,7 @@ export class AiService {
     try {
       aiResult = await this.provider.analyze(userPrompt, systemPrompt, provider);
       if (AI_DEBUG_LOG) console.log('[AI_FLOW] 豆包返回原始(未解析): ' + (aiResult?.raw ?? '(null)'));
-      parsedAi = parseAndValidateAiOutput(aiResult.raw, language);
+      parsedAi = this.enforceCardForRisk(parseAndValidateAiOutput(aiResult.raw, language), hasContext);
       if (AI_DEBUG_LOG) console.log('[AI_FLOW] 解析后的完整结果: ' + JSON.stringify(parsedAi));
     } catch (e) {
       console.log('[AI_FLOW] 4.AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
@@ -627,6 +627,19 @@ export class AiService {
     await this.prisma.aiLog.create({
       data: { provider, model, tokens, latencyMs, promptHash },
     });
+  }
+
+  /**
+   * 2026-10-07 兜底：模型把「京东刷单先垫付能做吗」这类提问式诈骗判成 high 却标了 is_conversational=true，
+   * iOS 会按闲聊渲染成文字气泡（没有风险卡、没有「发给家人」）。只要等级是 high/medium，一律按检测结果展示。
+   * 仅对首轮内容生效：追问（带 context）时模型常回显上文的 high，那是在回答「怎么办」，不能翻成卡、也不扣额度。
+   * （曾加过「summary 写了典型诈骗就提到 high」的正则，复核实测对否定句误升、对断言漏判，已去掉。）
+   */
+  private enforceCardForRisk(o: AiOutputSchema, hasContext: boolean): AiOutputSchema {
+    if (!hasContext && o.is_conversational && (o.risk_level === 'high' || o.risk_level === 'medium')) {
+      return { ...o, is_conversational: false };
+    }
+    return o;
   }
 
   /** V2：免费额度在「成功返回一条检测结果」后才扣；闲聊 / 知识问答、调用失败、解析失败都不扣（V1 在 guard 里进门就扣） */

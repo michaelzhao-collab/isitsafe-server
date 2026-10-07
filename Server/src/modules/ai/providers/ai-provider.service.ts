@@ -70,6 +70,8 @@ export class AiProviderService {
     const body = {
       model,
       thinking: { type: thinkingType },
+      // 2026-10-07：固定低温度，减少同一条内容两次判定不同（实测 0.2 时 20 条诈骗重跑仅 1 条等级变化）
+      temperature: this.resolveTemperature(),
       input: [
         { role: 'system', content: [{ type: 'input_text', text: systemPrompt }] },
         { role: 'user', content: [{ type: 'input_text', text: prompt }] },
@@ -108,6 +110,14 @@ export class AiProviderService {
       tokens: tokens ?? null,
       latencyMs,
     };
+  }
+
+  /** DOUBAO_TEMPERATURE：未设 / 空串 / 非数字一律回落 0.2（空串 Number('') 会变成 0，不能直接用） */
+  private resolveTemperature(): number {
+    const raw = this.config.get<string>('DOUBAO_TEMPERATURE');
+    if (raw === undefined || raw === null || String(raw).trim() === '') return 0.2;
+    const n = Number(raw);
+    return Number.isFinite(n) ? Math.max(0, Math.min(2, n)) : 0.2;
   }
 
   /** 从 Responses API 多种可能返回结构中提取文本 */
