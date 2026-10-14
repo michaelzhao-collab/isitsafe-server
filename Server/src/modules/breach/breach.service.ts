@@ -18,7 +18,7 @@ const tr = (lang: Lang, zh: string, en: string) => (lang === 'zh' ? zh : en);
 
 /** 2026-10-14：扫描状态存 Redis（不改表结构）。failed 时客户端显示「暂时无法扫描」而不是绿色「安全」 */
 export type ScanStatus = 'ok' | 'failed' | 'pending_verification' | 'never';
-type ScanFailReason = 'not_configured' | 'decrypt' | 'rate_limited' | 'auth' | 'upstream' | 'invalid_email';
+type ScanFailReason = 'not_configured' | 'decrypt' | 'rate_limited' | 'auth' | 'upstream' | 'invalid_email' | 'needs_readd';
 const SCAN_STATUS_KEY = 'breach:scan:';
 const SCAN_STATUS_TTL = 14 * 24 * 3600;
 /** 免费数据源只给「该邮箱在所有泄露里合计暴露过的数据类型」，按目标存一份（不挂到每条告警上，否则每条都像泄露了 SSN） */
@@ -188,7 +188,12 @@ export class BreachService {
       (!user.subscriptionExpire || user.subscriptionExpire > new Date());
     const maxTargets = isPro ? 5 : 1;
     const count = await this.prisma.breachTarget.count({ where: { userId } });
-    if (count >= maxTargets) {
+    // 重新添加「旧数据（没加密、扫不了）」的同一个邮箱：只是补密文，不算新增名额
+    const legacySame = await this.prisma.breachTarget.findFirst({
+      where: { userId, targetValueLookup: lookup, targetValueEncrypted: null },
+      select: { id: true },
+    });
+    if (count >= maxTargets && !legacySame) {
       throw new HttpException({
         message: tr(lang, `已达到当前套餐上限（${maxTargets} 个邮箱）。升级会员可监控更多。`, `Plan limit reached (${maxTargets}). Upgrade for more.`),
         code: 'breach_plan_limit',
@@ -216,10 +221,22 @@ export class BreachService {
       });
     } catch (err: any) {
       if (err?.code === 'P2002') {
-        throw new HttpException({ message: tr(lang, '该邮箱已在监控中', 'Target already exists'), code: 'breach_exists' }, HttpStatus.CONFLICT);
+        // 复核 P1：今天之前加的目标当时没有加密密钥，targetValueEncrypted 为 null，永远扫不了。
+        // 用户重新添加同一个邮箱时补上密文，而不是报「已存在」
+        const legacy = await this.prisma.breachTarget.findFirst({ where: { userId, targetValueLookup: lookup } });
+        if (legacy && !legacy.targetValueEncrypted) {
+          target = await this.prisma.breachTarget.update({
+            where: { id: legacy.id },
+            data: { targetValueEncrypted: encrypted, verified: isOwnEmail || legacy.verified },
+          });
+        } else {
+          throw new HttpException({ message: tr(lang, '该邮箱已在监控中', 'Target already exists'), code: 'breach_exists' }, HttpStatus.CONFLICT);
+        }
+      } else {
+        throw err;
       }
-      throw err;
     }
+    if (!target) throw this.unavailable(lang);
 
     if (isOwnEmail) {
       const r = await this.scanTarget(target.id, { interactive: true });
@@ -410,7 +427,12 @@ export class BreachService {
       breaches = this.stubBreachesFor(target.targetValueLookup);
       sourceTag = 'stub';
     } else {
-      const email = target.targetValueEncrypted ? decryptEmail(target.targetValueEncrypted) : null;
+      if (!target.targetValueEncrypted) {
+        // 旧数据（当时没配加密密钥）：只能让用户删除后重新添加
+        await this.writeScanStatus(targetId, 'failed', 'needs_readd');
+        return { newAlerts: 0, ok: false, reason: 'needs_readd' };
+      }
+      const email = decryptEmail(target.targetValueEncrypted);
       if (!email) {
         this.logger.warn(`[BreachScan] decrypt failed target=${targetId}`);
         await this.writeScanStatus(targetId, 'failed', 'decrypt');
@@ -636,9 +658,15 @@ export class BreachService {
       let failed = 0;
       for (const [i, t] of targets.entries()) {
         if (i > 0) await sleep(gapMs);
-        const r = await this.scanTarget(t.id);
-        totalNew += r.newAlerts;
-        if (!r.ok) failed += 1;
+        try {
+          const r = await this.scanTarget(t.id);
+          totalNew += r.newAlerts;
+          if (!r.ok) failed += 1;
+        } catch (err: any) {
+          // 单个目标的 DB 异常不能中断当天剩余目标
+          failed += 1;
+          this.logger.error(`[BreachCron] target=${t.id} failed: ${err?.message}`);
+        }
       }
       const elapsed = Date.now() - start;
       this.logger.log(`[BreachCron] done in ${elapsed}ms scanned=${targets.length} failed=${failed} newAlerts=${totalNew}`);
@@ -673,7 +701,7 @@ export class BreachService {
       this.logger.error('[Breach] mail not configured — cannot send verification code');
       throw this.unavailable(lang);
     }
-    let client;
+    let client: ReturnType<RedisService['getClient']>;
     try {
       client = this.redis.getClient();
       const ttl = await client.ttl(CODE_COOLDOWN_KEY + targetId);
@@ -684,29 +712,38 @@ export class BreachService {
           retryAfterSeconds: ttl,
         }, HttpStatus.TOO_MANY_REQUESTS);
       }
+      // 复核 P1：先读后扣 —— 原来每个计数都在判断前无条件 INCR，被拒绝的请求也扣全局额度，
+      // 一个账号连发两分钟就能把全站当天的验证码额度耗光。现在只在确定要发送时才 INCR。
       const rcpt = createHash('sha256').update(email.toLowerCase()).digest('hex').slice(0, 32);
-      const hourN = await client.incr(CODE_RECIPIENT_HOUR_KEY + rcpt);
-      if (hourN === 1) await client.expire(CODE_RECIPIENT_HOUR_KEY + rcpt, 3600);
-      const dayN = await client.incr(CODE_RECIPIENT_DAY_KEY + rcpt);
-      if (dayN === 1) await client.expire(CODE_RECIPIENT_DAY_KEY + rcpt, 86400);
       const ymd = new Date().toISOString().slice(0, 10);
-      const globalN = await client.incr(CODE_GLOBAL_DAY_KEY + ymd);
-      if (globalN === 1) await client.expire(CODE_GLOBAL_DAY_KEY + ymd, 2 * 86400);
-      if (hourN > CODE_MAX_PER_RECIPIENT_HOUR || dayN > CODE_MAX_PER_RECIPIENT_DAY || globalN > CODE_MAX_GLOBAL_DAY) {
-        if (globalN > CODE_MAX_GLOBAL_DAY) this.logger.warn(`[Breach] global verification email cap reached (${CODE_MAX_GLOBAL_DAY}/day)`);
-        throw new HttpException({
-          message: tr(lang, '这个邮箱收到的验证码太多了，请稍后再试', 'Too many codes have been sent to this email. Please try again later.'),
-          code: 'breach_code_quota',
-        }, HttpStatus.TOO_MANY_REQUESTS);
+      const keys = {
+        user: CODE_USER_QUOTA_KEY + userId,
+        hour: CODE_RECIPIENT_HOUR_KEY + rcpt,
+        day: CODE_RECIPIENT_DAY_KEY + rcpt,
+        global: CODE_GLOBAL_DAY_KEY + ymd,
+      };
+      const [userN, hourN, dayN, globalN] = (await client.mget(keys.user, keys.hour, keys.day, keys.global)).map((v) => Number(v) || 0);
+      const reject = async (message: string) => {
+        // 被拒也写冷却：不让客户端绕过冷却持续打接口
+        await client.set(CODE_COOLDOWN_KEY + targetId, '1', 'EX', CODE_RESEND_COOLDOWN_SEC).catch(() => undefined);
+        throw new HttpException({ message, code: 'breach_code_quota' }, HttpStatus.TOO_MANY_REQUESTS);
+      };
+      if (userN >= CODE_MAX_SENDS_PER_USER_HOUR) {
+        await reject(tr(lang, '验证码请求过多，请一小时后再试', 'Too many code requests. Please try again in an hour.'));
       }
-      const n = await client.incr(CODE_USER_QUOTA_KEY + userId);
-      if (n === 1) await client.expire(CODE_USER_QUOTA_KEY + userId, 3600);
-      if (n > CODE_MAX_SENDS_PER_USER_HOUR) {
-        throw new HttpException({
-          message: tr(lang, '验证码请求过多，请一小时后再试', 'Too many code requests. Please try again in an hour.'),
-          code: 'breach_code_quota',
-        }, HttpStatus.TOO_MANY_REQUESTS);
+      if (hourN >= CODE_MAX_PER_RECIPIENT_HOUR || dayN >= CODE_MAX_PER_RECIPIENT_DAY) {
+        await reject(tr(lang, '这个邮箱收到的验证码太多了，请稍后再试', 'Too many codes have been sent to this email. Please try again later.'));
       }
+      if (globalN >= CODE_MAX_GLOBAL_DAY) {
+        this.logger.warn(`[Breach] global verification email cap reached (${CODE_MAX_GLOBAL_DAY}/day)`);
+        await reject(tr(lang, '今天发送的验证码已达上限，请明天再试', 'Daily verification email limit reached. Please try again tomorrow.'));
+      }
+      const tx = client.multi();
+      tx.incr(keys.user); tx.expire(keys.user, 3600);
+      tx.incr(keys.hour); tx.expire(keys.hour, 3600);
+      tx.incr(keys.day); tx.expire(keys.day, 86400);
+      tx.incr(keys.global); tx.expire(keys.global, 2 * 86400);
+      await tx.exec();
     } catch (err) {
       if (err instanceof HttpException) throw err;
       throw this.unavailable(lang);

@@ -295,9 +295,14 @@ public struct FamilyGroupSettingsView: View {
     private func saveGroupName() {
         let name = groupNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         // 空的 / 没改：什么都不发（服务端也会拒空名）
-        guard !name.isEmpty, name != group.displayName else { return }
+        // 和原始值比较（displayName 是本地化后的默认名）；默认名的两种语言写法都不当成自定义名
+        guard !name.isEmpty, name != (group.name ?? "") else { return }
+        if ["我的家庭", "My Family"].contains(name) { return }
         guard name.utf16.count <= 20 else {   // 与服务端 String.length 同口径
-            vm.redeemError = isEN ? "Group name too long (max 20 chars)" : "群名称过长（最多 20 个字）"
+            // 等改名弹窗收起后再弹错误，否则两个 alert 冲突可能弹不出来
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                vm.redeemError = isEN ? "Group name too long (max 20 chars)" : "群名称过长（最多 20 个字）"
+            }
             return
         }
         Task { _ = await vm.renameGroup(group.id, name: name) }

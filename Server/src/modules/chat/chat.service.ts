@@ -35,6 +35,13 @@ const RECALL_WINDOW_MS = 2 * 60 * 1000; // 撤回窗口 2 分钟（与微信一�
 // 离线端靠增量 pull 补投近期被撤回的消息（按 id upsert，seq 不变）
 const RECALL_REDELIVERY_WINDOW_MS = 7 * 24 * 3600 * 1000;
 
+/** 推送标题用的群名：默认名「我的家庭 / My Family」按接收人语言换（库里建群默认存的是中文） */
+function pushGroupTitle(name: string | null | undefined, lang: string): string {
+  const n = (name || '').trim();
+  if (!n || n === '我的家庭' || n === 'My Family') return lang === 'en' ? 'Family' : '家庭';
+  return n;
+}
+
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
@@ -226,7 +233,7 @@ export class ChatService {
         const senderName = senderInfo ? memberDefaultName(senderInfo, lang) : null;
         return {
           userId: uid,
-          title: group?.name || (lang === 'en' ? 'Family' : '家庭'),
+          title: pushGroupTitle(group?.name, lang),
           body: senderName ? `${senderName}${lang === 'en' ? ': ' : '：'}${preview}` : preview,
           category: 'family_chat',
           collapseId,
@@ -314,7 +321,7 @@ export class ChatService {
     await this.notification.sendPushBatch(
       pushable.map((uid) => ({
         userId: uid,
-        title: group?.name || (langs.get(uid) === 'en' ? 'Family' : '家庭'),
+        title: pushGroupTitle(group?.name, langs.get(uid) ?? 'zh'),
         body: actor
           ? Array.from(`${memberDefaultName(actor, langs.get(uid) ?? 'zh')}${langs.get(uid) === 'en' ? ': ' : '：'}${title}`).slice(0, 60).join('')
           : title.slice(0, 40),

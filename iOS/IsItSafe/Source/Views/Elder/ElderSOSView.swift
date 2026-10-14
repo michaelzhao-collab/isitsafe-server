@@ -12,7 +12,7 @@ import SwiftUI
 public struct ElderSOSView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
-    @StateObject private var familyVM = FamilyViewModel()
+    @StateObject private var familyVM = FamilyViewModel(restoreCache: false)
 
     public init() {}
 

@@ -73,8 +73,9 @@ public final class FamilyViewModel: ObservableObject {
     /// 靠这个识别「数据不是本人的」并丢弃，不让新账号看到上一个账号的家庭。
     private var loadedUserId: String?
 
-    public init() {
-        restoreFromCache()
+    /// - Parameter restoreCache: 长辈 SOS 页传 false —— 缓存里不存手机号，用缓存渲染会先显示「暂无可拨号码」
+    public init(restoreCache: Bool = true) {
+        if restoreCache { restoreFromCache() }
     }
 
     // MARK: - 加载
@@ -90,8 +91,9 @@ public final class FamilyViewModel: ObservableObject {
                 self.state = .notLoggedIn
                 return
             }
+            let requestUserId = TokenStore.shared.userId
             // 内存里的数据不是当前登录者的（401 后在弹层换账号）→ 丢弃，不拿它当「已有数据」
-            if self.loadedUserId != TokenStore.shared.userId {
+            if self.loadedUserId != requestUserId {
                 self.allGroups = []
                 self.state = .loading
             }
@@ -108,6 +110,8 @@ public final class FamilyViewModel: ObservableObject {
             }
             do {
                 let groups = try await self.repo.getMyGroups()
+                // 等待期间换了账号 / 被新的 refresh 取代：结果作废，不能写进新账号的内存与缓存
+                guard !Task.isCancelled, TokenStore.shared.userId == requestUserId else { return }
                 self.allGroups = groups
                 self.loadedUserId = TokenStore.shared.userId
                 if groups.isEmpty {
@@ -364,7 +368,8 @@ public final class FamilyViewModel: ObservableObject {
             refresh()
             return true
         } catch {
-            redeemError = friendlyMessage(for: error)
+            // 改名错误直接用服务端（已按语言翻译）的文案，不走邀请码兑换的错误映射（会变成「兑换失败：…」）
+            redeemError = (error as? APIError)?.userMessage ?? error.localizedDescription
             return false
         }
     }

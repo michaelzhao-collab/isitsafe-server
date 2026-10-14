@@ -222,8 +222,11 @@ public actor ChatSyncEngine {
             Self.cacheSentImage(fileURL, url: url)
             // 2026-10-14 复核：上传成功立刻把 url 落到乐观行。原来只改局部变量，发送失败后库里仍只有本地路径，
             // 每次重发都重新上传一遍（日志里同一条图 5 个不同 CDN 地址），服务端按 clientMsgId 去重返回的又是第一次的 url，缓存对不上
+            // 落库时保留本地路径（气泡继续显示本地图；重发成功后据此删除 outbox 文件），只在请求体里去掉
+            var stored = payload
+            stored[Self.localPathKey] = .string(fileURL.path)
             var uploaded = optimistic
-            uploaded.payload = ChatPayload(payload)
+            uploaded.payload = ChatPayload(stored)
             await store.insertOptimistic(uploaded)
             let server = try await withRetry(times: 3) {
                 try await self.transport.send(groupId: groupId, body: body)
@@ -317,17 +320,22 @@ public actor ChatSyncEngine {
             }
             var patched = message.payload?.raw ?? [:]
             patched["url"] = .string(url)
-            patched.removeValue(forKey: Self.localPathKey)
             outgoingPayload = patched
             if message.type == .image { Self.cacheSentImage(fileURL, url: url) }
             uploadedFile = fileURL
-            // 上传结果落库：这次发送再失败，下次重发不用重新上传
+            // 上传结果落库（保留本地路径）：这次发送再失败，下次重发不用重新上传
             var uploaded = message
             uploaded.payload = ChatPayload(patched)
             uploaded.sendState = .sending
             await store.insertOptimistic(uploaded)
         }
 
+        // 已上传过（payload 有 url）但上次发送失败：本地文件也要在这次成功后删掉
+        if uploadedFile == nil, let lp = message.payload?.string(Self.localPathKey), message.payload?.string("url") != nil {
+            uploadedFile = Self.resolveLocalFile(lp)
+        }
+        // 本地路径只留在本机，不发给服务端
+        outgoingPayload?.removeValue(forKey: Self.localPathKey)
         let body = ChatSendRequest(clientMsgId: clientMsgId, type: message.type.rawValue,
                                    content: message.content, payload: outgoingPayload)
         do {

@@ -24,10 +24,18 @@ public final class SpeechRecognitionService {
         // 全局系统语言列表（如 ["ko-KR", "en-US"] / ["zh-Hans-CN", "en"]）
         let global = AppSettingsStore.systemLanguages
         let region = Locale.current.region?.identifier
+        let app = AppSettingsStore.shared.languageCode == "en" ? "en" : "zh"
+        // 复核 P1：系统语言列表里如果有和 App 语言一致的，优先用它
+        // （海外华人常见：系统 [en, zh]、App 设中文、说中文 → 识别中文）；
+        // 列表里没有 App 语言时才用系统第一语言（中文长辈系统只有中文、App 被设成英文 → 仍按中文识别）
+        if let same = global.first(where: { Locale(identifier: $0).language.languageCode?.identifier == app }),
+           let id = match(same, region: region, supported: supportedIds, all: supported) {
+            return id
+        }
         for lang in global {
             if let id = match(lang, region: region, supported: supportedIds, all: supported) { return id }
         }
-        return AppSettingsStore.shared.languageCode == "en" ? "en-US" : "zh-CN"
+        return app == "en" ? "en-US" : "zh-CN"
     }
 
     /// 把系统语言标识（zh-Hans-CN / en / ko-KR / yue-Hant-HK）映射到识别器支持的 locale

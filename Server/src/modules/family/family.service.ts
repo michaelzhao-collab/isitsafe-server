@@ -1319,7 +1319,7 @@ export class FamilyService {
       if (finalChannels.length === 0) continue;
 
       const notifiedIds = otherMembers.map((m) => m.userId);
-      const inactiveDisplayName = memberDefaultName({ userId: candidate.userId, ...candidate.user }, 'zh');
+      const inactiveDisplayName = memberDefaultName({ userId: candidate.userId, displayName: candidate.displayName, ...candidate.user }, 'zh');
 
       // S4-4 投递状态：每条 notice 独立 stats，避免不同 channel 的计数交叉污染
       for (const channel of finalChannels) {
@@ -1343,7 +1343,7 @@ export class FamilyService {
                 userId: m.userId,
                 title: en ? 'Family check-in' : '家庭关怀提醒',
                 body: en
-                  ? `${memberDefaultName({ userId: candidate.userId, ...candidate.user }, 'en')} hasn't opened the app for ${daysInactive} days. Consider checking in.`
+                  ? `${memberDefaultName({ userId: candidate.userId, displayName: candidate.displayName, ...candidate.user }, 'en')} hasn't opened the app for ${daysInactive} days. Consider checking in.`
                   : `${inactiveDisplayName} 已连续 ${daysInactive} 天未打开 App，建议联系确认`,
                 category: 'family_care',
                 customData: {

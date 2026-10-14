@@ -26,8 +26,12 @@ const META = {
 };
 
 function pickLang(param, acceptLanguage) {
-  if (param === 'en' || param === 'zh') return param;
-  return /^\s*zh/i.test(acceptLanguage || '') ? 'zh' : 'en';
+  const p = (param || '').toLowerCase();
+  if (p === 'en' || p === 'zh') return p;
+  // 没带 lang 时：有 Accept-Language 按它；完全没有（微信等抓取器常不带）保持原来的中文预览
+  const al = (acceptLanguage || '').trim();
+  if (!al) return 'zh';
+  return /^zh/i.test(al) ? 'zh' : 'en';
 }
 
 class SetAttr {

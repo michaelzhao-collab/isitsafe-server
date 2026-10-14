@@ -702,7 +702,9 @@ export class SubscriptionService {
       where: { userId, status: 'active', expireTime: { gt: new Date() } },
       orderBy: { expireTime: 'desc' },
     });
-    if (activeSub && planTier(finalProductId) < planTier(activeSub.productId)) {
+    // 只拦「仍有效的低档新凭证」：已过期 / 已撤销的旧凭证重投（iOS 启动补验）不是降级，
+    // 交给 upsert 里的旧凭证规则只记历史，否则会 400 → 客户端不 finish → 每次启动重投报错
+    if (activeSub && status === 'active' && planTier(finalProductId) < planTier(activeSub.productId)) {
       throw new BadRequestException(
         '不支持降级套餐，请等当前订阅到期后再切换到低级套餐，或直接升级到更高套餐。',
       );

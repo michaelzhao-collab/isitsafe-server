@@ -27,6 +27,14 @@ struct IsItSafeApp: App {
     }
 
     @State private var isSplashVisible = true
+    @AppStorage(AppAppearance.storageKey) private var appearanceRaw: String = AppAppearance.system.rawValue
+    private var appearanceScheme: ColorScheme? {
+        switch AppAppearance(rawValue: appearanceRaw) ?? .system {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
     @Environment(\.scenePhase) private var scenePhase
 
     private var appLocale: Locale {
@@ -44,6 +52,7 @@ struct IsItSafeApp: App {
                     }
                 }
                 .environment(\.fontScale, fontScale)
+                .preferredColorScheme(appearanceScheme)   // 首帧就按用户选择渲染，避免启动时先按系统外观闪一下
                 .environment(\.dynamicTypeSize, dynamicTypeSizeFromScale(fontScale))
                 // SwiftUI 内的日期 / 数字 / 系统控件按 App 内语言格式化，不跟设备语言
                 .environment(\.locale, appLocale)

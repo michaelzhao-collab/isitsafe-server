@@ -58,7 +58,8 @@ public struct FamilyChatView: View {
         guard !chat.blockedUserIds.isEmpty else { return all }
         // 屏蔽此人消息：隐藏被拉黑用户的普通消息（系统卡片不受影响）
         return all.filter { msg in
-            guard let sid = msg.senderId else { return true }
+            // 求助 / 分享卡按发起人归属后也要按发起人屏蔽（系统播报卡 displaySenderId 为 nil，不受影响）
+            guard let sid = displaySenderId(msg) else { return true }
             return !chat.blockedUserIds.contains(sid)
         }
     }

@@ -118,7 +118,7 @@ public struct RiskResultCard: View {
         switch data.riskLevel.lowercased() {
         case "high":
             return languageCode == "en" ? "High risk" : "高风险"
-        case "medium":
+        case "medium", "mid":
             return languageCode == "en" ? "Medium risk" : "中风险"
         case "low":
             return languageCode == "en" ? "Low risk" : "低风险"
@@ -135,7 +135,7 @@ public struct RiskResultCard: View {
     private var riskColor: Color {
         switch data.riskLevel.lowercased() {
         case "high": return AppTheme.riskHigh
-        case "medium": return AppTheme.riskMedium
+        case "medium", "mid": return AppTheme.riskMedium
         case "low": return AppTheme.riskLow
         default: return AppTheme.riskUnknown
         }

@@ -334,7 +334,7 @@ public struct HomeContainerView: View {
                 Task { await HeartbeatService.shared.reportActive(trigger: .coldLaunch) }
 
                 // V3-A1 Share Extension：用户从微信/iMessage 长按语音分享过来时，主 App 启动后自动跳深伪检测
-                if ShareInboxService.shared.checkPendingAudio() != nil {
+                if FeatureFlags.voiceDeepfake, ShareInboxService.shared.checkPendingAudio() != nil {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                         showDeepfake = true
                     }
@@ -868,6 +868,8 @@ private struct MediaPickerSheet: View {
                 .buttonStyle(.plain)
 
                 // V3-A1 入口 #6：三个按钮统一样式（浅灰底 + 主色 icon + 主色文字）
+                // 2026-10-14：服务端未接入任何语音合成检测服务（付费），入口先隐藏，接入后把 FeatureFlags.voiceDeepfake 打开
+                if FeatureFlags.voiceDeepfake {
                 Button { onDeepfake() } label: {
                     VStack(spacing: 6) {
                         Image(systemName: "mic.fill")
@@ -883,6 +885,7 @@ private struct MediaPickerSheet: View {
                     .cornerRadius(12)
                 }
                 .buttonStyle(.plain)
+                }
             }
             .padding(.horizontal)
 
@@ -899,4 +902,10 @@ private struct MediaPickerSheet: View {
         .padding(.top, 8)
         .padding(.bottom, 12)
     }
+}
+
+/// 功能开关（2026-10-14）
+enum FeatureFlags {
+    /// 语音合成（深伪）检测：服务端未配置 Reality Defender / 火山引擎，检测必失败 → 先隐藏入口
+    static let voiceDeepfake = false
 }

@@ -33,9 +33,20 @@ public struct BreachMonitorView: View {
     public var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                if let err = loadError, targets.isEmpty {
+                if loading && targets.isEmpty && loadError == nil {
+                    // 首次加载：不先闪「还没有监控的邮箱」
+                    ProgressView().frame(maxWidth: .infinity).padding(.vertical, 40)
+                } else if let err = loadError, targets.isEmpty {
                     errorCard(err)
                 } else {
+                    if let err = loadError {
+                        // 已有数据但刷新失败：明确提示可能不是最新，不能静默沿用旧的「安全」
+                        Label(L10n.tr(zh: "刷新失败，显示的可能不是最新结果：\(err)", en: "Couldn't refresh — results may be out of date: \(err)"),
+                              systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundColor(AppTheme.riskMedium)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     statusBanner
                 }
                 if !alerts.isEmpty {
@@ -287,6 +298,16 @@ public struct BreachMonitorView: View {
 
     /// 达到免费上限时弹付费墙
     private func tryShowAdd() {
+        // 会员已满 5 个：提示上限，不给已付费用户弹升级页
+        if appState.subscriptionActive && targets.count >= 5 {
+            appState.showError(L10n.tr(zh: "会员最多监控 5 个邮箱，可先删除一个再添加", en: "Pro can monitor up to 5 emails. Remove one to add another."))
+            return
+        }
+        // 有需要重新添加的旧邮箱：直接打开添加页（重新添加同一个邮箱不占新名额）
+        if targets.contains(where: { $0.scanFailReason == "needs_readd" }) {
+            showAdd = true
+            return
+        }
         if !appState.subscriptionActive && targets.count >= freeTargetLimit {
             // 名额被一个还没验证的邮箱占着：先让用户处理它（验证或删除），而不是直接弹付费墙
             if let pending = targets.first(where: { $0.effectiveScanStatus == "pending_verification" }) {
@@ -326,7 +347,12 @@ public struct BreachMonitorView: View {
     private func rowSubtitle(_ t: BreachTargetItem, status: String) -> String {
         switch status {
         case "pending_verification": return L10n.tr(zh: "点此输入邮件里的验证码", en: "Tap to enter the code we emailed you")
-        case "failed": return L10n.tr(zh: "暂时无法扫描，会自动重试", en: "Couldn't scan yet — we'll retry")
+        case "failed":
+            if t.scanFailReason == "needs_readd" {
+                // 早期添加时没加密保存，无法扫描：重新添加同一个邮箱即可修复（不占新名额）
+                return L10n.tr(zh: "需要重新添加：点 + 再输入这个邮箱", en: "Needs re-adding: tap + and enter this email again")
+            }
+            return L10n.tr(zh: "暂时无法扫描，会自动重试", en: "Couldn't scan yet — we'll retry")
         case "never": return L10n.tr(zh: "等待首次扫描", en: "Waiting for the first scan")
         default:
             return t.alertCount > 0
@@ -369,6 +395,9 @@ public struct BreachMonitorView: View {
             alerts = alertsResult.filter { !$0.dismissed }
             loadError = nil
         } catch {
+            // 页面消失 / 下拉刷新被系统取消：不是加载失败
+            if error is CancellationError || (error as? URLError)?.code == .cancelled { loading = false; return }
+            if case APIError.networkError(let inner) = error, (inner as? URLError)?.code == .cancelled { loading = false; return }
             // 2026-10-14：原来 try? 吞成空数组 → 网络 / 403 / 解码失败都显示「No leaks detected」
             loadError = (error as? APIError)?.userMessage ?? error.localizedDescription
         }

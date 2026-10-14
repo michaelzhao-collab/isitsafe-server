@@ -90,7 +90,8 @@ public final class VoiceMessageComposer {
             SFSpeechRecognizer.requestAuthorization { cont.resume(returning: $0 == .authorized) }
         }
         guard authed else { return "" }
-        let lang = UserDefaults.standard.string(forKey: "isitsafe.language") == "en" ? "en-US" : "zh-CN"
+        // 与首页语音输入同一套识别语言规则（2026-10-14）
+        let lang = SpeechRecognitionService.recognitionLocaleId()
         guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: lang)), recognizer.isAvailable else {
             return ""
         }
