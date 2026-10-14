@@ -44,6 +44,8 @@ public struct ChatMessageView: View {
         .padding(.vertical, 6)
     }
 
+    private var questionText: String? { turn.familyQuestionText(english: languageCode == "en") }
+
     private var userBubble: some View {
         let hasImage = turn.userImage != nil || (turn.imageUrl != nil && !(turn.imageUrl?.isEmpty ?? true))
         let hasText = turn.userText.map { !$0.isEmpty } ?? false
@@ -117,7 +119,7 @@ public struct ChatMessageView: View {
                 if data.isNonDetection {
                     nonDetectionBubble(data: data)
                 } else {
-                    RiskResultCard(data: data)
+                    RiskResultCard(data: data, question: questionText)
                 }
             case .query(let response):
                 QueryRiskCard(response: response)

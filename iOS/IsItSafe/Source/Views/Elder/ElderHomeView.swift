@@ -296,7 +296,7 @@ public struct ElderHomeView: View {
             case .done(let result):
                 switch result {
                 case .analysis(let data):
-                    RiskResultCard(data: data)
+                    RiskResultCard(data: data, question: turn.familyQuestionText(english: languageCode == "en"))
                 case .query(let res):
                     QueryRiskCard(response: res)
                 case .failure(let msg):

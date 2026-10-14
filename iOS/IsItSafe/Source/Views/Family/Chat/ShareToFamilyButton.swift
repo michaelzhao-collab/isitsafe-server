@@ -64,6 +64,11 @@ public struct ShareToFamilyButton: View {
     let conversationId: String?
     /// 长辈模式用更长的引导文案 + 更大尺寸
     let elder: Bool
+    /// 2026-10-14：卡片完整内容（用户原问题 / 得分 / 原因 / 建议）
+    var question: String? = nil
+    var score: Int? = nil
+    var reasons: [String] = []
+    var advice: [String] = []
 
     @ObservedObject private var chat = FamilyChatCoordinator.shared
     @ObservedObject private var router = AppRouter.shared
@@ -71,12 +76,17 @@ public struct ShareToFamilyButton: View {
     @State private var sent = false
     @State private var sending = false
 
-    public init(title: String, summary: String, riskLevel: String, conversationId: String?, elder: Bool = false) {
+    public init(title: String, summary: String, riskLevel: String, conversationId: String?, elder: Bool = false,
+                question: String? = nil, score: Int? = nil, reasons: [String] = [], advice: [String] = []) {
         self.title = title
         self.summary = summary
         self.riskLevel = riskLevel
         self.conversationId = conversationId
         self.elder = elder
+        self.question = question
+        self.score = score
+        self.reasons = reasons
+        self.advice = advice
     }
 
     public var body: some View {
@@ -126,7 +136,8 @@ public struct ShareToFamilyButton: View {
             let ok = await FamilyShareTarget.send(chat, gid: gid) { target in
                 await chat.sendHelpRequest(
                     groupId: target, title: title, summary: summary,
-                    riskLevel: normalizedRisk, refType: "conversation", refId: conversationId
+                    riskLevel: normalizedRisk, refType: "conversation", refId: conversationId,
+                    question: question, score: score, reasons: reasons, advice: advice
                 )
             }
             sending = false

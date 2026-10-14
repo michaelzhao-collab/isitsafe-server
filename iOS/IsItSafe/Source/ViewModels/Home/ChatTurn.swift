@@ -70,3 +70,14 @@ public enum ChatTurnResult {
     case query(QueryRiskResponse)
     case failure(String)
 }
+
+extension ChatTurn {
+    /// 发到家庭群用的「原问题」：截图提问标注 [截图]（首页 / 长辈端共用，2026-10-14）
+    func familyQuestionText(english: Bool) -> String? {
+        let text = userText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let hasImage = userImage != nil || !(imageUrl ?? "").isEmpty
+        let tag = english ? "[Screenshot]" : "[截图]"
+        if hasImage { return text.isEmpty ? tag : "\(tag) \(text)" }
+        return text.isEmpty ? nil : text
+    }
+}

@@ -7,7 +7,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, MaxLength, IsArray, ArrayMaxSize, IsInt, Min, Max } from 'class-validator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { FamilyEventService } from './family-event.service';
@@ -20,6 +20,12 @@ class HelpRequestDto {
   @IsOptional() @IsString() riskLevel?: string;
   @IsOptional() @IsString() refType?: string;
   @IsOptional() @IsString() refId?: string;
+  // 2026-10-14 真机反馈：家人收到的求助卡只有一句结论，不知道问的是什么。补上原问题、得分、原因、建议
+  // 长度不在 DTO 校验（validator 按码点计，iOS 按字形截断，带肤色 / 国旗 emoji 的长文本会整卡 400），改在 service 里截断
+  @IsOptional() @IsString() question?: string;
+  @IsOptional() @IsInt() @Min(0) @Max(100) score?: number;
+  @IsOptional() @IsArray() @ArrayMaxSize(6) @IsString({ each: true }) reasons?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(6) @IsString({ each: true }) advice?: string[];
 }
 
 class ShareCaseDto {

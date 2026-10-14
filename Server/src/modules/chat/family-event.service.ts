@@ -17,6 +17,12 @@ export type CardType = 'help_request' | 'risk_alert' | 'case_share' | 'daily_sca
  *          + family_messages 一条 type=card（进群渲染，payload 是卡片快照）。
  * emit 保证两者一致：先写事件 → 发卡片消息 → 回填 imMsgId。
  */
+/** 按码点截断（不会切开代理对），超长补省略号 */
+function clipChars(s: string, max: number): string {
+  const chars = Array.from(s);
+  return chars.length > max ? chars.slice(0, max - 1).join('') + '…' : s;
+}
+
 @Injectable()
 export class FamilyEventService {
   constructor(
@@ -127,6 +133,10 @@ export class FamilyEventService {
     riskLevel?: string;
     refType?: string;
     refId?: string;
+    question?: string;
+    score?: number;
+    reasons?: string[];
+    advice?: string[];
   }) {
     await this.assertMember(userId, input.groupId);
     // 同一用户对同一 refId（conversationId）24h 内重复求助：不再发第二张卡，回传原事件+原卡片。
@@ -155,7 +165,15 @@ export class FamilyEventService {
       refType: input.refType ?? 'conversation',
       refId: input.refId,
       title: input.title,
-      summary: input.summary,
+      // 摘要与标题相同时不重复显示（iOS 原来两个字段都传 summary）
+      summary: input.summary && input.summary.trim() !== input.title.trim() ? input.summary : '',
+      extra: {
+        ...(input.question?.trim() ? { question: clipChars(input.question.trim(), 500) } : {}),
+        ...(typeof input.score === 'number' ? { score: input.score } : {}),
+        ...(input.reasons?.length ? { reasons: input.reasons.filter((r) => r?.trim()).slice(0, 6).map((r) => clipChars(r, 300)) } : {}),
+        ...(input.advice?.length ? { advice: input.advice.filter((r) => r?.trim()).slice(0, 6).map((r) => clipChars(r, 300)) } : {}),
+        actorName: await this.resolveName(input.groupId, userId),
+      },
     });
   }
 

@@ -275,12 +275,22 @@ public final class FamilyChatCoordinator: ObservableObject {
 
     /// 老人求助：把 AI 结论快照发进家庭群
     @discardableResult
-    public func sendHelpRequest(groupId: String, title: String, summary: String?, riskLevel: String?, refType: String?, refId: String?) async -> Bool {
-        struct Req: Encodable { let groupId: String; let title: String; let summary: String?; let riskLevel: String?; let refType: String?; let refId: String? }
+    public func sendHelpRequest(groupId: String, title: String, summary: String?, riskLevel: String?, refType: String?, refId: String?,
+                                question: String? = nil, score: Int? = nil, reasons: [String] = [], advice: [String] = []) async -> Bool {
+        // 2026-10-14：带上原问题 / 得分 / 原因 / 建议，家人收到的卡片不再只有一句结论
+        struct Req: Encodable {
+            let groupId: String; let title: String; let summary: String?; let riskLevel: String?; let refType: String?; let refId: String?
+            let question: String?; let score: Int?; let reasons: [String]?; let advice: [String]?
+        }
+        func clip(_ s: String, _ n: Int) -> String { s.count > n ? String(s.prefix(n - 1)) + "…" : s }
         do {
             let _: EventEnvelope = try await NetworkManager.shared.request(
                 endpoint: .familyHelpRequest,
-                body: Req(groupId: groupId, title: title, summary: summary, riskLevel: riskLevel, refType: refType, refId: refId)
+                body: Req(groupId: groupId, title: clip(title, 200), summary: summary.map { clip($0, 500) }, riskLevel: riskLevel, refType: refType, refId: refId,
+                          question: question.map { clip($0, 500) },
+                          score: score.map { min(100, max(0, $0)) },
+                          reasons: reasons.isEmpty ? nil : reasons.prefix(6).map { clip($0, 300) },
+                          advice: advice.isEmpty ? nil : advice.prefix(6).map { clip($0, 300) })
             )
             await syncGroupPublic(groupId)
             return true

@@ -10,8 +10,12 @@ public struct RiskResultCard: View {
     public let data: RiskAnalysisViewData
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
-    public init(data: RiskAnalysisViewData) {
+    /// 用户原问题（发到家庭群时让家人知道问的是什么）；截图提问传「[截图]」+ 文字
+    public var question: String? = nil
+
+    public init(data: RiskAnalysisViewData, question: String? = nil) {
         self.data = data
+        self.question = question
     }
 
     public var body: some View {
@@ -83,7 +87,11 @@ public struct RiskResultCard: View {
                     summary: data.summary,
                     riskLevel: data.riskLevel,
                     conversationId: data.conversationId,
-                    elder: ElderModeService.shared.isEnabled
+                    elder: ElderModeService.shared.isEnabled,
+                    question: question,
+                    score: data.score,
+                    reasons: data.reasons,
+                    advice: data.advice
                 )
                 .padding(.top, 4)
             }

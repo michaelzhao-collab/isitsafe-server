@@ -120,6 +120,11 @@ nonisolated public struct ChatPayload: Codable, Equatable {
     public func string(_ key: String) -> String? { raw[key]?.string }
     public func int(_ key: String) -> Int? { raw[key]?.number.map { Int($0) } }
     public func double(_ key: String) -> Double? { raw[key]?.number }
+    /// 字符串数组（求助卡的 reasons / advice）
+    public func strings(_ key: String) -> [String] {
+        guard case .array(let arr)? = raw[key] else { return [] }
+        return arr.compactMap { v in if case .string(let s) = v { return s } else { return nil } }
+    }
 
     // 全局 JSONValue 未声明 Equatable，用稳定排序编码后比对（供 ChatMessage 的 Equatable 合成）
     public static func == (lhs: ChatPayload, rhs: ChatPayload) -> Bool {

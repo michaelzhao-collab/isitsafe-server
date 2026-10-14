@@ -29,6 +29,8 @@ public struct FamilyChatView: View {
 
     // T1-4 面板
     @State private var showEmojiPanel = false
+    @FocusState private var inputFocused: Bool
+    @State private var showCamera = false
     @State private var showPlusPanel = false
     @State private var photoItem: PhotosPickerItem?
     // T1-6 举报确认
@@ -88,6 +90,18 @@ public struct FamilyChatView: View {
             if isElder { voiceInputMode = true }
         }
         .overlay { if isRecording { recordingOverlay } }
+        .onChange(of: inputFocused) { _, focused in
+            // 点输入框弹键盘时收起表情 / 加号面板，避免键盘和面板叠在一起
+            if focused, showEmojiPanel || showPlusPanel {
+                withAnimation(.easeOut(duration: 0.22)) { showEmojiPanel = false; showPlusPanel = false }
+            }
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraCaptureView(onImage: { img in
+                Task { await handleCapturedImage(img) }
+            }, onCancel: { showCamera = false })
+            .ignoresSafeArea()
+        }
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .images)
         .onChange(of: photoItem) { _, newItem in
             guard let newItem else { return }
@@ -136,7 +150,9 @@ public struct FamilyChatView: View {
                 showPlusPanel = false; showPhotoPicker = true
             }
             plusItem(icon: "camera", label: localized(zh: "拍照", en: "Camera")) {
-                showPlusPanel = false; showPhotoPicker = true // 简化：统一走图库选择器
+                showPlusPanel = false
+                // 2026-10-14 真机：原来「拍照」也打开相册。真机走相机；模拟器等无相机设备退回相册
+                if UIImagePickerController.isSourceTypeAvailable(.camera) { showCamera = true } else { showPhotoPicker = true }
             }
             Spacer()
         }
@@ -157,6 +173,16 @@ public struct FamilyChatView: View {
                 Text(label).font(.system(size: 12)).foregroundColor(AppTheme.textSecondary)
             }
         }
+    }
+
+    /// 相机拍到的图：与相册同一条压缩 + 发送管线
+    private func handleCapturedImage(_ image: UIImage) async {
+        let prepared: (Data, Int, Int)? = await Task.detached(priority: .userInitiated) {
+            guard let out = ImageUploadPreparer.jpeg(image, quality: 0.8) else { return nil }
+            return (out.data, out.width, out.height)
+        }.value
+        guard let (jpeg, w, h) = prepared else { return }
+        await chat.sendImage(groupId: groupId, imageData: jpeg, width: w, height: h)
     }
 
     private func handlePickedPhoto(_ item: PhotosPickerItem) async {
@@ -226,6 +252,18 @@ public struct FamilyChatView: View {
             .onAppear {
                 DispatchQueue.main.async { scrollToBottom(proxy, animated: false) }
             }
+            // 2026-10-14 真机：键盘 / 表情面板弹出后点空白收不起来。下拉或点消息区都收起
+            .scrollDismissesKeyboard(.interactively)
+            .simultaneousGesture(TapGesture().onEnded { dismissInputPanels() })
+        }
+    }
+
+    private func dismissInputPanels() {
+        inputFocused = false
+        guard showEmojiPanel || showPlusPanel else { return }
+        withAnimation(.easeOut(duration: 0.22)) {
+            showEmojiPanel = false
+            showPlusPanel = false
         }
     }
 
@@ -244,7 +282,7 @@ public struct FamilyChatView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
             }
-        } else if !messages.isEmpty {
+        } else if hasEarlierMessages {
             Button(action: loadEarlier) {
                 HStack(spacing: 6) {
                     if loadingHistory {
@@ -263,6 +301,15 @@ public struct FamilyChatView: View {
             }
             .disabled(loadingHistory)
         }
+    }
+
+    /// 2026-10-14 真机：新建的群也显示「查看更早的消息」。群内 seq 从 1 开始连续递增，
+    /// 本地最早一条已确认消息的 seq > 1 才说明前面还有。
+    private var hasEarlierMessages: Bool {
+        // 用未过滤的列表：最早一条若是被屏蔽者的消息，过滤后会误判还有更早的
+        let all = chat.messagesByGroup[groupId] ?? []
+        guard let first = all.first(where: { $0.seq > 0 }) else { return false }
+        return first.seq > 1
     }
 
     private func loadEarlier() {
@@ -325,15 +372,15 @@ public struct FamilyChatView: View {
         }
 
         // 撤回（本人 2 分钟内）
-        if isMine(msg), msg.isConfirmed,
+        if isMine(msg), msg.senderId != nil, msg.isConfirmed,
            Date().timeIntervalSince(msg.createdAt) < 120 {
             Button(role: .destructive) {
                 Task { await chat.recall(groupId: groupId, messageId: msg.id) }
             } label: { Label(localized(zh: "撤回", en: "Recall"), systemImage: "arrow.uturn.backward") }
         }
 
-        // 举报（他人消息）
-        if !isMine(msg) {
+        // 举报（他人消息；系统卡片不可举报）
+        if !isMine(msg), msg.senderId != nil {
             Button(role: .destructive) {
                 reportTarget = msg
             } label: { Label(localized(zh: "举报", en: "Report"), systemImage: "exclamationmark.bubble") }
@@ -575,7 +622,7 @@ public struct FamilyChatView: View {
             .font(.system(size: elderScaled(16), weight: .semibold))
             .foregroundColor(.white)
             .frame(width: elderScaled(38), height: elderScaled(38))
-            .background(RoundedRectangle(cornerRadius: 8).fill(avatarColor(for: msg.senderId ?? "sys")))
+            .background(RoundedRectangle(cornerRadius: 8).fill(avatarColor(for: displaySenderId(msg) ?? "sys")))
     }
 
     // MARK: - 输入栏（T1-2 仅文字；语音键 T1-3、+/😊面板 T1-4）
@@ -600,6 +647,7 @@ public struct FamilyChatView: View {
                     .lineLimit(1...4)
                     .padding(.horizontal, 12).padding(.vertical, elderScaled(8))
                     .background(RoundedRectangle(cornerRadius: 10).fill(AppTheme.cardBackground))
+                    .focused($inputFocused)
                     .onSubmit(sendDraft)
                 Button {
                     togglePanel(emoji: true)
@@ -728,12 +776,25 @@ public struct FamilyChatView: View {
 
     private func isMine(_ msg: ChatMessage) -> Bool {
         guard let mine = myUserId else { return false }
-        return msg.senderId == mine
+        return displaySenderId(msg) == mine
+    }
+
+    /// 2026-10-14 真机：求助 / 案例分享卡是服务端以系统身份发的（senderId 为空），原来一律显示成左侧「官方」。
+    /// 卡片 payload 带 actorUserId 时按发起人归属：自己发的靠右、别人发的显示其名字。
+    private func displaySenderId(_ msg: ChatMessage) -> String? {
+        if let sid = msg.senderId { return sid }
+        // 只有用户主动发的求助 / 案例分享归属到发起人；自动播报的风险卡（risk_alert 等）仍是系统卡片
+        if msg.type == .card, let t = msg.payload?.string("cardType"), t == "help_request" || t == "case_share" {
+            return msg.payload?.string("actorUserId")
+        }
+        return nil
     }
 
     private func senderName(_ msg: ChatMessage) -> String {
-        guard let sid = msg.senderId else { return localized(zh: "官方", en: "Official") }
+        guard let sid = displaySenderId(msg) else { return localized(zh: "官方", en: "Official") }
         if let m = membersById[sid] { return m.effectiveName }
+        // 发起人已退群：用卡片里服务端写入的名字兜底
+        if let n = msg.payload?.string("actorName") ?? msg.payload?.string("sharerName"), !n.isEmpty { return n }
         return localized(zh: "家人", en: "Family")
     }
 

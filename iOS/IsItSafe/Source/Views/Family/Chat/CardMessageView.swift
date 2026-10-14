@@ -31,6 +31,11 @@ public struct CardMessageView: View {
     private var actorUserId: String? { payload?.string("actorUserId") }
     private var handleStatus: String? { payload?.string("handleStatus") }
     private var handledByName: String? { payload?.string("handledByName") }
+    // 2026-10-14：求助卡完整内容（老卡片没有这些字段，自动不显示）
+    private var question: String? { payload?.string("question") }
+    private var score: Int? { payload?.int("score") }
+    private var reasons: [String] { payload?.strings("reasons") ?? [] }
+    private var advice: [String] { payload?.strings("advice") ?? [] }
 
     private var myUserId: String? { TokenStore.shared.userId }
     private var isActor: Bool { actorUserId != nil && actorUserId == myUserId }
@@ -39,12 +44,37 @@ public struct CardMessageView: View {
         VStack(alignment: .leading, spacing: 0) {
             Rectangle().fill(stripeColor).frame(height: 4)
             VStack(alignment: .leading, spacing: 8) {
-                tagLabel
+                HStack(spacing: 6) {
+                    tagLabel
+                    if let score, cardType == "help_request" {
+                        Text(loc("风险分 \(score)", "Score \(score)"))
+                            .font(.system(size: scale(12), weight: .semibold))
+                            .foregroundColor(stripeColor)
+                    }
+                }
+                if let q = question, !q.isEmpty {
+                    // 原问题：家人先看到「问的是什么」，再看结论
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(isActor ? loc("我问的", "I asked") : loc("TA 问的", "They asked"))
+                            .font(.system(size: scale(11), weight: .semibold))
+                            .foregroundColor(AppTheme.textSecondary)
+                        Text(q)
+                            .font(.system(size: scale(isElder ? 17 : 14)))
+                            .foregroundColor(AppTheme.textPrimary)
+                            .lineLimit(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(AppTheme.primarySoft))
+                }
                 Text(title)
                     .font(.system(size: scale(isElder ? 21 : 17), weight: .semibold))
                     .foregroundColor(AppTheme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
-                if !summary.isEmpty {
+                if !reasons.isEmpty { bulletSection(loc("原因", "Why"), reasons) }
+                if !advice.isEmpty { bulletSection(loc("建议", "What to do"), advice) }
+                if !summary.isEmpty && summary != title {
                     Text(summary)
                         .font(.system(size: scale(isElder ? 17 : 14)))
                         .foregroundColor(AppTheme.textSecondary)
@@ -61,6 +91,20 @@ public struct CardMessageView: View {
         .background(RoundedRectangle(cornerRadius: 14).fill(AppTheme.cardBackground))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(stripeColor.opacity(0.25), lineWidth: 1))
         .onReceive(TTSService.shared.$isSpeaking) { ttsSpeaking = $0 }
+    }
+
+    private func bulletSection(_ header: String, _ items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(header)
+                .font(.system(size: scale(isElder ? 16 : 13), weight: .semibold))
+                .foregroundColor(stripeColor)
+            ForEach(Array(items.enumerated()), id: \.offset) { i, t in
+                Text("\(i + 1). \(t)")
+                    .font(.system(size: scale(isElder ? 16 : 13)))
+                    .foregroundColor(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     // MARK: - 标签 / 颜色
@@ -140,7 +184,7 @@ public struct CardMessageView: View {
             // 2026-09-07 复核：不传 language 时 TTSService 按设备系统语言选音色，
             // 系统语言为英文的华人老人会用 en-US 音色读中文卡片，基本读不出来。
             // 这里显式传 App 内语言设置。
-            else { tts.speak(title + "。" + summary, language: appLanguage) }
+            else { tts.speak(([title] + reasons + advice).filter { !$0.isEmpty }.joined(separator: "。"), language: appLanguage) }
         } label: {
             cardButtonLabel(icon: "speaker.wave.2.fill",
                             text: ttsSpeaking ? loc("停止", "Stop") : loc("听 AI 讲", "Listen"),
