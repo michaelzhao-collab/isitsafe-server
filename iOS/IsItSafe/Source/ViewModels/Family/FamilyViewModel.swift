@@ -60,7 +60,22 @@ public final class FamilyViewModel: ObservableObject {
     private let repo = FamilyRepository.shared
     private var refreshTask: Task<Void, Never>?
 
-    public init() {}
+    /// 2026-10-14 真机反馈：每次冷启动进家庭 Tab 都转圈「加载中」（VM 虽已提到 MainTabView，
+    /// 但进程重启后仍从 .loading 起步，要等心跳 + 拉群两个请求回来，手机网络下 4 秒起）。
+    /// 现在把上次拉到的家庭列表按用户 id 缓存到本地，启动时先用缓存渲染，再后台静默刷新。
+    /// 缓存按用户 id 分 key；UserSessionStore.clearSession() 登出 / 删号 / 401 时按前缀整体清掉。
+    /// 缓存时成员的完整手机号置空（SOS 拨号前会 refresh 拉新数据），避免全家号码明文落盘。
+    static let groupsCachePrefix = "isitsafe.family.groupsCache."
+    private var groupsCacheKey: String? {
+        TokenStore.shared.userId.map { Self.groupsCachePrefix + $0 }
+    }
+    /// 当前 allGroups / state 属于哪个用户：401 失效后在弹层里换账号登录时 MainTabView 不会重建，
+    /// 靠这个识别「数据不是本人的」并丢弃，不让新账号看到上一个账号的家庭。
+    private var loadedUserId: String?
+
+    public init() {
+        restoreFromCache()
+    }
 
     // MARK: - 加载
 
@@ -70,34 +85,116 @@ public final class FamilyViewModel: ObservableObject {
         refreshTask = Task { [weak self] in
             guard let self else { return }
             guard AuthInterceptor.token() != nil else {
+                self.allGroups = []
+                self.loadedUserId = nil
                 self.state = .notLoggedIn
                 return
             }
-            if !State.loaded(FamilyGroup.placeholder).isLoaded(matching: self.state) {
+            // 内存里的数据不是当前登录者的（401 后在弹层换账号）→ 丢弃，不拿它当「已有数据」
+            if self.loadedUserId != TokenStore.shared.userId {
+                self.allGroups = []
+                self.state = .loading
+            }
+            let hadLoadedData = State.loaded(FamilyGroup.placeholder).isLoaded(matching: self.state)
+            if !hadLoadedData {
                 self.state = .loading
             }
             do {
                 let groups = try await self.repo.getMyGroups()
                 self.allGroups = groups
+                self.loadedUserId = TokenStore.shared.userId
                 if groups.isEmpty {
                     self.state = .empty
                     // ChatMessageView 用此 key 决定是否显示"一键拨打家人"等按钮
                     UserDefaults.standard.removeObject(forKey: self.selectedGroupIdKey)
+                    self.persistCache(nil)
                     return
                 }
-                // 优先选 user 上次选中的；不在列表则 fallback 第一个（按 joinedAt 最早）
-                let saved = UserDefaults.standard.string(forKey: self.selectedGroupIdKey) ?? ""
-                let current = groups.first { $0.id == saved } ?? groups[0]
-                UserDefaults.standard.set(current.id, forKey: self.selectedGroupIdKey)
-                self.state = .loaded(current)
+                self.state = .loaded(self.selectCurrent(from: groups, persist: true))
+                self.persistCache(groups)
             } catch {
                 // refreshTask.cancel() 串联取消 URLSession → 抛出的 URLError.cancelled
                 // 被 mapError 包成 APIError.networkError，模式匹配捕不到，
                 // 改用 Task.isCancelled 一并兜住「swift Task 取消 + URLSession 取消」
                 if Task.isCancelled { return }
                 if error is CancellationError { return }
+                // 401：ResponseValidator 已清 token 但不改 appState.isLoggedIn，这里必须自己落到未登录，
+                // 否则页面停在旧群上，发消息 / 拉成员全失败却没有「请重新登录」提示
+                if case APIError.unauthorized = error, AuthInterceptor.token() == nil {
+                    self.allGroups = []
+                    self.loadedUserId = nil
+                    self.state = .notLoggedIn
+                    return
+                }
+                // 已经有家庭数据在显示（缓存或上次刷新）时，静默刷新失败不把整页换成「加载失败」
+                if hadLoadedData { return }
                 self.state = .error(error.localizedDescription)
             }
+        }
+    }
+
+    /// 优先选用户上次选中的；不在列表则 fallback 第一个（按 joinedAt 最早）。
+    /// persist=false 用于缓存恢复：推送 / 深链在 MainTabView 出现前写入的 selectedGroupId
+    /// 可能指向缓存里还没有的新群，这时不能把它覆盖掉，留给 refresh() 拉到全量后再定。
+    private func selectCurrent(from groups: [FamilyGroup], persist: Bool) -> FamilyGroup {
+        let saved = UserDefaults.standard.string(forKey: selectedGroupIdKey) ?? ""
+        let current = groups.first { $0.id == saved } ?? groups[0]
+        if persist {
+            UserDefaults.standard.set(current.id, forKey: selectedGroupIdKey)
+        }
+        return current
+    }
+
+    private func restoreFromCache() {
+        guard AuthInterceptor.token() != nil, let key = groupsCacheKey,
+              let data = UserDefaults.standard.data(forKey: key),
+              let groups = try? JSONDecoder().decode([FamilyGroup].self, from: data),
+              !groups.isEmpty, groups.allSatisfy({ !$0.id.isEmpty }) else { return }
+        allGroups = groups
+        loadedUserId = TokenStore.shared.userId
+        state = .loaded(selectCurrent(from: groups, persist: false))
+    }
+
+    /// nil → 清掉缓存（用户已不在任何家庭）。成员完整手机号不落盘。
+    private func persistCache(_ groups: [FamilyGroup]?) {
+        guard let key = groupsCacheKey else { return }
+        guard let groups, !groups.isEmpty else {
+            UserDefaults.standard.removeObject(forKey: key)
+            return
+        }
+        let stripped = groups.map { g in
+            FamilyGroup(
+                id: g.id, name: g.name, ownerUserId: g.ownerUserId, memberCount: g.memberCount,
+                maxMembers: g.maxMembers, isOwner: g.isOwner, createdAt: g.createdAt,
+                members: g.members.map { m in
+                    FamilyMember(
+                        id: m.id, userId: m.userId, role: m.role, nickname: m.nickname, avatar: m.avatar,
+                        elderModeEnabled: m.elderModeEnabled, activityStatus: m.activityStatus,
+                        joinedAt: m.joinedAt, phone: nil, phoneDisplay: m.phoneDisplay,
+                        displayName: m.displayName, myAlias: m.myAlias, shareQueryResults: m.shareQueryResults
+                    )
+                }
+            )
+        }
+        if let data = try? JSONEncoder().encode(stripped) {
+            UserDefaults.standard.set(data, forKey: key)
+        } else {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    /// 退群 / 解散成功后立刻把该群从内存与缓存里剔除：紧接着的 refresh() 若失败，
+    /// 下次冷启动不会先渲染一个已经不在的家庭并对它启动 IM
+    private func dropGroupLocally(_ groupId: String) {
+        allGroups.removeAll { $0.id == groupId }
+        persistCache(allGroups)
+    }
+
+    /// 登出 / 删号 / 401 公共出口调用：清掉所有账号的家庭缓存（含成员昵称、备注）
+    public static func clearAllCaches() {
+        let defaults = UserDefaults.standard
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(groupsCachePrefix) {
+            defaults.removeObject(forKey: key)
         }
     }
 
@@ -182,6 +279,7 @@ public final class FamilyViewModel: ObservableObject {
             // V4 业主诉求：退出后页面内容立刻重置——把 state 切到 loading，
             // FamilyView 自动卸下 FamilyGroupView，避免残留已退出家庭的成员/广播数据
             // refresh() 拉到新数据后落到 .empty 或 .loaded（如果还有别的家庭）
+            dropGroupLocally(groupId)
             state = .loading
             refresh()
             return true
@@ -198,6 +296,7 @@ public final class FamilyViewModel: ObservableObject {
             try await repo.dissolveGroup(groupId: groupId)
             // V4 业主诉求：解散后页面内容立刻重置——把 state 切到 loading，
             // FamilyView 自动卸下 FamilyGroupView，避免短暂残留"已解散家庭"的渲染
+            dropGroupLocally(groupId)
             state = .loading
             refresh()
             return true

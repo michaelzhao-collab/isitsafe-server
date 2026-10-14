@@ -50,5 +50,7 @@ public final class UserSessionStore {
         // 2026-10-06：家庭页「当前选中群」换账号不清 → 下一个账号「发到家庭群」发往不属于自己的群（服务端拒绝、按钮无反应），
         // 剪贴板邀请检测也会把新账号误判为「已在家庭」而跳过。
         UserDefaults.standard.removeObject(forKey: "isitsafe.family.selectedGroupId")
+        // 2026-10-14：家庭 Tab 冷启动缓存（成员昵称 / 备注 / 脱敏号码）按用户分 key，这里整体清掉
+        Task { @MainActor in FamilyViewModel.clearAllCaches() }
     }
 }

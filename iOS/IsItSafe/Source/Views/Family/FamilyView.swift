@@ -48,6 +48,8 @@ public struct FamilyView: View {
             //                同时 access_token 接近过期还会让两次都触发 refresh_token。
             //                现在改为一次性流程：先心跳（让 server 拿到最新 lastActiveAt），
             //                再刷新成员列表 → 用户看到的活跃状态既最新又没有竞态。
+            // 2026-10-14：冷启动转圈的问题改由 FamilyViewModel 的本地缓存解决（启动即渲染上次数据），
+            //                串行期间用户看到的是缓存而不是「加载中」，所以这里保持串行不动。
             Task {
                 HeartbeatService.shared.resetThrottle()
                 await HeartbeatService.shared.reportActive(trigger: .foreground)
