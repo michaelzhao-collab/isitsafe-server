@@ -139,7 +139,7 @@ public struct FamilyChatView: View {
             .padding(12)
         }
         .frame(height: 200)
-        .background(AppTheme.tabBarBackground)
+        .background(AppTheme.barBackground)
     }
 
     // MARK: - + 面板（相册 / 拍照）
@@ -159,7 +159,7 @@ public struct FamilyChatView: View {
         .padding(20)
         .frame(height: 140, alignment: .top)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppTheme.tabBarBackground)
+        .background(AppTheme.barBackground)
     }
 
     private func plusItem(icon: String, label: String, action: @escaping () -> Void) -> some View {
@@ -628,56 +628,57 @@ public struct FamilyChatView: View {
     // MARK: - 输入栏（T1-2 仅文字；语音键 T1-3、+/😊面板 T1-4）
 
     private var inputBar: some View {
-        HStack(spacing: 8) {
-            // 语音/文字切换（长辈模式语音键更大，见 §6.2）
-            Button {
-                voiceInputMode.toggle()
-            } label: {
-                Image(systemName: voiceInputMode ? "keyboard" : "mic.circle")
-                    .font(.system(size: elderScaled(voiceInputMode ? 24 : 26)))
-                    .foregroundColor(AppTheme.textSecondary)
-                    .frame(width: elderScaled(38), height: elderScaled(38))
-            }
-
+        // 2026-10-14：与首页输入栏统一 —— 输入框在左，语音 / 键盘切换紧挨输入框右侧，
+        // 图标统一用 InputBarIcon（主色浅底圆），加号 / 发送用主色渐变圆
+        let iconSize = elderScaled(InputBarIcon.defaultSize)
+        let hasDraft = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return HStack(alignment: .bottom, spacing: 8) {
             if voiceInputMode {
                 pressToTalkButton
             } else {
                 TextField(localized(zh: "发消息…", en: "Message…"), text: $draft, axis: .vertical)
                     .font(.system(size: elderScaled(16)))
                     .lineLimit(1...4)
-                    .padding(.horizontal, 12).padding(.vertical, elderScaled(8))
-                    .background(RoundedRectangle(cornerRadius: 10).fill(AppTheme.cardBackground))
+                    .padding(.horizontal, 14).padding(.vertical, elderScaled(8))
+                    .frame(minHeight: iconSize)
+                    .background(RoundedRectangle(cornerRadius: iconSize / 2, style: .continuous).fill(AppTheme.cardBackground))
+                    .overlay(RoundedRectangle(cornerRadius: iconSize / 2, style: .continuous).stroke(AppTheme.primarySoftBorder, lineWidth: 1.5))
                     .focused($inputFocused)
                     .onSubmit(sendDraft)
+            }
+            // 语音 / 键盘切换（长辈模式按 elderScaled 放大）
+            if !hasDraft || voiceInputMode {
                 Button {
-                    togglePanel(emoji: true)
+                    voiceInputMode.toggle()
                 } label: {
-                    Image(systemName: "face.smiling")
-                        .font(.system(size: elderScaled(24)))
-                        .foregroundColor(AppTheme.textSecondary)
+                    InputBarIcon(systemName: voiceInputMode ? "keyboard" : "mic.fill", size: iconSize)
                 }
-                if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Button {
-                        togglePanel(emoji: false)
-                    } label: {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: elderScaled(26)))
-                            .foregroundColor(AppTheme.textSecondary)
-                    }
-                } else {
-                    Button(action: sendDraft) {
-                        Text(localized(zh: "发送", en: "Send"))
-                            .font(.system(size: elderScaled(15), weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 14).padding(.vertical, 8)
-                            .background(RoundedRectangle(cornerRadius: 10).fill(AppTheme.brandGradient))
-                    }
+                .buttonStyle(.plain)
+            }
+            Button {
+                togglePanel(emoji: true)
+            } label: {
+                InputBarIcon(systemName: "face.smiling", size: iconSize)
+            }
+            .buttonStyle(.plain)
+            if hasDraft && !voiceInputMode {
+                Button(action: sendDraft) {
+                    InputBarIcon(systemName: "arrow.up", style: .gradient, size: iconSize)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(localized(zh: "发送", en: "Send"))
+            } else {
+                Button {
+                    togglePanel(emoji: false)
+                } label: {
+                    InputBarIcon(systemName: "plus", style: .gradient, size: iconSize)
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(AppTheme.tabBarBackground)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(AppTheme.barBackground)
     }
 
     /// 2026-10-06：+ / 😊 面板原来在键盘还没收起时就插入布局，输入栏先被键盘顶着、键盘收起后才落到面板上方，
@@ -703,11 +704,11 @@ public struct FamilyChatView: View {
             .font(.system(size: elderScaled(16), weight: .semibold))
             .foregroundColor(AppTheme.textPrimary)
             .frame(maxWidth: .infinity)
-            .frame(height: elderScaled(isElder ? 52 : 40))
-            .background(RoundedRectangle(cornerRadius: elderScaled(12))
-                .fill(isRecording ? AppTheme.primary.opacity(0.18) : AppTheme.cardBackground))
-            .overlay(RoundedRectangle(cornerRadius: elderScaled(12))
-                .stroke(AppTheme.border, lineWidth: isElder ? 1.5 : 0.5))
+            .frame(height: elderScaled(isElder ? 52 : InputBarIcon.defaultSize))
+            .background(RoundedRectangle(cornerRadius: elderScaled(isElder ? 14 : InputBarIcon.defaultSize / 2), style: .continuous)
+                .fill(isRecording ? AppTheme.primarySoft : AppTheme.cardBackground))
+            .overlay(RoundedRectangle(cornerRadius: elderScaled(isElder ? 14 : InputBarIcon.defaultSize / 2), style: .continuous)
+                .stroke(AppTheme.primarySoftBorder, lineWidth: 1.5))
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in

@@ -389,10 +389,11 @@ public struct DeepfakeView: View {
         }
         guard let d = date else { return "" }
         let dt = -d.timeIntervalSinceNow
-        if dt < 60 { return "刚刚" }
-        if dt < 3600 { return "\(Int(dt / 60)) 分钟前" }
-        if dt < 86400 { return "\(Int(dt / 3600)) 小时前" }
-        return "\(Int(dt / 86400)) 天前"
+        let en = languageCode == "en"
+        if dt < 60 { return en ? "Just now" : "刚刚" }
+        if dt < 3600 { return en ? "\(Int(dt / 60)) min ago" : "\(Int(dt / 60)) 分钟前" }
+        if dt < 86400 { return en ? "\(Int(dt / 3600)) h ago" : "\(Int(dt / 3600)) 小时前" }
+        return en ? "\(Int(dt / 86400)) d ago" : "\(Int(dt / 86400)) 天前"
     }
 
     private func loadHistory() async {

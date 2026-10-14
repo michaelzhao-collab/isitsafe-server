@@ -11,7 +11,18 @@ import Speech
 
 public final class SpeechRecognitionService {
     public static let shared = SpeechRecognitionService()
-    private let recognizer: SFSpeechRecognizer?
+    /// 按 App 内语言选识别器（原来写死 zh-CN，App 设成英文时说英文也按中文识别）
+    private var recognizers: [String: SFSpeechRecognizer] = [:]
+    private var currentLocaleId: String {
+        AppSettingsStore.shared.languageCode == "en" ? "en-US" : "zh-CN"
+    }
+    private var recognizer: SFSpeechRecognizer? {
+        let id = currentLocaleId
+        if let r = recognizers[id] { return r }
+        let r = SFSpeechRecognizer(locale: Locale(identifier: id))
+        recognizers[id] = r
+        return r
+    }
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
     private let engine = AVAudioEngine()
@@ -19,9 +30,7 @@ public final class SpeechRecognitionService {
     /// 累积 partial transcription，用于系统返 No speech detected 时兜底
     private var lastPartialText: String = ""
 
-    private init() {
-        recognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
-    }
+    private init() {}
 
     public func requestAuthorization() async -> Bool {
         await withCheckedContinuation { cont in
@@ -35,7 +44,7 @@ public final class SpeechRecognitionService {
     public func startRecording() async throws -> String {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
             guard let recognizer = recognizer, recognizer.isAvailable else {
-                cont.resume(throwing: NSError(domain: "Speech", code: -1, userInfo: [NSLocalizedDescriptionKey: "语音识别不可用"]))
+                cont.resume(throwing: NSError(domain: "Speech", code: -1, userInfo: [NSLocalizedDescriptionKey: L10n.tr(zh: "语音识别不可用", en: "Speech recognition is unavailable")]))
                 return
             }
             // 关键：先配置 AVAudioSession，否则 inputNode 拿不到有效采样率
@@ -57,7 +66,7 @@ public final class SpeechRecognitionService {
             engine.stop()
             request = SFSpeechAudioBufferRecognitionRequest()
             guard let request = request else {
-                cont.resume(throwing: NSError(domain: "Speech", code: -1, userInfo: [NSLocalizedDescriptionKey: "创建请求失败"]))
+                cont.resume(throwing: NSError(domain: "Speech", code: -1, userInfo: [NSLocalizedDescriptionKey: L10n.tr(zh: "创建请求失败", en: "Couldn't start speech recognition")]))
                 return
             }
             // 启用 partial：长辈说话慢、中间停顿可能让系统 finalize 时报 No speech，
@@ -66,12 +75,14 @@ public final class SpeechRecognitionService {
             request.requiresOnDeviceRecognition = false
             request.taskHint = .dictation
             // 长辈反诈高频词加 contextualStrings 提升识别率（仅 zh-CN）
-            request.contextualStrings = [
-                "派出所", "公安局", "银行卡", "安全账户", "验证码",
-                "微信", "支付宝", "转账", "短信", "链接",
-                "客服", "中奖", "退款", "包裹", "快递",
-                "贷款", "理财", "投资", "诈骗", "可疑"
-            ]
+            if currentLocaleId == "zh-CN" {
+                request.contextualStrings = [
+                    "派出所", "公安局", "银行卡", "安全账户", "验证码",
+                    "微信", "支付宝", "转账", "短信", "链接",
+                    "客服", "中奖", "退款", "包裹", "快递",
+                    "贷款", "理财", "投资", "诈骗", "可疑"
+                ]
+            }
             lastPartialText = ""
             continuation = cont
 
@@ -119,7 +130,7 @@ public final class SpeechRecognitionService {
                         self.continuation?.resume(throwing: NSError(
                             domain: "Speech",
                             code: 1110,
-                            userInfo: [NSLocalizedDescriptionKey: "没听清楚您说的话，请再试一次"]
+                            userInfo: [NSLocalizedDescriptionKey: L10n.tr(zh: "没听清楚您说的话，请再试一次", en: "Sorry, I didn’t catch that. Please try again.")]
                         ))
                     } else {
                         self.continuation?.resume(throwing: error)

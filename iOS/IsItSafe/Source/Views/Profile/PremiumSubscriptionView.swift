@@ -61,7 +61,7 @@ public struct PremiumSubscriptionView: View {
             }
         }
         .background(AppTheme.background)
-        .navigationTitle("Premium")
+        .navigationTitle(languageCode == "en" ? "Premium" : "会员")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(AppTheme.premiumHeader, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
@@ -115,7 +115,7 @@ public struct PremiumSubscriptionView: View {
                 }
                 return PremiumPlanItem(
                     id: pid,
-                    name: api.name,
+                    name: localizedPlanName(api.name, productId: pid, period: api.period),
                     price: formatPrice(api),
                     period: api.period,
                     description: descriptionForPeriod(api.period),
@@ -152,6 +152,20 @@ public struct PremiumSubscriptionView: View {
             return String(format: "¥%.2f", api.price)
         }
         return String(format: "%@ %.2f", api.currency, api.price)
+    }
+
+    /// 套餐名来自后台（单语言录入）。名称语种与 App 内语言不一致时，按 productId / 周期换成本地文案
+    private func localizedPlanName(_ name: String, productId: String, period: String) -> String {
+        let en = languageCode == "en"
+        let hasCJK = name.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }
+        if en != hasCJK, !name.isEmpty { return name }
+        let family = ProductIdentifiers.isFamilyTier(productId)
+        switch period.lowercased() {
+        case "weekly": return en ? "Weekly Premium" : "周会员"
+        case "monthly": return family ? (en ? "Family Monthly" : "家庭月会员") : (en ? "Monthly Premium" : "月会员")
+        case "yearly": return family ? (en ? "Family Annual" : "家庭年会员") : (en ? "Annual Premium" : "年会员")
+        default: return name
+        }
     }
 
     private func descriptionForPeriod(_ period: String) -> String {

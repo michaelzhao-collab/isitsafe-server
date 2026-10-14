@@ -18,15 +18,15 @@ public struct SubscriptionView: View {
                 if vm.isLoading {
                     HStack { Spacer(); ProgressView(); Spacer() }
                 } else if let status = vm.status {
-                    Section("当前状态") {
-                        Label(status.active ? "已订阅" : "未订阅", systemImage: status.active ? "checkmark.circle" : "xmark.circle")
+                    Section(L10n.tr(zh: "当前状态", en: "Current Status")) {
+                        Label(status.active ? L10n.tr(zh: "已订阅", en: "Subscribed") : L10n.tr(zh: "未订阅", en: "Not subscribed"), systemImage: status.active ? "checkmark.circle" : "xmark.circle")
                         if let exp = status.expireTime {
-                            Text("到期：\(exp)")
+                            Text(L10n.tr(zh: "到期：", en: "Expires: ") + exp)
                                 .font(.caption)
                         }
                     }
                 }
-                Section("订阅选项") {
+                Section(L10n.tr(zh: "订阅选项", en: "Plans")) {
                     ForEach(SubscriptionPlan.all) { plan in
                         HStack {
                             VStack(alignment: .leading) {
@@ -37,7 +37,7 @@ public struct SubscriptionView: View {
                             }
                             Spacer()
                             Text(plan.price)
-                            Button("购买") {
+                            Button(L10n.tr(zh: "购买", en: "Buy")) {
                                 vm.purchase(productId: plan.productId)
                             }
                             .disabled(vm.purchaseState == .purchasing)
@@ -45,7 +45,7 @@ public struct SubscriptionView: View {
                     }
                 }
                 Section {
-                    Button("恢复购买") {
+                    Button(L10n.tr(zh: "恢复购买", en: "Restore Purchases")) {
                         vm.restorePurchases()
                     }
                 }
@@ -57,11 +57,11 @@ public struct SubscriptionView: View {
                     }
                 }
             }
-            .navigationTitle("订阅")
+            .navigationTitle(L10n.tr(zh: "订阅", en: "Subscription"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button(L10n.tr(zh: "完成", en: "Done")) { dismiss() }
                 }
             }
             .onAppear {

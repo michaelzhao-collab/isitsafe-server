@@ -103,7 +103,7 @@ public struct SettingsView: View {
                     // S5-4 GDPR / 个保法数据导出
                     Section(footer: Text(languageCode == "en"
                                         ? "Includes account, queries, family activity, deepfake checks, and breach monitoring."
-                                        : "包含账号、查询历史、家庭活动、深伪检测、暗网监控等全部记录。")) {
+                                        : "包含账号、查询历史、家庭活动、深伪检测、数据泄露监控等全部记录。")) {
                         Button {
                             Task { await exportMyData() }
                         } label: {

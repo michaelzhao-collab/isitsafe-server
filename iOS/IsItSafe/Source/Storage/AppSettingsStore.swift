@@ -47,7 +47,65 @@ public final class AppSettingsStore {
 
     public var languageCode: String {
         get { UserDefaults.standard.string(forKey: langKey) ?? "zh" }
-        set { UserDefaults.standard.set(newValue, forKey: langKey) }
+        set {
+            UserDefaults.standard.set(newValue, forKey: langKey)
+            Self.syncSystemUILanguage(newValue)
+        }
+    }
+
+    // MARK: - 系统界面语言（相机 / 相册选择器 / Sign in with Apple / 系统弹窗）
+
+    /// 系统组件的文案由 App bundle 的首选本地化决定（读 App 域的 AppleLanguages），
+    /// 不认 App 内的 isitsafe.language。这里把 App 内语言写进 App 域的 AppleLanguages，
+    /// 让系统界面跟随 App 内语言。注意：只在**下次启动**生效（bundle 本地化在进程启动时就定了）。
+    /// 要求 bundle 里同时有 en.lproj 与 zh-Hans.lproj（Source/ 下已有 InfoPlist.strings），
+    /// 且 Info.plist 声明 CFBundleLocalizations。
+    private static let appleLanguagesKey = "AppleLanguages"
+
+    /// App 内语言对应的系统本地化标识
+    public static func systemLocalization(for code: String) -> String {
+        code == "en" ? "en" : "zh-Hans"
+    }
+
+    /// 写入 App 域 AppleLanguages；返回值表示「本次运行中的系统界面语言与目标不一致，需要重启 App 才能切换」
+    @discardableResult
+    public static func syncSystemUILanguage(_ code: String? = nil) -> Bool {
+        let defaults = UserDefaults.standard
+        // persistentDomain 只看 App 自己的域，不会把全局（系统设置）的语言列表误当成已设置
+        let appDomain = Bundle.main.bundleIdentifier.flatMap { defaults.persistentDomain(forName: $0) }
+        let current = appDomain?[appleLanguagesKey] as? [String]
+
+        // 复核 P1：用户在 iOS「设置 › StarLens AI › 首选语言」里改了语言 → App 域 AppleLanguages 变了、
+        // 但和我们上次写入的不一致。这时以系统设置为准，反向写回 App 内语言，不能每次启动再改回去。
+        if code == nil, let cur = current?.first,
+           let last = defaults.string(forKey: lastSyncedAppleLanguageKey), cur != last {
+            let fromSettings = cur.hasPrefix("zh") ? "zh" : "en"
+            if fromSettings != shared.languageCode {
+                defaults.set(fromSettings, forKey: "isitsafe.language")
+            }
+        }
+
+        var appCode = code ?? shared.languageCode
+        // 旧版本可能留下 "system"：按真实系统语言折算，避免被锁成中文
+        if appCode != "zh" && appCode != "en" {
+            appCode = L10n.isSystemChinese ? "zh" : "en"
+        }
+        let target = systemLocalization(for: appCode)
+        if current != [target] {
+            defaults.set([target], forKey: appleLanguagesKey)
+        }
+        defaults.set(target, forKey: lastSyncedAppleLanguageKey)
+        return needsRestartForSystemUILanguage(appCode)
+    }
+
+    /// 上次由 App 写入的 AppleLanguages（用来识别「用户在系统设置里改过」）
+    private static let lastSyncedAppleLanguageKey = "isitsafe.lastSyncedAppleLanguage"
+
+    /// 当前进程实际使用的系统界面语言是否与 App 内语言不一致
+    public static func needsRestartForSystemUILanguage(_ code: String? = nil) -> Bool {
+        let target = systemLocalization(for: code ?? shared.languageCode)
+        let running = Bundle.main.preferredLocalizations.first ?? ""
+        return !(running == target || (target == "zh-Hans" && running.hasPrefix("zh")))
     }
 
     // MARK: - 免费每日次数

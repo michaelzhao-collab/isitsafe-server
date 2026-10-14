@@ -180,7 +180,7 @@ public struct FamilyGroup: Codable, Identifiable {
     public let members: [FamilyMember]
 
     public var displayName: String {
-        name?.isEmpty == false ? name! : "我的家庭"
+        name?.isEmpty == false ? name! : L10n.tr(zh: "我的家庭", en: "My Family")
     }
 
     public var isFull: Bool {

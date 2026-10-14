@@ -67,7 +67,7 @@ public struct ThemeButton: View {
         }
         .buttonStyle(.plain)
         .disabled(isLoading)
-        .accessibilityHint(isLoading ? Text("加载中") : Text(""))
+        .accessibilityHint(isLoading ? Text(L10n.tr(zh: "加载中", en: "Loading")) : Text(""))
     }
 
     private var backgroundColor: Color {

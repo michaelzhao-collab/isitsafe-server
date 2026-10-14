@@ -69,7 +69,7 @@ public final class HomeViewModel: ObservableObject {
                     if let json = row.resultJson {
                         result = .analysis(RiskAnalysisViewData(from: json))
                     } else {
-                        result = .failure("暂无结果")
+                        result = .failure(L10n.tr(zh: "暂无结果", en: "No result"))
                     }
                     // 用服务端 row.id 派生稳定 UUID，多次刷新同一 turn 的 id 不变，避免 ForEach 整行重绘
                     return ChatTurn(
@@ -143,7 +143,9 @@ public final class HomeViewModel: ObservableObject {
                 if ocrText.isEmpty {
                     combined = userText
                 } else {
-                    combined = "【截图内容】\n\(ocrText)\n【用户补充】\n\(userText)"
+                    combined = L10n.current == .en
+                        ? "[Screenshot text]\n\(ocrText)\n[User note]\n\(userText)"
+                        : "【截图内容】\n\(ocrText)\n【用户补充】\n\(userText)"
                 }
                 runAnalysisForLastTurn(content: combined, isScreenshot: true)
             }
@@ -363,7 +365,7 @@ public final class HomeViewModel: ObservableObject {
                 let newTurns: [ChatTurn]
                 if messages.isEmpty {
                     let singleText = item.content.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let result: ChatTurnResult = item.resultJson.map { .analysis(RiskAnalysisViewData(from: $0)) } ?? .failure("暂无结果")
+                    let result: ChatTurnResult = item.resultJson.map { .analysis(RiskAnalysisViewData(from: $0)) } ?? .failure(L10n.tr(zh: "暂无结果", en: "No result"))
                     let isScreenshot = item.inputType.lowercased() == QueryInputType.screenshot.rawValue
                     if isScreenshot {
                         // 截图类历史：优先显示图片，避免把 OCR/combined 大段文字当作“用户消息”展示
@@ -381,7 +383,7 @@ public final class HomeViewModel: ObservableObject {
                         if let json = row.resultJson {
                             result = .analysis(RiskAnalysisViewData(from: json))
                         } else {
-                            result = .failure("暂无结果")
+                            result = .failure(L10n.tr(zh: "暂无结果", en: "No result"))
                         }
                         let isScreenshot = row.inputType.lowercased() == QueryInputType.screenshot.rawValue
                         // 用 row.id 派生稳定 UUID，刷新或离线降级后 ForEach 不会闪烁
@@ -414,7 +416,7 @@ public final class HomeViewModel: ObservableObject {
             } catch {
                 await MainActor.run {
                     let singleText = item.content.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let result: ChatTurnResult = item.resultJson.map { .analysis(RiskAnalysisViewData(from: $0)) } ?? .failure("加载失败")
+                    let result: ChatTurnResult = item.resultJson.map { .analysis(RiskAnalysisViewData(from: $0)) } ?? .failure(L10n.tr(zh: "加载失败", en: "Failed to load"))
                     let isScreenshot = item.inputType.lowercased() == QueryInputType.screenshot.rawValue
                     if isScreenshot {
                         let imageKey = (item.imageUrl?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)

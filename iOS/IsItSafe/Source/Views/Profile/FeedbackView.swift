@@ -51,7 +51,7 @@ public struct FeedbackView: View {
                         .frame(maxHeight: 200)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    Button("移除图片", role: .destructive) {
+                    Button(languageCode == "en" ? "Remove image" : "移除图片", role: .destructive) {
                         pickedImage = nil
                     }
                 }

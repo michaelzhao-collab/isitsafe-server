@@ -43,9 +43,9 @@ struct CountryPickerSheet: View {
         PhoneCountry.search(query)
     }
 
-    private var isChineseSystem: Bool {
-        Locale.preferredLanguages.first?.lowercased().hasPrefix("zh") == true
-    }
+    /// 跟 App 内语言走（原来按系统语言，App 设成英文时国家名仍是中文）
+    @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    private var isChineseSystem: Bool { languageCode != "en" }
 
     private func countryDisplayName(_ country: PhoneCountry) -> String {
         let name = isChineseSystem ? country.nameZh : country.nameEn

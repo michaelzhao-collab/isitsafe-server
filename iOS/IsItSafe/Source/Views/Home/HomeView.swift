@@ -54,7 +54,7 @@ public struct HomeView: View {
                 }
                 .padding()
             }
-            .navigationTitle("安全分析")
+            .navigationTitle(L10n.tr(zh: "安全分析", en: "Safety Check"))
             .sheet(isPresented: $showScreenshotSheet) {
                 UploadScreenshotSheet(ocrText: $screenshotOCRText) { text in
                     vm.analyzeScreenshot(ocrText: text)

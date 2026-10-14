@@ -359,7 +359,7 @@ public struct HomeContainerView: View {
                  ? "You've used all \(limit) free queries today. Subscribe to get unlimited access."
                  : "今日 \(limit) 次免费额度已用完，订阅会员后可无限次咨询。")
         }
-        .confirmationDialog("删除历史记录", isPresented: Binding(
+        .confirmationDialog(languageCode == "en" ? "Delete history" : "删除历史记录", isPresented: Binding(
             get: { historyItemToDelete != nil },
             set: { if !$0 { historyItemToDelete = nil } }
         )) {

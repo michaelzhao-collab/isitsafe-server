@@ -13,10 +13,10 @@ public enum ReportType: String, CaseIterable, Codable {
 
     public var displayName: String {
         switch self {
-        case .text: return "文本"
-        case .phone: return "电话"
-        case .url: return "链接"
-        case .screenshot: return "截图"
+        case .text: return L10n.tr(zh: "文本", en: "Text")
+        case .phone: return L10n.tr(zh: "电话", en: "Phone")
+        case .url: return L10n.tr(zh: "链接", en: "Link")
+        case .screenshot: return L10n.tr(zh: "截图", en: "Screenshot")
         }
     }
 }

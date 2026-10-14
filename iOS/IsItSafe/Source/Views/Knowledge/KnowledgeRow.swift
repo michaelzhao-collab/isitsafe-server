@@ -51,7 +51,7 @@ public struct KnowledgeRow: View {
                 HStack(spacing: 4) {
                     Image(systemName: "book.fill")
                         .font(.caption2)
-                    Text(item.source.map { SourceHostFormatter.host(from: $0) } ?? "案例")
+                    Text(item.source.map { SourceHostFormatter.host(from: $0) } ?? L10n.tr(zh: "案例", en: "Case"))
                         .font(.caption2)
                         .lineLimit(1)
                         .truncationMode(.tail)

@@ -23,7 +23,7 @@ public final class ReportViewModel: ObservableObject {
 
     public func submit() {
         guard canSubmit else {
-            appState.showError("请完善举报内容（至少5个字）")
+            appState.showError(L10n.tr(zh: "请完善举报内容（至少5个字）", en: "Please describe the issue (at least 5 characters)"))
             return
         }
         isSubmitting = true

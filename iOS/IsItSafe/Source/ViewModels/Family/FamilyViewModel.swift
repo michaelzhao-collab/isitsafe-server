@@ -245,7 +245,7 @@ public final class FamilyViewModel: ObservableObject {
         redeemError = nil
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         guard trimmed.count == 6 else {
-            redeemError = "邀请码应为 6 位字符"
+            redeemError = L10n.tr(zh: "邀请码应为 6 位字符", en: "The invite code must be 6 characters")
             return false
         }
         inflightAction = "redeem"
@@ -265,24 +265,26 @@ public final class FamilyViewModel: ObservableObject {
 
     /// 把后端错误码翻译成长辈也能看懂的中文
     private func friendlyMessage(for error: Error) -> String {
+        // 登录过期等非兑换类错误直接用通用文案（英文 "Your session has expired" 含 expired，会被误判成邀请码过期）
+        if let api = error as? APIError, case .unauthorized = api { return api.userMessage }
         let raw = error.localizedDescription
         // 常见后端错误关键词映射
         if raw.contains("Invalid invite code") || raw.contains("404") {
-            return "邀请码无效，请确认后重试"
+            return L10n.tr(zh: "邀请码无效，请确认后重试", en: "Invalid invite code. Please check and try again.")
         }
-        if raw.contains("expired") || raw.contains("Invite code expired") {
-            return "邀请码已过期，请向家人重新获取"
+        if raw.contains("Invite code expired") || raw.contains("invite code has expired") || raw.contains("邀请码已过期") || (raw.contains("expired") && raw.lowercased().contains("invite")) {
+            return L10n.tr(zh: "邀请码已过期，请向家人重新获取", en: "This invite code has expired. Please ask your family for a new one.")
         }
-        if raw.contains("already in a family group") {
-            return "你已经在一个家庭组里，无法再加入"
+        if raw.contains("already in a family group") || raw.contains("already a member") {
+            return L10n.tr(zh: "你已经在一个家庭组里，无法再加入", en: "You are already in a family group and can't join another.")
         }
         if raw.contains("Family group is full") || raw.contains("full") {
-            return "对方家庭已满员，无法再加入"
+            return L10n.tr(zh: "对方家庭已满员，无法再加入", en: "This family group is full.")
         }
         if raw.contains("parental_consent_required") {
-            return "未成年用户需先勾选监护人同意"
+            return L10n.tr(zh: "未成年用户需先勾选监护人同意", en: "Users under 13 need to confirm parental consent first.")
         }
-        return "兑换失败：\(raw)"
+        return L10n.tr(zh: "兑换失败：", en: "Couldn't join: ") + raw
     }
 
     // MARK: - 退出/解散

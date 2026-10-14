@@ -32,12 +32,12 @@ public struct ConfirmPhotoSheet: View {
 
                 HStack(spacing: 16) {
                     if onEdit != nil {
-                        Button("编辑") {
+                        Button(L10n.tr(zh: "编辑", en: "Edit")) {
                             onEdit?()
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    Button("确认") {
+                    Button(L10n.tr(zh: "确认", en: "Confirm")) {
                         onConfirm()
                         dismiss()
                     }
@@ -47,7 +47,7 @@ public struct ConfirmPhotoSheet: View {
                 .padding()
                 .background(AppTheme.background)
             }
-            .navigationTitle("确认图片")
+            .navigationTitle(L10n.tr(zh: "确认图片", en: "Confirm Photo"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

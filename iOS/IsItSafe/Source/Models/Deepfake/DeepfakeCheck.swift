@@ -12,9 +12,9 @@ public enum DeepfakeLabel: String, Codable {
 
     public var displayName: String {
         switch self {
-        case .low: return "真人可能性高"
-        case .medium: return "无法确定"
-        case .high: return "高度怀疑 AI 合成"
+        case .low: return L10n.tr(zh: "真人可能性高", en: "Likely a real person")
+        case .medium: return L10n.tr(zh: "无法确定", en: "Uncertain")
+        case .high: return L10n.tr(zh: "高度怀疑 AI 合成", en: "Highly likely AI-generated")
         }
     }
 }

@@ -10,7 +10,7 @@ import Foundation
 public final class ResponseValidator {
     public static func validate(data: Data?, response: URLResponse?) throws {
         guard let http = response as? HTTPURLResponse else {
-            throw APIError.unknown("无效响应")
+            throw APIError.unknown(L10n.tr(zh: "无效响应", en: "Invalid response"))
         }
         // 强制打印非 2xx 的返回体，便于小白定位（不会依赖 DEBUG 开关）
         if !(200...299).contains(http.statusCode) {
@@ -38,7 +38,7 @@ public final class ResponseValidator {
             let code = parseBusinessCode(from: data)
             let isDailyQuota = code == 10006 || (msg?.contains("今日") ?? false) || (msg?.lowercased().contains("daily") ?? false)
             if isDailyQuota { throw APIError.tooManyRequests }
-            throw APIError.serverError(statusCode: 429, message: msg ?? "请求过于频繁，请稍后再试")
+            throw APIError.serverError(statusCode: 429, message: msg ?? L10n.tr(zh: "请求过于频繁，请稍后再试", en: "Too many requests. Please try again later."))
         case 400...499:
             let msg = parseMessage(from: data)
             if let code = parseBusinessCode(from: data) {
@@ -53,7 +53,9 @@ public final class ResponseValidator {
             }
             throw APIError.serverError(statusCode: http.statusCode, message: msg)
         case 500...599:
-            let msg = parseMessage(from: data)
+            // Nest 默认 500 体是英文 "Internal server error"，中文界面下不原样透出，交给 APIError 的本地化兜底文案
+            var msg = parseMessage(from: data)
+            if msg?.lowercased() == "internal server error" { msg = nil }
             throw APIError.serverError(statusCode: http.statusCode, message: msg)
         default:
             let msg = parseMessage(from: data)

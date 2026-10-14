@@ -11,6 +11,7 @@ import { ChatRealtimeService } from './chat-realtime.service';
 import { ChatMediaCleanupService } from './chat-media-cleanup.service';
 import { NotificationService } from '../notification/notification.service';
 import { SendMessageDto } from './dto/chat.dto';
+import { AppLang, normalizeLang } from '../../common/i18n/language.util';
 
 /** 对外消息视图（BigInt → number，隐去内部字段） */
 export interface MessageView {
@@ -212,20 +213,34 @@ export class ChatService {
       select: { name: true },
     });
     const senderName = await this.resolveSenderName(groupId, senderId);
-    const groupName = group?.name || '家庭';
-    const preview = this.previewText(msg);
     const collapseId = `chat_${groupId}`.slice(0, 64); // 同群合并，避免堆叠
+    // 2026-10-14 国际化：按接收人的 App 语言（users.language，由 JwtAuthGuard 按请求头回写）出推送文案
+    const langs = await this.recipientLanguages(pushable);
 
     await this.notification.sendPushBatch(
-      pushable.map((uid) => ({
-        userId: uid,
-        title: groupName,
-        body: senderName ? `${senderName}：${preview}` : preview,
-        category: 'family_chat',
-        collapseId,
-        customData: { type: 'family_chat', groupId },
-      })),
+      pushable.map((uid) => {
+        const lang = langs.get(uid) ?? 'zh';
+        const preview = this.previewText(msg, lang);
+        return {
+          userId: uid,
+          title: group?.name || (lang === 'en' ? 'Family' : '家庭'),
+          body: senderName ? `${senderName}${lang === 'en' ? ': ' : '：'}${preview}` : preview,
+          category: 'family_chat',
+          collapseId,
+          customData: { type: 'family_chat', groupId },
+        };
+      }),
     );
+  }
+
+  /** 接收人的 App 语言（users.language 归一化为 zh / en） */
+  private async recipientLanguages(userIds: string[]): Promise<Map<string, AppLang>> {
+    if (userIds.length === 0) return new Map();
+    const rows = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, language: true },
+    });
+    return new Map(rows.map((r) => [r.id, normalizeLang(r.language)]));
   }
 
   /** 过滤掉关闭了推送总开关（pushAllEnabled=false）的用户 */
@@ -290,10 +305,11 @@ export class ChatService {
     const group = await this.prisma.familyGroup.findUnique({
       where: { id: groupId }, select: { name: true },
     });
+    const langs = await this.recipientLanguages(pushable);
     await this.notification.sendPushBatch(
       pushable.map((uid) => ({
         userId: uid,
-        title: group?.name || '家庭',
+        title: group?.name || (langs.get(uid) === 'en' ? 'Family' : '家庭'),
         body: title.slice(0, 40),
         category: 'family_chat',
         collapseId: `chat_${groupId}`.slice(0, 64),
@@ -342,17 +358,18 @@ export class ChatService {
     return member?.displayName || member?.user?.nickname || null;
   }
 
-  private previewText(msg: FamilyMessage): string {
+  private previewText(msg: FamilyMessage, lang: AppLang = 'zh'): string {
+    const en = lang === 'en';
     switch (msg.type) {
       case 'text':
       case 'bigEmoji':
-        return (msg.content || '').slice(0, 30) || '[消息]';
+        return (msg.content || '').slice(0, 30) || (en ? '[Message]' : '[消息]');
       case 'voice':
-        return '[语音]';
+        return en ? '[Voice]' : '[语音]';
       case 'image':
-        return '[图片]';
+        return en ? '[Photo]' : '[图片]';
       default:
-        return '[消息]';
+        return en ? '[Message]' : '[消息]';
     }
   }
 

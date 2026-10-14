@@ -7,6 +7,7 @@ import {
   Put,
   Delete,
   Query,
+  Headers,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -14,6 +15,7 @@ import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { IntelService } from './intel.service';
 import { IntelSubmitDto, IntelPreferencesDto } from './dto/intel.dto';
+import { headerLanguage } from '../../common/i18n/language.util';
 
 /**
  * V3-B 情报推送接口
@@ -39,22 +41,29 @@ export class IntelController {
     @CurrentUser('sub') userId: string,
     @Query('limit') limitQ?: string,
     @Query('language') language?: string,
+    @Headers('x-app-language') langHeader?: string,
   ) {
     return this.intel.getFeedForUser(userId, {
-      language,
+      language: language || headerLanguage(langHeader) || undefined,
       limit: limitQ ? parseInt(limitQ, 10) : 30,
     });
   }
 
   @Get('categories')
-  async categories(@Query('language') language?: string) {
-    return this.intel.getCategories(language || 'zh');
+  async categories(
+    @Query('language') language?: string,
+    @Headers('x-app-language') langHeader?: string,
+  ) {
+    return this.intel.getCategories(language || headerLanguage(langHeader) || 'zh');
   }
 
   @Get('unread-count')
   @UseGuards(JwtAuthGuard)
-  async unreadCount(@CurrentUser('sub') userId: string) {
-    const count = await this.intel.getUnreadCountForUser(userId);
+  async unreadCount(
+    @CurrentUser('sub') userId: string,
+    @Headers('x-app-language') langHeader?: string,
+  ) {
+    const count = await this.intel.getUnreadCountForUser(userId, headerLanguage(langHeader));
     return { count };
   }
 
@@ -86,8 +95,12 @@ export class IntelController {
   // 必须放最后：动态路径
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  async detail(@CurrentUser('sub') userId: string, @Param('id') id: string) {
-    return this.intel.getDetail(userId, id);
+  async detail(
+    @CurrentUser('sub') userId: string,
+    @Param('id') id: string,
+    @Headers('x-app-language') langHeader?: string,
+  ) {
+    return this.intel.getDetail(userId, id, headerLanguage(langHeader));
   }
 
   /// V4-P4 用户举报某条情报（App Store 1.2 UGC 合规：举报入口）

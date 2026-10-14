@@ -20,7 +20,7 @@ struct SplashView: View {
                     .scaledToFit()
                     .frame(width: 88, height: 88)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                Text("StarLens AI")
+                Text(L10n.tr(zh: "星识安全助手", en: "StarLens AI"))
                     .font(.system(size: 22, weight: .bold))
                     .foregroundColor(Color(red: 0.173, green: 0.173, blue: 0.180))
             }

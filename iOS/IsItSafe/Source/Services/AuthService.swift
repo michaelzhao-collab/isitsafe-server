@@ -50,7 +50,7 @@ public final class AuthService {
             authToken: nil
         )
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw APIError.unknown("无效响应") }
+        guard let http = response as? HTTPURLResponse else { throw APIError.unknown(L10n.tr(zh: "无效响应", en: "Invalid response")) }
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
 
         if http.statusCode == 429 {

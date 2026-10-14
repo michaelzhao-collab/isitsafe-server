@@ -15,6 +15,7 @@ import { ChatService } from '../chat/chat.service';
 import { randomBytes, createHash } from 'crypto';
 import { regionToTimezone, daysDiffInTz, localHour } from '../../common/utils/region-timezone';
 import { normalizeByType } from '../../common/utils/content-normalize';
+import { normalizeLang } from '../../common/i18n/language.util';
 
 /**
  * 家庭组容量上限（S5-7 按 owner 订阅动态）
@@ -937,10 +938,21 @@ export class FamilyService {
           safe: '📢 经核实暂未发现风险',
           unknown: '📢 暂无法确认，请谨慎',
         } as const;
+        const titleByLabelEn = {
+          scam: '📢 Scam detected',
+          safe: '📢 Checked: no risk found',
+          unknown: '📢 Not sure yet — be careful',
+        } as const;
+        // 2026-10-14 国际化：按接收人的 App 语言出标题（正文是查询内容本身，不翻）
+        const langRows = await this.prisma.user.findMany({
+          where: { id: { in: otherMembers.map((m) => m.userId) } },
+          select: { id: true, language: true },
+        });
+        const enUsers = new Set(langRows.filter((r) => normalizeLang(r.language) === 'en').map((r) => r.id));
         await this.notification.sendPushBatch(
           otherMembers.map((m) => ({
             userId: m.userId,
-            title: titleByLabel[classification.label],
+            title: (enUsers.has(m.userId) ? titleByLabelEn : titleByLabel)[classification.label],
             body: classification.contentDisplay,
             category: 'family_broadcast',
             customData: {
@@ -1259,8 +1271,8 @@ export class FamilyService {
       if (finalChannels.length === 0) continue;
 
       const notifiedIds = otherMembers.map((m) => m.userId);
-      const inactiveDisplayName =
-        candidate.user.nickname || candidate.user.wechatNickname || '家人';
+      const inactiveName = candidate.user.nickname || candidate.user.wechatNickname || '';
+      const inactiveDisplayName = inactiveName || '家人';
 
       // S4-4 投递状态：每条 notice 独立 stats，避免不同 channel 的计数交叉污染
       for (const channel of finalChannels) {
@@ -1277,19 +1289,25 @@ export class FamilyService {
         if (channel === 'push') {
           const pushStats = { pushDelivered: 0, pushFailed: 0, escalatedToSms: false };
           const result = await this.notification.sendPushBatch(
-            otherMembers.map((m) => ({
-              userId: m.userId,
-              title: '家庭关怀提醒',
-              body: `${inactiveDisplayName} 已连续 ${daysInactive} 天未打开 App，建议联系确认`,
-              category: 'family_care',
-              customData: {
-                groupId: candidate.groupId,
-                inactiveUserId: candidate.userId,
-                daysInactive,
-              },
-              // S5-3：同一关怀对象当天的连续提醒会替换（避免锁屏堆叠 N 条）
-              collapseId: `care:${candidate.userId}`,
-            })),
+            otherMembers.map((m) => {
+              // 2026-10-14 国际化：按接收人的 App 语言出文案
+              const en = normalizeLang(m.user.language) === 'en';
+              return {
+                userId: m.userId,
+                title: en ? 'Family check-in' : '家庭关怀提醒',
+                body: en
+                  ? `${inactiveName || 'A family member'} hasn't opened the app for ${daysInactive} days. Consider checking in.`
+                  : `${inactiveDisplayName} 已连续 ${daysInactive} 天未打开 App，建议联系确认`,
+                category: 'family_care',
+                customData: {
+                  groupId: candidate.groupId,
+                  inactiveUserId: candidate.userId,
+                  daysInactive,
+                },
+                // S5-3：同一关怀对象当天的连续提醒会替换（避免锁屏堆叠 N 条）
+                collapseId: `care:${candidate.userId}`,
+              };
+            }),
           );
           pushStats.pushDelivered += result.delivered;
           pushStats.pushFailed += result.failed;

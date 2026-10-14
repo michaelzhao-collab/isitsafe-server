@@ -136,13 +136,15 @@ export class IntelService {
     });
   }
 
-  async getDetail(userId: string, intelId: string) {
-    // V4-P5：拉用户语言决定要不要翻译
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { language: true },
-    });
-    const targetLang = (user?.language || 'zh').startsWith('en') ? 'en' : 'zh';
+  async getDetail(userId: string, intelId: string, headerLang?: 'zh' | 'en' | null) {
+    // V4-P5：拉用户语言决定要不要翻译；2026-10-14：请求头 X-App-Language 优先（App 内刚切换语言时 users.language 可能还没回写）
+    const user = headerLang
+      ? null
+      : await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { language: true },
+        });
+    const targetLang = headerLang ?? ((user?.language || 'zh').startsWith('en') ? 'en' : 'zh');
 
     const intel = await this.prisma.intelAlert.findUnique({
       where: { id: intelId },
@@ -215,12 +217,12 @@ export class IntelService {
     });
   }
 
-  async getUnreadCountForUser(userId: string): Promise<number> {
+  async getUnreadCountForUser(userId: string, headerLang?: 'zh' | 'en' | null): Promise<number> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { regionCode: true, language: true },
     });
-    return this.getUnreadCount(userId, user?.regionCode ?? undefined, user?.language || 'zh');
+    return this.getUnreadCount(userId, user?.regionCode ?? undefined, headerLang || user?.language || 'zh');
   }
 
   // ====================================================================

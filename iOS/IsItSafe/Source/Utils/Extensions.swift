@@ -14,7 +14,7 @@ extension Date {
     public func formatRelative() -> String {
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .abbreviated
-        f.locale = Locale(identifier: "zh_CN")
+        f.locale = Locale(identifier: L10n.current == .en ? "en_US" : "zh_CN")
         return f.localizedString(for: self, relativeTo: Date())
     }
 }

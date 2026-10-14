@@ -167,13 +167,14 @@ public struct IntelSubmitSheet: View {
             categories = try await IntelRepository.shared.getCategories(language: languageCode)
         } catch {
             // fallback: 用本地固定列表
+            let en = languageCode == "en"
             categories = [
-                IntelCategory(key: "impersonation", name: "冒充客服 / 公检法"),
-                IntelCategory(key: "phishing", name: "钓鱼链接 / 假 App"),
-                IntelCategory(key: "investment", name: "投资理财"),
-                IntelCategory(key: "package", name: "快递物流"),
-                IntelCategory(key: "job", name: "兼职刷单"),
-                IntelCategory(key: "romance", name: "杀猪盘"),
+                IntelCategory(key: "impersonation", name: en ? "Impersonation / Fake police" : "冒充客服 / 公检法"),
+                IntelCategory(key: "phishing", name: en ? "Phishing links / Fake apps" : "钓鱼链接 / 假 App"),
+                IntelCategory(key: "investment", name: en ? "Investment" : "投资理财"),
+                IntelCategory(key: "package", name: en ? "Package delivery" : "快递物流"),
+                IntelCategory(key: "job", name: en ? "Task / Job scams" : "兼职刷单"),
+                IntelCategory(key: "romance", name: en ? "Romance scams" : "杀猪盘"),
             ]
         }
     }

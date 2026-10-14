@@ -104,7 +104,7 @@ public struct ProfileView: View {
                             } label: {
                                 menuRow(
                                     icon: "shield.lefthalf.filled",
-                                    title: "Dark Web Monitor",
+                                    title: languageCode == "en" ? "Data Breach Monitor" : "数据泄露监控",
                                     showRedDot: false
                                 )
                             }
@@ -420,6 +420,13 @@ public struct ProfileView: View {
                 }
                 .pickerStyle(.segmented)
                 .tint(AppTheme.primaryTint)
+                // 系统界面（相机、相册、Sign in with Apple）的语言由 iOS 在启动时决定，切换后需重启 App
+                Text(tempLanguage == "en"
+                     ? "Camera, photo picker and Sign in with Apple switch language after you restart the app."
+                     : "相机、相册选择器和「通过 Apple 登录」等系统界面，需重启 App 后切换语言。")
+                    .font(.footnote)
+                    .foregroundColor(AppTheme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
             }
             .onAppear { tempLanguage = effectiveLanguageTag }
@@ -429,13 +436,19 @@ public struct ProfileView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(effectiveLanguageTag == "en" ? "Confirm" : "确定") {
+                        let changed = languageCode != tempLanguage
                         languageCode = tempLanguage
                         showLanguageSheet = false
+                        if changed, AppSettingsStore.syncSystemUILanguage(tempLanguage) {
+                            appState.showSuccess(tempLanguage == "en"
+                                ? "Language switched. Restart the app to also switch the camera, photo picker and Sign in with Apple."
+                                : "已切换语言。重启 App 后，相机、相册和「通过 Apple 登录」等系统界面也会切换。")
+                        }
                     }
                 }
             }
         }
-        .presentationDetents([.height(220)])
+        .presentationDetents([.height(260)])
         .presentationDragIndicator(.visible)
     }
 }

@@ -59,7 +59,7 @@ public struct LoginView: View {
         }
         .overlay(alignment: .topTrailing) {
             if router.isShowingLogin {
-                Button("取消") { router.dismissLogin() }
+                Button(languageCode == "en" ? "Cancel" : "取消") { router.dismissLogin() }
                     .font(.body)
                     .foregroundColor(AppTheme.textSecondary)
                     .padding()
@@ -78,11 +78,13 @@ public struct LoginView: View {
             NavigationStack {
                 InAppWebView(
                     url: sheet == .terms ? AppTheme.termsURL : AppTheme.privacyURL,
-                    title: sheet == .terms ? "用户协议" : "隐私政策"
+                    title: sheet == .terms
+                        ? (languageCode == "en" ? "Terms of Service" : "用户协议")
+                        : (languageCode == "en" ? "Privacy Policy" : "隐私政策")
                 )
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("关闭") { agreementWebSheet = nil }
+                        Button(languageCode == "en" ? "Close" : "关闭") { agreementWebSheet = nil }
                     }
                 }
             }
@@ -227,6 +229,9 @@ public struct LoginView: View {
                     handleAppleSignIn(result)
                 }
                 .signInWithAppleButtonStyle(.black)
+                // 系统按钮文案只认 App bundle 的本地化（App 域 AppleLanguages），不认 SwiftUI 的 \.locale
+                // （模拟器实测：注入 zh-Hans locale 仍显示 "Sign in with Apple"）。
+                // IsItSafeApp.init 每次启动在建 UI 前同步 AppleLanguages，所以启动即正确；App 内切换语言后需重启
                 .frame(height: 44)
                 .disabled(!vm.agreementAccepted)
                 .opacity(vm.agreementAccepted ? 1.0 : 0.5)
@@ -593,9 +598,8 @@ public struct LoginView: View {
         }
     }
 
-    private var isChineseSystem: Bool {
-        Locale.preferredLanguages.first?.lowercased().hasPrefix("zh") == true
-    }
+    /// 跟 App 内语言走（原来按系统语言，App 设成英文时国家名仍是中文）
+    private var isChineseSystem: Bool { languageCode != "en" }
 
     private var selectedCountryDisplayName: String {
         let name = isChineseSystem ? vm.selectedCountry.nameZh : vm.selectedCountry.nameEn

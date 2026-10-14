@@ -74,7 +74,7 @@ public struct ElderSOSView: View {
                 Button {
                     callPhone("110")
                 } label: {
-                    Text("📞 拨打 110 报警")
+                    Text(languageCode == "en" ? "📞 Call 110 (Police)" : "📞 拨打 110 报警")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -128,7 +128,7 @@ public struct ElderSOSView: View {
                     .font(.system(size: 30, weight: .bold))
                     .foregroundColor(.white)
             }
-            Text(member.nickname ?? "家人")
+            Text(member.nickname ?? (languageCode == "en" ? "Family" : "家人"))
                 .font(.system(size: 22, weight: .bold))
             Text(roleDisplayName(member.role))
                 .font(.system(size: 14))
@@ -173,7 +173,7 @@ public struct ElderSOSView: View {
             Button {
                 callPhone("110")
             } label: {
-                Text("📞 拨打 110 报警")
+                Text(languageCode == "en" ? "📞 Call 110 (Police)" : "📞 拨打 110 报警")
                     .font(.system(size: 22, weight: .bold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -184,7 +184,7 @@ public struct ElderSOSView: View {
             Button {
                 callPhone("96110")
             } label: {
-                Text("📞 拨打 96110 反诈中心")
+                Text(languageCode == "en" ? "📞 Call 96110 (Anti-fraud hotline)" : "📞 拨打 96110 反诈中心")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(AppTheme.riskHigh)
                     .frame(maxWidth: .infinity)

@@ -21,10 +21,17 @@ struct IsItSafeApp: App {
     init() {
         // 剪贴板邀请检测窗口起点：必须在登录前记录，才能区分「新装」与「老用户升级」
         InviteClipboardService.recordLaunch()
+        // 系统界面（相机 / 相册 / Sign in with Apple / 系统弹窗）语言跟随 App 内语言：
+        // 每次启动把 App 内语言同步进 App 域 AppleLanguages（下次启动生效，老用户升级后第二次启动起生效）
+        AppSettingsStore.syncSystemUILanguage()
     }
 
     @State private var isSplashVisible = true
     @Environment(\.scenePhase) private var scenePhase
+
+    private var appLocale: Locale {
+        Locale(identifier: languageCode == "en" ? "en" : "zh-Hans")
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -38,12 +45,18 @@ struct IsItSafeApp: App {
                 }
                 .environment(\.fontScale, fontScale)
                 .environment(\.dynamicTypeSize, dynamicTypeSizeFromScale(fontScale))
+                // SwiftUI 内的日期 / 数字 / 系统控件按 App 内语言格式化，不跟设备语言
+                .environment(\.locale, appLocale)
                 .environmentObject(appState)
                 .environmentObject(router)
                 .sheet(isPresented: $router.isShowingLogin) {
                     LoginView()
+                        .environment(\.locale, appLocale)
                         .environmentObject(appState)
                         .environmentObject(router)
+                }
+                .onChange(of: languageCode) { _, newValue in
+                    AppSettingsStore.syncSystemUILanguage(newValue)
                 }
                 .onAppear { AppAppearance.applyToAllWindows() }
                 .onAppear {

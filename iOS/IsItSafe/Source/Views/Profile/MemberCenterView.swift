@@ -52,7 +52,7 @@ public struct MemberCenterView: View {
                 Text(memberDisplayName)
                     .font(.headline)
                     .foregroundColor(.white)
-                Text("PREMIUM MEMBER")
+                Text(languageCode == "en" ? "PREMIUM MEMBER" : "高级会员")
                     .font(.caption.weight(.semibold))
                     .foregroundColor(Color(hex: "1A1A1A"))
                     .padding(.horizontal, 10)

@@ -58,26 +58,26 @@ public struct RiskAnalysisViewData {
     }
 
     /// 图片中未识别到文字时，展示与正常分析一致的卡片，不报错
-    public static let imageContentNotRecognized: RiskAnalysisViewData = {
+    public static var imageContentNotRecognized: RiskAnalysisViewData {
         RiskAnalysisViewData(
             riskLevel: "unknown",
             confidence: 0,
-            riskType: ["未知风险"],
-            summary: "图片内容无法识别",
+            riskType: [L10n.tr(zh: "未知风险", en: "Unknown risk")],
+            summary: L10n.tr(zh: "图片内容无法识别", en: "Couldn't recognize the image content"),
             reasons: [
-                "图片中未识别到可分析文字",
-                "当前无法对纯图片内容进行风险分析",
-                "可尝试上传包含文字的截图或直接输入文字",
+                L10n.tr(zh: "图片中未识别到可分析文字", en: "No readable text was found in the image"),
+                L10n.tr(zh: "当前无法对纯图片内容进行风险分析", en: "Images without text can't be analyzed yet"),
+                L10n.tr(zh: "可尝试上传包含文字的截图或直接输入文字", en: "Try a screenshot with text, or type the text directly"),
             ],
             advice: [
-                "请上传包含文字的图片以便分析",
-                "或直接输入您要检测的文字内容",
-                "如有疑问可联系客服",
+                L10n.tr(zh: "请上传包含文字的图片以便分析", en: "Upload an image that contains text"),
+                L10n.tr(zh: "或直接输入您要检测的文字内容", en: "Or type the text you want to check"),
+                L10n.tr(zh: "如有疑问可联系客服", en: "Contact support if you have questions"),
             ],
             score: nil,
             conversationId: nil
         )
-    }()
+    }
 
     public init(riskLevel: String, confidence: Int, riskType: [String], summary: String, reasons: [String], advice: [String], score: Int?, conversationId: String? = nil, isConversational: Bool = false, intent: String? = nil, verdict: String? = nil, steps: [String] = [], actions: [RiskAnalysisResult.ResponseAction] = [], freeText: String? = nil) {
         self.riskLevel = riskLevel

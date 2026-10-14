@@ -56,9 +56,9 @@ public struct ElderDetectionView: View {
 
         var displayName: String {
             switch self {
-            case .high: return "高危"
-            case .medium: return "可疑"
-            case .low: return "安全"
+            case .high: return L10n.tr(zh: "高危", en: "High risk")
+            case .medium: return L10n.tr(zh: "可疑", en: "Suspicious")
+            case .low: return L10n.tr(zh: "安全", en: "Safe")
             }
         }
     }

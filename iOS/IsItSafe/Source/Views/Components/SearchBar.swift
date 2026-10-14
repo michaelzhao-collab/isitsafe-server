@@ -10,7 +10,7 @@ public struct SearchBar: View {
     public var placeholder: String
     public var onSearch: (() -> Void)?
 
-    public init(text: Binding<String>, placeholder: String = "搜索", onSearch: (() -> Void)? = nil) {
+    public init(text: Binding<String>, placeholder: String = L10n.tr(zh: "搜索", en: "Search"), onSearch: (() -> Void)? = nil) {
         _text = text
         self.placeholder = placeholder
         self.onSearch = onSearch

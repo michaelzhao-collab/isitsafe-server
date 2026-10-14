@@ -85,9 +85,7 @@ public struct AnalyzeInputBar: View {
             // 拍摄：无输入内容时显示
             if !hasInputContent {
                 Button(action: onCamera) {
-                    Image(systemName: "camera.circle")
-                        .font(.system(size: 32))
-                        .foregroundColor(AppTheme.primaryTint)
+                    InputBarIcon(systemName: "camera.fill")
                 }
                 .buttonStyle(.plain)
             }
@@ -100,7 +98,7 @@ public struct AnalyzeInputBar: View {
 
             // 加号：打开拍照和相册
             Button(action: onPlus) {
-                GradientCircleIcon(systemName: "plus")
+                InputBarIcon(systemName: "plus", style: .gradient)
             }
             .buttonStyle(.plain)
 
@@ -138,10 +136,11 @@ public struct AnalyzeInputBar: View {
                 .textFieldStyle(.plain)
                 .foregroundColor(AppTheme.textPrimary)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
+                .frame(minHeight: InputBarIcon.defaultSize)
                 .background(AppTheme.cardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.primarySoftBorder, lineWidth: 1.5))
+                .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 19, style: .continuous).stroke(AppTheme.primarySoftBorder, lineWidth: 1.5))
                 .lineLimit(1...4)
                 .focused($isFocused)
                 .onSubmit(onSubmit)
@@ -151,9 +150,7 @@ public struct AnalyzeInputBar: View {
                     isVoiceMode = true
                     onVoiceToggle()
                 }) {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor(AppTheme.primaryTint)
+                    InputBarIcon(systemName: "mic.fill")
                 }
                 .buttonStyle(.plain)
             }
@@ -197,9 +194,10 @@ public struct AnalyzeInputBar: View {
                     .font(.subheadline)
                     .foregroundColor(isCancellableMode ? .white : AppTheme.secondaryText)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 44)
+                    .frame(height: InputBarIcon.defaultSize)
                     .background(voiceButtonBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 19, style: .continuous).stroke(AppTheme.primarySoftBorder, lineWidth: 1.5))
                     .contentShape(Rectangle())
                     .gesture(voiceGesture)
                     .accessibilityLabel(isRecording
@@ -225,9 +223,7 @@ public struct AnalyzeInputBar: View {
                         onVoiceToggle()
                     }
                 }) {
-                    Image(systemName: isRecording ? "xmark.circle.fill" : "keyboard")
-                        .font(.system(size: 32))
-                        .foregroundColor(isRecording ? .red : AppTheme.primaryTint)
+                    InputBarIcon(systemName: isRecording ? "xmark" : "keyboard", style: isRecording ? .danger : .soft)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isRecording
@@ -318,7 +314,7 @@ public struct AnalyzeInputBar: View {
 
     private var sendButton: some View {
         Button(action: performSend) {
-            GradientCircleIcon(systemName: "arrow.up")
+            InputBarIcon(systemName: "arrow.up", style: .gradient)
         }
         .buttonStyle(.plain)
         .a11y(
@@ -350,19 +346,31 @@ public struct AnalyzeInputBar: View {
 }
 
 
-/// 主色渐变实心圆按钮（加号 / 发送）：2026-10-14 配色 V2
-struct GradientCircleIcon: View {
+/// 输入栏圆形图标按钮（2026-10-14：首页与家庭群聊输入栏统一，同尺寸、同颜色规则）
+/// - soft：主色浅底 + 主色图标（拍照 / 语音 / 键盘 / 表情）
+/// - gradient：主色渐变实心 + 白色图标（加号 / 发送）
+/// - danger：录音中取消
+struct InputBarIcon: View {
+    enum Style { case soft, gradient, danger }
     let systemName: String
-    var size: CGFloat = 32
+    var style: Style = .soft
+    var size: CGFloat = InputBarIcon.defaultSize
+
+    static let defaultSize: CGFloat = 38
 
     var body: some View {
         ZStack {
-            Circle().fill(AppTheme.brandGradient)
+            switch style {
+            case .soft: Circle().fill(AppTheme.primarySoft)
+            case .gradient: Circle().fill(AppTheme.brandGradient)
+            case .danger: Circle().fill(Color.red.opacity(0.15))
+            }
             Image(systemName: systemName)
-                .font(.system(size: size * 0.5, weight: .bold))
-                .foregroundColor(.white)
+                .font(.system(size: size * 0.45, weight: .semibold))
+                .foregroundColor(style == .gradient ? .white : (style == .danger ? .red : AppTheme.primaryTint))
         }
         .frame(width: size, height: size)
-        .shadow(color: AppTheme.primary.opacity(0.35), radius: 5, x: 0, y: 3)
+        .shadow(color: style == .gradient ? AppTheme.primary.opacity(0.30) : .clear, radius: 5, x: 0, y: 3)
+        .contentShape(Circle())
     }
 }

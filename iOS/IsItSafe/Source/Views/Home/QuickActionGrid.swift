@@ -12,11 +12,11 @@ public struct QuickActionGrid: View {
 
     public var body: some View {
         HStack(spacing: 12) {
-            Button("查电话", action: onPhone)
+            Button(L10n.tr(zh: "查电话", en: "Check Phone"), action: onPhone)
                 .buttonStyle(QuickActionButtonStyle())
-            Button("查链接", action: onURL)
+            Button(L10n.tr(zh: "查链接", en: "Check Link"), action: onURL)
                 .buttonStyle(QuickActionButtonStyle())
-            Button("查公司", action: onCompany)
+            Button(L10n.tr(zh: "查公司", en: "Check Company"), action: onCompany)
                 .buttonStyle(QuickActionButtonStyle())
         }
     }

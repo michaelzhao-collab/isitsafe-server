@@ -57,7 +57,7 @@ public struct CachedNetworkImageView: View {
                     .frame(width: maxWidth, height: maxHeight)
             }
         }
-        .accessibilityLabel(loadFailed ? Text(failureCaption) : Text("图片"))
+        .accessibilityLabel(loadFailed ? Text(failureCaption) : Text(L10n.tr(zh: "图片", en: "Image")))
         .task(id: urlString) {
             await loadAndCache()
         }
@@ -72,7 +72,7 @@ public struct CachedNetworkImageView: View {
 
     private var failureCaption: String {
         // 与首页其他文案保持中文为主，简短直接
-        "图片加载失败"
+        L10n.tr(zh: "图片加载失败", en: "Failed to load image")
     }
 
     private func loadAndCache() async {

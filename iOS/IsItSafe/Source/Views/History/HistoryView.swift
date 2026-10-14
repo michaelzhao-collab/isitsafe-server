@@ -17,14 +17,14 @@ public struct HistoryView: View {
         NavigationStack {
             Group {
                 if !appState.isLoggedIn {
-                    EmptyStateView(message: "登录后查看历史记录") {
+                    EmptyStateView(message: L10n.tr(zh: "登录后查看历史记录", en: "Sign in to view your history")) {
                         router.showLogin()
                     }
                 } else {
                     listContent
                 }
             }
-            .navigationTitle("历史")
+            .navigationTitle(L10n.tr(zh: "历史", en: "History"))
             .refreshable { vm.refresh() }
             .navigationDestination(item: $selectedItem) { item in
                 HistoryDetailView(item: item)
@@ -36,7 +36,7 @@ public struct HistoryView: View {
     private var listContent: some View {
         Group {
             if vm.items.isEmpty && !vm.state.isLoading {
-                EmptyStateView(message: "暂无历史记录", action: { vm.refresh() })
+                EmptyStateView(message: L10n.tr(zh: "暂无历史记录", en: "No history yet"), action: { vm.refresh() })
             } else {
                 List {
                     ForEach(vm.items, id: \.id) { item in

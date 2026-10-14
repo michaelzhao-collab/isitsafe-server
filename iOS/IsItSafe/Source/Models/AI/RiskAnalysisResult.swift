@@ -48,14 +48,14 @@ public struct RiskAnalysisResult: Codable {
         public var displayLabel: String {
             if let l = label, !l.isEmpty { return l }
             switch type {
-            case "call": return "拨打"
-            case "call_family": return "拨打家人"
-            case "knowledge": return "看案例"
-            case "report": return "举报"
-            case "open_url": return "打开链接"
-            case "family_broadcast": return "告诉家人"
-            case "dismiss": return "知道了"
-            default: return "查看"
+            case "call": return L10n.tr(zh: "拨打", en: "Call")
+            case "call_family": return L10n.tr(zh: "拨打家人", en: "Call family")
+            case "knowledge": return L10n.tr(zh: "看案例", en: "View cases")
+            case "report": return L10n.tr(zh: "举报", en: "Report")
+            case "open_url": return L10n.tr(zh: "打开链接", en: "Open link")
+            case "family_broadcast": return L10n.tr(zh: "告诉家人", en: "Tell family")
+            case "dismiss": return L10n.tr(zh: "知道了", en: "Got it")
+            default: return L10n.tr(zh: "查看", en: "View")
             }
         }
     }

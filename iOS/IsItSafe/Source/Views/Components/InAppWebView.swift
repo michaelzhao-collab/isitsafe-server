@@ -14,7 +14,7 @@ public struct InAppWebView: View {
     let url: URL
     let title: String
 
-    public init(url: URL, title: String = "详情") {
+    public init(url: URL, title: String = L10n.tr(zh: "详情", en: "Details")) {
         self.url = url
         self.title = title
     }

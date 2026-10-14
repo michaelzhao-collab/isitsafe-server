@@ -17,7 +17,7 @@ public enum HistoryTitleHelper {
             .components(separatedBy: .newlines)
             .first?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? item.content.trimmingCharacters(in: .whitespacesAndNewlines)
-        if raw.isEmpty { return "无标题" }
+        if raw.isEmpty { return L10n.tr(zh: "无标题", en: "Untitled") }
         if raw.count <= maxLength { return raw }
         return String(raw.prefix(maxLength)) + "…"
     }

@@ -9,7 +9,7 @@ public struct LoadingOverlay: View {
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
     public var message: String
 
-    public init(message: String = "加载中...") {
+    public init(message: String = L10n.tr(zh: "加载中...", en: "Loading...")) {
         self.message = message
     }
 
@@ -21,7 +21,7 @@ public struct LoadingOverlay: View {
                 ProgressView()
                     .scaleEffect(1.2)
                     .tint(.white)
-                Text(languageCode == "en" ? (message == "加载中..." ? "Loading..." : message) : message)
+                Text(message)
                     .font(.subheadline)
                     .foregroundColor(.white)
             }

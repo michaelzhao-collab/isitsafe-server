@@ -24,7 +24,7 @@ public enum L10n {
         return .zhHans
     }
 
-    private static var isSystemChinese: Bool {
+    static var isSystemChinese: Bool {
         let lang = Locale.preferredLanguages.first ?? "en"
         return lang.hasPrefix("zh")
     }

@@ -74,14 +74,14 @@ public struct DeepfakeBroadcastResult: Decodable {
     }
 
     public var userMessage: String {
-        if delivered { return "已广播给家人 ✓" }
+        if delivered { return L10n.tr(zh: "已广播给家人 ✓", en: "Sent to your family ✓") }
         switch skipReason {
-        case "duplicate": return "今天已广播过该内容"
-        case "quota_exceeded": return "今日家庭官方提醒已用完"
-        case "no_group": return "未加入家庭组，无法广播"
-        case "disabled_by_user": return "你已关闭'自动广播'选项"
-        case "in_progress": return "正在处理中，稍后查看"
-        default: return "广播未送达"
+        case "duplicate": return L10n.tr(zh: "今天已广播过该内容", en: "Already sent to your family today")
+        case "quota_exceeded": return L10n.tr(zh: "今日家庭官方提醒已用完", en: "Today's family alerts are used up")
+        case "no_group": return L10n.tr(zh: "未加入家庭组，无法广播", en: "Join a family group to send alerts")
+        case "disabled_by_user": return L10n.tr(zh: "你已关闭'自动广播'选项", en: "You turned off auto-broadcast")
+        case "in_progress": return L10n.tr(zh: "正在处理中，稍后查看", en: "In progress, check back later")
+        default: return L10n.tr(zh: "广播未送达", en: "Alert not delivered")
         }
     }
 }

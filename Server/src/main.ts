@@ -4,10 +4,11 @@
 // 导致写在 .env 里的 DAILY_SCAM_CRON 永远读不到（静默回落默认值）。
 // dotenv 默认不覆盖已存在的 process.env，所以 Railway 注入的真实环境变量优先级不变。
 import 'dotenv/config';
-import { NestFactory } from '@nestjs/core';
+import { HttpAdapterHost, NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { AppModule } from './app.module';
+import { I18nHttpExceptionFilter } from './common/i18n/i18n-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -23,6 +24,8 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+  // 2026-10-14 国际化：错误文案按 X-App-Language 翻译后再返回（服务层写死的中 / 英文报错）
+  app.useGlobalFilters(new I18nHttpExceptionFilter(app.get(HttpAdapterHost).httpAdapter));
   // 全局前缀 /api，排除以下根路径：
   //  - /.well-known/apple-app-site-association (iOS Universal Link 验证)
   //  - /.well-known/assetlinks.json (Android App Links 占位，二期接入)
