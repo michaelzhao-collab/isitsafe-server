@@ -31,6 +31,10 @@ public struct BreachTargetItem: Codable, Identifiable {
     public let scanStatus: String?
     public let scanFailReason: String?
     public let verificationExpiresAt: String?
+    /// 数据来源：leakcheck（免费默认）/ hibp（配了付费 key 时）
+    public let dataSource: String?
+    /// 该邮箱在所有泄露里合计暴露过的数据类型（免费数据源只能给到合计）
+    public let exposedSummary: [String]?
 
     public var effectiveScanStatus: String {
         if let s = scanStatus { return s }

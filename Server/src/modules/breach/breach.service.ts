@@ -18,9 +18,11 @@ const tr = (lang: Lang, zh: string, en: string) => (lang === 'zh' ? zh : en);
 
 /** 2026-10-14：扫描状态存 Redis（不改表结构）。failed 时客户端显示「暂时无法扫描」而不是绿色「安全」 */
 export type ScanStatus = 'ok' | 'failed' | 'pending_verification' | 'never';
-type ScanFailReason = 'not_configured' | 'decrypt' | 'rate_limited' | 'auth' | 'upstream';
+type ScanFailReason = 'not_configured' | 'decrypt' | 'rate_limited' | 'auth' | 'upstream' | 'invalid_email';
 const SCAN_STATUS_KEY = 'breach:scan:';
 const SCAN_STATUS_TTL = 14 * 24 * 3600;
+/** 免费数据源只给「该邮箱在所有泄露里合计暴露过的数据类型」，按目标存一份（不挂到每条告警上，否则每条都像泄露了 SSN） */
+const EXPOSED_SUMMARY_KEY = 'breach:exposed:';
 
 /** 邮箱验证码 */
 const CODE_TTL_SEC = 30 * 60;
@@ -40,11 +42,12 @@ const CODE_MAX_GLOBAL_DAY = Math.max(1, Number(process.env.BREACH_CODE_DAILY_CAP
 const CRON_LOCK_KEY = 'breach:cron:lock';
 const APPLE_RELAY_SUFFIX = '@privaterelay.appleid.com';
 
-/** HIBP 每分钟请求上限（Pwned 1 = 10 RPM），按套餐用 HIBP_RPM 覆盖 */
+/** 每分钟请求上限：HIBP 按套餐（Core 1 = 10 RPM，可用 HIBP_RPM 覆盖）；LeakCheck 公共接口 1 次/秒，留余量按 45 */
 const HIBP_RPM = (() => {
   const n = Number(process.env.HIBP_RPM);
   return Number.isFinite(n) && n >= 1 ? n : 10;
 })();
+const providerRpm = () => (breachProvider() === 'hibp' ? HIBP_RPM : 45);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class HibpError extends Error {
@@ -56,16 +59,33 @@ class HibpError extends Error {
 /** 配置状态（/api/health 暴露，不含密钥本身） */
 export function breachConfigStatus() {
   const key = getAesKey();
-  return { hibp: !!process.env.HIBP_API_KEY, aes: !!key && key.length === 32 };
+  return {
+    provider: breachProvider(),
+    hibp: !!process.env.HIBP_API_KEY,
+    aes: !!key && key.length === 32,
+    aesSource: process.env.BREACH_AES_KEY ? 'env' : 'derived',
+  };
 }
 
 const HIBP_SALT_NAMESPACE = 'starlens-breach-v3';
 const HIBP_API_BASE = 'https://haveibeenpwned.com/api/v3';
+/** 2026-10-14：免费数据源。产品要求不用付费 HIBP —— 没配 HIBP_API_KEY 时改用 LeakCheck Public API
+ *  （官方允许商用，要求页面放「Powered by LeakCheck」链接；限速 1 次/秒） */
+const LEAKCHECK_PUBLIC_URL = 'https://leakcheck.io/api/public';
+export type BreachProvider = 'hibp' | 'leakcheck';
+function breachProvider(): BreachProvider {
+  return process.env.HIBP_API_KEY ? 'hibp' : 'leakcheck';
+}
 
-/** AES-GCM 加密/解密邮箱（HIBP 调用时还原明文） */
+/** AES-GCM 加密/解密邮箱（查询时还原明文）。
+ *  未单独配置 BREACH_AES_KEY 时由 JWT_SECRET 派生（生产环境 JWT_SECRET 必配）。
+ *  注意：派生后若更换 JWT_SECRET，已保存的邮箱将无法解密（扫描显示失败，用户需重新添加）。 */
 function getAesKey(): Buffer | null {
   const raw = process.env.BREACH_AES_KEY;
-  if (!raw) return null;
+  if (!raw) {
+    const jwt = process.env.JWT_SECRET?.trim();
+    return jwt ? createHash('sha256').update(`starlens-breach-aes-v1:${jwt}`).digest() : null;
+  }
   // 接受 hex (64 字符 = 32 字节) 或 base64
   try {
     if (/^[0-9a-fA-F]{64}$/.test(raw)) return Buffer.from(raw, 'hex');
@@ -307,6 +327,11 @@ export class BreachService {
       },
     });
     const statuses = await this.readScanStatuses(targets.map((t) => t.id));
+    const summaries = new Map<string, string[]>();
+    try {
+      const vals = targets.length ? await this.redis.getClient().mget(targets.map((t) => EXPOSED_SUMMARY_KEY + t.id)) : [];
+      vals.forEach((v, i) => { if (v) { try { summaries.set(targets[i].id, JSON.parse(v)); } catch { /* ignore */ } } });
+    } catch { /* ignore */ }
     return targets.map((t) => {
       const st = statuses.get(t.id);
       const scanStatus: ScanStatus = !t.verified
@@ -324,6 +349,8 @@ export class BreachService {
         scanFailReason: scanStatus === 'failed' ? st?.reason ?? null : null,
         alertCount: t._count.alerts,
         createdAt: t.createdAt,
+        dataSource: breachProvider(),
+        exposedSummary: summaries.get(t.id) ?? null,
       };
     });
   }
@@ -348,7 +375,7 @@ export class BreachService {
     // 旧算法几乎全判成 medium，且告警按名称去重不会重算 —— 展示时按 exposedData 现算
     return rows.map((r) => {
       const exposed = Array.isArray(r.exposedData) ? (r.exposedData as unknown[]).filter((x): x is string => typeof x === 'string') : [];
-      return exposed.length ? { ...r, severity: BreachService.severityFor(exposed) } : r;
+      return exposed.length && r.breachSource === 'HIBP' ? { ...r, severity: BreachService.severityFor(exposed) } : r;
     });
   }
 
@@ -375,18 +402,13 @@ export class BreachService {
     if (!target || !target.verified) return { newAlerts: 0, ok: false };
 
     const hibpKey = process.env.HIBP_API_KEY;
+    const provider = breachProvider();
     let breaches: Array<{ name: string; severity: 'low' | 'medium' | 'high'; exposed: string[]; date: string }>;
-    let sourceTag = 'HIBP';
+    let sourceTag = provider === 'hibp' ? 'HIBP' : 'LeakCheck';
 
-    if (!hibpKey) {
-      if (process.env.BREACH_ALLOW_STUB === 'true') {
-        breaches = this.stubBreachesFor(target.targetValueLookup);
-        sourceTag = 'HIBP_stub';
-      } else {
-        this.logger.error('[BreachScan] HIBP_API_KEY not configured — scan marked failed');
-        await this.writeScanStatus(targetId, 'failed', 'not_configured');
-        return { newAlerts: 0, ok: false, reason: 'not_configured' };
-      }
+    if (process.env.BREACH_ALLOW_STUB === 'true' && !hibpKey && process.env.BREACH_STUB_ONLY === 'true') {
+      breaches = this.stubBreachesFor(target.targetValueLookup);
+      sourceTag = 'stub';
     } else {
       const email = target.targetValueEncrypted ? decryptEmail(target.targetValueEncrypted) : null;
       if (!email) {
@@ -396,32 +418,46 @@ export class BreachService {
       }
       try {
         // 用户操作路径（添加 / 验证）不做 429 等待重试，避免请求被拖到客户端超时；失败留给每日扫描
-        breaches = await this.queryHibp(email, hibpKey, opts.interactive ? 0 : 3);
+        let summary: string[] | null = null;
+        if (provider === 'hibp') {
+          breaches = await this.queryHibp(email, hibpKey as string, opts.interactive ? 0 : 3);
+        } else {
+          const r = await this.queryLeakCheck(email, opts.interactive ? 1 : 3);
+          breaches = r.breaches;
+          summary = r.exposedSummary;
+        }
+        if (summary) {
+          await this.redis.getClient()
+            .set(EXPOSED_SUMMARY_KEY + targetId, JSON.stringify(summary), 'EX', SCAN_STATUS_TTL)
+            .catch(() => undefined);
+        }
       } catch (err: any) {
         const reason: ScanFailReason = err instanceof HibpError ? err.reason : 'upstream';
-        this.logger.error(`[BreachScan] HIBP failed target=${targetId} reason=${reason}: ${err?.message}`);
+        this.logger.error(`[BreachScan] ${provider} failed target=${targetId} reason=${reason}: ${err?.message}`);
         await this.writeScanStatus(targetId, 'failed', reason);
         return { newAlerts: 0, ok: false, reason };
       }
     }
 
-    let newAlerts = 0;
-    for (const b of breaches) {
-      const exists = await this.prisma.breachAlert.findFirst({ where: { targetId, breachName: b.name } });
-      if (exists) continue;
-      await this.prisma.breachAlert.create({
-        data: {
+    // 一次取已有名称 + createMany（常见邮箱一次可能有 200+ 个来源，原来逐条 findFirst+create 是 N+1）
+    const existing = new Set(
+      (await this.prisma.breachAlert.findMany({ where: { targetId }, select: { breachName: true } })).map((r) => r.breachName),
+    );
+    const fresh = breaches.filter((b) => !existing.has(b.name));
+    if (fresh.length) {
+      await this.prisma.breachAlert.createMany({
+        data: fresh.map((b) => ({
           targetId,
           userId: target.userId,
           breachSource: sourceTag,
           breachName: b.name,
-          breachDate: new Date(b.date),
+          breachDate: b.date ? new Date(b.date) : null,
           exposedData: b.exposed as any,
           severity: b.severity,
-        },
+        })),
       });
-      newAlerts += 1;
     }
+    const newAlerts = fresh.length;
 
     await this.prisma.breachTarget.update({ where: { id: targetId }, data: { lastScannedAt: new Date() } });
     await this.writeScanStatus(targetId, 'ok');
@@ -464,6 +500,77 @@ export class BreachService {
       });
     }
     throw new HibpError('rate_limited', 'HIBP 429');
+  }
+
+  /**
+   * LeakCheck Public API：GET /api/public?check=email
+   *  - 命中：{ success: true, found, fields: [...合并后的数据类型], sources: [{ name, date: 'YYYY-MM' }] }
+   *  - 未命中：{ success: false, error: 'Not found' }（HTTP 200）
+   *  fields 是该邮箱在所有来源里合计暴露过的数据类型，不是逐条来源的；每条告警都挂这份合并列表，界面上按「合计」表述。
+   */
+  private async queryLeakCheck(email: string, maxRetries = 3): Promise<{
+    breaches: Array<{ name: string; severity: 'low' | 'medium' | 'high'; exposed: string[]; date: string }>;
+    exposedSummary: string[];
+  }> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      let resp;
+      try {
+        resp = await axios.get(LEAKCHECK_PUBLIC_URL, {
+          params: { check: email },
+          headers: { 'User-Agent': 'StarLensAI-BreachMonitor' },
+          // 用户操作路径（maxRetries=1）缩短超时，避免拖过客户端超时
+          timeout: maxRetries <= 1 ? 8000 : 15000,
+          validateStatus: () => true,
+        });
+      } catch (err: any) {
+        throw new HibpError('upstream', err?.message || 'network error');
+      }
+      const body = resp.data ?? {};
+      const errText = String(body?.error ?? '').toLowerCase();
+      if (resp.status === 429 || errText.includes('limit') || errText.includes('too many')) {
+        if (attempt >= maxRetries) throw new HibpError('rate_limited', `LeakCheck ${resp.status} ${errText}`);
+        await sleep(1500 * (attempt + 1));
+        continue;
+      }
+      if (resp.status === 200 && body?.success === false && errText.includes('not found')) {
+        return { breaches: [], exposedSummary: [] };
+      }
+      if (errText.includes('invalid')) throw new HibpError('invalid_email', `LeakCheck ${errText}`);
+      if (resp.status !== 200 || body?.success !== true || !Array.isArray(body?.sources)) {
+        throw new HibpError('upstream', `LeakCheck ${resp.status} ${errText || 'bad response'}`);
+      }
+      // 合计数据类型单独存（目标详情页展示一次）；每条告警只写确定泄露的「邮箱」，等级统一 medium
+      const exposedSummary = BreachService.leakCheckFieldsToClasses(Array.isArray(body.fields) ? body.fields : []);
+      const exposed = ['Email addresses'];
+      const severity: 'medium' = 'medium';
+      const seen = new Set<string>();
+      const breaches = (body.sources as any[])
+        .filter((src) => src?.name && !seen.has(src.name) && seen.add(src.name))
+        .map((src) => {
+          // 没有日期的来源不编一个（原来填当天，像是「今天刚泄露」）
+          const d = typeof src.date === 'string' && /^\d{4}-\d{2}/.test(src.date) ? `${src.date.slice(0, 7)}-01` : '';
+          return { name: String(src.name).slice(0, 190), severity, exposed, date: d };
+        });
+      return { breaches, exposedSummary };
+    }
+    throw new HibpError('rate_limited', 'LeakCheck rate limited');
+  }
+
+  /** LeakCheck 字段名 → 与 HIBP 一致的可读数据类型（便于共用 severityFor 与界面展示） */
+  static leakCheckFieldsToClasses(fields: string[]): string[] {
+    const map: Record<string, string> = {
+      password: 'Passwords', ssn: 'Social security numbers', dob: 'Dates of birth',
+      phone: 'Phone numbers', address: 'Physical addresses', city: 'Geographic locations', state: 'Geographic locations',
+      zip: 'Geographic locations', country: 'Geographic locations', ip: 'IP addresses', ip1: 'IP addresses', ip2: 'IP addresses',
+      name: 'Names', first_name: 'Names', last_name: 'Names', middle_name: 'Names', profile_name: 'Names',
+      username: 'Usernames', gender: 'Genders', company_name: 'Employers',
+    };
+    const out = new Set<string>(['Email addresses']);
+    for (const f of fields) {
+      const k = String(f).toLowerCase();
+      if (map[k]) out.add(map[k]);
+    }
+    return Array.from(out);
   }
 
   /**
@@ -511,9 +618,7 @@ export class BreachService {
     const start = Date.now();
     let locked = false;
     this.logger.log('[BreachCron] start daily scan');
-    if (!breachConfigStatus().hibp) {
-      this.logger.error('[BreachCron] HIBP_API_KEY not configured — skipping (targets will show "scan unavailable")');
-    }
+    this.logger.log(`[BreachCron] provider=${breachProvider()}`);
     try {
       // 多实例 / 部署重启时不重复跑；最久没扫的先扫，部署打断后下次从没扫到的开始
       locked = await this.redis.acquireLock(CRON_LOCK_KEY, 6 * 3600).catch(() => true);
@@ -526,7 +631,7 @@ export class BreachService {
         select: { id: true },
         orderBy: { lastScannedAt: { sort: 'asc', nulls: 'first' } },
       });
-      const gapMs = Math.ceil(60000 / HIBP_RPM) + 200;
+      const gapMs = Math.ceil(60000 / providerRpm()) + 200;
       let totalNew = 0;
       let failed = 0;
       for (const [i, t] of targets.entries()) {

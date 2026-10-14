@@ -36,6 +36,9 @@ public struct BreachTargetDetailView: View {
         ScrollView {
             VStack(spacing: 14) {
                 headerCard
+                if let summary = target.exposedSummary, summary.count > 1 {
+                    exposedSummaryCard(summary)
+                }
                 if targetAlerts.isEmpty {
                     emptyState
                 } else {
@@ -87,6 +90,25 @@ public struct BreachTargetDetailView: View {
                 Divider().frame(height: 32)
                 StatTile(value: lastScanRelative, label: L10n.tr(zh: "上次扫描", en: "Last scan"))
             }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    /// 合计暴露过的数据类型：只在这里显示一次（免费数据源给不到每次泄露各自暴露了什么）
+    private func exposedSummaryCard(_ items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.tr(zh: "在这些泄露中合计暴露过的数据类型", en: "Data types exposed across these breaches"))
+                .font(.subheadline.weight(.semibold))
+            Text(items.joined(separator: " · "))
+                .font(.caption)
+                .foregroundColor(AppTheme.textSecondary)
+            Text(L10n.tr(zh: "如果包含密码：请尽快修改用过这个密码的所有账号，并开启两步验证。", en: "If passwords are listed, change them on every account that used them and turn on two-factor authentication."))
+                .font(.caption2)
+                .foregroundColor(AppTheme.textSecondary)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

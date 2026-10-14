@@ -264,15 +264,22 @@ public struct BreachMonitorView: View {
         }
     }
 
+    /// 数据来源署名（两家都要求：HIBP 注明来源并附链接；LeakCheck 免费接口要求「Powered by LeakCheck」链接）
     private var sourceFooter: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(L10n.tr(zh: "数据来源：Have I Been Pwned 公开泄露数据库。邮箱加密保存，仅用于查询。",
-                         en: "Data from Have I Been Pwned. Your email is stored encrypted and only used for these checks."))
+        let isHibp = targets.first?.dataSource == "hibp"
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.tr(zh: "邮箱加密保存，仅用于泄露查询。", en: "Your email is stored encrypted and only used for these checks."))
                 .font(.caption2)
                 .foregroundColor(AppTheme.textSecondary)
-            Link("haveibeenpwned.com", destination: URL(string: "https://haveibeenpwned.com")!)
-                .font(.caption2.weight(.semibold))
-                .foregroundColor(AppTheme.primaryTint)
+            if isHibp {
+                Link(L10n.tr(zh: "数据来源：Have I Been Pwned", en: "Data from Have I Been Pwned"), destination: URL(string: "https://haveibeenpwned.com")!)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(AppTheme.primaryTint)
+            } else {
+                Link("Powered by LeakCheck", destination: URL(string: "https://leakcheck.io")!)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(AppTheme.primaryTint)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 4)
@@ -451,8 +458,8 @@ public struct BreachAddTargetSheet: View {
             Text(L10n.tr(zh: "监控一个邮箱", en: "Monitor an email"))
                 .font(.title3.weight(.bold))
             // 2026-10-14：原文案「经哈希处理、不以明文存储」不准确（实际是可逆加密 + 发给 HIBP 查询）
-            Text(L10n.tr(zh: "我们每天把这个邮箱与 Have I Been Pwned 的公开泄露数据库比对。邮箱加密保存，仅用于这项查询。你登录用的邮箱可直接监控；其它邮箱需要输入我们发到该邮箱的验证码，确认是你本人的。",
-                         en: "We check this email against the Have I Been Pwned breach database every day. It's stored encrypted and used only for these checks. The email you sign in with is monitored right away; any other email needs a code we send to it, to confirm it's yours."))
+            Text(L10n.tr(zh: "我们每天把这个邮箱与公开的数据泄露库比对。邮箱加密保存，仅用于这项查询。你登录用的邮箱可直接监控；其它邮箱需要输入我们发到该邮箱的验证码，确认是你本人的。",
+                         en: "We check this email against public data breach databases every day. It's stored encrypted and used only for these checks. The email you sign in with is monitored right away; any other email needs a code we send to it, to confirm it's yours."))
                 .font(.caption)
                 .foregroundColor(AppTheme.textSecondary)
             TextField("you@example.com", text: $email)
@@ -688,7 +695,7 @@ public struct BreachAlertDetailView: View {
                     }
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(L10n.tr(zh: "泄露的数据", en: "Your exposed data")).font(.subheadline.weight(.semibold))
+                    Text(L10n.tr(zh: "这次泄露中包含的数据", en: "Data included in this breach")).font(.subheadline.weight(.semibold))
                     ForEach(alert.exposedData, id: \.self) { f in
                         HStack {
                             Image(systemName: "exclamationmark.circle.fill").foregroundColor(severityColor)
