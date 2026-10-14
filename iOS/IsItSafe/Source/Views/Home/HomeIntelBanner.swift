@@ -44,8 +44,7 @@ public struct HomeIntelBanner: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(
-                        LinearGradient(colors: [AppTheme.primary, AppTheme.premiumHeader],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                        AppTheme.brandGradient
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(color: AppTheme.primary.opacity(0.25), radius: 6, x: 0, y: 3)

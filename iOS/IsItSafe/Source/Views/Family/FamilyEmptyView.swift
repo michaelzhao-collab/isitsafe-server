@@ -47,7 +47,7 @@ public struct FamilyEmptyView: View {
                 // 实心圆背景 + 白色 SF Symbol
                 Circle()
                     .fill(LinearGradient(
-                        colors: [AppTheme.primary, AppTheme.premiumHeader],
+                        colors: AppTheme.brandGradientColors,
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     ))
                     .frame(width: 84, height: 84)
@@ -75,7 +75,7 @@ public struct FamilyEmptyView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: "plus.circle.fill")
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                     .font(.system(size: 20))
                 Text(languageCode == "en" ? "Create a family group" : "创建家庭组")
                     .font(.headline)
@@ -101,7 +101,7 @@ public struct FamilyEmptyView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(AppTheme.primary)
+                    .background(AppTheme.brandGradient)
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
             }
             .padding(.top, 4)
@@ -128,10 +128,10 @@ public struct FamilyEmptyView: View {
             Button(action: onRedeem) {
                 Text(languageCode == "en" ? "Enter Invite Code" : "输入邀请码")
                     .font(.body.weight(.semibold))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(AppTheme.primary.opacity(0.08))
+                    .background(AppTheme.primarySoft)
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
             }
             .padding(.top, 4)
@@ -146,7 +146,7 @@ public struct FamilyEmptyView: View {
             HStack(spacing: 8) {
                 Image(systemName: "questionmark.circle.fill")
                     .font(.system(size: 20))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                 Text(languageCode == "en" ? "What is Family Guard?" : "家庭守护是什么？")
                     .font(.headline)
                     .foregroundColor(AppTheme.textPrimary)
@@ -155,7 +155,7 @@ public struct FamilyEmptyView: View {
             // （卡片会写明是谁查的，受"分享我的查询结果"开关控制），文案同步改掉。
             featureRow(
                 sfIcon: "bubble.left.and.bubble.right.fill",
-                iconColor: AppTheme.primary,
+                iconColor: AppTheme.primaryTint,
                 title: languageCode == "en" ? "Family group chat" : "家庭群聊",
                 desc: languageCode == "en"
                     ? "Chat with your family, and get a card in the group when someone hits a high-risk scam"
@@ -182,7 +182,7 @@ public struct FamilyEmptyView: View {
         .background(AppTheme.cardBackground)
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                .stroke(AppTheme.primary.opacity(0.1), lineWidth: 1)
+                .stroke(AppTheme.primarySoftBorder, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
     }

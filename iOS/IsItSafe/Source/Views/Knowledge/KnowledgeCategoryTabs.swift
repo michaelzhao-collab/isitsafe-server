@@ -61,7 +61,7 @@ public struct KnowledgeCategoryTabs: View {
                 .background(
                     Group {
                         if isSelected {
-                            Capsule().fill(AppTheme.primary)
+                            Capsule().fill(AppTheme.brandGradient)
                         } else {
                             Capsule().fill(AppTheme.cardBackground)
                                 .overlay(Capsule().stroke(AppTheme.border, lineWidth: 1))

@@ -32,13 +32,18 @@ public struct MessageCenterView: View {
                         .foregroundColor(AppTheme.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
-                    List {
+                    List { Group {
                         ForEach(items) { item in
                             MessageRow(item: item) {
                                 markReadAndOpen(item: item)
                             }
                         }
                     }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
                     .listStyle(.insetGrouped)
                 }
             }
@@ -127,7 +132,7 @@ private struct MessageRow: View {
                 if let link = item.link, !link.isEmpty {
                     Text(link)
                         .font(.caption)
-                        .foregroundColor(AppTheme.primary)
+                        .foregroundColor(AppTheme.primaryTint)
                         .lineLimit(1)
                 }
             }

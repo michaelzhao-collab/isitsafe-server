@@ -26,7 +26,7 @@ private struct QuickActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.subheadline.weight(.medium))
-            .foregroundColor(AppTheme.primary)
+            .foregroundColor(AppTheme.primaryTint)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(AppTheme.cardBackground)

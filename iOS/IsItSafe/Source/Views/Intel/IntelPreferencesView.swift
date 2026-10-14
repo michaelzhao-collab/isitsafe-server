@@ -85,7 +85,7 @@ public struct IntelPreferencesView: View {
                             Text(label).foregroundColor(AppTheme.textPrimary)
                             Spacer()
                             if pushFreq == key {
-                                Image(systemName: "checkmark").foregroundColor(AppTheme.primary)
+                                Image(systemName: "checkmark").foregroundColor(AppTheme.primaryTint)
                             }
                         }
                         .padding(.vertical, 12)
@@ -154,7 +154,7 @@ public struct IntelPreferencesView: View {
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(AppTheme.primary)
+            .background(AppTheme.brandGradient)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .disabled(saving)

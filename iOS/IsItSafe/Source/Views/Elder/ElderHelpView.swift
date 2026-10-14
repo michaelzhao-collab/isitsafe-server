@@ -38,7 +38,7 @@ public struct ElderHelpView: View {
                         HStack {
                             Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold))
                             Text(languageCode == "en" ? "Back" : "返回").font(.system(size: 18))
-                        }.foregroundColor(AppTheme.primary)
+                        }.foregroundColor(AppTheme.primaryTint)
                     }
                 }
                 ToolbarItem(placement: .principal) {
@@ -118,7 +118,7 @@ public struct ElderHelpView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(languageCode == "en" ? "⚠️ Important" : "⚠️ 重要提醒")
                 .font(.system(size: 19, weight: .bold))
-                .foregroundColor(Color(hex: "8B6900"))
+                .foregroundColor(AppTheme.dynamic(light: 0x8B6900, dark: 0xFBBF5A))
             Text(languageCode == "en"
                  ? "Do NOT delete chat messages, screenshots, or transfer records — police will need them."
                  : "不要删除任何聊天记录、短信、转账截图。警察办案需要看。")
@@ -128,10 +128,10 @@ public struct ElderHelpView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(hex: "FFF8E1"))
+        .background(AppTheme.dynamic(light: 0xFFF8E1, dark: 0x2A2416))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(Color(hex: "FFE082"), lineWidth: 1)
+                .stroke(AppTheme.dynamic(light: 0xFFE082, dark: 0x6B5A2A), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .padding(.top, 8)

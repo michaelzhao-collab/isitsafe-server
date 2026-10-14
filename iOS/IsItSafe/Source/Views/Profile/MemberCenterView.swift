@@ -185,7 +185,7 @@ public struct MemberCenterView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Rectangle()
-                    .fill(AppTheme.primary)
+                    .fill(AppTheme.brandGradient)
                     .frame(width: 4, height: 22)
                 Text(languageCode == "en" ? "Premium benefits" : "核心会员权益")
                     .font(.headline)
@@ -193,7 +193,7 @@ public struct MemberCenterView: View {
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                memberBenefitCard(icon: "magnifyingglass", iconColor: AppTheme.primary, title: languageCode == "en" ? "Unlimited AI checks" : "无限AI查询", subtitle: languageCode == "en" ? "No usage caps" : "彻底解锁额度限制")
+                memberBenefitCard(icon: "magnifyingglass", iconColor: AppTheme.primaryTint, title: languageCode == "en" ? "Unlimited AI checks" : "无限AI查询", subtitle: languageCode == "en" ? "No usage caps" : "彻底解锁额度限制")
                 memberBenefitCard(icon: "wand.and.stars", iconColor: .purple, title: languageCode == "en" ? "Advanced AI" : "高级AI模型", subtitle: languageCode == "en" ? "High-performance engine" : "高性能推理引擎")
                 memberBenefitCard(icon: "shield.exclamationmark", iconColor: .red, title: languageCode == "en" ? "Live risk database" : "实时数据库", subtitle: languageCode == "en" ? "Global risk data in real time" : "秒级同步全球风险")
                 memberBenefitCard(icon: "bolt.fill", iconColor: .green, title: languageCode == "en" ? "Priority analysis" : "优先分析速度", subtitle: languageCode == "en" ? "Dedicated cloud processing" : "云端GPU专属通道")

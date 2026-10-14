@@ -66,7 +66,7 @@ public struct IntelListView: View {
         VStack(spacing: 14) {
             Image(systemName: "newspaper")
                 .font(.system(size: 48))
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
             Text(languageCode == "en" ? "Sign in to see daily intel" : "登录后查看每日情报")
                 .font(.subheadline)
                 .foregroundColor(AppTheme.textSecondary)
@@ -92,7 +92,7 @@ public struct IntelListView: View {
             Text(msg).font(.caption).foregroundColor(AppTheme.textSecondary)
             Button(languageCode == "en" ? "Retry" : "重试") { vm.refresh() }
                 .font(.body.weight(.semibold))
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
         }
         .padding()
     }
@@ -173,7 +173,7 @@ public struct IntelListView: View {
                             .font(.caption2)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color(.systemGray6))
+                            .background(AppTheme.primarySoft)
                             .clipShape(Capsule())
                         Spacer()
                         // 蓝点只在 12h 内未读且新鲜的情报上显示
@@ -208,7 +208,7 @@ public struct IntelListView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                         case .empty:
                             RoundedRectangle(cornerRadius: 8)
-                                .fill(Color(.systemGray6))
+                                .fill(AppTheme.primarySoft)
                                 .frame(width: 72, height: 72)
                                 .overlay(ProgressView().scaleEffect(0.7))
                         case .failure:
@@ -233,10 +233,10 @@ public struct IntelListView: View {
                 Text(languageCode == "en" ? "I encountered a new scam" : "我遇到过新骗局")
             }
             .font(.subheadline.weight(.semibold))
-            .foregroundColor(AppTheme.primary)
+            .foregroundColor(AppTheme.primaryTint)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background(AppTheme.primary.opacity(0.08))
+            .background(AppTheme.primarySoft)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .padding(.top, 6)

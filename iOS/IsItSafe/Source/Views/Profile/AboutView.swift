@@ -17,7 +17,7 @@ public struct AboutView: View {
     }
 
     public var body: some View {
-        List {
+        List { Group {
             Section {
                 VStack(spacing: 16) {
                     Image("Logo")
@@ -60,6 +60,11 @@ public struct AboutView: View {
                 }
             }
         }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
         .listStyle(.insetGrouped)
         .background(AppTheme.background)
         .navigationTitle(languageCode == "en" ? "About" : "关于我们")

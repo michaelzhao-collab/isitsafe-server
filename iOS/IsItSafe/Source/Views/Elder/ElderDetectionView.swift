@@ -88,7 +88,7 @@ public struct ElderDetectionView: View {
                             Image(systemName: "chevron.left").font(.system(size: 22, weight: .semibold))
                             Text(languageCode == "en" ? "Back" : "返回")
                                 .font(.system(size: 20))
-                        }.foregroundColor(AppTheme.primary)
+                        }.foregroundColor(AppTheme.primaryTint)
                     }
                 }
                 ToolbarItem(placement: .principal) {
@@ -410,10 +410,10 @@ public struct ElderDetectionView: View {
                      ? (languageCode == "en" ? "Speaking..." : "正在为您朗读")
                      : (languageCode == "en" ? "Press to listen" : "点这里听一遍"))
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                 ProgressView(value: tts.progress)
                     .progressViewStyle(.linear)
-                    .tint(AppTheme.primary)
+                    .tint(AppTheme.primaryTint)
             }
             Button {
                 if tts.isSpeaking {
@@ -431,7 +431,7 @@ public struct ElderDetectionView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(Color.white)
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primary)   // 固定白底上用原主色，深色模式下 primaryTint 会太浅
                     .clipShape(Capsule())
             }
         }
@@ -545,10 +545,10 @@ public struct ElderDetectionView: View {
             } label: {
                 Text(languageCode == "en" ? "🔍 Check another" : "🔍 再检测一个")
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
-                    .background(AppTheme.primary.opacity(0.1))
+                    .background(AppTheme.primarySoft)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
             }
         }

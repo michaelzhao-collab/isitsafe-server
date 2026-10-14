@@ -21,7 +21,7 @@ public struct NotificationSettingsView: View {
     public init() {}
 
     public var body: some View {
-        Form {
+        Form { Group {
             Section(footer: Text(languageCode == "en"
                                  ? "When OFF, IsItSafe won't send any in-app push notifications. You can still receive system alerts (iOS settings)."
                                  : "关闭后，IsItSafe 不会发送任何 App 内业务通知。iOS 系统通知中心仍可在「设置 → 通知」单独管理。")) {
@@ -64,6 +64,11 @@ public struct NotificationSettingsView: View {
                 Section { Text(err).font(.caption).foregroundColor(AppTheme.riskHigh) }
             }
         }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
         .navigationTitle(languageCode == "en" ? "Notifications" : "通知设置")
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadPrefs() }

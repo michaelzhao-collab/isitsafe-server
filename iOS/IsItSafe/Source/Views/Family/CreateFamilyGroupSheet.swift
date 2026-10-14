@@ -85,7 +85,7 @@ public struct CreateFamilyGroupSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(languageCode == "en" ? "100% Free" : "完全免费")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                 Text(languageCode == "en"
                      ? "No fees, no credit card, no commitment"
                      : "无需付费，无需绑卡，可随时退出")
@@ -121,14 +121,14 @@ public struct CreateFamilyGroupSheet: View {
             HStack(spacing: 8) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                 Text(languageCode == "en" ? "Three Mechanisms" : "创建后立刻可用")
                     .font(.headline)
                     .foregroundColor(AppTheme.textPrimary)
             }
             feature(
                 sfIcon: "person.2.fill",
-                iconColor: AppTheme.primary,
+                iconColor: AppTheme.primaryTint,
                 title: languageCode == "en" ? "Family network" : "关系网络",
                 // 上限按建群者自己的订阅：免费 5 人 / Pro 或家庭包 10 人（与服务端 getMaxMembersFor 一致）
                 desc: languageCode == "en"
@@ -157,7 +157,7 @@ public struct CreateFamilyGroupSheet: View {
         .background(AppTheme.cardBackground)
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                .stroke(AppTheme.primary.opacity(0.1), lineWidth: 1)
+                .stroke(AppTheme.primarySoftBorder, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
     }
@@ -199,7 +199,7 @@ public struct CreateFamilyGroupSheet: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(AppTheme.primary)
+                .background(AppTheme.brandGradient)
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
             }
             .disabled(submitting)

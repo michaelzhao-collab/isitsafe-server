@@ -32,7 +32,7 @@ public struct RiskResultCard: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(headerBackground)
+            .background(AppTheme.riskGradient(data.riskLevel))
 
             VStack(alignment: .leading, spacing: 12) {
                 Text(data.summary)
@@ -46,7 +46,7 @@ public struct RiskResultCard: View {
                         Text(languageCode == "en" ? "Reasons" : "原因")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                            .foregroundColor(.primary)
+                            .foregroundColor(AppTheme.riskSectionTitle(data.riskLevel))
                         ForEach(Array(data.reasons.enumerated()), id: \.offset) { i, r in
                             Text("\(i + 1). \(RiskResultCard.ensureEndsWithPeriod(r))")
                                 .font(.subheadline)
@@ -63,7 +63,7 @@ public struct RiskResultCard: View {
                         Text(languageCode == "en" ? "Advice" : "建议")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                            .foregroundColor(.primary)
+                            .foregroundColor(AppTheme.riskSectionTitle(data.riskLevel))
                         ForEach(Array(data.advice.enumerated()), id: \.offset) { i, a in
                             Text("\(i + 1). \(RiskResultCard.ensureEndsWithPeriod(a))")
                                 .font(.subheadline)
@@ -88,12 +88,14 @@ public struct RiskResultCard: View {
                 .padding(.top, 4)
             }
             .padding(16)
+            // 2026-10-14 配色 V2：正文整卡带等级浅底（原来白卡只有标题条有颜色）
+            .background(AppTheme.riskSoft(data.riskLevel))
         }
         .background(AppTheme.cardBackground)
         // 限制回复卡片最大宽度，形成"左侧回复一列"的两人对话结构
         .frame(maxWidth: 300, alignment: .leading)
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: riskColor.opacity(0.18), radius: 10, x: 0, y: 5)
         .contextMenu {
             Button {
                 UIPasteboard.general.string = copyableText
@@ -129,11 +131,6 @@ public struct RiskResultCard: View {
         case "low": return AppTheme.riskLow
         default: return AppTheme.riskUnknown
         }
-    }
-
-    /// 头部背景颜色：不同风险等级使用不同颜色
-    private var headerBackground: Color {
-        riskColor
     }
 
     /// 头部文字颜色：统一使用白色，保证对比度

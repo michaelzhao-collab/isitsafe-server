@@ -23,7 +23,7 @@ struct CountryPickerSheet: View {
                         Spacer()
                         if country.id == selected.id {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(AppTheme.primary)
+                                .foregroundColor(AppTheme.primaryTint)
                         }
                     }
                 }

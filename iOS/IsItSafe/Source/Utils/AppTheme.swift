@@ -13,58 +13,84 @@ public enum AppTheme {
     /// 主色 #2F6BFF（保持不变）
     public static let primary = Color(hex: "2F6BFF")
 
-    // #7 配色调整（2026-05）：
-    // 旧版用 systemGroupedBackground 太"系统默认"，没有产品记忆点
-    // 新版用极浅冷灰，让卡片更突出 + 整体不刺眼
+    // 2026-10-14 配色 V2（见 docs/配色优化-V1-Mockup.html）：用户反馈「太素」。
+    // 主色 #2F6BFF 不变；浅色底改为纯色雾蓝 #E4ECFB，深色底改为带蓝调的深海蓝 #0E1A33（不用纯黑）。
+    // 主按钮 / 选中态 / 用户气泡用主色渐变 brandGradient；卡片带蓝调柔和阴影；入口图标用辅助色浅底。
 
-    /// 主背景
-    ///   浅色 #ECEFF3 — 极浅冷灰（之前是 systemGroupedBackground 偏纯白）
-    ///   深色 #0F1115 — 深空蓝灰
-    public static var background: Color {
+    /// 浅 / 深两色的动态颜色
+    static func dynamic(light: UInt32, dark: UInt32, darkAlpha: CGFloat = 1) -> Color {
         Color(UIColor { trait in
-            trait.userInterfaceStyle == .dark
-                ? UIColor(red: 0x0F/255, green: 0x11/255, blue: 0x15/255, alpha: 1)
-                : UIColor(red: 0xEC/255, green: 0xEF/255, blue: 0xF3/255, alpha: 1)
+            trait.userInterfaceStyle == .dark ? UIColor(hex: dark, alpha: darkAlpha) : UIColor(hex: light)
         })
     }
 
-    /// 卡片背景
-    ///   浅色 #FFFFFF — 保留纯白让卡片与背景对比清晰
-    ///   深色 #1C1F26 — 深色卡片
-    public static var cardBackground: Color {
-        Color(UIColor { trait in
-            trait.userInterfaceStyle == .dark
-                ? UIColor(red: 0x1C/255, green: 0x1F/255, blue: 0x26/255, alpha: 1)
-                : UIColor.white
-        })
-    }
+    /// 主背景：浅色雾蓝 #E4ECFB / 深色深海蓝 #0E1A33
+    public static var background: Color { dynamic(light: 0xE4ECFB, dark: 0x0E1A33) }
 
-    /// 边框/分割线 #E5E7EB（浅色） / #2A2E36（深色）
-    public static var border: Color {
-        Color(UIColor { trait in
-            trait.userInterfaceStyle == .dark
-                ? UIColor(red: 0x2A/255, green: 0x2E/255, blue: 0x36/255, alpha: 1)
-                : UIColor(red: 0xE5/255, green: 0xE7/255, blue: 0xEB/255, alpha: 1)
-        })
-    }
+    /// 卡片背景：浅色纯白 / 深色 #17284A
+    public static var cardBackground: Color { dynamic(light: 0xFFFFFF, dark: 0x17284A) }
+
+    /// 边框 / 分割线：浅色 #DCE3F0 / 深色 #24365C
+    public static var border: Color { dynamic(light: 0xDCE3F0, dark: 0x24365C) }
 
     // MARK: - 文字（随系统自适应）
-    /// 主文字 #1A1F2E（浅色，略带蓝调，不像普通系统黑） / #F2F4F8（深色）
-    public static var textPrimary: Color {
+    /// 主文字 #141A2B / #EEF2FA
+    public static var textPrimary: Color { dynamic(light: 0x141A2B, dark: 0xEEF2FA) }
+    /// 次要文字 #646C7C / #93A2BF
+    public static var textSecondary: Color { dynamic(light: 0x646C7C, dark: 0x93A2BF) }
+
+    // MARK: - 主色扩展（2026-10-14）
+    /// 主色渐变 #2F6BFF → #1C8CEB：主按钮、发送键、底导选中、用户气泡、头像、会员卡
+    /// （终点原定 #22A6F2，白字对比度只有约 2.7:1，压深到 #1C8CEB 约 3.5:1，观感几乎不变）
+    public static let brandGradientColors: [Color] = [Color(hex: "2F6BFF"), Color(hex: "1C8CEB")]
+    public static var brandGradient: LinearGradient {
+        LinearGradient(colors: brandGradientColors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+    /// 深色上的主色文字 / 图标（#2F6BFF 在深海蓝上对比不足）：浅色仍是主色
+    public static var primaryTint: Color { dynamic(light: 0x2F6BFF, dark: 0x8FB0FF) }
+    /// 主色浅底：次按钮、建议胶囊、选中底
+    public static var primarySoft: Color { dynamic(light: 0xEEF3FF, dark: 0x2F6BFF, darkAlpha: 0.20) }
+    /// 主色浅描边：输入框、次按钮描边
+    public static var primarySoftBorder: Color { dynamic(light: 0xDCE6FF, dark: 0x6F96FF, darkAlpha: 0.35) }
+    /// 卡片阴影色：浅色带蓝调 / 深色加深
+    public static var cardShadow: Color {
         Color(UIColor { trait in
-            trait.userInterfaceStyle == .dark
-                ? UIColor(red: 0xF2/255, green: 0xF4/255, blue: 0xF8/255, alpha: 1)
-                : UIColor(red: 0x1A/255, green: 0x1F/255, blue: 0x2E/255, alpha: 1)
+            trait.userInterfaceStyle == .dark ? UIColor.black.withAlphaComponent(0.30) : UIColor(hex: 0x2F6BFF, alpha: 0.10)
         })
     }
-    /// 次要文字 #6B7280 中性灰（兼顾浅 / 深）
-    public static var textSecondary: Color {
-        Color(UIColor { trait in
-            trait.userInterfaceStyle == .dark
-                ? UIColor(red: 0x9B/255, green: 0xA1/255, blue: 0xAD/255, alpha: 1)
-                : UIColor(red: 0x6B/255, green: 0x72/255, blue: 0x80/255, alpha: 1)
-        })
+    /// 底导 / 输入栏底：比页面底色略浅的同色系
+    public static var barBackground: Color { dynamic(light: 0xF3F6FE, dark: 0x0B1630) }
+
+    // MARK: - 辅助色（只做图标浅底，区分入口题材）
+    public enum Accent: CaseIterable {
+        case blue, teal, violet, orange
+        /// 图标前景
+        public var foreground: Color {
+            switch self {
+            case .blue: return AppTheme.dynamic(light: 0x2F6BFF, dark: 0x8FB0FF)
+            case .teal: return AppTheme.dynamic(light: 0x0EA5A4, dark: 0x3FD3CF)
+            case .violet: return AppTheme.dynamic(light: 0x7C5CFF, dark: 0xB4A2FF)
+            case .orange: return AppTheme.dynamic(light: 0xF97316, dark: 0xFFA05C)
+            }
+        }
+        /// 图标浅底
+        public var soft: Color {
+            switch self {
+            case .blue: return AppTheme.dynamic(light: 0xEEF3FF, dark: 0x2F6BFF, darkAlpha: 0.20)
+            case .teal: return AppTheme.dynamic(light: 0xE3F7F6, dark: 0x0EA5A4, darkAlpha: 0.18)
+            case .violet: return AppTheme.dynamic(light: 0xF0ECFF, dark: 0x7C5CFF, darkAlpha: 0.22)
+            case .orange: return AppTheme.dynamic(light: 0xFFEFE3, dark: 0xF97316, darkAlpha: 0.18)
+            }
+        }
     }
+
+    /// 会员金 #F5B544（会员相关统一一个金）
+    public static let gold = Color(hex: "F5B544")
+    public static let goldGradient = LinearGradient(colors: [Color(hex: "FFD978"), Color(hex: "F5B544")],
+                                                    startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// 会员卡：深蓝 → 主色 → 天蓝
+    public static let memberGradient = LinearGradient(colors: [Color(hex: "0F2E86"), Color(hex: "2F6BFF"), Color(hex: "22A6F2")],
+                                                      startPoint: .topLeading, endPoint: .bottomTrailing)
 
     // MARK: - 风险等级（Tailwind 系列，柔和但识别度高）
     /// 低风险 #10B981 emerald-500
@@ -76,18 +102,48 @@ public enum AppTheme {
     /// 未知 #6B7280 中性灰
     public static let riskUnknown = Color(hex: "6B7280")
 
+    /// 风险卡整卡浅底（2026-10-14）
+    public static func riskSoft(_ level: String) -> Color {
+        switch level.lowercased() {
+        case "high": return dynamic(light: 0xFFF1F1, dark: 0x3A1C26)
+        case "medium", "mid": return dynamic(light: 0xFFF8EC, dark: 0x2A2416)
+        case "low": return dynamic(light: 0xEAFAF3, dark: 0x12302A)
+        default: return cardBackground
+        }
+    }
+    /// 风险卡标题条渐变
+    public static func riskGradient(_ level: String) -> LinearGradient {
+        let colors: [Color]
+        switch level.lowercased() {
+        case "high": colors = [Color(hex: "EF4444"), Color(hex: "DC2626")]
+        case "medium", "mid": colors = [Color(hex: "F59E0B"), Color(hex: "F97316")]
+        case "low": colors = [Color(hex: "10B981"), Color(hex: "059669")]
+        default: colors = [Color(hex: "6B7280"), Color(hex: "4B5563")]
+        }
+        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+    /// 风险卡「原因 / 建议」小标题色
+    public static func riskSectionTitle(_ level: String) -> Color {
+        switch level.lowercased() {
+        case "high": return dynamic(light: 0xB91C1C, dark: 0xFF8A8A)
+        case "medium", "mid": return dynamic(light: 0xB45309, dark: 0xFBBF5A)
+        case "low": return dynamic(light: 0x047857, dark: 0x5EE0B0)
+        default: return textPrimary
+        }
+    }
+
     // MARK: - 会员页
     /// 会员页头部深蓝 #1A237E
     public static let premiumHeader = Color(hex: "1A237E")
     /// 浅蓝提示底色（多以带透明度方式用于提示条；会员页已改为统一白卡片，不再使用）
-    public static let premiumWhyCard = Color(hex: "E0EEF8")
+    public static var premiumWhyCard: Color { dynamic(light: 0xE0EEF8, dark: 0x1D3157) }
     /// 会员页当前状态卡片：浅色模式用浅灰 #F2F2F7，深色模式用深灰 #2C2C2E
     /// 之前固定 #2C2C2E 在浅色模式下显得突兀
     public static var premiumStatusCard: Color {
         Color(UIColor { trait in
             trait.userInterfaceStyle == .dark
-                ? UIColor(red: 0x2C/255, green: 0x2C/255, blue: 0x2E/255, alpha: 1)
-                : UIColor(red: 0xF2/255, green: 0xF2/255, blue: 0xF7/255, alpha: 1)
+                ? UIColor(hex: 0x1D3157)
+                : UIColor(hex: 0xEEF3FF)
         })
     }
 
@@ -99,14 +155,8 @@ public enum AppTheme {
     public static var secondaryText: Color { textSecondary }
     /// Tab 未选中（随系统）
     public static var tabInactive: Color { Color(UIColor.secondaryLabel) }
-    /// 底导背景：跟 cardBackground 微差，让 tabBar 跟主体分层
-    public static var tabBarBackground: Color {
-        Color(UIColor { trait in
-            trait.userInterfaceStyle == .dark
-                ? UIColor(red: 0x14/255, green: 0x17/255, blue: 0x1D/255, alpha: 1)
-                : UIColor(red: 0xFA/255, green: 0xFB/255, blue: 0xFD/255, alpha: 1)
-        })
-    }
+    /// 底导背景（2026-10-14：与输入栏同为 barBackground）
+    public static var tabBarBackground: Color { barBackground }
 
     // MARK: - 圆角规范（统一全局圆角口径，避免 8/10/12/16/20 散落各处）
     public enum CornerRadius {
@@ -183,5 +233,60 @@ extension Color {
             blue: Double(b) / 255,
             opacity: Double(a) / 255
         )
+    }
+}
+
+extension UIColor {
+    /// 0xRRGGBB 十六进制（2026-10-14 配色 V2 动态色用）
+    convenience init(hex: UInt32, alpha: CGFloat = 1) {
+        self.init(red: CGFloat((hex >> 16) & 0xFF) / 255,
+                  green: CGFloat((hex >> 8) & 0xFF) / 255,
+                  blue: CGFloat(hex & 0xFF) / 255,
+                  alpha: alpha)
+    }
+}
+
+// MARK: - 外观（2026-10-14：跟随系统 / 浅色 / 深色）
+
+public enum AppAppearance: String, CaseIterable {
+    case system, light, dark
+    public static let storageKey = "isitsafe.appearance"
+
+    public static var current: AppAppearance {
+        AppAppearance(rawValue: UserDefaults.standard.string(forKey: storageKey) ?? "") ?? .system
+    }
+
+    public var interfaceStyle: UIUserInterfaceStyle {
+        switch self {
+        case .system: return .unspecified
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+
+    public func title(english: Bool) -> String {
+        switch self {
+        case .system: return english ? "System" : "跟随系统"
+        case .light: return english ? "Light" : "浅色"
+        case .dark: return english ? "Dark" : "深色"
+        }
+    }
+
+    /// 应用到所有窗口：UIKit 层覆盖，sheet / alert / 系统控件一并生效（SwiftUI 的 preferredColorScheme 管不到已弹出的 UIKit 弹窗）
+    @MainActor
+    public static func applyToAllWindows(_ appearance: AppAppearance = .current) {
+        for scene in UIApplication.shared.connectedScenes {
+            guard let ws = scene as? UIWindowScene else { continue }
+            for w in ws.windows { w.overrideUserInterfaceStyle = appearance.interfaceStyle }
+        }
+    }
+}
+
+// MARK: - 卡片阴影 modifier（2026-10-14）
+
+public extension View {
+    /// 蓝调柔和卡片阴影（深色模式自动加深）
+    func cardShadow(radius: CGFloat = 10, y: CGFloat = 4) -> some View {
+        self.shadow(color: AppTheme.cardShadow, radius: radius, x: 0, y: y)
     }
 }

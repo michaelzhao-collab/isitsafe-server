@@ -54,7 +54,7 @@ public struct RedeemInviteSheet: View {
         VStack(spacing: 6) {
             Image(systemName: "envelope.open.fill")
                 .font(.system(size: 48))
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
                 .padding(.top, 12)
             Text(languageCode == "en" ? "Enter invite code" : "输入邀请码")
                 .font(.title3.weight(.bold))
@@ -97,7 +97,7 @@ public struct RedeemInviteSheet: View {
     private var tipCard: some View {
         HStack(spacing: 10) {
             Image(systemName: "info.circle.fill")
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
             Text(languageCode == "en"
                  ? "Only share invite codes with trusted family members."
                  : "邀请码请只发给可信家人。不要在公开网络分享。")
@@ -105,7 +105,7 @@ public struct RedeemInviteSheet: View {
                 .foregroundColor(AppTheme.textSecondary)
         }
         .padding(12)
-        .background(AppTheme.primary.opacity(0.08))
+        .background(AppTheme.primarySoft)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
     }
 
@@ -116,7 +116,7 @@ public struct RedeemInviteSheet: View {
         } label: {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: consentConfirmed ? "checkmark.square.fill" : "square")
-                    .foregroundColor(consentConfirmed ? AppTheme.primary : AppTheme.textSecondary)
+                    .foregroundColor(consentConfirmed ? AppTheme.primaryTint : AppTheme.textSecondary)
                     .font(.system(size: 18))
                 Text(languageCode == "en"
                      ? "I am at least 13 years old, or my parent/guardian consents to me joining this family group."

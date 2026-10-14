@@ -40,7 +40,7 @@ public struct ProfileEditView: View {
 
     public var body: some View {
         NavigationStack {
-            List {
+            List { Group {
                 Section(languageCode == "en" ? "Nickname" : "昵称") {
                     TextField(languageCode == "en" ? "Enter nickname" : "请输入昵称", text: $nicknameText)
                 }
@@ -62,6 +62,11 @@ public struct ProfileEditView: View {
                     }
                 }
             }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
             .navigationTitle(languageCode == "en" ? "Profile" : "个人资料")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

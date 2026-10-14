@@ -104,7 +104,7 @@ public struct MemberDetailView: View {
                 Circle().fill(AppTheme.primary.opacity(0.18)).frame(width: 64, height: 64)
                 Text(String(member.effectiveName(language: languageCode).prefix(1)))
                     .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
             }
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -139,8 +139,8 @@ public struct MemberDetailView: View {
         return Text(txt)
             .font(.caption2.weight(.bold))
             .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(AppTheme.primary.opacity(0.12))
-            .foregroundColor(AppTheme.primary)
+            .background(AppTheme.primarySoft)
+            .foregroundColor(AppTheme.primaryTint)
             .clipShape(Capsule())
     }
 
@@ -153,7 +153,7 @@ public struct MemberDetailView: View {
             HStack(spacing: 12) {
                 Image(systemName: "person.text.rectangle")
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                     .frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(nameEditTitle)
@@ -327,7 +327,7 @@ public struct MemberDetailView: View {
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(AppTheme.primary)
+            .background(AppTheme.brandGradient)
             .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
@@ -373,7 +373,7 @@ private struct RenameMemberSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            Form { Group {
                 Section(header: Text(headerText), footer: Text(footerText)) {
                     TextField(placeholder, text: $inputName)
                         .autocorrectionDisabled()
@@ -396,6 +396,11 @@ private struct RenameMemberSheet: View {
                     }
                 }
             }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
             .navigationTitle(navTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

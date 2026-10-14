@@ -85,7 +85,7 @@ public struct CenterConfirmDialog: ViewModifier {
                         .foregroundColor(AppTheme.textPrimary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 44)
-                        .background(Color(.systemGray6))
+                        .background(AppTheme.primarySoft)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)

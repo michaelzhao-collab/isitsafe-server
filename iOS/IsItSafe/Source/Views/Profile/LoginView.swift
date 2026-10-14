@@ -157,7 +157,7 @@ public struct LoginView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
                 .foregroundColor(.white)
-                .background(vm.agreementAccepted ? AppTheme.primary : Color.gray)
+                .background { if vm.agreementAccepted { AppTheme.brandGradient } else { Color.gray } }
                 // 与系统 Sign in with Apple 按钮保持接近的圆角
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
@@ -181,7 +181,7 @@ public struct LoginView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
-                .foregroundColor(vm.agreementAccepted ? AppTheme.primary : Color.gray)
+                .foregroundColor(vm.agreementAccepted ? AppTheme.primaryTint : Color.gray)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(vm.agreementAccepted ? AppTheme.primary : Color.gray, lineWidth: 1.5)
@@ -244,7 +244,7 @@ public struct LoginView: View {
             } label: {
                 Image(systemName: vm.agreementAccepted ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundColor(vm.agreementAccepted ? AppTheme.primary : AppTheme.textSecondary)
+                    .foregroundColor(vm.agreementAccepted ? AppTheme.primaryTint : AppTheme.textSecondary)
             }
             VStack(alignment: .leading, spacing: 4) {
                 if languageCode == "en" {
@@ -252,11 +252,11 @@ public struct LoginView: View {
                         .foregroundColor(AppTheme.textSecondary)
                     HStack(spacing: 4) {
                         Button("Terms of Service") { agreementWebSheet = .terms }
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                         Text("and")
                             .foregroundColor(AppTheme.textSecondary)
                         Button("Privacy Policy") { agreementWebSheet = .privacy }
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                     }
                     Text("Accounts and permissions are not shared across platforms.")
                         .foregroundColor(AppTheme.textSecondary)
@@ -265,11 +265,11 @@ public struct LoginView: View {
                         Text("已阅读并同意 星识安全助手 的")
                             .foregroundColor(AppTheme.textSecondary)
                         Button("《服务协议》") { agreementWebSheet = .terms }
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                         Text("和")
                             .foregroundColor(AppTheme.textSecondary)
                         Button("《隐私政策》") { agreementWebSheet = .privacy }
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                     }
                     Text("各账户资产与权限不互通")
                         .foregroundColor(AppTheme.textSecondary)
@@ -284,7 +284,7 @@ public struct LoginView: View {
     // MARK: - 手机号 + 密码（登录/注册）
     private var phoneLoginSheet: some View {
         NavigationStack {
-            Form {
+            Form { Group {
                 Section(languageCode == "en" ? "Phone & Password" : "手机号 + 密码") {
                     // 国家区号选择 + 手机号
                     HStack(alignment: .center, spacing: 10) {
@@ -381,7 +381,7 @@ public struct LoginView: View {
                             .font(.headline)
                             .foregroundColor(.white)
                             .frame(height: 44)
-                            .background((vm.canLoginWithPhone && !vm.isLoggingIn) ? AppTheme.primary : AppTheme.primary.opacity(0.35))
+                            .background { AppTheme.brandGradient.opacity((vm.canLoginWithPhone && !vm.isLoggingIn) ? 1.0 : 0.35) }
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
                         .disabled(!vm.canLoginWithPhone || vm.isLoggingIn)
@@ -399,6 +399,11 @@ public struct LoginView: View {
                     .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 8, trailing: 16))
                 }
             }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
             .navigationTitle(languageCode == "en" ? "Sign in / Register" : "登录 / 注册")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -420,7 +425,7 @@ public struct LoginView: View {
     // MARK: - 邮箱 + 验证码（登录/注册）
     private var emailLoginSheet: some View {
         NavigationStack {
-            Form {
+            Form { Group {
                 Section(languageCode == "en" ? "Email & Code" : "邮箱 + 验证码") {
                     // 邮箱
                     TextField(
@@ -475,7 +480,7 @@ public struct LoginView: View {
                                 }
                             }
                             .font(.subheadline.weight(.medium))
-                            .foregroundColor(vm.canSendEmailCode ? AppTheme.primary : AppTheme.textSecondary)
+                            .foregroundColor(vm.canSendEmailCode ? AppTheme.primaryTint : AppTheme.textSecondary)
                         }
                         .buttonStyle(.plain)
                         // 只在发送中/倒计时时禁用：邮箱无效时仍可点，由 sendEmailCode 给出红字提示，
@@ -525,7 +530,7 @@ public struct LoginView: View {
                             .font(.headline)
                             .foregroundColor(.white)
                             .frame(height: 44)
-                            .background((vm.canLoginWithEmailCode && !vm.isLoggingIn) ? AppTheme.primary : AppTheme.primary.opacity(0.35))
+                            .background { AppTheme.brandGradient.opacity((vm.canLoginWithEmailCode && !vm.isLoggingIn) ? 1.0 : 0.35) }
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
                         .disabled(!vm.canLoginWithEmailCode || vm.isLoggingIn)
@@ -542,6 +547,11 @@ public struct LoginView: View {
                     .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 8, trailing: 16))
                 }
             }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
             .navigationTitle(languageCode == "en" ? "Sign in / Register" : "登录 / 注册")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

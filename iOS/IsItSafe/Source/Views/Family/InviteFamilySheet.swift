@@ -134,10 +134,10 @@ public struct InviteFamilySheet: View {
             Text(languageCode == "en" ? "Share Invite Link" : "分享邀请链接")
         }
         .font(.body.weight(.semibold))
-        .foregroundColor(AppTheme.primary)
+        .foregroundColor(AppTheme.primaryTint)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
-        .background(AppTheme.primary.opacity(0.1))
+        .background(AppTheme.primarySoft)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
     }
 
@@ -169,7 +169,7 @@ public struct InviteFamilySheet: View {
                 Task { await load() }
             }
             .font(.body.weight(.semibold))
-            .foregroundColor(AppTheme.primary)
+            .foregroundColor(AppTheme.primaryTint)
         }
         .padding(.vertical, 32)
     }

@@ -43,7 +43,7 @@ public struct IntelReportSheet: View {
 
     public var body: some View {
         NavigationStack {
-            Form {
+            Form { Group {
                 Section(header: Text(languageCode == "en" ? "Reason" : "举报原因")) {
                     ForEach(ReportReason.allCases) { reason in
                         Button { selectedReason = reason } label: {
@@ -53,7 +53,7 @@ public struct IntelReportSheet: View {
                                 Spacer()
                                 if selectedReason == reason {
                                     Image(systemName: "checkmark")
-                                        .foregroundColor(AppTheme.primary)
+                                        .foregroundColor(AppTheme.primaryTint)
                                 }
                             }
                             .contentShape(Rectangle())
@@ -96,6 +96,11 @@ public struct IntelReportSheet: View {
                     .listRowBackground(Color.clear)
                 }
             }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
             .navigationTitle(languageCode == "en" ? "Report Intel" : "举报情报")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

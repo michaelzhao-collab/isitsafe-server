@@ -78,7 +78,7 @@ public struct IntelCaseRootView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(AppTheme.textSecondary)
                         .frame(width: 36, height: 36)
-                        .background(Color(.systemGray6))
+                        .background(AppTheme.primarySoft)
                         .clipShape(Circle())
                 }
                 .transition(.opacity.combined(with: .scale))

@@ -22,16 +22,25 @@ public struct MemberEntryBanner: View {
         HStack(spacing: 14) {
             Image(systemName: "crown.fill")
                 .font(.system(size: 28))
-                .foregroundColor(isMember ? Color.yellow : AppTheme.primary)
+                .foregroundColor(isMember ? Color.yellow : AppTheme.gold)
             VStack(alignment: .leading, spacing: 6) {
                 Text(titleText)
                     .font(.headline.weight(.semibold))
-                    .foregroundColor(isMember ? Color.white : .primary)
+                    .foregroundColor(.white)
                 Text(subtitleText)
                     .font(.caption)
-                    .foregroundColor(isMember ? Color.white.opacity(0.9) : AppTheme.secondaryText)
+                    .foregroundColor(Color.white.opacity(0.85))
             }
             Spacer(minLength: 0)
+            if !isMember {
+                // 2026-10-14 配色 V2：非会员入口改为深蓝渐变卡 + 金色「开通」
+                Text(languageCode == "en" ? "Upgrade" : "开通")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(Color(hex: "5A3A00"))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(AppTheme.goldGradient))
+            }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
@@ -47,18 +56,19 @@ public struct MemberEntryBanner: View {
                         endPoint: .trailing
                     )
                 } else {
-                    LinearGradient(
-                        colors: [
-                            AppTheme.primary.opacity(0.15),
-                            AppTheme.primary.opacity(0.06)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
+                    // 光晕用 overlay：放进 ZStack 会把背景撑到 140pt 高，渐变只盖住卡片上半截
+                    AppTheme.memberGradient
+                        .overlay(alignment: .topTrailing) {
+                            Circle()
+                                .fill(RadialGradient(colors: [AppTheme.gold.opacity(0.45), .clear], center: .center, startRadius: 0, endRadius: 70))
+                                .frame(width: 140, height: 140)
+                                .offset(x: 40, y: -50)
+                        }
                 }
             }
         )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: (isMember ? Color.purple : AppTheme.primary).opacity(0.25), radius: 10, x: 0, y: 5)
     }
 
     private var titleText: String {

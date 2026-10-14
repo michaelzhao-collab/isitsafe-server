@@ -37,12 +37,17 @@ public struct FamilyGroupSettingsView: View {
     }
 
     public var body: some View {
-        List {
+        List { Group {
             membersSection
             preferencesSection
             multiFamilySection
             dangerSection
         }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
         .navigationTitle(isEN ? "Group Settings" : "群设置")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

@@ -77,7 +77,7 @@ public struct IntelOnboardingSheet: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
-                    .background(AppTheme.primary)
+                    .background(AppTheme.brandGradient)
                     .clipShape(Capsule())
             }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
@@ -152,7 +152,7 @@ public struct IntelOnboardingSheet: View {
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(AppTheme.primary)
+                .background(AppTheme.brandGradient)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             .disabled(saving)

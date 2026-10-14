@@ -157,7 +157,8 @@ public struct MainTabView: View {
                             Group {
                                 if isSelected {
                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(AppTheme.primary)
+                                        .fill(AppTheme.brandGradient)
+                                        .shadow(color: AppTheme.primary.opacity(0.30), radius: 5, x: 0, y: 3)
                                 } else {
                                     Color.clear
                                 }
@@ -181,7 +182,7 @@ public struct MainTabView: View {
                 }
                 Text(title)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(isSelected ? AppTheme.primary : AppTheme.tabInactive)
+                    .foregroundColor(isSelected ? AppTheme.primaryTint : AppTheme.tabInactive)
             }
             .frame(maxWidth: .infinity)
         }

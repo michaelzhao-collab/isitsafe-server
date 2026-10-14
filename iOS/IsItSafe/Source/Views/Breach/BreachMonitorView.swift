@@ -155,17 +155,17 @@ public struct BreachMonitorView: View {
                     VStack(spacing: 6) {
                         Image(systemName: "envelope.badge")
                             .font(.system(size: 36))
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                         Text("Add your email to start")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                         Text("Free: 1 email · Pro: 5 emails")
                             .font(.caption)
                             .foregroundColor(AppTheme.textSecondary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 28)
-                    .background(AppTheme.primary.opacity(0.08))
+                    .background(AppTheme.primarySoft)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
@@ -197,9 +197,9 @@ public struct BreachMonitorView: View {
     private func targetRow(_ t: BreachTargetItem) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "envelope.fill")
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
                 .padding(10)
-                .background(AppTheme.primary.opacity(0.1))
+                .background(AppTheme.primarySoft)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             VStack(alignment: .leading, spacing: 2) {
                 Text(t.displayValue)
@@ -413,7 +413,7 @@ public struct BreachAlertDetailView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(AppTheme.primary)
+                        .background(AppTheme.brandGradient)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             }

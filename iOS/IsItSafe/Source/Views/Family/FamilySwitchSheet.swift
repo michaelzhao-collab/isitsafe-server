@@ -32,7 +32,7 @@ public struct FamilySwitchSheet: View {
 
     public var body: some View {
         NavigationStack {
-            List {
+            List { Group {
                 Section(header: Text(languageCode == "en" ? "My Families" : "我的家庭")) {
                     ForEach(vm.allGroups) { group in
                         Button {
@@ -53,14 +53,19 @@ public struct FamilySwitchSheet: View {
                         } label: {
                             HStack {
                                 Image(systemName: "plus.circle.fill")
-                                    .foregroundColor(AppTheme.primary)
+                                    .foregroundColor(AppTheme.primaryTint)
                                 Text(languageCode == "en" ? "Create new family" : "创建新家庭")
-                                    .foregroundColor(AppTheme.primary)
+                                    .foregroundColor(AppTheme.primaryTint)
                             }
                         }
                     }
                 }
             }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
             .listStyle(.insetGrouped)
             .navigationTitle(languageCode == "en" ? "Switch Family" : "切换家庭")
             .navigationBarTitleDisplayMode(.inline)
@@ -83,7 +88,7 @@ public struct FamilySwitchSheet: View {
                     .frame(width: 38, height: 38)
                 Image(systemName: group.isOwner ? "star.fill" : "person.2.fill")
                     .font(.system(size: 16))
-                    .foregroundColor(group.isOwner ? AppTheme.primary : AppTheme.textSecondary)
+                    .foregroundColor(group.isOwner ? AppTheme.primaryTint : AppTheme.textSecondary)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(group.displayName)
@@ -97,7 +102,7 @@ public struct FamilySwitchSheet: View {
             unreadBadge(for: group)
             if group.id == currentGroupId {
                 Image(systemName: "checkmark")
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                     .font(.system(size: 14, weight: .semibold))
             }
         }

@@ -160,7 +160,7 @@ public struct FamilyView: View {
         VStack(spacing: 20) {
             Image(systemName: "person.2.fill")
                 .font(.system(size: 56))
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
             Text(languageCode == "en" ? "Sign in to use Family Guard" : "登录后使用家庭守护")
                 .font(.title3.weight(.semibold))
             Text(languageCode == "en"
@@ -178,7 +178,7 @@ public struct FamilyView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(AppTheme.primary)
+                    .background(AppTheme.brandGradient)
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
             }
             .padding(.horizontal, 24)
@@ -205,10 +205,10 @@ public struct FamilyView: View {
             } label: {
                 Text(languageCode == "en" ? "Retry" : "重试")
                     .font(.body.weight(.semibold))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(AppTheme.primary.opacity(0.1))
+                    .background(AppTheme.primarySoft)
                     .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
             }
             .padding(.horizontal, 32)

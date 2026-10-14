@@ -55,26 +55,29 @@ public struct ChatMessageView: View {
                     if let text = turn.userText, !text.isEmpty {
                         Text(text)
                             .font(.subheadline)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     userMessageImage
                 }
                 .padding(12)
-                .background(AppTheme.primary.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(AppTheme.brandGradient)
+                .clipShape(UnevenRoundedRectangle(topLeadingRadius: 16, bottomLeadingRadius: 16, bottomTrailingRadius: 6, topTrailingRadius: 16, style: .continuous))
+                .shadow(color: AppTheme.primary.opacity(0.25), radius: 6, x: 0, y: 3)
                 .frame(maxWidth: .infinity, alignment: .trailing)
             } else {
                 VStack(alignment: hasImage ? .leading : .trailing, spacing: 6) {
                     userMessageImage
                     if let text = turn.userText, !text.isEmpty {
+                        // 2026-10-14 配色 V2：用户气泡改为主色渐变白字，右下角收小圆角做出「对话尾巴」
                         Text(text)
                             .font(.subheadline)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
-                            .background(AppTheme.primary.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .background(AppTheme.brandGradient)
+                            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 16, bottomLeadingRadius: 16, bottomTrailingRadius: 6, topTrailingRadius: 16, style: .continuous))
+                            .shadow(color: AppTheme.primary.opacity(0.25), radius: 6, x: 0, y: 3)
                             .contextMenu {
                                 Button {
                                     UIPasteboard.general.string = text
@@ -189,7 +192,8 @@ public struct ChatMessageView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(AppTheme.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 16, bottomLeadingRadius: 6, bottomTrailingRadius: 16, topTrailingRadius: 16, style: .continuous))
+        .cardShadow(radius: 8, y: 3)
         .contextMenu {
             Button {
                 UIPasteboard.general.string = data.freeText ?? data.summary
@@ -236,10 +240,11 @@ private struct ActionButtonsStack: View {
                         Text(action.displayLabel)
                             .font(.subheadline.weight(.semibold))
                     }
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(AppTheme.primary.opacity(0.12))
+                    .background(AppTheme.primarySoft)
+                    .overlay(Capsule().stroke(AppTheme.primarySoftBorder, lineWidth: 1))
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)

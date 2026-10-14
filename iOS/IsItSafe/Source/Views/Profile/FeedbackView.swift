@@ -21,7 +21,7 @@ public struct FeedbackView: View {
     public init() {}
 
     public var body: some View {
-        List {
+        List { Group {
             Section {
                 TextField(languageCode == "en" ? "Enter your feedback or suggestions" : "请输入您的意见或建议", text: $content, axis: .vertical)
                     .lineLimit(5...10)
@@ -36,7 +36,7 @@ public struct FeedbackView: View {
                 } label: {
                     HStack {
                         Text(languageCode == "en" ? "Add image (optional, one only)" : "添加图片（选填，仅一张）")
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                         Spacer()
                         if pickedImage != nil {
                             Image(systemName: "checkmark.circle.fill")
@@ -92,6 +92,11 @@ public struct FeedbackView: View {
                 .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 0, trailing: 16))
             }
         }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
         .listStyle(.insetGrouped)
         .background(AppTheme.background)
         .scrollDismissesKeyboard(.interactively)   // 下拉/滚动可隐藏键盘

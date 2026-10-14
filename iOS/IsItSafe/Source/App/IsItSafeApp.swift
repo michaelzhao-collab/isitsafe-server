@@ -45,6 +45,7 @@ struct IsItSafeApp: App {
                         .environmentObject(appState)
                         .environmentObject(router)
                 }
+                .onAppear { AppAppearance.applyToAllWindows() }
                 .onAppear {
                     // 2026-09-27 复核：原来每次冷启动无条件按系统语言覆盖 languageCode，
                     // 把用户在 App 内手动选的语言冲掉。默认语言的初始化已由 AppSettingsStore.init
@@ -64,7 +65,10 @@ struct IsItSafeApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
-                    case .active: FamilyChatCoordinator.shared.appDidBecomeActive()
+                    case .active:
+                        FamilyChatCoordinator.shared.appDidBecomeActive()
+                        // 2026-10-14 外观设置：新建的窗口（多窗口 / 恢复）也要套上
+                        AppAppearance.applyToAllWindows()
                     case .background: FamilyChatCoordinator.shared.appDidEnterBackground()
                     default: break
                     }

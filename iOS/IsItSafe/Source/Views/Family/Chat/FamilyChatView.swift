@@ -257,7 +257,7 @@ public struct FamilyChatView: View {
                          : localized(zh: "查看更早的消息", en: "Load earlier messages"))
                         .font(.system(size: elderScaled(13), weight: .medium))
                 }
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
             }
@@ -471,7 +471,7 @@ public struct FamilyChatView: View {
     private func voiceIcon(_ playing: Bool) -> some View {
         Image(systemName: playing ? "speaker.wave.2.fill" : "waveform")
             .font(.system(size: elderScaled(16)))
-            .foregroundColor(AppTheme.primary)
+            .foregroundColor(AppTheme.primaryTint)
     }
 
     /// 图片气泡：按 payload 宽高比占位（加载时不跳动），最大边 200pt
@@ -622,7 +622,7 @@ public struct FamilyChatView: View {
                             .font(.system(size: elderScaled(15), weight: .semibold))
                             .foregroundColor(.white)
                             .padding(.horizontal, 14).padding(.vertical, 8)
-                            .background(RoundedRectangle(cornerRadius: 10).fill(AppTheme.primary))
+                            .background(RoundedRectangle(cornerRadius: 10).fill(AppTheme.brandGradient))
                     }
                 }
             }

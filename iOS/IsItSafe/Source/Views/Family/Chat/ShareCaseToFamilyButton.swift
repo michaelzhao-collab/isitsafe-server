@@ -34,10 +34,15 @@ public struct ShareCaseToFamilyButton: View {
                      : (languageCode == "en" ? "Send to family" : "发给家人"))
                     .font(.system(size: 14, weight: .semibold))
             }
-            .foregroundColor(sent ? AppTheme.riskLow : AppTheme.primary)
+            .foregroundColor(sent ? AppTheme.riskLow : .white)
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(Capsule().stroke(
-                (sent ? AppTheme.riskLow : AppTheme.primary).opacity(0.5), lineWidth: 1.5))
+            .background {
+                if sent {
+                    Capsule().stroke(AppTheme.riskLow.opacity(0.5), lineWidth: 1.5)
+                } else {
+                    Capsule().fill(AppTheme.brandGradient)
+                }
+            }
         }
         .disabled(sent)
     }

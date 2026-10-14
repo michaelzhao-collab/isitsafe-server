@@ -83,18 +83,27 @@ public struct ShareToFamilyButton: View {
         Button(action: tap) {
             HStack(spacing: 8) {
                 if sending {
-                    ProgressView()
+                    ProgressView().tint(.white)
                 } else {
                     Image(systemName: sent ? "checkmark.circle.fill" : "person.2.fill")
                 }
                 Text(labelText)
                     .font(.system(size: elder ? 17 : 14, weight: .semibold))
             }
-            .foregroundColor(sent ? AppTheme.riskLow : AppTheme.primary)
+            // 2026-10-14 配色 V2：未发送 → 主色渐变实心白字；已发送 → 绿色描边
+            .foregroundColor(sent ? AppTheme.riskLow : .white)
             .frame(maxWidth: .infinity)
             .frame(height: elder ? 48 : 40)
-            .background(RoundedRectangle(cornerRadius: 12)
-                .stroke(sent ? AppTheme.riskLow.opacity(0.5) : AppTheme.primary.opacity(0.5), lineWidth: 1.5))
+            .background {
+                if sent {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(AppTheme.riskLow.opacity(0.5), lineWidth: 1.5)
+                } else {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(AppTheme.brandGradient)
+                        .shadow(color: AppTheme.primary.opacity(0.28), radius: 6, x: 0, y: 3)
+                }
+            }
         }
         .disabled(sent || sending)
     }

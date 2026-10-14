@@ -45,7 +45,7 @@ public struct ConfirmPhotoSheet: View {
                     .frame(maxWidth: .infinity)
                 }
                 .padding()
-                .background(Color(.systemBackground))
+                .background(AppTheme.background)
             }
             .navigationTitle("确认图片")
             .navigationBarTitleDisplayMode(.inline)

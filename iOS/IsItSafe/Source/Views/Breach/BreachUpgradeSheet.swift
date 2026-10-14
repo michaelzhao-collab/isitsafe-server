@@ -44,7 +44,7 @@ public struct BreachUpgradeSheet: View {
         VStack(spacing: 10) {
             Image(systemName: "lock.shield.fill")
                 .font(.system(size: 48))
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
             Text("Protect more accounts")
                 .font(.title2.weight(.bold))
             Text("Free includes 1 monitored email. Upgrade to keep all your accounts safe.")
@@ -105,7 +105,7 @@ public struct BreachUpgradeSheet: View {
             Text("Pro")
                 .font(.caption.weight(.bold))
                 .frame(width: 60)
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -122,7 +122,7 @@ public struct BreachUpgradeSheet: View {
                 .frame(width: 60)
             Text(pro)
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
                 .frame(width: 60)
         }
         .padding(.horizontal, 14)
@@ -140,7 +140,7 @@ public struct BreachUpgradeSheet: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(AppTheme.primary)
+                    .background(AppTheme.brandGradient)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }
             Button {

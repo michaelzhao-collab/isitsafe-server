@@ -92,7 +92,7 @@ public struct IntelDetailView: View {
                 .font(.caption)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(Color(.systemGray6))
+                .background(AppTheme.primarySoft)
                 .clipShape(Capsule())
             Spacer()
             if let pub = summary.publishedAt {
@@ -169,7 +169,7 @@ public struct IntelDetailView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             case .empty:
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.systemGray6))
+                    .fill(AppTheme.primarySoft)
                     .frame(height: 200)
                     .overlay(ProgressView())
             case .failure:

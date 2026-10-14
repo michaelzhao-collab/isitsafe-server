@@ -89,9 +89,9 @@ public struct IntelSubmitSheet: View {
                                     .background(
                                         selectedCategory == cat.key
                                             ? AppTheme.primary.opacity(0.15)
-                                            : Color(.systemGray6)
+                                            : AppTheme.primarySoft
                                     )
-                                    .foregroundColor(selectedCategory == cat.key ? AppTheme.primary : AppTheme.textPrimary)
+                                    .foregroundColor(selectedCategory == cat.key ? AppTheme.primaryTint : AppTheme.textPrimary)
                                     .clipShape(Capsule())
                             }
                         }
@@ -131,7 +131,7 @@ public struct IntelSubmitSheet: View {
     private var warningCard: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "info.circle")
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
             Text(languageCode == "en"
                  ? "Don't include personal info. Editors will de-identify before publishing."
                  : "请不要透露任何个人信息（手机号、身份证号）。我们会再次脱敏。")
@@ -139,7 +139,7 @@ public struct IntelSubmitSheet: View {
                 .foregroundColor(AppTheme.textSecondary)
         }
         .padding(10)
-        .background(AppTheme.primary.opacity(0.06))
+        .background(AppTheme.primarySoft)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 

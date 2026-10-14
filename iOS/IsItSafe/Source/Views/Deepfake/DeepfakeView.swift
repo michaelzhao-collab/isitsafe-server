@@ -43,7 +43,7 @@ public struct DeepfakeView: View {
                         HStack {
                             Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold))
                             Text(languageCode == "en" ? "Back" : "返回")
-                        }.foregroundColor(AppTheme.primary)
+                        }.foregroundColor(AppTheme.primaryTint)
                     }
                 }
             }
@@ -254,7 +254,7 @@ public struct DeepfakeView: View {
             HStack(spacing: 12) {
                 Image(systemName: icon)
                     .font(.system(size: 22))
-                    .foregroundColor(primary ? .white : AppTheme.primary)
+                    .foregroundColor(primary ? .white : AppTheme.primaryTint)
                     .frame(width: 44, height: 44)
                     .background(primary ? AppTheme.primary : AppTheme.primary.opacity(0.1))
                     .clipShape(RoundedRectangle(cornerRadius: 10))

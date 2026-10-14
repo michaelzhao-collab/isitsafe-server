@@ -29,7 +29,7 @@ public struct ElderSOSView: View {
                         HStack {
                             Image(systemName: "chevron.left").font(.system(size: 20, weight: .semibold))
                             Text(languageCode == "en" ? "Back" : "返回").font(.system(size: 18))
-                        }.foregroundColor(AppTheme.primary)
+                        }.foregroundColor(AppTheme.primaryTint)
                     }
                 }
                 ToolbarItem(placement: .principal) {

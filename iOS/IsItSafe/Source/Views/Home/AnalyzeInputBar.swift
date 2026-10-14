@@ -87,7 +87,7 @@ public struct AnalyzeInputBar: View {
                 Button(action: onCamera) {
                     Image(systemName: "camera.circle")
                         .font(.system(size: 32))
-                        .foregroundColor(AppTheme.primary)
+                        .foregroundColor(AppTheme.primaryTint)
                 }
                 .buttonStyle(.plain)
             }
@@ -100,9 +100,7 @@ public struct AnalyzeInputBar: View {
 
             // 加号：打开拍照和相册
             Button(action: onPlus) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundColor(AppTheme.primary)
+                GradientCircleIcon(systemName: "plus")
             }
             .buttonStyle(.plain)
 
@@ -113,7 +111,7 @@ public struct AnalyzeInputBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
-        .background(AppTheme.tabBarBackground)
+        .background(AppTheme.barBackground)
     }
 
     @State private var isVoiceMode = false
@@ -141,8 +139,9 @@ public struct AnalyzeInputBar: View {
                 .foregroundColor(AppTheme.textPrimary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color(UIColor.tertiarySystemFill))
+                .background(AppTheme.cardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.primarySoftBorder, lineWidth: 1.5))
                 .lineLimit(1...4)
                 .focused($isFocused)
                 .onSubmit(onSubmit)
@@ -154,7 +153,7 @@ public struct AnalyzeInputBar: View {
                 }) {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 32))
-                        .foregroundColor(AppTheme.primary)
+                        .foregroundColor(AppTheme.primaryTint)
                 }
                 .buttonStyle(.plain)
             }
@@ -228,7 +227,7 @@ public struct AnalyzeInputBar: View {
                 }) {
                     Image(systemName: isRecording ? "xmark.circle.fill" : "keyboard")
                         .font(.system(size: 32))
-                        .foregroundColor(isRecording ? .red : AppTheme.primary)
+                        .foregroundColor(isRecording ? .red : AppTheme.primaryTint)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isRecording
@@ -261,7 +260,7 @@ public struct AnalyzeInputBar: View {
     private var voiceButtonBackground: Color {
         if isCancellableMode { return .red.opacity(0.85) }
         if isRecording { return AppTheme.primary.opacity(0.18) }
-        return Color(UIColor.tertiarySystemFill)
+        return AppTheme.cardBackground
     }
 
     /// 长按 0.08s 进入录音 → DragGesture 跟踪上滑距离 → 释放时根据 isCancellableMode 决定 cancel 或 end
@@ -319,9 +318,7 @@ public struct AnalyzeInputBar: View {
 
     private var sendButton: some View {
         Button(action: performSend) {
-            Image(systemName: "arrow.up.circle.fill")
-                .font(.system(size: 32))
-                .foregroundColor(AppTheme.primary)
+            GradientCircleIcon(systemName: "arrow.up")
         }
         .buttonStyle(.plain)
         .a11y(
@@ -349,5 +346,23 @@ public struct AnalyzeInputBar: View {
             return
         }
         onSubmit()
+    }
+}
+
+
+/// 主色渐变实心圆按钮（加号 / 发送）：2026-10-14 配色 V2
+struct GradientCircleIcon: View {
+    let systemName: String
+    var size: CGFloat = 32
+
+    var body: some View {
+        ZStack {
+            Circle().fill(AppTheme.brandGradient)
+            Image(systemName: systemName)
+                .font(.system(size: size * 0.5, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .frame(width: size, height: size)
+        .shadow(color: AppTheme.primary.opacity(0.35), radius: 5, x: 0, y: 3)
     }
 }

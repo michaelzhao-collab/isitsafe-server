@@ -25,12 +25,13 @@ public struct SettingsView: View {
     @State private var exportFilename: String = "starlens-export"
     @State private var exportError: String?
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
+    @AppStorage(AppAppearance.storageKey) private var appearanceRaw: String = AppAppearance.system.rawValue
 
     public init() {}
 
     public var body: some View {
         NavigationStack {
-            List {
+            List { Group {
                 if MockData.isMockModeEnabled {
                     Section {
                         HStack {
@@ -45,6 +46,11 @@ public struct SettingsView: View {
                             dismiss()
                         }
                     }
+                }
+
+                Section(languageCode == "en" ? "Display" : "显示") {
+                    // 2026-10-14：外观（跟随系统 / 浅色 / 深色）
+                    appearanceRow
                 }
 
                 Section(languageCode == "en" ? "Accessibility" : "辅助功能") {
@@ -62,7 +68,7 @@ public struct SettingsView: View {
                             HStack(spacing: 12) {
                                 Image(systemName: "bell.badge")
                                     .font(.system(size: 18))
-                                    .foregroundColor(AppTheme.primary)
+                                    .foregroundColor(AppTheme.primaryTint)
                                     .frame(width: 24, alignment: .center)
                                 Text(languageCode == "en" ? "Notification settings" : "通知设置")
                             }
@@ -124,6 +130,11 @@ public struct SettingsView: View {
                     }
                 }
             }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
             .listStyle(.insetGrouped)
             .background(AppTheme.background)
             .navigationTitle(languageCode == "en" ? "Settings" : "系统设置")
@@ -232,12 +243,40 @@ public struct SettingsView: View {
         }
     }
 
+    /// 外观：跟随系统 / 浅色 / 深色（2026-10-14）
+    private var appearanceRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "circle.lefthalf.filled")
+                .font(.system(size: 18))
+                .foregroundColor(AppTheme.primaryTint)
+                .frame(width: 24, alignment: .center)
+            Text(languageCode == "en" ? "Appearance" : "外观")
+                .font(.body)
+                .foregroundColor(.primary)
+            Spacer()
+            Picker("", selection: Binding(
+                get: { AppAppearance(rawValue: appearanceRaw) ?? .system },
+                set: { v in
+                    appearanceRaw = v.rawValue
+                    AppAppearance.applyToAllWindows(v)
+                }
+            )) {
+                ForEach(AppAppearance.allCases, id: \.self) { a in
+                    Text(a.title(english: languageCode == "en")).tag(a)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .tint(AppTheme.primaryTint)
+        }
+    }
+
     /// V3-J 长辈模式开关 row（开启会切换主界面到 ElderHomeView）
     private var elderModeToggleRow: some View {
         HStack(spacing: 12) {
             Image(systemName: "figure.stand")
                 .font(.system(size: 18))
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
                 .frame(width: 24, alignment: .center)
             VStack(alignment: .leading, spacing: 2) {
                 Text(languageCode == "en" ? "Elder Mode" : "长辈模式")
@@ -257,7 +296,7 @@ public struct SettingsView: View {
                 }
             ))
             .labelsHidden()
-            .tint(AppTheme.primary)
+            .tint(AppTheme.primaryTint)
         }
     }
 }

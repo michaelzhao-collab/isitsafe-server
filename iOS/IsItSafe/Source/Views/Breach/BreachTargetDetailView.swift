@@ -63,7 +63,7 @@ public struct BreachTargetDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: "envelope.fill")
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                 Text(target.displayValue)
                     .font(.headline)
                 Spacer()

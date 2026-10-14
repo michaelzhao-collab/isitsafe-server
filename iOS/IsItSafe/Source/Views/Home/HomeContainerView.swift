@@ -543,7 +543,7 @@ public struct HomeContainerView: View {
                     } label: {
                         Image(systemName: "line.3.horizontal")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                     }
                     .a11y(
                         label: languageCode == "en" ? "Open menu" : "打开菜单",
@@ -562,7 +562,7 @@ public struct HomeContainerView: View {
                     } label: {
                         Image(systemName: "square.and.pencil")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                     }
                     .a11y(
                         label: languageCode == "en" ? "Start new chat" : "开始新对话",
@@ -600,7 +600,7 @@ public struct HomeContainerView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(AppTheme.primary)
+                    .background(AppTheme.brandGradient)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .padding(.horizontal, 20)
@@ -614,7 +614,7 @@ public struct HomeContainerView: View {
                         .textFieldStyle(.plain)
                 }
                 .padding(12)
-                .background(Color(.systemGray6))
+                .background(AppTheme.primarySoft)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .padding(.horizontal, 20)
                 .padding(.bottom, 12)
@@ -839,14 +839,14 @@ private struct MediaPickerSheet: View {
                     VStack(spacing: 6) {
                         Image(systemName: "camera.fill")
                             .font(.system(size: 24))
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                         Text(languageCode == "en" ? "Camera" : "相机")
                             .font(.caption)
                             .foregroundColor(.primary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(Color(.systemGray6))
+                    .background(AppTheme.primarySoft)
                     .cornerRadius(12)
                 }
                 .buttonStyle(.plain)
@@ -855,14 +855,14 @@ private struct MediaPickerSheet: View {
                     VStack(spacing: 6) {
                         Image(systemName: "photo.on.rectangle.angled")
                             .font(.system(size: 24))
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                         Text(languageCode == "en" ? "Photos" : "相册")
                             .font(.caption)
                             .foregroundColor(.primary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(Color(.systemGray6))
+                    .background(AppTheme.primarySoft)
                     .cornerRadius(12)
                 }
                 .buttonStyle(.plain)
@@ -872,14 +872,14 @@ private struct MediaPickerSheet: View {
                     VStack(spacing: 6) {
                         Image(systemName: "mic.fill")
                             .font(.system(size: 24))
-                            .foregroundColor(AppTheme.primary)
+                            .foregroundColor(AppTheme.primaryTint)
                         Text(languageCode == "en" ? "Voice AI" : "语音深伪")
                             .font(.caption)
                             .foregroundColor(.primary)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(Color(.systemGray6))
+                    .background(AppTheme.primarySoft)
                     .cornerRadius(12)
                 }
                 .buttonStyle(.plain)

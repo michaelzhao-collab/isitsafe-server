@@ -271,7 +271,7 @@ public struct ElderHomeView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(AppTheme.primary)
+                        .background(AppTheme.primary)   // 长辈模式保留纯主色：白字在渐变浅端对比度不足
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
             }

@@ -61,7 +61,7 @@ public struct FamilyGroupView: View {
                     .padding(.top, 10)
                     .padding(.bottom, 12)
             }
-            .background(Color(.systemBackground))
+            .background(AppTheme.barBackground)
             // MainTabView tabBar 高度约 78pt（6 top + ~46 content + 12 bottom + ~14 home indicator）
             .padding(.bottom, 78)
         }
@@ -315,7 +315,7 @@ public struct FamilyGroupView: View {
                 HStack {
                     Image(systemName: "megaphone.fill")
                         .font(.caption)
-                        .foregroundColor(AppTheme.primary)
+                        .foregroundColor(AppTheme.primaryTint)
                     Text(languageCode == "en" ? "Family Messages" : "家庭消息")
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(AppTheme.textSecondary)
@@ -332,7 +332,7 @@ public struct FamilyGroupView: View {
                             Image(systemName: "chevron.right").font(.caption2)
                         }
                         .font(.caption)
-                        .foregroundColor(AppTheme.primary)
+                        .foregroundColor(AppTheme.primaryTint)
                     }
                     // 预览折叠按钮（不影响入口；可再次点击展开）
                     Button {
@@ -511,11 +511,11 @@ public struct FamilyGroupView: View {
                     .frame(width: 40, height: 40)
                 Image(systemName: "plus")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
             }
             Text(languageCode == "en" ? "Invite family" : "邀请家人")
                 .font(.subheadline.weight(.medium))
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
             Spacer()
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold))
@@ -554,7 +554,7 @@ public struct FamilyGroupView: View {
                             .font(.caption2.weight(.semibold))
                     }
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                 }
                 .buttonStyle(.plain)
             }
@@ -611,7 +611,7 @@ public struct FamilyGroupView: View {
                     .frame(width: 40, height: 40)
                 Text(String(name.prefix(1)))
                     .font(.headline)
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
             }
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -623,8 +623,8 @@ public struct FamilyGroupView: View {
                         Text(languageCode == "en" ? "Owner" : "群主")
                             .font(.caption2.weight(.bold))
                             .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(AppTheme.primary.opacity(0.12))
-                            .foregroundColor(AppTheme.primary)
+                            .background(AppTheme.primarySoft)
+                            .foregroundColor(AppTheme.primaryTint)
                             .clipShape(Capsule())
                     }
                     // #9：自己那行加"我"标注，与群主同样的 capsule 样式但用次要色
@@ -666,10 +666,10 @@ public struct FamilyGroupView: View {
                 Text(languageCode == "en" ? "Share to Family" : "分享信息到家庭")
             }
             .font(.body.weight(.semibold))
-            .foregroundColor(AppTheme.primary)
+            .foregroundColor(AppTheme.primaryTint)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(AppTheme.primary.opacity(0.12))
+            .background(AppTheme.primarySoft)
             .overlay(
                 // 加边框增强可见度，跟实心 fill 区分（柔和但可识别）
                 RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)

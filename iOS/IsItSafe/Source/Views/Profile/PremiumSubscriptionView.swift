@@ -322,7 +322,7 @@ public struct PremiumSubscriptionView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Rectangle()
-                    .fill(AppTheme.primary)
+                    .fill(AppTheme.brandGradient)
                     .frame(width: 4, height: 22)
                 Text(languageCode == "en" ? "Premium benefits" : "核心会员权益")
                     .font(.headline)
@@ -351,9 +351,9 @@ public struct PremiumSubscriptionView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(AppTheme.primary)
+                    .foregroundColor(AppTheme.primaryTint)
                     .frame(width: 44, height: 44)
-                    .background(AppTheme.primary.opacity(0.12))
+                    .background(AppTheme.primarySoft)
                     .clipShape(Circle())
                 Text(title)
                     .font(.subheadline.weight(.semibold))
@@ -390,7 +390,7 @@ public struct PremiumSubscriptionView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Rectangle()
-                    .fill(AppTheme.primary)
+                    .fill(AppTheme.brandGradient)
                     .frame(width: 4, height: 22)
                 Text(languageCode == "en" ? "Family plan benefits" : "家庭套餐权益")
                     .font(.headline)
@@ -399,8 +399,8 @@ public struct PremiumSubscriptionView: View {
                 Text(languageCode == "en" ? "Up to 10 people" : "最多 10 人")
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(AppTheme.primary.opacity(0.12))
-                    .foregroundColor(AppTheme.primary)
+                    .background(AppTheme.primarySoft)
+                    .foregroundColor(AppTheme.primaryTint)
                     .clipShape(Capsule())
             }
 
@@ -470,7 +470,7 @@ public struct PremiumSubscriptionView: View {
     private func bulletRow(_ text: String, showF: Bool = false) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Circle()
-                .fill(AppTheme.primary)
+                .fill(AppTheme.brandGradient)
                 .frame(width: 6, height: 6)
                 .padding(.top, 6)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -526,12 +526,12 @@ public struct PremiumSubscriptionView: View {
                 InAppWebView(url: AppTheme.termsURL, title: languageCode == "en" ? "User Agreement" : "用户协议")
             }
             .font(.subheadline)
-            .foregroundColor(AppTheme.primary)
+            .foregroundColor(AppTheme.primaryTint)
             NavigationLink(languageCode == "en" ? "Privacy Policy" : "隐私政策") {
                 InAppWebView(url: AppTheme.privacyURL, title: languageCode == "en" ? "Privacy Policy" : "隐私政策")
             }
             .font(.subheadline)
-            .foregroundColor(AppTheme.primary)
+            .foregroundColor(AppTheme.primaryTint)
             NavigationLink("EULA") {
                 InAppWebView(
                     url: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!,
@@ -539,12 +539,12 @@ public struct PremiumSubscriptionView: View {
                 )
             }
             .font(.subheadline)
-            .foregroundColor(AppTheme.primary)
+            .foregroundColor(AppTheme.primaryTint)
             Button(languageCode == "en" ? "Restore Purchases" : "恢复购买") {
                 subscriptionVM.restorePurchases()
             }
             .font(.subheadline)
-            .foregroundColor(AppTheme.primary)
+            .foregroundColor(AppTheme.primaryTint)
         }
         .padding(.vertical, 24)
         .padding(.bottom, 32)

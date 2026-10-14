@@ -67,9 +67,9 @@ public struct DeepfakeRecordSheet: View {
             Spacer()
             Image(systemName: "mic.fill")
                 .font(.system(size: 56))
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
                 .padding(28)
-                .background(AppTheme.primary.opacity(0.1))
+                .background(AppTheme.primarySoft)
                 .clipShape(Circle())
             Text(languageCode == "en" ? "Ready to record" : "准备录音")
                 .font(.title3.weight(.bold))
@@ -105,7 +105,7 @@ public struct DeepfakeRecordSheet: View {
             HStack(spacing: 4) {
                 ForEach(0..<20) { i in
                     Capsule()
-                        .fill(AppTheme.primary)
+                        .fill(AppTheme.brandGradient)
                         .frame(width: 4, height: waveHeight(at: i))
                         .animation(.easeInOut(duration: 0.3).repeatForever().delay(Double(i) * 0.05), value: elapsed)
                 }
@@ -114,7 +114,7 @@ public struct DeepfakeRecordSheet: View {
 
             Text(formatTime(elapsed))
                 .font(.system(size: 48, weight: .heavy, design: .monospaced))
-                .foregroundColor(AppTheme.primary)
+                .foregroundColor(AppTheme.primaryTint)
 
             Text(languageCode == "en" ? "Recording... (10–60s)" : "正在录制（10–60 秒）")
                 .font(.subheadline)
@@ -166,7 +166,7 @@ public struct DeepfakeRecordSheet: View {
             Spacer()
             Text(done ? "✓" : "...")
                 .font(.caption.weight(.bold))
-                .foregroundColor(done ? AppTheme.riskLow : AppTheme.primary)
+                .foregroundColor(done ? AppTheme.riskLow : AppTheme.primaryTint)
         }
         .padding(.vertical, 4)
     }

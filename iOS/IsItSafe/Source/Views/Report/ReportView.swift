@@ -14,7 +14,7 @@ public struct ReportView: View {
 
     public var body: some View {
         NavigationStack {
-            Form {
+            Form { Group {
                 Section(languageCode == "en" ? "Report type" : "举报类型") {
                     ReportTypePicker(selection: $vm.selectedType)
                 }
@@ -28,6 +28,11 @@ public struct ReportView: View {
                     }
                 }
             }
+            // 2026-10-14 配色 V2：系统列表行底换成主题卡片色（深色下不再是 #1C1C1E 灰黑）
+            .listRowBackground(AppTheme.cardBackground)
+            }
+            .scrollContentBackground(.hidden)
+            .background(AppTheme.background)
             .navigationTitle(languageCode == "en" ? "Report" : "举报")
             .alert(languageCode == "en" ? "Submitted" : "提交成功", isPresented: $vm.submitSuccess) {
                 Button(languageCode == "en" ? "OK" : "确定", role: .cancel) {}

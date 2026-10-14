@@ -93,8 +93,8 @@ public struct ProfileView: View {
                         }
                         .buttonStyle(.plain)
                         .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 0, trailing: 16))
-                        .listRowBackground(profileCardBackground)
+                        .listRowInsets(EdgeInsets(top: 6, leading: 30, bottom: 0, trailing: 30))
+                        .listRowBackground(menuRowBackground(.top))
                         .overlay(bottomDivider, alignment: .bottom)
 
                         // V3-F 暗网监控入口（仅海外用户可见，region_code 不以 CN 开头）
@@ -110,8 +110,8 @@ public struct ProfileView: View {
                             }
                             .buttonStyle(.plain)
                             .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                            .listRowBackground(profileCardBackground)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 30, bottom: 0, trailing: 30))
+                            .listRowBackground(menuRowBackground(.middle))
                             .overlay(bottomDivider, alignment: .bottom)
                         }
 
@@ -126,8 +126,8 @@ public struct ProfileView: View {
                         }
                         .buttonStyle(.plain)
                         .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                        .listRowBackground(profileCardBackground)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 30, bottom: 0, trailing: 30))
+                        .listRowBackground(menuRowBackground(.middle))
                         .overlay(bottomDivider, alignment: .bottom)
 
                         Button {
@@ -143,8 +143,8 @@ public struct ProfileView: View {
                         }
                         .buttonStyle(.plain)
                         .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
-                        .listRowBackground(profileCardBackground)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 30, bottom: 0, trailing: 30))
+                        .listRowBackground(menuRowBackground(.middle))
                         .overlay(bottomDivider, alignment: .bottom)
 
                         Button {
@@ -158,8 +158,8 @@ public struct ProfileView: View {
                         }
                         .buttonStyle(.plain)
                         .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 6, trailing: 16))
-                        .listRowBackground(profileCardBackground)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 30, bottom: 6, trailing: 30))
+                        .listRowBackground(menuRowBackground(.bottom))
                     }
                     .listSectionSeparator(.hidden)
                 }
@@ -250,7 +250,7 @@ public struct ProfileView: View {
         Rectangle()
             .fill(profileDividerColor)
             .frame(height: 0.5)
-            .padding(.leading, 36)
+            .padding(.leading, 42)
             // 通过 offset 将分割线下移到“上一行”和“下一行”之间
             .offset(y: 8)
     }
@@ -263,16 +263,35 @@ public struct ProfileView: View {
         AppTheme.background
     }
 
-    private var profileNameColor: Color {
-        vm.isPremium ? Color(hex: "5A2CA0") : .primary
+    private var profileNameColor: Color { AppTheme.textPrimary }
+
+    private var profileSubtitleColor: Color { AppTheme.textSecondary }
+
+    /// 菜单分组卡片背景：首行上圆角、末行下圆角，中间直角，拼成一张卡
+    private enum MenuRowPosition { case top, middle, bottom }
+    private func menuRowBackground(_ p: MenuRowPosition) -> some View {
+        let r: CGFloat = 16
+        return UnevenRoundedRectangle(
+            topLeadingRadius: p == .top ? r : 0, bottomLeadingRadius: p == .bottom ? r : 0,
+            bottomTrailingRadius: p == .bottom ? r : 0, topTrailingRadius: p == .top ? r : 0,
+            style: .continuous
+        )
+        .fill(AppTheme.cardBackground)
+        .padding(.horizontal, 16)
     }
 
-    private var profileSubtitleColor: Color {
-        vm.isPremium ? Color(hex: "7A4CC0") : .secondary
+    private static func menuAccent(for icon: String) -> AppTheme.Accent {
+        switch icon {
+        case "bell": return .blue
+        case "shield.lefthalf.filled": return .teal
+        case "bubble.left": return .orange
+        case "globe": return .violet
+        default: return .teal
+        }
     }
 
     private var profileDividerColor: Color {
-        vm.isPremium ? Color(hex: "7A4CC0").opacity(0.35) : AppTheme.border.opacity(0.5)
+        AppTheme.border.opacity(0.6)
     }
 
     private var effectiveLanguageTag: String {
@@ -311,14 +330,19 @@ public struct ProfileView: View {
                             .resizable()
                             .scaledToFill()
                     } else {
-                        avatarFallbackIcon
+                        // 加载中 / 失败：补底圆，否则白色人形在雾蓝底上看不见
+                        Circle()
+                            .fill(vm.isPremium
+                                  ? AnyShapeStyle(LinearGradient(colors: [Color(hex: "F7D774"), Color(hex: "C6932E")], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                  : AnyShapeStyle(AppTheme.brandGradient))
+                            .overlay(avatarFallbackIcon)
                     }
                 }
                 .frame(width: 72, height: 72)
                 .clipShape(Circle())
                 .overlay(
                     Circle()
-                        .stroke(vm.isPremium ? Color(hex: "FFE8A3") : AppTheme.primary.opacity(0.35), lineWidth: 2)
+                        .stroke(vm.isPremium ? Color(hex: "FFE8A3") : AppTheme.primarySoftBorder, lineWidth: 3)
                 )
             } else {
                 Circle()
@@ -328,10 +352,10 @@ public struct ProfileView: View {
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
-                    ) : AnyShapeStyle(AppTheme.primary.opacity(0.18)))
+                    ) : AnyShapeStyle(AppTheme.brandGradient))
                     .overlay(
                         Circle()
-                            .stroke(vm.isPremium ? Color(hex: "FFE8A3") : AppTheme.primary.opacity(0.35), lineWidth: 2)
+                            .stroke(vm.isPremium ? Color(hex: "FFE8A3") : AppTheme.primarySoftBorder, lineWidth: 3)
                     )
                     .overlay(avatarFallbackIcon)
             }
@@ -350,21 +374,25 @@ public struct ProfileView: View {
     private var avatarFallbackIcon: some View {
         Image(systemName: "person.fill")
             .font(.system(size: vm.isPremium ? 26 : 28, weight: .semibold))
-            .foregroundColor(vm.isPremium ? Color(hex: "4A3500") : AppTheme.primary.opacity(0.75))
+            .foregroundColor(vm.isPremium ? Color(hex: "4A3500") : .white)
     }
 
     private func menuRow(icon: String, title: String, trailingText: String? = nil, showRedDot: Bool) -> some View {
-        HStack(spacing: 12) {
+        // 2026-10-14 配色 V2：图标换成辅助色浅底方块；会员的紫色文字在深色底上不可读，统一用主题文字色
+        let accent = Self.menuAccent(for: icon)
+        return HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundColor(vm.isPremium ? Color(hex: "5A2CA0") : AppTheme.primary)
-                .frame(width: 24, alignment: .center)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(accent.foreground)
+                .frame(width: 30, height: 30)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(accent.soft))
             Text(title)
-                .foregroundColor(vm.isPremium ? Color(hex: "5A2CA0") : AppTheme.textPrimary)
+                .foregroundColor(AppTheme.textPrimary)
             Spacer()
             if let trailingText, !trailingText.isEmpty {
                 Text(trailingText)
                     .font(.subheadline)
-                    .foregroundColor(vm.isPremium ? Color(hex: "7A4CC0") : AppTheme.secondaryText)
+                    .foregroundColor(AppTheme.secondaryText)
             }
             if showRedDot {
                 Circle()
@@ -372,8 +400,8 @@ public struct ProfileView: View {
                     .frame(width: 8, height: 8)
             }
             Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(vm.isPremium ? Color(hex: "7A4CC0") : AppTheme.secondaryText)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(AppTheme.secondaryText.opacity(0.6))
         }
         // 整行可点：Spacer 透明区也参与 hit testing
         .padding(.vertical, 10)
@@ -391,7 +419,7 @@ public struct ProfileView: View {
                     Text("English").tag("en")
                 }
                 .pickerStyle(.segmented)
-                .tint(AppTheme.primary)
+                .tint(AppTheme.primaryTint)
                 Spacer()
             }
             .onAppear { tempLanguage = effectiveLanguageTag }
