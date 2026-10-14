@@ -127,7 +127,7 @@ public struct FeedbackView: View {
         Task {
             do {
                 var imageUrl: String?
-                if let img = pickedImage, let data = img.jpegData(compressionQuality: 0.8) {
+                if let img = pickedImage, let data = await Task.detached(priority: .userInitiated, operation: { ImageUploadPreparer.jpeg(img, quality: 0.8)?.data }).value {
                     // 之前用 try? 会吞掉 R2 上传错误，导致用户看不到为什么 admin 收不到图。
                     // 改成 try：上传失败 → catch 弹错误（"R2 服务连接失败" 等）让业主能定位
                     imageUrl = try await NetworkManager.shared.uploadFile(

@@ -245,7 +245,11 @@ public final class HomeViewModel: ObservableObject {
             do {
                 if isScreenshot {
                     let img = await MainActor.run { self.turns.indices.contains(index) ? self.turns[index].userImage : nil }
-                    if let image = img, let data = image.jpegData(compressionQuality: 0.8) {
+                    // 2026-10-14：原来原图直接编码上传（相册照片可达十几 MB），统一按像素上限缩放、后台线程编码
+                    let prepared: Data? = await Task.detached(priority: .userInitiated) {
+                        img.flatMap { ImageUploadPreparer.jpeg($0, quality: 0.8)?.data }
+                    }.value
+                    if let data = prepared {
                         imageUrl = await UploadService.shared.uploadScreenshot(data, mimeType: "image/jpeg")
                     }
                 }

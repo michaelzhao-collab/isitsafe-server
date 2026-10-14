@@ -108,6 +108,12 @@ public actor SQLiteChatStore: ChatMessageStore {
         exec("COMMIT;")
     }
 
+    public func markSending(clientMsgId: String) async {
+        run("UPDATE messages SET send_state='sending' WHERE client_msg_id=? AND seq=0;") { st in
+            bindText(st, 1, clientMsgId)
+        }
+    }
+
     public func markFailed(clientMsgId: String) async {
         run("UPDATE messages SET send_state='failed' WHERE client_msg_id=? AND seq=0;") { st in
             bindText(st, 1, clientMsgId)

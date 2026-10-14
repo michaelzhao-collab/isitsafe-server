@@ -495,9 +495,16 @@ public final class FamilyChatCoordinator: ObservableObject {
         }
     }
 
+    /// 每群 reload 序号：onGroupChanged 每次都起独立 Task，返回顺序不保证，晚到的旧快照会把
+    /// 「已发送」盖回「失败红点」（2026-10-14 复核）。只接受最新一次 reload 的结果。
+    private var reloadGeneration: [String: Int] = [:]
+
     private func reloadMessages(groupId: String) async {
+        let gen = (reloadGeneration[groupId] ?? 0) + 1
+        reloadGeneration[groupId] = gen
         let limit = loadedLimitByGroup[groupId] ?? Self.initialWindow
         let msgs = await engine.currentMessages(groupId: groupId, limit: limit)
+        guard reloadGeneration[groupId] == gen else { return }
         messagesByGroup[groupId] = msgs
     }
 

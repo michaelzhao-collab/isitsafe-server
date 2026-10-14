@@ -165,22 +165,12 @@ public struct FamilyChatView: View {
         // 用户感觉「点了没反应」。挪到后台线程。
         let prepared: (Data, Int, Int)? = await Task.detached(priority: .userInitiated) {
             guard let image = UIImage(data: data) else { return nil }
-            let resized = Self.resize(image, maxSide: 1920)   // 压缩到长边 1920
-            guard let jpeg = resized.jpegData(compressionQuality: 0.8) else { return nil }
-            return (jpeg, Int(resized.size.width), Int(resized.size.height))
+            // 2026-10-14：统一走 ImageUploadPreparer（1x 像素、总像素约 420 万）
+            guard let out = ImageUploadPreparer.jpeg(image, quality: 0.8) else { return nil }
+            return (out.data, out.width, out.height)
         }.value
         guard let (jpeg, w, h) = prepared else { return }
         await chat.sendImage(groupId: groupId, imageData: jpeg, width: w, height: h)
-    }
-
-    nonisolated static func resize(_ image: UIImage, maxSide: CGFloat) -> UIImage {
-        let w = image.size.width, h = image.size.height
-        let longest = max(w, h)
-        guard longest > maxSide else { return image }
-        let scale = maxSide / longest
-        let newSize = CGSize(width: w * scale, height: h * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
     }
 
     // MARK: - 录音浮层（按住说话时全屏提示）

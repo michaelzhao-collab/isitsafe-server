@@ -33,6 +33,8 @@ public protocol ChatMessageStore {
     func confirmOptimistic(clientMsgId: String, with server: ChatMessage) async
     /// 标记乐观消息发送失败
     func markFailed(clientMsgId: String) async
+    /// 重发开始：把失败的乐观消息切回「发送中」（红点立刻消失，避免用户连点重复上传）
+    func markSending(clientMsgId: String) async
     /// 撤回墓碑
     func markRecalled(messageId: String) async
     /// 取某群的本地消息（按 seq 升序，乐观消息排在末尾）
@@ -89,6 +91,8 @@ public actor InMemoryChatStore: ChatMessageStore {
 
     public func insertOptimistic(_ message: ChatMessage) async {
         var list = byGroup[message.groupId] ?? []
+        // 同 id 覆盖（上传成功后会用带 url 的版本重写乐观行），与 SQLite 的 INSERT OR REPLACE 一致
+        list.removeAll { $0.id == message.id }
         list.append(message)
         byGroup[message.groupId] = sorted(list)
     }
@@ -99,6 +103,17 @@ public actor InMemoryChatStore: ChatMessageStore {
         list.removeAll { $0.id == server.id }
         list.append(server)
         byGroup[server.groupId] = sorted(list)
+    }
+
+    public func markSending(clientMsgId: String) async {
+        for (g, list) in byGroup {
+            if let idx = list.firstIndex(where: { $0.clientMsgId == clientMsgId && $0.seq == 0 }) {
+                var m = list[idx]; m.sendState = .sending
+                var newList = list; newList[idx] = m
+                byGroup[g] = newList
+                return
+            }
+        }
     }
 
     public func markFailed(clientMsgId: String) async {

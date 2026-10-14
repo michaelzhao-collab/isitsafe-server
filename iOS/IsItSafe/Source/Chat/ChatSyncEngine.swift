@@ -88,6 +88,8 @@ public actor ChatSyncEngine {
 
     /// 消息变更回调（UI 层订阅刷新）。返回该群最新本地消息列表。
     public var onGroupChanged: ((_ groupId: String) -> Void)?
+    /// 正在重发的乐观消息（防连点重复上传）
+    private var resendingIds: Set<String> = []
 
     public init(
         store: ChatMessageStore,
@@ -218,6 +220,11 @@ public actor ChatSyncEngine {
                                        content: nil, payload: payload)
             // 先写缓存再确认：确认后气泡立刻切到远端 url，此时缓存必须已就绪，否则又去 CDN 下载
             Self.cacheSentImage(fileURL, url: url)
+            // 2026-10-14 复核：上传成功立刻把 url 落到乐观行。原来只改局部变量，发送失败后库里仍只有本地路径，
+            // 每次重发都重新上传一遍（日志里同一条图 5 个不同 CDN 地址），服务端按 clientMsgId 去重返回的又是第一次的 url，缓存对不上
+            var uploaded = optimistic
+            uploaded.payload = ChatPayload(payload)
+            await store.insertOptimistic(uploaded)
             let server = try await withRetry(times: 3) {
                 try await self.transport.send(groupId: groupId, body: body)
             }
@@ -241,6 +248,15 @@ public actor ChatSyncEngine {
         if let data = try? Data(contentsOf: fileURL), let img = UIImage(data: data) {
             ChatImageCache.shared.setImage(img, forKey: url)
         }
+    }
+
+    /// 超过 2MB 的待发图重新按 ImageUploadPreparer 压缩并覆盖原文件
+    private static func recompressIfOversized(_ fileURL: URL) {
+        guard let size = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size]) as? Int,
+              size > 2 * 1024 * 1024,
+              let data = try? Data(contentsOf: fileURL), let img = UIImage(data: data),
+              let out = ImageUploadPreparer.jpeg(img) else { return }
+        try? out.data.write(to: fileURL, options: .atomic)
     }
 
     /// payload 里存的是绝对路径，而 App 更新后沙盒容器路径会变：原路径不存在时按文件名到 Caches/ChatOutbox 下找
@@ -273,6 +289,13 @@ public actor ChatSyncEngine {
     @discardableResult
     public func resend(_ message: ChatMessage) async -> ChatMessage {
         guard let clientMsgId = message.clientMsgId, message.seq == 0 else { return message }
+        // 2026-10-14 真机：重发期间红点不消失，用户连点 5 次 → 同一条图重复上传 5 次。
+        // 同一 clientMsgId 正在重发时直接忽略；开始重发立刻切回「发送中」。
+        guard !resendingIds.contains(clientMsgId) else { return message }
+        resendingIds.insert(clientMsgId)
+        defer { resendingIds.remove(clientMsgId) }
+        await store.markSending(clientMsgId: clientMsgId)
+        onGroupChanged?(message.groupId)
 
         // 语音/图片消息上次卡在"上传失败"：payload 里只有本地路径没有 url，必须先重新上传，
         // 否则重发的是一条没有地址的空消息（服务端 payload 校验也会拒绝）。
@@ -283,6 +306,8 @@ public actor ChatSyncEngine {
            let localPath = message.payload?.string(Self.localPathKey),
            message.payload?.string("url") == nil {
             let fileURL = Self.resolveLocalFile(localPath)
+            // 2026-10-14：旧版本按 3x 渲染留在 outbox 的图有好几 MB，重发前先重新压缩
+            if message.type == .image { Self.recompressIfOversized(fileURL) }
             guard let url = try? await uploadMediaFile(message.type, fileURL) else {
                 await store.markFailed(clientMsgId: clientMsgId)
                 onGroupChanged?(message.groupId)
@@ -296,6 +321,11 @@ public actor ChatSyncEngine {
             outgoingPayload = patched
             if message.type == .image { Self.cacheSentImage(fileURL, url: url) }
             uploadedFile = fileURL
+            // 上传结果落库：这次发送再失败，下次重发不用重新上传
+            var uploaded = message
+            uploaded.payload = ChatPayload(patched)
+            uploaded.sendState = .sending
+            await store.insertOptimistic(uploaded)
         }
 
         let body = ChatSendRequest(clientMsgId: clientMsgId, type: message.type.rawValue,
@@ -429,13 +459,23 @@ public actor ChatSyncEngine {
     // MARK: - 工具
 
     /// 指数退避重试（1/2/4s 封顶）
+    /// 4xx（参数错 / 文件过大 / 无权限）重试也不会变好，直接放弃（2026-10-14）
+    private static func isClientError(_ error: Error) -> Bool {
+        guard let api = error as? APIError else { return false }
+        switch api {
+        case .unauthorized, .forbidden, .notFound: return true
+        case .serverError(let code, _): return (400..<500).contains(code) && code != 408 && code != 429
+        default: return false
+        }
+    }
+
     private func withRetry<T>(times: Int, _ op: @escaping () async throws -> T) async throws -> T {
         var lastError: Error?
         for attempt in 0...times {
             do { return try await op() }
             catch {
                 lastError = error
-                if attempt == times { break }
+                if attempt == times || Self.isClientError(error) { break }
                 let backoffMs = UInt64(min(4000, 1000 * (1 << attempt)))
                 try? await Task.sleep(nanoseconds: backoffMs * 1_000_000)
             }
