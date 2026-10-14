@@ -233,6 +233,7 @@
       <span>StarLens AI</span>
       <a href="/privacy.html" data-t="privacy">隐私政策</a>
       <a href="/terms.html" data-t="terms">用户协议</a>
+      <a href="#" id="langSwitch" lang="en">English</a>
     </footer>
   </main>
 
@@ -281,6 +282,15 @@
         if (v != null) el.innerHTML = v;
       });
 
+      // 2026-10-14：链接里的 lang 是邀请人的 App 语言，收到的人未必看得懂 → 给一个切换入口
+      var sw = document.getElementById('langSwitch');
+      var other = lang === 'zh' ? 'en' : 'zh';
+      var swUrl = new URL(location.href);
+      swUrl.searchParams.set('lang', other);
+      sw.href = swUrl.pathname + swUrl.search;
+      sw.textContent = other === 'zh' ? '中文' : 'English';
+      sw.setAttribute('lang', other === 'zh' ? 'zh-CN' : 'en');
+
       // 邀请码来自路径 /i/{code}（Pages 200 重写保留原路径），兼容 ?code=
       var m = location.pathname.match(/^\/i\/([A-Za-z0-9]{4,10})\/?$/);
       var code = (m ? m[1] : qs.get('code') || '').toUpperCase();
@@ -328,11 +338,12 @@
         // App 首次启动用 detectPatterns 静默识别「剪贴板里是链接」，确认是我们的邀请后弹框询问是否加入。
         // 复制完再跳 App Store；writeText 是异步的，等它完成（最多 800ms）再跳，避免页面卸载打断写入。
         var cta = document.getElementById('ctaStore');
+        // 剪贴板里的完整邀请链接带上当前语言（App 识别时只取 code，多带参数无影响）
         cta.addEventListener('click', function (e) {
           e.preventDefault();
           var href = cta.href, gone = false;
           function go() { if (!gone) { gone = true; location.href = href; } }
-          copyText('https://www.starlensai.com/i?code=' + code, go);
+          copyText('https://www.starlensai.com/i?code=' + code + '&lang=' + lang, go);
           setTimeout(go, 800);
         });
       }

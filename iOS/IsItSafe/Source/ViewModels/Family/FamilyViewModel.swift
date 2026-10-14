@@ -357,6 +357,18 @@ public final class FamilyViewModel: ObservableObject {
         }
     }
 
+    /// 2026-10-14 群主改家庭群名称
+    public func renameGroup(_ groupId: String, name: String) async -> Bool {
+        do {
+            try await repo.renameGroup(groupId: groupId, name: name)
+            refresh()
+            return true
+        } catch {
+            redeemError = friendlyMessage(for: error)
+            return false
+        }
+    }
+
     /// V5.1 群昵称方案 B：群主给任意成员设群昵称（全员可见）
     public func setMemberDisplayNameByOwner(in groupId: String, memberId: String, name: String?) async -> Bool {
         do {

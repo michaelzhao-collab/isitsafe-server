@@ -9,7 +9,8 @@ import type { AnalyzeResult } from './ai.service';
 
 /** 邀请码字母表与 FamilyService.randomInviteCode 一致（BASE32 去掉 0 O 1 I） */
 const CODE = '[A-HJ-NP-Z2-9]{6}';
-const URL = `https?://(?:www\\.)?(?:starlensai\\.com|starlens\\.ai)/i(?:\\?code=${CODE}|/${CODE})/?`;
+// 2026-10-14：现行链接带 &lang=en|zh
+const URL = `https?://(?:www\\.)?(?:starlensai\\.com|starlens\\.ai)/i(?:\\?code=${CODE}(?:&lang=(?:en|zh))?|/${CODE})/?`;
 
 const PATTERNS: RegExp[] = [
   // 中文分享模板（带链接 / 不带链接）

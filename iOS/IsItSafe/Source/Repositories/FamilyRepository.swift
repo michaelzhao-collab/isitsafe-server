@@ -115,6 +115,12 @@ public final class FamilyRepository {
         )
     }
 
+    /// 2026-10-14 群主改家庭群名称（服务端校验非空、≤20 字、仅群主）
+    public func renameGroup(groupId: String, name: String) async throws {
+        struct Body: Codable { let name: String }
+        try await network.requestVoid(endpoint: .v3FamilyRenameGroup(groupId: groupId), body: Body(name: name))
+    }
+
     /// V5.1 群昵称方案 B：群主给任意成员设群昵称（全员可见）
     public func setMemberDisplayNameByOwner(groupId: String, memberId: String, displayName: String?) async throws {
         struct Body: Codable { let displayName: String? }

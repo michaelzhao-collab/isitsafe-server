@@ -8,6 +8,13 @@ export class CreateFamilyGroupDto {
   name?: string;
 }
 
+/** 2026-10-14：群主改家庭群名称 */
+export class RenameFamilyGroupDto {
+  @IsString()
+  @MaxLength(100)
+  name!: string;
+}
+
 export class RedeemInviteDto {
   @IsString()
   @MaxLength(20)

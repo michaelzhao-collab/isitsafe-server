@@ -86,6 +86,8 @@ public enum APIEndpoint {
     case v3FamilyMemberElderMode(userId: String)
     /// V3-E S5-12 改自己在该家庭组里的称呼（全员可见）
     case v3FamilySetMyDisplayName(groupId: String)
+    /// 2026-10-14 群主改家庭群名称
+    case v3FamilyRenameGroup(groupId: String)
     /// V3-E S5-12 给某成员设私人备注（仅自己可见）
     case v3FamilySetAlias(memberId: String)
     /// V4-P3 关怀提醒静音：列出我（recipient）在该组里静音的 targetUserId
@@ -243,6 +245,7 @@ public enum APIEndpoint {
         case .v3FamilyGetMembersStatus: return "/api/v3/family/members/status"
         case .v3FamilyMemberElderMode(let userId): return "/api/v3/family/members/\(userId)/elder-mode"
         case .v3FamilySetMyDisplayName(let groupId): return "/api/v3/family/groups/\(groupId)/members/me/display-name"
+        case .v3FamilyRenameGroup(let groupId): return "/api/v3/family/groups/\(groupId)/name"
         case .v3FamilySetAlias(let memberId): return "/api/v3/family/members/\(memberId)/alias"
         case .v3FamilyListCareMutes(let groupId): return "/api/v3/family/groups/\(groupId)/care-mutes"
         case .v3FamilySetCareMute(let groupId, let targetUserId): return "/api/v3/family/groups/\(groupId)/care-mutes/\(targetUserId)"
@@ -312,7 +315,7 @@ public enum APIEndpoint {
         case .updateProfile, .v3UserElderMode, .v3UserPutNotificationPrefs,
              .chatReadCursor, .chatSetMute, .v3FamilySetMemberDisplayName,
              .v3FamilyUpdatePreferences, .v3FamilyMemberElderMode,
-             .v3FamilySetMyDisplayName, .v3FamilySetAlias, .v3FamilySetCareMute,
+             .v3FamilySetMyDisplayName, .v3FamilySetAlias, .v3FamilySetCareMute, .v3FamilyRenameGroup,
              .v3IntelPutPreferences,
              .v3BreachDismissAlert:
             return .PUT
@@ -328,7 +331,7 @@ public enum APIEndpoint {
              .v3FamilyCreateGroup, .v3FamilyGetMyGroup, .v3FamilyGetMyGroups, .v3FamilyGenerateInvite, .v3FamilyRedeemInvite,
              .v3FamilyLeaveGroup, .v3FamilyDissolveGroup, .v3FamilyRemoveMember, .v3FamilyUpdatePreferences,
              .v3FamilyCreateBroadcast, .v3FamilyGetBroadcasts, .v3FamilyGetMembersStatus, .v3FamilyMemberElderMode,
-             .v3FamilySetMyDisplayName, .v3FamilySetAlias,
+             .v3FamilySetMyDisplayName, .v3FamilySetAlias, .v3FamilyRenameGroup,
              .v3FamilyListCareMutes, .v3FamilySetCareMute,
              .chatSetMute, .chatReadStates,
              .v3IntelFeed, .v3IntelDetail, .v3IntelUnreadCount, .v3IntelSubmit,

@@ -180,8 +180,20 @@ public struct FamilyGroup: Codable, Identifiable {
     public let members: [FamilyMember]
 
     public var displayName: String {
-        name?.isEmpty == false ? name! : L10n.tr(zh: "我的家庭", en: "My Family")
+        // 2026-10-14：服务端建群不填名字时存的是「我的家庭」，英文界面原样显示成中文。
+        // 默认名一律按当前语言显示；群主改过的名字原样显示。
+        let n = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if n.isEmpty || Self.defaultNames.contains(n) { return L10n.tr(zh: "我的家庭", en: "My Family") }
+        return n
     }
+
+    /// 是否还是默认名（没改过）：改群名的输入框里不预填默认名
+    public var hasCustomName: Bool {
+        let n = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !n.isEmpty && !Self.defaultNames.contains(n)
+    }
+
+    private static let defaultNames: Set<String> = ["我的家庭", "My Family"]
 
     public var isFull: Bool {
         memberCount >= maxMembers

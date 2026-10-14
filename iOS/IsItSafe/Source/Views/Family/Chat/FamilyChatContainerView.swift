@@ -19,6 +19,14 @@ public struct FamilyChatContainerView: View {
     @State private var showSwitchSheet = false
     @State private var showSettings = false
 
+    /// 当前群最近一条「会改变群资料」的系统消息的 seq
+    private var lastRosterEventSeq: Int64? {
+        let kinds: Set<String> = ["group_renamed", "member_joined", "member_left", "member_removed"]
+        return chat.messagesByGroup[group.id]?
+            .last { $0.type == .system && kinds.contains($0.payload?.string("kind") ?? "") }?
+            .seq
+    }
+
     public init(group: FamilyGroup, vm: FamilyViewModel) {
         self.group = group
         self.vm = vm
@@ -72,6 +80,11 @@ public struct FamilyChatContainerView: View {
                 // 启动 IM：以我加入的全部群为同步范围，当前群优先
                 let ids = vm.allGroups.map { $0.id }
                 chat.start(groupIds: ids.isEmpty ? [group.id] : ids)
+            }
+            // 2026-10-14：群名 / 成员变了（改群名、有人进群退群）时别的家人这边原来要切 Tab 才刷新，
+            // 聊天标题一直是旧群名。收到这类系统消息就重拉一次家庭信息。
+            .onChange(of: lastRosterEventSeq) { old, new in
+                if new != old { vm.refresh() }   // 首次载入历史也会触发一次，多拉一次无妨；挡掉 nil 会漏掉群里第一条改名
             }
             .onChange(of: vm.allGroups.map { $0.id }) { _, ids in
                 // 2026-10-14：原来 ids 为空时回退成 [group.id]，退群 / 解散后协调器仍握着旧群，

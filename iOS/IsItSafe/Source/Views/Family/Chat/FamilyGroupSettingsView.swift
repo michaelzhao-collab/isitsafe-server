@@ -3,7 +3,7 @@
 //  IsItSafe
 //
 //  V5.1 群设置页（T1-8）：合并线上 ⋯ 菜单全部能力 + IM 新增项。
-//  成员(群昵称/移除) · 分享查询结果 · 通知偏好 · 切换/加入 · 解散/退出。
+//  群名称 · 成员(群昵称/移除) · 分享查询结果 · 通知偏好 · 切换/加入 · 解散/退出。
 //
 
 import SwiftUI
@@ -19,6 +19,9 @@ public struct FamilyGroupSettingsView: View {
     @State private var chatMuted = false
     @State private var editingMember: FamilyMember?
     @State private var nicknameDraft = ""
+    /// 2026-10-14 群主改家庭群名称
+    @State private var editingGroupName = false
+    @State private var groupNameDraft = ""
     @State private var showDissolveConfirm = false
     @State private var showLeaveConfirm = false
     @State private var showNotificationSettings = false
@@ -38,6 +41,7 @@ public struct FamilyGroupSettingsView: View {
 
     public var body: some View {
         List { Group {
+            groupNameSection
             membersSection
             preferencesSection
             multiFamilySection
@@ -72,11 +76,43 @@ public struct FamilyGroupSettingsView: View {
             Button(isEN ? "Save" : "保存") { saveNickname() }
             Button(isEN ? "Cancel" : "取消", role: .cancel) { editingMember = nil }
         }
+        .alert(isEN ? "Group name" : "修改群名称", isPresented: $editingGroupName) {
+            TextField(isEN ? "e.g. The Smiths" : "例如：老王家", text: $groupNameDraft)
+            Button(isEN ? "Save" : "保存") { saveGroupName() }
+            Button(isEN ? "Cancel" : "取消", role: .cancel) {}
+        } message: {
+            Text(isEN ? "Up to 20 characters. Everyone in the family will see the new name."
+                      : "最多 20 个字，全家都会看到新名称。")
+        }
         .navigationDestination(isPresented: $showNotificationSettings) {
             // 子页面也要隐藏：设置页 onDisappear 会把底导放出来
             NotificationSettingsView().mainTabBarHidden()
         }
         .sheet(isPresented: $showRedeemSheet) { RedeemInviteSheet(vm: vm) }
+    }
+
+    // MARK: - 群名称
+
+    private var groupNameSection: some View {
+        Section {
+            Button {
+                guard isOwner else { return }
+                groupNameDraft = group.hasCustomName ? group.displayName : ""
+                editingGroupName = true
+            } label: {
+                HStack {
+                    Text(isEN ? "Group name" : "群名称").foregroundColor(AppTheme.textPrimary)
+                    Spacer()
+                    Text(group.displayName).foregroundColor(AppTheme.textSecondary).lineLimit(1)
+                    if isOwner {
+                        Image(systemName: "chevron.right").font(.caption).foregroundColor(AppTheme.textSecondary)
+                    }
+                }
+            }
+            .disabled(!isOwner)
+        } footer: {
+            if !isOwner { Text(isEN ? "Only the owner can change the group name." : "只有群主可以修改群名称。") }
+        }
     }
 
     // MARK: - 成员
@@ -254,6 +290,17 @@ public struct FamilyGroupSettingsView: View {
                 _ = await vm.setMyDisplayName(in: group.id, name: name.isEmpty ? nil : name)
             }
         }
+    }
+
+    private func saveGroupName() {
+        let name = groupNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 空的 / 没改：什么都不发（服务端也会拒空名）
+        guard !name.isEmpty, name != group.displayName else { return }
+        guard name.utf16.count <= 20 else {   // 与服务端 String.length 同口径
+            vm.redeemError = isEN ? "Group name too long (max 20 chars)" : "群名称过长（最多 20 个字）"
+            return
+        }
+        Task { _ = await vm.renameGroup(group.id, name: name) }
     }
 
     private func avatar(_ m: FamilyMember) -> some View {

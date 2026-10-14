@@ -237,7 +237,8 @@ nonisolated extension ChatMessage {
         let content = self.content ?? ""
         if let kind = payload?.string("kind") {
             let name = payload?.string("name") ?? ""
-            if let text = Self.lifecycleText(kind: kind, name: name, en: en) { return text }
+            let groupName = payload?.string("groupName") ?? ""
+            if let text = Self.lifecycleText(kind: kind, name: name, groupName: groupName, en: en) { return text }
         }
         // 旧消息兜底：识别服务端历史固定句式
         let patterns: [(suffix: String, kind: String)] = [
@@ -255,7 +256,7 @@ nonisolated extension ChatMessage {
         return content
     }
 
-    private static func lifecycleText(kind: String, name: String, en: Bool) -> String? {
+    private static func lifecycleText(kind: String, name: String, groupName: String = "", en: Bool) -> String? {
         switch kind {
         case "member_joined":
             return en ? "\(name) joined the family" : "\(name) 加入了家庭"
@@ -263,6 +264,8 @@ nonisolated extension ChatMessage {
             return en ? "\(name) left the family" : "\(name) 退出了家庭"
         case "member_removed":
             return en ? "\(name) was removed by the owner" : "\(name) 已被群主移出家庭"
+        case "group_renamed":
+            return en ? "\(name) renamed the group to \"\(groupName)\"" : "\(name) 将群名改为「\(groupName)」"
         case "group_created":
             return en
                 ? "Family group created. Invite your family to join, then share any suspicious links, calls or messages here so everyone can check them together."

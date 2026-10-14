@@ -36,6 +36,8 @@ const FREE_MAX_OWNED_GROUPS = 1;
 const PAID_MAX_OWNED_GROUPS = 3;
 
 const INVITE_CODE_TTL_DAYS = 7;
+/** 2026-10-14 群名上限：群列表、聊天标题一行放得下；库里字段是 100 */
+const GROUP_NAME_MAX = 20;
 /**
  * 2026-09-07 复核：这里原本定义了 INVITE_CODE_MAX_USES = 4 但从未被使用，
  * 读代码的人会误以为邀请码有次数限制。已删除该常量：
@@ -89,10 +91,17 @@ export class FamilyService {
   private postLifecycleSystemMessage(
     groupId: string,
     text: string,
-    payload: { kind: 'member_joined' | 'member_left' | 'member_removed' | 'group_created'; name?: string },
+    payload: {
+      kind: 'member_joined' | 'member_left' | 'member_removed' | 'group_created' | 'group_renamed';
+      name?: string;
+      /** group_renamed：新群名（name 是改名的人） */
+      groupName?: string;
+    },
   ): void {
+    // 建群引导、改群名都不值得弹横幅打扰全家
+    const noPush = payload.kind === 'group_created' || payload.kind === 'group_renamed';
     this.chat
-      .postSystemMessage(groupId, 'system', { content: text, payload, noPush: payload.kind === 'group_created' })
+      .postSystemMessage(groupId, 'system', { content: text, payload, noPush })
       .catch((err) => this.logger.warn(`[FamilyLifecycle] system message failed: ${err?.message ?? err}`));
   }
 
@@ -429,7 +438,9 @@ export class FamilyService {
 
     const buildCopy = (lang: string) => {
       const isEN = lang === 'en';
-      const label = groupName || (isEN ? 'your family' : '家庭');
+      // 默认名「我的家庭」发给英文用户会是中文 → 默认名按收件人语言换掉
+      const isDefault = !groupName || groupName === '我的家庭' || groupName === 'My Family';
+      const label = isDefault ? (isEN ? 'your family' : '家庭') : groupName;
       const quotedLabel = isEN ? `"${label}"` : `「${label}」`;
       return {
         pushTitle: isEN ? 'Family disbanded' : '家庭已解散',
@@ -480,6 +491,32 @@ export class FamilyService {
     }
   }
 
+  /**
+   * 2026-10-14：群主改家庭群名称。只有群主能改（和群主给成员设群昵称同一套权限），
+   * 改完在群里落一条系统消息，免得家人突然看到群名变了不知道是谁改的。
+   */
+  async renameGroup(userId: string, groupId: string, name: string) {
+    const group = await this.prisma.familyGroup.findUnique({ where: { id: groupId } });
+    if (!group) throw new NotFoundException('Group not found');
+    if (group.ownerUserId !== userId) {
+      throw new ForbiddenException('Only the family owner can rename the group');
+    }
+    const trimmed = (name ?? '').trim();
+    if (!trimmed) throw new BadRequestException('Group name cannot be empty');
+    if (trimmed.length > GROUP_NAME_MAX) {
+      throw new BadRequestException('Group name too long (max 20 chars)'); // 与 error-messages 登记的原文一致
+    }
+    if (trimmed === group.name) return { success: true, name: trimmed };
+    await this.prisma.familyGroup.update({ where: { id: groupId }, data: { name: trimmed } });
+    const actor = await this.lifecycleName(groupId, userId);
+    this.postLifecycleSystemMessage(groupId, `${actor} 将群名改为「${trimmed}」`, {
+      kind: 'group_renamed',
+      name: actor,
+      groupName: trimmed,
+    });
+    return { success: true, name: trimmed };
+  }
+
   async removeMember(ownerUserId: string, groupId: string, targetUserId: string) {
     const group = await this.prisma.familyGroup.findUnique({ where: { id: groupId } });
     if (!group) throw new NotFoundException('Group not found');
@@ -520,6 +557,7 @@ export class FamilyService {
     userId: string,
     groupId: string,
     imCapable = false,
+    lang: 'zh' | 'en' = 'zh',
   ): Promise<{ code: string; expiresAt: Date; shareLink: string }> {
     const group = await this.prisma.familyGroup.findUnique({ where: { id: groupId } });
     if (!group) throw new NotFoundException('Group not found');
@@ -559,9 +597,12 @@ export class FamilyService {
       data: { inviteCode: code, inviteCodeExpiresAt: expiresAt },
     });
     // base 以 /i 结尾时拼成 /i?code=xxx；允许 INVITE_SHARE_BASE_URL 覆盖
+    // 2026-10-14：带上邀请人的 App 语言 &lang=en|zh。落地页和链接预览卡片按它出中 / 英文，
+    // 不然英文用户发出去的邀请，对方浏览器是中文就整页中文（反之亦然）。
+    // 解析方（iOS AppRouter / 剪贴板识别 / own-invite / AASA）都只认 code，多一个参数不影响。
     const shareLink = INVITE_SHARE_BASE_URL.includes('?')
-      ? `${INVITE_SHARE_BASE_URL}${encodeURIComponent(code)}`
-      : `${INVITE_SHARE_BASE_URL}?code=${encodeURIComponent(code)}`;
+      ? `${INVITE_SHARE_BASE_URL}${encodeURIComponent(code)}&lang=${lang}`
+      : `${INVITE_SHARE_BASE_URL}?code=${encodeURIComponent(code)}&lang=${lang}`;
     return { code, expiresAt, shareLink };
   }
 

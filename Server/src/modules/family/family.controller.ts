@@ -16,6 +16,7 @@ import { FamilyService } from './family.service';
 import { isImCapableRequest } from '../../common/app-version.util';
 import {
   CreateFamilyGroupDto,
+  RenameFamilyGroupDto,
   RedeemInviteDto,
   UpdatePreferencesDto,
   BroadcastDto,
@@ -40,6 +41,7 @@ import {
  *  GET    /broadcasts                   家庭官方消息
  *  GET    /members/status               成员活跃状态（聚合）
  *  PUT    /members/:userId/elder-mode   远程开启长辈模式（W6 实现）
+ *  PUT    /groups/:id/name              改家庭群名称（owner）
  */
 @Controller('v3/family')
 @UseGuards(JwtAuthGuard)
@@ -81,6 +83,16 @@ export class FamilyController {
     return { success: true };
   }
 
+  /** 2026-10-14：群主改家庭群名称；群里落一条系统消息，全员看到新名字 */
+  @Put('groups/:id/name')
+  async renameGroup(
+    @CurrentUser('sub') userId: string,
+    @Param('id') groupId: string,
+    @Body() dto: RenameFamilyGroupDto,
+  ) {
+    return this.family.renameGroup(userId, groupId, dto.name);
+  }
+
   @Delete('groups/:id/members/:userId')
   async removeMember(
     @CurrentUser('sub') currentUserId: string,
@@ -97,8 +109,10 @@ export class FamilyController {
     @CurrentUser('sub') userId: string,
     @Param('id') groupId: string,
     @Headers('x-app-version') appVersion?: string,
+    @Headers('x-app-language') langHeader?: string,
   ) {
-    return this.family.generateInviteCode(userId, groupId, isImCapableRequest(appVersion));
+    const lang = (langHeader || '').toLowerCase().startsWith('en') ? 'en' : 'zh';
+    return this.family.generateInviteCode(userId, groupId, isImCapableRequest(appVersion), lang);
   }
 
   /**
