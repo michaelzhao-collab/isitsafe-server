@@ -85,6 +85,15 @@ public final class AppSettingsStore {
             }
         }
 
+        // 记下手机真实的系统语言列表（语音识别要用它）：App 域写了 AppleLanguages 后
+        // Locale.preferredLanguages 读到的都是 App 自己写的值，沙盒里也读不到全局域。
+        // 先临时移除 App 域的值，此时读到的就是系统语言，存下来后再写回。
+        defaults.removeObject(forKey: appleLanguagesKey)
+        if let sys = defaults.stringArray(forKey: appleLanguagesKey), !sys.isEmpty {
+            defaults.set(sys, forKey: systemLanguagesKey)
+        }
+        if let current { defaults.set(current, forKey: appleLanguagesKey) }
+
         var appCode = code ?? shared.languageCode
         // 旧版本可能留下 "system"：按真实系统语言折算，避免被锁成中文
         if appCode != "zh" && appCode != "en" {
@@ -100,6 +109,11 @@ public final class AppSettingsStore {
 
     /// 上次由 App 写入的 AppleLanguages（用来识别「用户在系统设置里改过」）
     private static let lastSyncedAppleLanguageKey = "isitsafe.lastSyncedAppleLanguage"
+    /// 手机系统语言列表（每次启动刷新），如 ["ko-KR", "en-US"]
+    public static let systemLanguagesKey = "isitsafe.systemLanguages"
+    public static var systemLanguages: [String] {
+        UserDefaults.standard.stringArray(forKey: systemLanguagesKey) ?? Locale.preferredLanguages
+    }
 
     /// 当前进程实际使用的系统界面语言是否与 App 内语言不一致
     public static func needsRestartForSystemUILanguage(_ code: String? = nil) -> Bool {

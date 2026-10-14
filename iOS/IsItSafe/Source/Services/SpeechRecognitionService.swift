@@ -11,10 +11,49 @@ import Speech
 
 public final class SpeechRecognitionService {
     public static let shared = SpeechRecognitionService()
-    /// 按 App 内语言选识别器（原来写死 zh-CN，App 设成英文时说英文也按中文识别）
+    /// 2026-10-14 产品要求：「说什么语言就识别什么语言」，回答语言另由 App 内语言决定（服务端已按 App 语言输出）。
+    /// 苹果的识别器一次只能用一种语言，所以按「手机系统语言列表」里第一个支持语音识别的语言来识别——
+    /// 用户最可能说的就是手机系统语言（韩国用户 → 韩语，中文长辈即使 App 设成英文也按中文识别）。
+    /// 系统语言列表由 AppSettingsStore 在每次启动时记录（不受 App 内写入的 AppleLanguages 影响）。
     private var recognizers: [String: SFSpeechRecognizer] = [:]
-    private var currentLocaleId: String {
-        AppSettingsStore.shared.languageCode == "en" ? "en-US" : "zh-CN"
+    private var currentLocaleId: String { Self.recognitionLocaleId() }
+
+    static func recognitionLocaleId() -> String {
+        let supported = SFSpeechRecognizer.supportedLocales()
+        let supportedIds = Set(supported.map { $0.identifier.replacingOccurrences(of: "_", with: "-") })
+        // 全局系统语言列表（如 ["ko-KR", "en-US"] / ["zh-Hans-CN", "en"]）
+        let global = AppSettingsStore.systemLanguages
+        let region = Locale.current.region?.identifier
+        for lang in global {
+            if let id = match(lang, region: region, supported: supportedIds, all: supported) { return id }
+        }
+        return AppSettingsStore.shared.languageCode == "en" ? "en-US" : "zh-CN"
+    }
+
+    /// 把系统语言标识（zh-Hans-CN / en / ko-KR / yue-Hant-HK）映射到识别器支持的 locale
+    private static func match(_ lang: String, region: String?, supported: Set<String>, all: Set<Locale>) -> String? {
+        let l = Locale(identifier: lang)
+        let code = l.language.languageCode?.identifier ?? ""
+        let script = l.language.script?.identifier
+        let reg = l.region?.identifier
+        var candidates: [String] = []
+        if code == "zh" {
+            // 简体 → 普通话（大陆），繁体 → 台湾 / 香港
+            if script == "Hant" { candidates = reg == "HK" ? ["zh-HK", "zh-TW"] : ["zh-TW", "zh-HK"] }
+            else { candidates = ["zh-CN"] }
+        } else if code == "yue" {
+            candidates = ["yue-CN", "zh-HK"]
+        } else {
+            if let reg { candidates.append("\(code)-\(reg)") }
+            if let region { candidates.append("\(code)-\(region)") }
+        }
+        if let hit = candidates.first(where: { supported.contains($0) }) { return hit }
+        // 同语言任一地区（如 ko → ko-KR、en → en-US）
+        let sameLang = all.map { $0.identifier.replacingOccurrences(of: "_", with: "-") }
+            .filter { $0.hasPrefix(code + "-") }
+            .sorted()
+        if code == "en", sameLang.contains("en-US") { return "en-US" }
+        return sameLang.first
     }
     private var recognizer: SFSpeechRecognizer? {
         let id = currentLocaleId
