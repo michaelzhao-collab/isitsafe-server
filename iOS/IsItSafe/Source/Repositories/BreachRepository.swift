@@ -14,6 +14,15 @@ public final class BreachRepository {
         try await network.request(endpoint: .v3BreachAddTarget, body: BreachAddTargetRequest(email: email))
     }
 
+    /// 校验邮件验证码（2026-10-14）
+    public func verify(id: String, code: String) async throws -> BreachVerifyResponse {
+        try await network.request(endpoint: .v3BreachVerify(id: id), body: BreachVerifyRequest(code: code))
+    }
+
+    public func resendCode(id: String) async throws -> BreachResendResponse {
+        try await network.request(endpoint: .v3BreachResendCode(id: id))
+    }
+
     public func listTargets() async throws -> [BreachTargetItem] {
         try await network.request(endpoint: .v3BreachListTargets)
     }

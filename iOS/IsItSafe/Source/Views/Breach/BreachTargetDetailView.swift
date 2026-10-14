@@ -47,15 +47,15 @@ public struct BreachTargetDetailView: View {
             .padding(.vertical, 12)
         }
         .background(AppTheme.background.ignoresSafeArea())
-        .navigationTitle("Target Details")
+        .navigationTitle(L10n.tr(zh: "监控详情", en: "Target Details"))
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Delete this target?", isPresented: $confirmDelete) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
+        .alert(L10n.tr(zh: "删除这个监控对象？", en: "Delete this target?"), isPresented: $confirmDelete) {
+            Button(L10n.tr(zh: "取消", en: "Cancel"), role: .cancel) {}
+            Button(L10n.tr(zh: "删除", en: "Delete"), role: .destructive) {
                 Task { await performDelete() }
             }
         } message: {
-            Text("All alerts for this email will also be removed. This cannot be undone.")
+            Text(L10n.tr(zh: "该邮箱的所有警报也会一并删除，操作不可撤销。", en: "All alerts for this email will also be removed. This cannot be undone."))
         }
     }
 
@@ -67,21 +67,25 @@ public struct BreachTargetDetailView: View {
                 Text(target.displayValue)
                     .font(.headline)
                 Spacer()
-                if target.verified {
-                    Label("Verified", systemImage: "checkmark.seal.fill")
+                if target.effectiveScanStatus == "failed" {
+                    Label(L10n.tr(zh: "扫描失败", en: "Scan failed"), systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(AppTheme.riskMedium)
+                } else if target.verified {
+                    Label(L10n.tr(zh: "已验证", en: "Verified"), systemImage: "checkmark.seal.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundColor(AppTheme.riskLow)
                 } else {
-                    Label("Pending", systemImage: "clock.fill")
+                    Label(L10n.tr(zh: "待验证", en: "Pending"), systemImage: "clock.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundColor(AppTheme.riskMedium)
                 }
             }
             Divider()
             HStack {
-                StatTile(value: "\(target.alertCount)", label: "Total breaches")
+                StatTile(value: "\(target.alertCount)", label: L10n.tr(zh: "泄露总数", en: "Total breaches"))
                 Divider().frame(height: 32)
-                StatTile(value: lastScanRelative, label: "Last scan")
+                StatTile(value: lastScanRelative, label: L10n.tr(zh: "上次扫描", en: "Last scan"))
             }
         }
         .padding(16)
@@ -90,14 +94,22 @@ public struct BreachTargetDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
+    @ViewBuilder
     private var emptyState: some View {
+        let failed = target.effectiveScanStatus == "failed"
+        let scanned = target.effectiveScanStatus == "ok"
         VStack(spacing: 8) {
-            Image(systemName: "checkmark.shield.fill")
+            Image(systemName: failed ? "exclamationmark.triangle.fill" : (scanned ? "checkmark.shield.fill" : "clock.fill"))
                 .font(.system(size: 42))
-                .foregroundColor(AppTheme.riskLow)
-            Text("No leaks found yet")
+                .foregroundColor(failed ? AppTheme.riskMedium : (scanned ? AppTheme.riskLow : AppTheme.textSecondary))
+            Text(failed
+                 ? L10n.tr(zh: "暂时无法扫描", en: "Couldn't scan yet")
+                 : (scanned ? L10n.tr(zh: "未发现泄露", en: "No breaches found") : L10n.tr(zh: "等待首次扫描", en: "Waiting for the first scan")))
                 .font(.subheadline.weight(.semibold))
-            Text("We scan daily at 03:00 UTC. We'll notify you the moment your data shows up.")
+            // 2026-10-14：原文案「一旦发现会第一时间通知你」不实（没有泄露推送），改为如实描述
+            Text(failed
+                 ? L10n.tr(zh: "这不代表安全。我们会在下一次每日扫描时自动重试。", en: "This doesn't mean you're safe. We'll retry in the next daily scan.")
+                 : L10n.tr(zh: "我们每天自动扫描一次。打开本页即可查看最新结果。", en: "We scan once a day. Open this page to see the latest results."))
                 .font(.caption)
                 .foregroundColor(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -110,7 +122,7 @@ public struct BreachTargetDetailView: View {
 
     private var alertsList: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("History (\(targetAlerts.count))")
+            Text(L10n.tr(zh: "历史记录（\(targetAlerts.count)）", en: "History (\(targetAlerts.count))"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(AppTheme.textSecondary)
             ForEach(targetAlerts) { a in
@@ -138,7 +150,7 @@ public struct BreachTargetDetailView: View {
             }
             Spacer()
             if a.dismissed {
-                Text("Done")
+                Text(L10n.tr(zh: "完成", en: "Done"))
                     .font(.caption2.weight(.semibold))
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(AppTheme.riskLow.opacity(0.15))
@@ -168,7 +180,7 @@ public struct BreachTargetDetailView: View {
             } label: {
                 HStack {
                     if deleting { ProgressView().tint(AppTheme.riskHigh) }
-                    Label("Stop Monitoring This Email", systemImage: "trash")
+                    Label(L10n.tr(zh: "停止监控这个邮箱", en: "Stop monitoring this email"), systemImage: "trash")
                         .foregroundColor(AppTheme.riskHigh)
                 }
                 .frame(maxWidth: .infinity)
@@ -196,11 +208,8 @@ public struct BreachTargetDetailView: View {
     }
 
     private var lastScanRelative: String {
-        guard let iso = target.lastScannedAt, let d = parseISO(iso) else { return "—" }
-        let dt = -d.timeIntervalSinceNow
-        if dt < 3600 { return "\(Int(dt/60))m" }
-        if dt < 86400 { return "\(Int(dt/3600))h" }
-        return "\(Int(dt/86400))d"
+        guard let iso = target.lastScannedAt, let d = BreachDates.parse(iso) else { return "—" }
+        return BreachDates.relative(d)
     }
 
     private func parseISO(_ s: String) -> Date? {
@@ -213,13 +222,7 @@ public struct BreachTargetDetailView: View {
         }()
     }
 
-    private func severityColor(_ s: BreachSeverity) -> Color {
-        switch s {
-        case .high: return AppTheme.riskHigh
-        case .medium: return AppTheme.riskMedium
-        case .low: return AppTheme.primary
-        }
-    }
+    private func severityColor(_ s: BreachSeverity) -> Color { BreachColors.severity(s) }
 }
 
 private struct StatTile: View {

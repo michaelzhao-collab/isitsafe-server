@@ -548,7 +548,11 @@ export class AuthService {
       this.prisma.intelDelivery.findMany({ where: { userId } }),
       this.prisma.userIntelPreferences.findFirst({ where: { userId } }),
       this.prisma.deepfakeCheck.findMany({ where: { userId } }),
-      this.prisma.breachTarget.findMany({ where: { userId } }),
+      // 2026-10-14 复核 P1：不导出验证码哈希与邮箱密文（导出 verificationToken 可离线枚举 6 位码绕过邮件验证）
+      this.prisma.breachTarget.findMany({
+        where: { userId },
+        select: { id: true, targetType: true, targetValueHash: true, verified: true, lastScannedAt: true, createdAt: true },
+      }),
       this.prisma.breachAlert.findMany({ where: { userId } }),
       this.prisma.authIdentity.findMany({ where: { userId } }),
       this.prisma.userDevice.findMany({ where: { userId } }),

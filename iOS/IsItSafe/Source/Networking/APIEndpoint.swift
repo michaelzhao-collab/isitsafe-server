@@ -164,6 +164,8 @@ public enum APIEndpoint {
     case v3BreachDeleteTarget(id: String)
     case v3BreachListAlerts
     case v3BreachDismissAlert(id: String)
+    case v3BreachVerify(id: String)
+    case v3BreachResendCode(id: String)
 
     public var path: String {
         switch self {
@@ -270,6 +272,8 @@ public enum APIEndpoint {
         case .v3BreachDeleteTarget(let id): return "/api/v3/breach/targets/\(id)"
         case .v3BreachListAlerts: return "/api/v3/breach/alerts"
         case .v3BreachDismissAlert(let id): return "/api/v3/breach/alerts/\(id)/dismiss"
+        case .v3BreachVerify(let id): return "/api/v3/breach/targets/\(id)/verify"
+        case .v3BreachResendCode(let id): return "/api/v3/breach/targets/\(id)/resend-code"
         }
     }
 
@@ -296,7 +300,7 @@ public enum APIEndpoint {
              .v3IntelSubmit, .v3IntelReport,
              .knowledgeReport,
              .v3DeepfakeCreate, .v3DeepfakeFeedback, .v3DeepfakeBroadcast,
-             .v3BreachAddTarget:
+             .v3BreachAddTarget, .v3BreachVerify, .v3BreachResendCode:
             return .POST
         case .deleteQuery, .deleteQueryConversation,
              .chatUnblock,
@@ -332,7 +336,7 @@ public enum APIEndpoint {
              .knowledgeReport,
              .v3DeepfakeCreate, .v3DeepfakeResult, .v3DeepfakeHistory, .v3DeepfakeDelete, .v3DeepfakeFeedback, .v3DeepfakeBroadcast, .v3DeepfakeStream,
              .v3BreachAddTarget, .v3BreachListTargets, .v3BreachDeleteTarget,
-             .v3BreachListAlerts, .v3BreachDismissAlert:
+             .v3BreachListAlerts, .v3BreachDismissAlert, .v3BreachVerify, .v3BreachResendCode:
             return true
         default:
             return false

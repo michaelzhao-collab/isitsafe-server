@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { Public } from '../../common/decorators/public.decorator';
 import { AI_V2, DEFAULT_DOUBAO_MODEL, PROMPT_VERSION } from '../../common/ai-flags';
+import { breachConfigStatus } from '../breach/breach.service';
 
 /**
  * 健康检查，方便小白测试
@@ -21,6 +22,8 @@ export class HealthController {
         promptVersion: PROMPT_VERSION,
         v2: AI_V2,
       },
+      // 数据泄露监控配置是否齐全（只给布尔，不含密钥）：hibp=false 时所有扫描都会显示「暂时无法扫描」
+      breach: { ...breachConfigStatus(), mail: !!process.env.BREVO_API_KEY },
     };
   }
 }

@@ -5,7 +5,7 @@
 //  V3-F 引导付费（F-P5）
 //
 //  触发场景：免费用户尝试添加第 2 个监控邮箱时弹出。
-//  内容：免费 vs Pro 对比表 + 升级 CTA + "Maybe later" 关闭。
+//  内容：免费 vs Pro 对比表 + 升级 CTA + 「以后再说」关闭。
 //
 
 import SwiftUI
@@ -34,7 +34,7 @@ public struct BreachUpgradeSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Close") { dismiss() }
+                    Button(L10n.tr(zh: "关闭", en: "Close")) { dismiss() }
                 }
             }
         }
@@ -45,9 +45,9 @@ public struct BreachUpgradeSheet: View {
             Image(systemName: "lock.shield.fill")
                 .font(.system(size: 48))
                 .foregroundColor(AppTheme.primaryTint)
-            Text("Protect more accounts")
+            Text(L10n.tr(zh: "保护更多账号", en: "Protect more accounts"))
                 .font(.title2.weight(.bold))
-            Text("Free includes 1 monitored email. Upgrade to keep all your accounts safe.")
+            Text(L10n.tr(zh: "免费版可监控 1 个邮箱。升级后可守护你的全部账号。", en: "Free includes 1 monitored email. Upgrade to keep all your accounts safe."))
                 .font(.subheadline)
                 .foregroundColor(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -59,34 +59,18 @@ public struct BreachUpgradeSheet: View {
             tableHeaderRow
             Divider()
             tableRow(
-                feature: "Monitored emails",
+                feature: L10n.tr(zh: "监控邮箱数", en: "Monitored emails"),
                 free: "1",
                 pro: "5"
             )
             Divider()
             tableRow(
-                feature: "Daily HIBP scan",
+                feature: L10n.tr(zh: "每日泄露扫描", en: "Daily breach scan"),
                 free: "✓",
                 pro: "✓"
             )
-            Divider()
-            tableRow(
-                feature: "Real-time push alerts",
-                free: "✓",
-                pro: "✓"
-            )
-            Divider()
-            tableRow(
-                feature: "Credit card monitoring",
-                free: "—",
-                pro: "Coming"
-            )
-            Divider()
-            tableRow(
-                feature: "Family broadcasts unlimited",
-                free: "1/day",
-                pro: "Unlimited"
-            )
+            // 2026-10-14：删掉「实时推送提醒」「信用卡监控」「家庭广播不限次」三行 ——
+            // 泄露没有推送、信用卡监控不存在、家庭广播与本功能无关，付费页不能写没有的功能（App Store 3.1.2 / 2.3.1）
         }
         .background(AppTheme.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -94,11 +78,11 @@ public struct BreachUpgradeSheet: View {
 
     private var tableHeaderRow: some View {
         HStack {
-            Text("Feature")
+            Text(L10n.tr(zh: "功能", en: "Feature"))
                 .font(.caption.weight(.semibold))
                 .foregroundColor(AppTheme.textSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Free")
+            Text(L10n.tr(zh: "免费版", en: "Free"))
                 .font(.caption.weight(.semibold))
                 .frame(width: 60)
                 .foregroundColor(AppTheme.textSecondary)
@@ -135,7 +119,7 @@ public struct BreachUpgradeSheet: View {
                 onUpgrade()
                 dismiss()
             } label: {
-                Text("Upgrade to Pro")
+                Text(L10n.tr(zh: "升级 Pro", en: "Upgrade to Pro"))
                     .font(.body.weight(.semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -146,7 +130,7 @@ public struct BreachUpgradeSheet: View {
             Button {
                 dismiss()
             } label: {
-                Text("Maybe later")
+                Text(L10n.tr(zh: "以后再说", en: "Maybe later"))
                     .font(.subheadline)
                     .foregroundColor(AppTheme.textSecondary)
                     .padding(.vertical, 6)
@@ -155,7 +139,7 @@ public struct BreachUpgradeSheet: View {
     }
 
     private var fineprint: some View {
-        Text("Subscriptions renew automatically. Cancel anytime in Settings → Apple ID → Subscriptions.")
+        Text(L10n.tr(zh: "订阅会自动续费，可随时在「设置 → Apple ID → 订阅」中取消。", en: "Subscriptions renew automatically. Cancel anytime in Settings → Apple ID → Subscriptions."))
             .font(.caption2)
             .foregroundColor(AppTheme.textSecondary)
             .multilineTextAlignment(.center)
