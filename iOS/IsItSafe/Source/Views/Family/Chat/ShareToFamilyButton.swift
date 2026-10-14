@@ -28,6 +28,18 @@ enum FamilyShareTarget {
         return saved
     }
 
+    /// 「发到家庭群」按钮在没有可用群时的提示。只看 IM 协调器的 hasFamily 会说错话：
+    /// 冷启动 unread-summary 还没回来、或服务端 familyChatEnabled=false 时协调器永远没群，
+    /// 但用户其实有家庭。用本地「当前选中群」区分：FamilyViewModel 只在确认没有家庭时才清掉它。
+    @MainActor
+    static func showNotReadyHint(languageCode: String) {
+        let en = languageCode == "en"
+        let hasSelected = !(UserDefaults.standard.string(forKey: selectedGroupIdKey) ?? "").isEmpty
+        AppStateViewModel.shared.showError(hasSelected
+            ? (en ? "Family chat is still connecting. Please try again shortly." : "家庭群还在连接中，请稍后再试")
+            : (en ? "You haven't joined a family yet. Create or join one first." : "你还没有家庭群，先去创建或加入一个吧"))
+    }
+
     /// 发送并给出反馈：成功 → 选中该群并跳家庭 Tab；失败 → toast。2026-10-06：原来失败被吞掉，按钮点了毫无反应。
     /// 不做「换一个群重发」：超时可能服务端其实已写入，换群重发会让内容进到用户没选的另一个家庭。
     /// 失效的选中群由 groupId(_:) 剔除，登出时也会清掉选中群。
@@ -95,7 +107,8 @@ public struct ShareToFamilyButton: View {
 
     private func tap() {
         guard let gid = FamilyShareTarget.groupId(chat), chat.hasFamily else {
-            // 未加入家庭：跳家庭 Tab 引导
+            // 未加入家庭 / IM 未就绪：提示后跳家庭 Tab（2026-10-14 真机：原来只跳不提示，用户不知道为什么跳过去了）
+            FamilyShareTarget.showNotReadyHint(languageCode: languageCode)
             router.pendingTabIndex = 2
             return
         }

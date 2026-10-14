@@ -59,40 +59,13 @@ public struct FamilyGroupSettingsView: View {
             get: { vm.redeemError != nil }, set: { if !$0 { vm.redeemError = nil } })) {
             Button(isEN ? "OK" : "知道了", role: .cancel) { vm.redeemError = nil }
         } message: { Text(vm.redeemError ?? "") }
-        .confirmationDialog(
-            pendingRemoval.map { m in
-                isEN ? "Remove \(m.effectiveName) from this family?" : "把「\(m.effectiveName)」移出家庭？"
-            } ?? "",
-            isPresented: Binding(get: { pendingRemoval != nil }, set: { if !$0 { pendingRemoval = nil } }),
-            titleVisibility: .visible
-        ) {
-            Button(isEN ? "Remove" : "确认移除", role: .destructive) {
-                guard let m = pendingRemoval else { return }
-                pendingRemoval = nil
-                Task { _ = await vm.removeMember(groupId: group.id, userId: m.userId) }
-            }
-            Button(isEN ? "Cancel" : "取消", role: .cancel) { pendingRemoval = nil }
-        } message: {
-            Text(isEN ? "They will be notified in the group. This cannot be undone."
-                      : "群里会显示一条移出提示，操作不可撤销。")
-        }
+        // 2026-10-14 真机（iOS 26）：confirmationDialog 挂在整个 List 上会被当成锚定到列表的 popover，
+        // 「退出家庭？」弹到了页面顶部成员列表旁。三个确认框改挂到各自触发的按钮上（见 membersSection / dangerSection）。
         .alert(isEN ? "Set nickname (visible to all)" : "设置群昵称（全员可见）", isPresented: Binding(
             get: { editingMember != nil }, set: { if !$0 { editingMember = nil } })) {
             TextField(isEN ? "Nickname" : "群昵称", text: $nicknameDraft)
             Button(isEN ? "Save" : "保存") { saveNickname() }
             Button(isEN ? "Cancel" : "取消", role: .cancel) { editingMember = nil }
-        }
-        .confirmationDialog(isEN ? "Dissolve this family?" : "解散家庭？",
-                            isPresented: $showDissolveConfirm, titleVisibility: .visible) {
-            Button(isEN ? "Dissolve" : "确认解散", role: .destructive) {
-                Task { if await vm.dissolveGroup(groupId: group.id) { dismiss() } }
-            }
-        } message: { Text(isEN ? "All members will be removed. This cannot be undone." : "所有成员将被移出，操作不可撤销。") }
-        .confirmationDialog(isEN ? "Leave this family?" : "退出家庭？",
-                            isPresented: $showLeaveConfirm, titleVisibility: .visible) {
-            Button(isEN ? "Leave" : "确认退出", role: .destructive) {
-                Task { if await vm.leaveGroup(groupId: group.id) { dismiss() } }
-            }
         }
         .navigationDestination(isPresented: $showNotificationSettings) {
             // 子页面也要隐藏：设置页 onDisappear 会把底导放出来
@@ -130,6 +103,23 @@ public struct FamilyGroupSettingsView: View {
                             pendingRemoval = member   // 走二次确认，不再点一下就踢人
                         } label: { Text(isEN ? "Remove" : "移除").font(.caption).foregroundColor(AppTheme.riskHigh) }
                             .buttonStyle(.plain)
+                            .confirmationDialog(
+                                isEN ? "Remove \(member.effectiveName) from this family?" : "把「\(member.effectiveName)」移出家庭？",
+                                isPresented: Binding(
+                                    get: { pendingRemoval?.id == member.id },
+                                    set: { if !$0, pendingRemoval?.id == member.id { pendingRemoval = nil } }
+                                ),
+                                titleVisibility: .visible
+                            ) {
+                                Button(isEN ? "Remove" : "确认移除", role: .destructive) {
+                                    pendingRemoval = nil
+                                    Task { _ = await vm.removeMember(groupId: group.id, userId: member.userId) }
+                                }
+                                Button(isEN ? "Cancel" : "取消", role: .cancel) { pendingRemoval = nil }
+                            } message: {
+                                Text(isEN ? "They will be notified in the group. This cannot be undone."
+                                          : "群里会显示一条移出提示，操作不可撤销。")
+                            }
                     }
                 }
                 .contentShape(Rectangle())
@@ -218,9 +208,21 @@ public struct FamilyGroupSettingsView: View {
                 Button(role: .destructive) { showDissolveConfirm = true } label: {
                     Text(isEN ? "Dissolve family" : "解散家庭").foregroundColor(AppTheme.riskHigh)
                 }
+                .confirmationDialog(isEN ? "Dissolve this family?" : "解散家庭？",
+                                    isPresented: $showDissolveConfirm, titleVisibility: .visible) {
+                    Button(isEN ? "Dissolve" : "确认解散", role: .destructive) {
+                        Task { if await vm.dissolveGroup(groupId: group.id) { dismiss() } }
+                    }
+                } message: { Text(isEN ? "All members will be removed. This cannot be undone." : "所有成员将被移出，操作不可撤销。") }
             } else {
                 Button(role: .destructive) { showLeaveConfirm = true } label: {
                     Text(isEN ? "Leave family" : "退出家庭").foregroundColor(AppTheme.riskHigh)
+                }
+                .confirmationDialog(isEN ? "Leave this family?" : "退出家庭？",
+                                    isPresented: $showLeaveConfirm, titleVisibility: .visible) {
+                    Button(isEN ? "Leave" : "确认退出", role: .destructive) {
+                        Task { if await vm.leaveGroup(groupId: group.id) { dismiss() } }
+                    }
                 }
             }
         }

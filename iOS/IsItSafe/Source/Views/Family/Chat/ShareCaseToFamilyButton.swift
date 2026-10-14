@@ -45,6 +45,7 @@ public struct ShareCaseToFamilyButton: View {
     private func tap() {
         // 2026-09-07 复核：改为发到家庭页当前选中的群，而不是恒定第一个群
         guard let gid = FamilyShareTarget.groupId(chat), chat.hasFamily else {
+            FamilyShareTarget.showNotReadyHint(languageCode: languageCode)
             router.pendingTabIndex = 2
             return
         }

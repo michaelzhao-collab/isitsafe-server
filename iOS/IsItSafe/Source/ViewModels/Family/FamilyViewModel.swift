@@ -95,7 +95,14 @@ public final class FamilyViewModel: ObservableObject {
                 self.allGroups = []
                 self.state = .loading
             }
-            let hadLoadedData = State.loaded(FamilyGroup.placeholder).isLoaded(matching: self.state)
+            // .loaded / .empty 都是「已有确定结果」（缓存恢复或上次刷新），刷新期间保持原页面；
+            // 只有 .loading / .error / .notLoggedIn 才显示「加载中」
+            let hadLoadedData: Bool = {
+                switch self.state {
+                case .loaded, .empty: return true
+                default: return false
+                }
+            }()
             if !hadLoadedData {
                 self.state = .loading
             }
@@ -107,7 +114,10 @@ public final class FamilyViewModel: ObservableObject {
                     self.state = .empty
                     // ChatMessageView 用此 key 决定是否显示"一键拨打家人"等按钮
                     UserDefaults.standard.removeObject(forKey: self.selectedGroupIdKey)
-                    self.persistCache(nil)
+                    // 「没有家庭」也缓存：否则没家庭的用户每次冷启动都先转圈再出「创建 / 加入」页
+                    self.persistCache([])
+                    // 2026-10-14 真机：退群后 IM 协调器仍握着旧群 id，「发到家庭群」按钮以为还有家庭 → 发送失败
+                    FamilyChatCoordinator.shared.setGroups([])
                     return
                 }
                 self.state = .loaded(self.selectCurrent(from: groups, persist: true))
@@ -126,8 +136,9 @@ public final class FamilyViewModel: ObservableObject {
                     self.state = .notLoggedIn
                     return
                 }
-                // 已经有家庭数据在显示（缓存或上次刷新）时，静默刷新失败不把整页换成「加载失败」
-                if hadLoadedData { return }
+                // 已经有家庭在显示（缓存或上次刷新）时，静默刷新失败不把整页换成「加载失败」；
+                // 显示的是「没有家庭」时仍落到 .error，保留重试入口（也许其实有家庭只是没拉到）
+                if case .loaded = self.state { return }
                 self.state = .error(error.localizedDescription)
             }
         }
@@ -149,19 +160,16 @@ public final class FamilyViewModel: ObservableObject {
         guard AuthInterceptor.token() != nil, let key = groupsCacheKey,
               let data = UserDefaults.standard.data(forKey: key),
               let groups = try? JSONDecoder().decode([FamilyGroup].self, from: data),
-              !groups.isEmpty, groups.allSatisfy({ !$0.id.isEmpty }) else { return }
+              groups.allSatisfy({ !$0.id.isEmpty }) else { return }
         allGroups = groups
         loadedUserId = TokenStore.shared.userId
-        state = .loaded(selectCurrent(from: groups, persist: false))
+        // 缓存为空数组 = 上次确认过「不在任何家庭」→ 直接出创建 / 加入页，后台刷新再纠正
+        state = groups.isEmpty ? .empty : .loaded(selectCurrent(from: groups, persist: false))
     }
 
-    /// nil → 清掉缓存（用户已不在任何家庭）。成员完整手机号不落盘。
-    private func persistCache(_ groups: [FamilyGroup]?) {
+    /// 空数组也会写入（表示「确认没有家庭」）。成员完整手机号不落盘。
+    private func persistCache(_ groups: [FamilyGroup]) {
         guard let key = groupsCacheKey else { return }
-        guard let groups, !groups.isEmpty else {
-            UserDefaults.standard.removeObject(forKey: key)
-            return
-        }
         let stripped = groups.map { g in
             FamilyGroup(
                 id: g.id, name: g.name, ownerUserId: g.ownerUserId, memberCount: g.memberCount,
@@ -185,9 +193,17 @@ public final class FamilyViewModel: ObservableObject {
 
     /// 退群 / 解散成功后立刻把该群从内存与缓存里剔除：紧接着的 refresh() 若失败，
     /// 下次冷启动不会先渲染一个已经不在的家庭并对它启动 IM
+    /// 同时把页面直接切到下一个状态（.empty 或剩余家庭），不再经过「加载中」。
     private func dropGroupLocally(_ groupId: String) {
         allGroups.removeAll { $0.id == groupId }
         persistCache(allGroups)
+        FamilyChatCoordinator.shared.setGroups(allGroups.map(\.id))
+        if allGroups.isEmpty {
+            UserDefaults.standard.removeObject(forKey: selectedGroupIdKey)
+            state = .empty
+        } else {
+            state = .loaded(selectCurrent(from: allGroups, persist: true))
+        }
     }
 
     /// 登出 / 删号 / 401 公共出口调用：清掉所有账号的家庭缓存（含成员昵称、备注）
@@ -276,11 +292,9 @@ public final class FamilyViewModel: ObservableObject {
         defer { inflightAction = nil }
         do {
             try await repo.leaveGroup(groupId: groupId)
-            // V4 业主诉求：退出后页面内容立刻重置——把 state 切到 loading，
-            // FamilyView 自动卸下 FamilyGroupView，避免残留已退出家庭的成员/广播数据
-            // refresh() 拉到新数据后落到 .empty 或 .loaded（如果还有别的家庭）
+            // V4 业主诉求：退出后页面内容立刻重置。2026-10-14：不再经过「加载中」，
+            // dropGroupLocally 直接切到 .empty 或剩余家庭，refresh() 再后台校正
             dropGroupLocally(groupId)
-            state = .loading
             refresh()
             return true
         } catch {
@@ -294,10 +308,9 @@ public final class FamilyViewModel: ObservableObject {
         defer { inflightAction = nil }
         do {
             try await repo.dissolveGroup(groupId: groupId)
-            // V4 业主诉求：解散后页面内容立刻重置——把 state 切到 loading，
+            // V4 业主诉求：解散后页面内容立刻重置（同上，不经过「加载中」）
             // FamilyView 自动卸下 FamilyGroupView，避免短暂残留"已解散家庭"的渲染
             dropGroupLocally(groupId)
-            state = .loading
             refresh()
             return true
         } catch {

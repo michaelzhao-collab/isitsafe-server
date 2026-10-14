@@ -74,7 +74,9 @@ public struct FamilyChatContainerView: View {
                 chat.start(groupIds: ids.isEmpty ? [group.id] : ids)
             }
             .onChange(of: vm.allGroups.map { $0.id }) { _, ids in
-                chat.setGroups(ids.isEmpty ? [group.id] : ids)
+                // 2026-10-14：原来 ids 为空时回退成 [group.id]，退群 / 解散后协调器仍握着旧群，
+                // 「发到家庭群」误以为还有家庭 → 发送失败。空就是空。
+                chat.setGroups(ids)
             }
     }
 }
