@@ -21,14 +21,20 @@ public struct DeepfakeResultView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
-                    gauge
-                    labelTitle
-                    if let features = check.resultFeatures, !features.isEmpty {
-                        featuresSection(features)
+                    if check.status == "failed" {
+                        // 2026-10-14 真机：检测失败时原来显示「0% / 结果待定」+ 可点的「广播给家人」（点了报错），
+                        // 像是检测出了「0% 合成」。失败就明说失败，不给结论、不给广播。
+                        failedCard
+                    } else {
+                        gauge
+                        labelTitle
+                        if let features = check.resultFeatures, !features.isEmpty {
+                            featuresSection(features)
+                        }
+                        adviceCard
+                        if check.status == "done" { actionsRow }
+                        feedbackRow
                     }
-                    adviceCard
-                    actionsRow
-                    feedbackRow
                 }
                 .padding(16)
             }
@@ -41,6 +47,28 @@ public struct DeepfakeResultView: View {
                 }
             }
         }
+    }
+
+    private var failedCard: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 44))
+                .foregroundColor(AppTheme.riskMedium)
+            Text(languageCode == "en" ? "Couldn't analyze this recording" : "这段录音没能完成检测")
+                .font(.title3.weight(.bold))
+                .foregroundColor(AppTheme.textPrimary)
+            Text(languageCode == "en"
+                 ? "This doesn't mean the voice is real. The check didn't finish — the recording may be too short, or the service may be unavailable. If someone is asking for money, call them back on a number you already know, or verify by video."
+                 : "这不代表声音是真的。检测没能完成（可能是录音太短，或服务暂时不可用）。如果对方在要钱，请用你原本存的号码回拨，或视频确认身份。")
+                .font(.subheadline)
+                .foregroundColor(AppTheme.textSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .background(AppTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.top, 24)
     }
 
     private var color: Color {

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { memberDefaultName } from '../../common/member-name.util';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ChatService } from './chat.service';
@@ -272,11 +273,14 @@ export class FamilyEventService {
   }
 
   private async resolveName(groupId: string, userId: string): Promise<string | null> {
+    // 2026-10-14：统一默认名（原来没昵称就是 null → 卡片显示「家人」，和推送里的名字对不上）
+    const sel = { nickname: true, wechatNickname: true, phone: true, email: true } as const;
     const m = await this.prisma.familyMember.findUnique({
       where: { groupId_userId: { groupId, userId } },
-      select: { displayName: true, user: { select: { nickname: true } } },
+      select: { displayName: true, user: { select: sel } },
     });
-    return m?.displayName || m?.user?.nickname || null;
+    const u = m?.user ?? (await this.prisma.user.findUnique({ where: { id: userId }, select: sel }));
+    return memberDefaultName({ userId, displayName: m?.displayName, ...(u ?? {}) }, 'zh');
   }
 
   private async assertMember(userId: string, groupId: string) {

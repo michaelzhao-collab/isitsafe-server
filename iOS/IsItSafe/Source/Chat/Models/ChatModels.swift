@@ -233,10 +233,18 @@ nonisolated extension ChatMessage {
     /// 群生命周期系统消息（入群/退群/被移出/建群）按当前 App 语言渲染。
     /// 新消息：服务端 payload 带 { kind, name }；旧消息只有中文 content，按固定句式识别后翻译；
     /// 都不匹配时原样返回 content。
-    public func localizedSystemText(isEnglish en: Bool) -> String {
+    /// - Parameter nameFor: 按 userId 取当前成员名（2026-10-14：payload 带 userId 时优先用，名字与头像、群成员列表一致）
+    public func localizedSystemText(isEnglish en: Bool, nameFor: ((String) -> String?)? = nil) -> String {
         let content = self.content ?? ""
         if let kind = payload?.string("kind") {
-            let name = payload?.string("name") ?? ""
+            let live = payload?.string("userId").flatMap { nameFor?($0) }
+            var name = live ?? payload?.string("name") ?? ""
+            // 老消息服务端兜底名是「家人」：英文界面换成 Family member
+            if live == nil, en {
+                if name == "家人" { name = "Family member" }
+                // 服务端兜底名「用户AB12」→ 英文界面显示 User AB12
+                else if name.hasPrefix("用户"), name.count == 6 { name = "User " + name.dropFirst(2) }
+            }
             let groupName = payload?.string("groupName") ?? ""
             if let text = Self.lifecycleText(kind: kind, name: name, groupName: groupName, en: en) { return text }
         }

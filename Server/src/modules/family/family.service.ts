@@ -16,6 +16,7 @@ import { randomBytes, createHash } from 'crypto';
 import { regionToTimezone, daysDiffInTz, localHour } from '../../common/utils/region-timezone';
 import { normalizeByType } from '../../common/utils/content-normalize';
 import { normalizeLang } from '../../common/i18n/language.util';
+import { memberDefaultName, emailHandle } from '../../common/member-name.util';
 
 /**
  * 家庭组容量上限（S5-7 按 owner 订阅动态）
@@ -96,6 +97,8 @@ export class FamilyService {
       name?: string;
       /** group_renamed：新群名（name 是改名的人） */
       groupName?: string;
+      /** 2026-10-14：当事人 userId，客户端按当前成员名渲染 */
+      userId?: string;
     },
   ): void {
     // 建群引导、改群名都不值得弹横幅打扰全家
@@ -143,16 +146,16 @@ export class FamilyService {
 
   /** 群昵称 > 用户昵称 > 手机尾号 */
   private async lifecycleName(groupId: string, userId: string): Promise<string> {
+    // 2026-10-14：统一默认名（原来没昵称的 Apple / 邮箱用户一律是「家人」）。payload 另带 userId，
+    // 新版 iOS 按当前成员名渲染；这里的名字给老客户端用。成员已退群时直接查用户表。
     const m = await this.prisma.familyMember.findUnique({
       where: { groupId_userId: { groupId, userId } },
-      select: { displayName: true, user: { select: { nickname: true, phone: true } } },
+      select: { displayName: true, user: { select: { nickname: true, wechatNickname: true, phone: true, email: true } } },
     });
-    return (
-      m?.displayName?.trim() ||
-      m?.user?.nickname?.trim() ||
-      (m?.user?.phone ? `尾号${m.user.phone.slice(-4)}` : '') ||
-      '家人'
-    );
+    const u = m?.user ?? (await this.prisma.user.findUnique({
+      where: { id: userId }, select: { nickname: true, wechatNickname: true, phone: true, email: true },
+    }));
+    return memberDefaultName({ userId, displayName: m?.displayName, ...(u ?? {}) }, 'zh');
   }
 
   // ====================================================================
@@ -379,6 +382,7 @@ export class FamilyService {
     this.postLifecycleSystemMessage(member.groupId, `${leavingName} 退出了家庭`, {
       kind: 'member_left',
       name: leavingName,
+      userId,
     });
   }
 
@@ -388,7 +392,7 @@ export class FamilyService {
     const group = await this.prisma.familyGroup.findUnique({
       where: { id: groupId },
       include: {
-        owner: { select: { nickname: true, wechatNickname: true } },
+        owner: { select: { nickname: true, wechatNickname: true, phone: true, email: true } },
         members: {
           include: { user: { select: { id: true, language: true } } },
         },
@@ -397,10 +401,10 @@ export class FamilyService {
     if (!group) throw new NotFoundException('Group not found');
     if (group.ownerUserId !== userId) throw new ForbiddenException('Only owner can dissolve');
 
-    const ownerDisplayName =
-      group.owner.nickname?.trim() ||
-      group.owner.wechatNickname?.trim() ||
-      (group.members.some((m) => (m.user.language || 'zh') === 'en') ? 'A family member' : '家人');
+    const ownerDisplayName = memberDefaultName(
+      { userId: group.ownerUserId, ...group.owner },
+      group.members.some((m) => (m.user.language || 'zh') === 'en') ? 'en' : 'zh',
+    );
     const groupName = (group.name || '').trim();
     const recipients = group.members
       .filter((m) => m.userId !== userId)
@@ -512,6 +516,7 @@ export class FamilyService {
     this.postLifecycleSystemMessage(groupId, `${actor} 将群名改为「${trimmed}」`, {
       kind: 'group_renamed',
       name: actor,
+      userId,
       groupName: trimmed,
     });
     return { success: true, name: trimmed };
@@ -547,6 +552,7 @@ export class FamilyService {
     this.postLifecycleSystemMessage(groupId, `${removedName} 已被群主移出家庭`, {
       kind: 'member_removed',
       name: removedName,
+      userId: targetUserId,
     });
   }
 
@@ -691,6 +697,7 @@ export class FamilyService {
     this.postLifecycleSystemMessage(group.id, `${joinedName} 加入了家庭`, {
       kind: 'member_joined',
       name: joinedName,
+      userId,
     });
     return member;
   }
@@ -1312,8 +1319,7 @@ export class FamilyService {
       if (finalChannels.length === 0) continue;
 
       const notifiedIds = otherMembers.map((m) => m.userId);
-      const inactiveName = candidate.user.nickname || candidate.user.wechatNickname || '';
-      const inactiveDisplayName = inactiveName || '家人';
+      const inactiveDisplayName = memberDefaultName({ userId: candidate.userId, ...candidate.user }, 'zh');
 
       // S4-4 投递状态：每条 notice 独立 stats，避免不同 channel 的计数交叉污染
       for (const channel of finalChannels) {
@@ -1337,7 +1343,7 @@ export class FamilyService {
                 userId: m.userId,
                 title: en ? 'Family check-in' : '家庭关怀提醒',
                 body: en
-                  ? `${inactiveName || 'A family member'} hasn't opened the app for ${daysInactive} days. Consider checking in.`
+                  ? `${memberDefaultName({ userId: candidate.userId, ...candidate.user }, 'en')} hasn't opened the app for ${daysInactive} days. Consider checking in.`
                   : `${inactiveDisplayName} 已连续 ${daysInactive} 天未打开 App，建议联系确认`,
                 category: 'family_care',
                 customData: {
@@ -1584,6 +1590,10 @@ export class FamilyService {
         joinedAt: m.joinedAt,
         phone: phone ?? null,
         phoneDisplay: phone ? this.maskPhone(phone) : null,
+        // 2026-10-14：邮箱 @ 前缀（隐藏邮箱为 null），客户端默认名用，与服务端 memberDefaultName 同规则
+        // 只在没有其它可用名字时才下发（避免把邮箱前缀里的真名 / 生日多暴露给家人）
+        emailHandle:
+          m.displayName || m.user.nickname || m.user.wechatNickname || m.user.phone ? null : emailHandle(m.user.email),
         // S5-12：family 内的命名（display_name 全员可见，myAlias 仅自己可见）
         displayName: m.displayName ?? null,
         myAlias: aliasMap.get(m.id) ?? null,

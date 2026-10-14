@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { memberDefaultName, NameSource } from '../../common/member-name.util';
 import { FamilyMessage, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ChatRealtimeService } from './chat-realtime.service';
@@ -212,7 +213,7 @@ export class ChatService {
       where: { id: groupId },
       select: { name: true },
     });
-    const senderName = await this.resolveSenderName(groupId, senderId);
+    const senderInfo = await this.resolveSenderInfo(groupId, senderId);
     const collapseId = `chat_${groupId}`.slice(0, 64); // 同群合并，避免堆叠
     // 2026-10-14 国际化：按接收人的 App 语言（users.language，由 JwtAuthGuard 按请求头回写）出推送文案
     const langs = await this.recipientLanguages(pushable);
@@ -221,6 +222,8 @@ export class ChatService {
       pushable.map((uid) => {
         const lang = langs.get(uid) ?? 'zh';
         const preview = this.previewText(msg, lang);
+        // 2026-10-14：推送正文一律带说话人「名字：内容」（原来没昵称的人只推内容，不知道是谁说的）
+        const senderName = senderInfo ? memberDefaultName(senderInfo, lang) : null;
         return {
           userId: uid,
           title: group?.name || (lang === 'en' ? 'Family' : '家庭'),
@@ -306,11 +309,15 @@ export class ChatService {
       where: { id: groupId }, select: { name: true },
     });
     const langs = await this.recipientLanguages(pushable);
+    // 卡片推送也带发起人（求助 / 分享），系统播报卡无发起人时只推标题
+    const actor = await this.resolveSenderInfo(groupId, excludeUserId);
     await this.notification.sendPushBatch(
       pushable.map((uid) => ({
         userId: uid,
         title: group?.name || (langs.get(uid) === 'en' ? 'Family' : '家庭'),
-        body: title.slice(0, 40),
+        body: actor
+          ? Array.from(`${memberDefaultName(actor, langs.get(uid) ?? 'zh')}${langs.get(uid) === 'en' ? ': ' : '：'}${title}`).slice(0, 60).join('')
+          : title.slice(0, 40),
         category: 'family_chat',
         collapseId: `chat_${groupId}`.slice(0, 64),
         customData: { type: 'family_card', groupId },
@@ -349,13 +356,16 @@ export class ChatService {
     this.realtime.signalUsers(memberIds, { op: 'new', groupId, seq: Number(updated.seq) });
   }
 
-  private async resolveSenderName(groupId: string, senderId: string | null): Promise<string | null> {
+  private async resolveSenderInfo(groupId: string, senderId: string | null): Promise<NameSource | null> {
     if (!senderId) return null;
+    const sel = { nickname: true, wechatNickname: true, phone: true, email: true } as const;
     const member = await this.prisma.familyMember.findUnique({
       where: { groupId_userId: { groupId, userId: senderId } },
-      select: { displayName: true, user: { select: { nickname: true } } },
+      select: { displayName: true, user: { select: sel } },
     });
-    return member?.displayName || member?.user?.nickname || null;
+    // 成员行已删（刚退群）时再查用户表，避免名字退化成「用户XXXX」
+    const u = member?.user ?? (await this.prisma.user.findUnique({ where: { id: senderId }, select: sel }));
+    return { userId: senderId, displayName: member?.displayName, ...(u ?? {}) };
   }
 
   private previewText(msg: FamilyMessage, lang: AppLang = 'zh'): string {

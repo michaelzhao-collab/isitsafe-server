@@ -74,6 +74,8 @@ public struct FamilyMember: Codable, Identifiable {
     public let phone: String?
     /// 脱敏号码，用于 UI 展示（如 138****1234）
     public let phoneDisplay: String?
+    /// 2026-10-14：邮箱 @ 前缀（隐藏邮箱为 nil），默认名用，与服务端 memberDefaultName 同规则
+    public let emailHandle: String?
     /// S5-12 该成员在此家庭组内的自我命名（全员可见，仅自己可改；NULL → 回退 nickname）
     public let displayName: String?
     /// S5-12 我对该成员的私人备注（仅自己可见；NULL → 没设过）
@@ -113,8 +115,11 @@ public struct FamilyMember: Codable, Identifiable {
                 return String(digits.suffix(4))
             }
         }
-        // 2) member id 后 4 位
-        return String(id.suffix(4))
+        // 2) 邮箱 @ 前缀 → 3)「用户 + userId 后 4 位」（2026-10-14 与服务端 memberDefaultName 统一；
+        //    原来用成员行 id 后 4 位，和服务端系统消息 / 推送里的名字对不上）
+        if let h = emailHandle?.trimmingCharacters(in: .whitespacesAndNewlines), !h.isEmpty { return h }
+        let tail = String((userId.isEmpty ? id : userId).suffix(4)).uppercased()
+        return L10n.tr(zh: "用户\(tail)", en: "User \(tail)")
     }
 
     /// 手写 init：对所有字段提供默认值，单个字段类型不匹配不再导致整体加载失败
@@ -132,6 +137,7 @@ public struct FamilyMember: Codable, Identifiable {
                 .map { ISO8601DateFormatter().string(from: $0) }
         self.phone = try? c.decodeIfPresent(String.self, forKey: .phone)
         self.phoneDisplay = try? c.decodeIfPresent(String.self, forKey: .phoneDisplay)
+        self.emailHandle = try? c.decodeIfPresent(String.self, forKey: .emailHandle)
         self.displayName = try? c.decodeIfPresent(String.self, forKey: .displayName)
         self.myAlias = try? c.decodeIfPresent(String.self, forKey: .myAlias)
         self.shareQueryResults = try? c.decodeIfPresent(Bool.self, forKey: .shareQueryResults)
@@ -149,6 +155,7 @@ public struct FamilyMember: Codable, Identifiable {
         joinedAt: String? = nil,
         phone: String? = nil,
         phoneDisplay: String? = nil,
+        emailHandle: String? = nil,
         displayName: String? = nil,
         myAlias: String? = nil,
         shareQueryResults: Bool? = nil
@@ -163,6 +170,7 @@ public struct FamilyMember: Codable, Identifiable {
         self.joinedAt = joinedAt
         self.phone = phone
         self.phoneDisplay = phoneDisplay
+        self.emailHandle = emailHandle
         self.displayName = displayName
         self.myAlias = myAlias
         self.shareQueryResults = shareQueryResults

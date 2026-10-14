@@ -178,7 +178,7 @@ public final class FamilyViewModel: ObservableObject {
                     FamilyMember(
                         id: m.id, userId: m.userId, role: m.role, nickname: m.nickname, avatar: m.avatar,
                         elderModeEnabled: m.elderModeEnabled, activityStatus: m.activityStatus,
-                        joinedAt: m.joinedAt, phone: nil, phoneDisplay: m.phoneDisplay,
+                        joinedAt: m.joinedAt, phone: nil, phoneDisplay: m.phoneDisplay, emailHandle: m.emailHandle,
                         displayName: m.displayName, myAlias: m.myAlias, shareQueryResults: m.shareQueryResults
                     )
                 }

@@ -393,7 +393,7 @@ public struct FamilyChatView: View {
         HStack {
             Spacer()
             // 2026-10-06：按当前 App 语言渲染（入群/退群/被移出/建群），群里中英文用户各看各的语言
-            Text(msg.localizedSystemText(isEnglish: languageIsEnglish))
+            Text(msg.localizedSystemText(isEnglish: languageIsEnglish, nameFor: { membersById[$0]?.effectiveName }))
                 .font(.system(size: elderScaled(12)))
                 .foregroundColor(AppTheme.textSecondary)
                 .multilineTextAlignment(.center)
@@ -616,7 +616,8 @@ public struct FamilyChatView: View {
     // MARK: - 头像
 
     private func avatar(for msg: ChatMessage) -> some View {
-        let name = isMine(msg) ? (localized(zh: "我", en: "Me")) : senderName(msg)
+        // 2026-10-14：自己的头像也用自己的名字首字（原来自己看是「我 / Me」的首字 M，家人看是另一个字母）
+        let name = senderName(msg)
         let initial = String(name.prefix(1))
         return Text(initial)
             .font(.system(size: elderScaled(16), weight: .semibold))
