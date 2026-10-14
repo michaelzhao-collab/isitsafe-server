@@ -284,6 +284,46 @@ export class SubscriptionService {
 
       // existing 一定不为 null（要么一开始查到，要么并发冲突后兜底拿到）
       const target = existing as Subscription;
+
+      // 2026-10-14 真机复现：iOS 启动时按 Transaction.unfinished / updates 的顺序补验，先验了新一期
+      // （到期 07:54）→ 三秒后又把更早一期、已过期的交易（到期 07:49）发来 verify。这里按
+      // originalTransactionId 命中同一行后无条件覆盖 → status=expired、autoRenew=false，用户会员
+      // 立刻消失，要等下一次 Apple 通知才恢复。线上同样会发生（续期后旧凭证被重投）。
+      // 规则：同一订阅生命周期内，凭证本身已过期、到期时间早于现有记录、又不是现有记录本身那笔交易的，
+      // 视为「旧凭证」，只记历史不改状态。「已过期」这一条不能少：立即生效的升级（年付 → 家庭月付）
+      // 新周期更短但仍在未来，必须照常覆盖。退款 / 撤销例外（可能针对更早一期，保持原行为）。
+      // 行属于别的账号时不套用此规则（保持原行为，也不把别人的行原样返回给调用方）。
+      const isOlderCredential =
+        !!input.transactionId &&
+        target.userId === userId &&
+        input.transactionId !== target.transactionId &&
+        input.transactionId !== target.latestTransactionId &&
+        input.expireTime <= now &&
+        input.expireTime < target.expireTime &&
+        input.status !== 'refunded' &&
+        input.status !== 'revoked' &&
+        !input.refundedAt &&
+        !input.revokedAt;
+      if (isOlderCredential) {
+        console.log('[SUBSCRIPTION_IGNORE_OLDER_CREDENTIAL]', {
+          userId,
+          transactionId: input.transactionId,
+          inputExpire: input.expireTime.toISOString(),
+          currentLatest: target.latestTransactionId,
+          currentExpire: target.expireTime.toISOString(),
+          source: input.historyEntry?.action,
+        });
+        return tx.subscription.update({
+          where: { id: target.id },
+          data: {
+            historyLog: appendHistory(target.historyLog as Prisma.JsonValue, {
+              ...historyEntry,
+              ignored: 'older_than_current',
+            }),
+          },
+        });
+      }
+
       return tx.subscription.update({
         where: { id: target.id },
         data: {
