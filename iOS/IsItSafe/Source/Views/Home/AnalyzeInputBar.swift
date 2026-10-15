@@ -139,8 +139,8 @@ public struct AnalyzeInputBar: View {
                 .padding(.vertical, 8)
                 .frame(minHeight: InputBarIcon.defaultSize)
                 .background(AppTheme.cardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 19, style: .continuous).stroke(AppTheme.primarySoftBorder, lineWidth: 1.5))
+                .clipShape(RoundedRectangle(cornerRadius: InputBarIcon.defaultSize / 2, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: InputBarIcon.defaultSize / 2, style: .continuous).stroke(AppTheme.primarySoftBorder, lineWidth: 1.5))
                 .lineLimit(1...4)
                 .focused($isFocused)
                 .onSubmit(onSubmit)
@@ -196,8 +196,8 @@ public struct AnalyzeInputBar: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: InputBarIcon.defaultSize)
                     .background(voiceButtonBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 19, style: .continuous).stroke(AppTheme.primarySoftBorder, lineWidth: 1.5))
+                    .clipShape(RoundedRectangle(cornerRadius: InputBarIcon.defaultSize / 2, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: InputBarIcon.defaultSize / 2, style: .continuous).stroke(AppTheme.primarySoftBorder, lineWidth: 1.5))
                     .contentShape(Rectangle())
                     .gesture(voiceGesture)
                     .accessibilityLabel(isRecording
@@ -356,7 +356,8 @@ struct InputBarIcon: View {
     var style: Style = .soft
     var size: CGFloat = InputBarIcon.defaultSize
 
-    static let defaultSize: CGFloat = 38
+    // 2026-10-15：38 → 44（苹果最小点击区；用户反馈首页 / 家庭输入框偏矮）
+    static let defaultSize: CGFloat = 44
 
     var body: some View {
         ZStack {
