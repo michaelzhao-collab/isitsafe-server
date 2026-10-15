@@ -7,6 +7,7 @@
 //  未加入家庭则引导去家庭 Tab 创建/加入。
 //
 
+import CryptoKit
 import SwiftUI
 
 /// 2026-09-07 复核：两个"发到家庭群"按钮原来都用 `chat.primaryGroupId`（= groupIds.first），
@@ -54,6 +55,36 @@ enum FamilyShareTarget {
             AppStateViewModel.shared.showError(en ? "Failed to send. Please try again." : "发送失败，请稍后重试")
         }
         return ok
+    }
+}
+
+/// 2026-10-15：「已发给家人」状态原来只存在按钮的 @State 里，发送成功会跳到家庭 Tab，
+/// 首页被销毁，切回来按钮又变回「发到家庭群」，用户会重复发。按结论内容记住已发过的（本机、最多 300 条）。
+enum SentToFamilyStore {
+    private static let key = "isitsafe.family.sentResultKeys"
+    private static let cap = 300
+
+    /// 存 SHA-256 而不是原文：结论里可能有用户的号码 / 内容
+    static func key(groupId: String?, conversationId: String?, title: String, summary: String) -> String {
+        let raw = "\(groupId ?? "-")|\(conversationId ?? "-")|\(title)|\(summary)"
+        return SHA256.hash(data: Data(raw.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func contains(_ k: String) -> Bool {
+        (UserDefaults.standard.stringArray(forKey: key) ?? []).contains(k)
+    }
+
+    static func insert(_ k: String) {
+        var list = UserDefaults.standard.stringArray(forKey: key) ?? []
+        guard !list.contains(k) else { return }
+        list.append(k)
+        if list.count > cap { list.removeFirst(list.count - cap) }
+        UserDefaults.standard.set(list, forKey: key)
+    }
+
+    /// 登出 / 换账号时清掉，否则下一个账号看到别人发过的状态
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
     }
 }
 
@@ -116,6 +147,12 @@ public struct ShareToFamilyButton: View {
             }
         }
         .disabled(sent || sending)
+        .onAppear { if SentToFamilyStore.contains(sentKey) { sent = true } }
+    }
+
+    /// 按目标群 + 会话 + 结论记：换了群仍可再发；同会话不同结论各自独立
+    private var sentKey: String {
+        SentToFamilyStore.key(groupId: FamilyShareTarget.groupId(chat), conversationId: conversationId, title: title, summary: summary)
     }
 
     private var labelText: String {
@@ -141,7 +178,10 @@ public struct ShareToFamilyButton: View {
                 )
             }
             sending = false
-            if ok { sent = true }
+            if ok {
+                sent = true
+                SentToFamilyStore.insert(sentKey)
+            }
         }
     }
 

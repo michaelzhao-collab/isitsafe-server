@@ -520,9 +520,25 @@ public final class FamilyChatCoordinator: ObservableObject {
 
     private func recomputeUnread(groupId: String) async {
         let state = await store.syncState(groupId: groupId)
-        let unread = max(0, Int(state.localLastSeq - state.lastReadSeq))
+        // 2026-10-15：自己发的（含我转发到群的求助 / 分享卡、我的查询自动播报）不算未读。
+        // 原来按 seq 差直接算，底导红点一闪而过直到进群才消失。
+        // 只扣掉自己的，不顺手标已读：从首页转发时家人之前的消息我还没看过
+        let ownUnread = (messagesByGroup[groupId] ?? [])
+            .filter { $0.seq > state.lastReadSeq && $0.seq <= state.localLastSeq && isOwnMessage($0) }
+            .count
+        let unread = max(0, Int(state.localLastSeq - state.lastReadSeq) - ownUnread)
         unreadByGroup[groupId] = unread
         totalUnread = unreadByGroup.values.reduce(0, +)
+    }
+
+    private func isOwnMessage(_ msg: ChatMessage) -> Bool {
+        guard let me = TokenStore.shared.userId else { return false }
+        if msg.senderId == me { return true }
+        // 我触发的卡片（求助 / 分享 / 我的查询自动播报）对我不算未读
+        if msg.senderId == nil, msg.type == .card {
+            return msg.payload?.string("actorUserId") == me
+        }
+        return false
     }
 
     // MARK: - 轮询兜底（WS 不可用时，前台每 5s 增量拉一次）

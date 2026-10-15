@@ -45,6 +45,8 @@ public struct ShareCaseToFamilyButton: View {
             }
         }
         .disabled(sent)
+        // 发送成功会跳家庭 Tab，回来时按钮重建；按 refType+refId 记住已发过（2026-10-15）
+        .onAppear { if SentToFamilyStore.contains(sentKey) { sent = true } }
     }
 
     private func tap() {
@@ -59,7 +61,16 @@ public struct ShareCaseToFamilyButton: View {
                 await chat.shareCase(groupId: target, refType: refType, refId: refId,
                                      title: title, summary: summary, riskLevel: "none")
             }
-            if ok { sent = true }
+            if ok {
+                sent = true
+                SentToFamilyStore.insert(sentKey)
+            }
         }
+    }
+}
+
+private extension ShareCaseToFamilyButton {
+    var sentKey: String {
+        SentToFamilyStore.key(groupId: FamilyShareTarget.groupId(chat), conversationId: "\(refType):\(refId)", title: "", summary: "")
     }
 }

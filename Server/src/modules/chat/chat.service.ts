@@ -547,17 +547,31 @@ export class ChatService {
       where: { userId, groupId: { in: members.map((m) => m.groupId) } },
     });
     const cursorMap = new Map(cursors.map((c) => [c.groupId, c.lastReadSeq]));
-    return members.map((m) => {
+    return Promise.all(members.map(async (m) => {
       const lastSeq = Number(m.group.lastSeq);
-      const lastReadSeq = Number(cursorMap.get(m.groupId) ?? BigInt(0));
+      const cursor = cursorMap.get(m.groupId) ?? BigInt(0);
+      const lastReadSeq = Number(cursor);
+      // 2026-10-15：自己发的消息、自己触发的卡片（求助 / 分享 / 查询自动播报，senderId 为空、payload.actorUserId 为我）不算未读
+      const own = lastSeq > lastReadSeq
+        ? await this.prisma.familyMessage.count({
+            where: {
+              groupId: m.groupId,
+              seq: { gt: cursor, lte: m.group.lastSeq },   // 与 lastSeq 同一快照，避免期间新到的自己消息多扣
+              OR: [
+                { senderId: userId },
+                { senderId: null, payload: { path: ['actorUserId'], equals: userId } },
+              ],
+            },
+          })
+        : 0;
       return {
         groupId: m.groupId,
         lastSeq,
         lastReadSeq,
-        unread: Math.max(0, lastSeq - lastReadSeq),
+        unread: Math.max(0, lastSeq - lastReadSeq - own),
         muted: m.chatMuted,
       };
-    });
+    }));
   }
 
   /**

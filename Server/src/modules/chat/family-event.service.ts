@@ -149,6 +149,8 @@ export class FamilyEventService {
           actorUserId: userId,
           cardType: 'help_request',
           refId: input.refId,
+          // 2026-10-15：同一会话里后一轮的不同结论原来也被当成重复，按钮显示「已发」其实没发出去；同结论才算重复
+          payload: { path: ['title'], equals: input.title },
           createdAt: { gte: new Date(Date.now() - 24 * 3600 * 1000) },
         },
         orderBy: { createdAt: 'desc' },
