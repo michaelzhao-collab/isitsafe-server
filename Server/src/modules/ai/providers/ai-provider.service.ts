@@ -34,6 +34,19 @@ export type AnalyzeCallOptions = {
 /** 用户实时请求的默认时限：单次 25 秒（实测 p50 约 4.5 秒、最慢 5.8 秒），合计 55 秒 */
 export const INTERACTIVE_AI_CALL: AnalyzeCallOptions = { timeoutMs: 25_000, totalBudgetMs: 55_000 };
 
+/**
+ * 最近一次 AI 调用的结果（进程内，供 /api/health 排查用；只含服务商名、错误码与时间，不含密钥 / 用户内容）。
+ * 2026-10-15：线上连续报「服务繁忙」，Railway 日志看不到时无从判断是哪家模型、什么错误。
+ */
+export const aiCallDiagnostics: {
+  lastProvider?: string;
+  lastOkAt?: string;
+  lastOkLatencyMs?: number;
+  lastErrorAt?: string;
+  lastError?: string;
+  failoverTo?: string | null;
+} = {};
+
 /** 失败原因写进日志：超时 / HTTP 状态 / 服务商错误码，原来只有 message，看不出是限流还是断网 */
 export function describeAxiosError(e: any): string {
   const status = e?.response?.status;
@@ -285,10 +298,18 @@ export class AiProviderService {
   ): Promise<AiCallResult> {
     const primary = provider ?? (await this.getDefaultProvider());
     const started = Date.now();
+    aiCallDiagnostics.lastProvider = primary;
     try {
-      return await this.callProvider(primary, prompt, systemPrompt, opts.timeoutMs);
+      const r = await this.callProvider(primary, prompt, systemPrompt, opts.timeoutMs);
+      aiCallDiagnostics.lastOkAt = new Date().toISOString();
+      aiCallDiagnostics.lastOkLatencyMs = r.latencyMs;
+      return r;
     } catch (primaryErr: any) {
-      this.logger.warn(`[AI_CALL_FAILED] provider=${primary} ${describeAxiosError(primaryErr)}`);
+      const detail = describeAxiosError(primaryErr);
+      this.logger.warn(`[AI_CALL_FAILED] provider=${primary} ${detail}`);
+      aiCallDiagnostics.lastErrorAt = new Date().toISOString();
+      aiCallDiagnostics.lastError = `${primary}: ${detail}`;
+      aiCallDiagnostics.failoverTo = null;
       const fallback = await this.settings.getFallbackProvider();
       if (!fallback || fallback === primary) {
         throw primaryErr;
@@ -303,6 +324,7 @@ export class AiProviderService {
       this.logger.warn(
         `[AI_FAILOVER] primary=${primary} failed (${primaryErr?.message ?? primaryErr}); trying fallback=${fallback}`,
       );
+      aiCallDiagnostics.failoverTo = fallback;
       try {
         const result = await this.callProvider(fallback, prompt, systemPrompt, fallbackTimeout);
         this.logger.warn(`[AI_FAILOVER_OK] primary=${primary} → fallback=${fallback} succeeded`);
