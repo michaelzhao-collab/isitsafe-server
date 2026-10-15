@@ -305,20 +305,10 @@ public struct ProfileView: View {
         }
     }
 
-    /// 默认昵称：微信昵称优先，否则昵称；再否则手机号/邮箱「星识用户+后四位」
+    /// 默认昵称：与家人那边看到的同一套规则（UserInfoResponse.defaultDisplayName）
     private var displayName: String {
         guard let user = vm.user else { return languageCode == "en" ? "No nickname" : "未设置昵称" }
-        if let n = user.wechatNickname, !n.isEmpty { return n }
-        if let n = user.nickname, !n.isEmpty { return n }
-        if let phone = user.phone, !phone.isEmpty {
-            let last4 = phone.count >= 4 ? String(phone.suffix(4)) : phone
-            return languageCode == "en" ? "User \(last4)" : "星识用户\(last4)"
-        }
-        if let email = user.email, !email.isEmpty {
-            let last4 = email.count >= 4 ? String(email.suffix(4)) : email
-            return languageCode == "en" ? "User \(last4)" : "星识用户\(last4)"
-        }
-        return languageCode == "en" ? "No nickname" : "未设置昵称"
+        return user.defaultDisplayName(isEnglish: languageCode == "en")
     }
 
     private var profileAvatar: some View {

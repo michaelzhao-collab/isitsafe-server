@@ -47,3 +47,29 @@ public struct UserInfoResponse: Codable {
         case regionCode
     }
 }
+
+// MARK: - 默认显示名（2026-10-15）
+
+public extension UserInfoResponse {
+    /// 与服务端 member-name.util.ts / FamilyMember.effectiveName 同一套规则，
+    /// 「我的」页、会员中心、家人那边看到的名字一致。
+    /// 原来取邮箱末 4 位，Apple 登录用户显示成「User .com」。
+    /// 顺序：昵称 → 微信昵称 → 手机尾号 4 位 → 邮箱 @ 前缀（Apple 隐藏邮箱除外）→ 用户 + id 后 4 位
+    func defaultDisplayName(isEnglish: Bool) -> String {
+        func pick(_ v: String?) -> String? {
+            let t = (v ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.isEmpty ? nil : t
+        }
+        if let n = pick(nickname) { return n }
+        if let n = pick(wechatNickname) { return n }
+        let digits = (phone ?? "").filter { ("0"..."9").contains($0) }
+        if digits.count >= 4 { return String(digits.suffix(4)) }
+        let e = (email ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if e.contains("@"), !e.hasSuffix("@privaterelay.appleid.com"),
+           let local = e.split(separator: "@", omittingEmptySubsequences: false).first, !local.isEmpty {
+            return String(local.prefix(12))
+        }
+        let tail = String(id.suffix(4)).uppercased()
+        return isEnglish ? "User \(tail)" : "用户\(tail)"
+    }
+}

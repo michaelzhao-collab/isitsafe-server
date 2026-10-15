@@ -24,9 +24,11 @@ public final class SubscriptionRepository {
     }
 }
 
-public struct SubscriptionVerifyResponse: Codable {
+public struct SubscriptionVerifyResponse: Decodable {
     public let success: Bool
     public let subscription: SubscriptionRecord?
+    /// 服务端 verify 已顺带算好的会员状态（与 GET /subscription/status 同一份）；旧服务端没有此字段
+    public let status: SubscriptionStatusResponse?
 }
 
 public struct SubscriptionRecord: Codable {

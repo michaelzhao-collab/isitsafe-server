@@ -19,6 +19,10 @@ struct IsItSafeApp: App {
     @AppStorage("isitsafe.language") private var languageCode: String = "zh"
 
     init() {
+        #if DEBUG
+        // 真机用 devicectl --console 抓日志时 stdout 不是终端 → print 被整块缓冲，App 退出才吐出来（2026-10-15）
+        setvbuf(stdout, nil, _IOLBF, 0)
+        #endif
         // 剪贴板邀请检测窗口起点：必须在登录前记录，才能区分「新装」与「老用户升级」
         InviteClipboardService.recordLaunch()
         // 系统界面（相机 / 相册 / Sign in with Apple / 系统弹窗）语言跟随 App 内语言：

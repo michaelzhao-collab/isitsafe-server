@@ -16,6 +16,8 @@ public final class SubscriptionService {
     public func verifyReceiptDetailed(productId: String, receipt: String, paymentMethod: String = "Apple") async throws -> (verify: SubscriptionVerifyResponse, status: SubscriptionStatusResponse) {
         let req = SubscriptionVerifyRequest(productId: productId, receipt: receipt, paymentMethod: paymentMethod)
         let v = try await repo.verify(req)
+        // 2026-10-15：verify 已返回最新状态，原来再单独请求一次 /status，付款成功后多转一圈网络
+        if let s = v.status { return (v, s) }
         let s = try await fetchStatus()
         return (v, s)
     }

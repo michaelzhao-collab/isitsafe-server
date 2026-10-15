@@ -72,17 +72,7 @@ public struct MemberCenterView: View {
 
     private var memberDisplayName: String {
         guard let user = vm.user else { return languageCode == "en" ? "User" : "用户" }
-        if let n = user.wechatNickname, !n.isEmpty { return n }
-        if let n = user.nickname, !n.isEmpty { return n }
-        if let phone = user.phone, !phone.isEmpty {
-            let tail = phone.count >= 4 ? String(phone.suffix(4)) : phone
-            return languageCode == "en" ? "User \(tail)" : "星识用户\(tail)"
-        }
-        if let email = user.email, !email.isEmpty {
-            let tail = email.count >= 4 ? String(email.suffix(4)) : email
-            return languageCode == "en" ? "User \(tail)" : "星识用户\(tail)"
-        }
-        return languageCode == "en" ? "User" : "用户"
+        return user.defaultDisplayName(isEnglish: languageCode == "en")
     }
 
     private var profileAvatar: some View {
@@ -193,12 +183,9 @@ public struct MemberCenterView: View {
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                memberBenefitCard(icon: "magnifyingglass", iconColor: AppTheme.primaryTint, title: languageCode == "en" ? "Unlimited AI checks" : "无限AI查询", subtitle: languageCode == "en" ? "No usage caps" : "彻底解锁额度限制")
-                memberBenefitCard(icon: "wand.and.stars", iconColor: .purple, title: languageCode == "en" ? "Advanced AI" : "高级AI模型", subtitle: languageCode == "en" ? "High-performance engine" : "高性能推理引擎")
-                memberBenefitCard(icon: "shield.exclamationmark", iconColor: .red, title: languageCode == "en" ? "Live risk database" : "实时数据库", subtitle: languageCode == "en" ? "Global risk data in real time" : "秒级同步全球风险")
-                memberBenefitCard(icon: "bolt.fill", iconColor: .green, title: languageCode == "en" ? "Priority analysis" : "优先分析速度", subtitle: languageCode == "en" ? "Dedicated cloud processing" : "云端GPU专属通道")
-                memberBenefitCard(icon: "clock.arrow.circlepath", iconColor: .orange, title: languageCode == "en" ? "Unlimited history" : "无限历史记录", subtitle: languageCode == "en" ? "Saved in the cloud" : "云端保存永不丢失")
-                memberBenefitCard(icon: "nosignature", iconColor: .purple, title: languageCode == "en" ? "No ads" : "清爽无广告", subtitle: languageCode == "en" ? "Clean experience" : "极致纯净体验")
+                ForEach(PremiumBenefitCatalog.core(isEnglish: languageCode == "en")) { b in
+                    memberBenefitCard(icon: b.icon, title: b.title, subtitle: b.subtitle)
+                }
             }
         }
         .padding(20)
@@ -212,38 +199,17 @@ public struct MemberCenterView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Rectangle()
-                    .fill(Color(hex: "FF6B6B"))
+                    .fill(AppTheme.brandGradient)
                     .frame(width: 4, height: 22)
-                Text(languageCode == "en" ? "Family guardian" : "家庭守护权益")
+                Text(languageCode == "en" ? "Family plan benefits" : "家庭套餐权益")
                     .font(.headline)
                     .foregroundColor(AppTheme.textPrimary)
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                memberBenefitCard(
-                    icon: "person.2.fill",
-                    iconColor: Color(hex: "FF6B6B"),
-                    title: languageCode == "en" ? "Family group" : "创建家庭群",
-                    subtitle: languageCode == "en" ? "Invite up to 6 members" : "最多邀请 6 位家人"
-                )
-                memberBenefitCard(
-                    icon: "bell.badge.fill",
-                    iconColor: Color(hex: "FF9500"),
-                    title: languageCode == "en" ? "Family alerts" : "家庭风险共享",
-                    subtitle: languageCode == "en" ? "Shared scam alerts" : "诈骗预警实时同步"
-                )
-                memberBenefitCard(
-                    icon: "person.crop.circle.badge.exclamationmark",
-                    iconColor: Color(hex: "AF52DE"),
-                    title: languageCode == "en" ? "Elder mode" : "长辈守护",
-                    subtitle: languageCode == "en" ? "Large UI + remote care" : "大字模式 + 远程关怀"
-                )
-                memberBenefitCard(
-                    icon: "waveform.path.ecg",
-                    iconColor: Color(hex: "30B0C7"),
-                    title: languageCode == "en" ? "Voice deepfake check" : "语音深伪检测",
-                    subtitle: languageCode == "en" ? "AI verifies suspicious calls" : "AI 鉴别可疑来电"
-                )
+                ForEach(PremiumBenefitCatalog.family(isEnglish: languageCode == "en")) { b in
+                    memberBenefitCard(icon: b.icon, title: b.title, subtitle: b.subtitle)
+                }
             }
         }
         .padding(20)
@@ -253,13 +219,14 @@ public struct MemberCenterView: View {
     }
 
     /// 会员页权益卡片
-    private func memberBenefitCard(icon: String, iconColor: Color, title: String, subtitle: String) -> some View {
+    private func memberBenefitCard(icon: String, title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
+            // 与订阅页同一风格：品牌蓝图标 + 浅蓝底（原来每项一种颜色）
             Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundColor(.white)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(AppTheme.primaryTint)
                 .frame(width: 44, height: 44)
-                .background(iconColor)
+                .background(AppTheme.primarySoft)
                 .clipShape(Circle())
             Text(title)
                 .font(.subheadline.weight(.semibold))

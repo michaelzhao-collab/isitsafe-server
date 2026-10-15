@@ -20,6 +20,38 @@ struct PremiumPlanItem: Identifiable {
     var isSelected: Bool
 }
 
+// MARK: - 会员权益清单（2026-10-15：订阅页与会员中心共用，原来两处各写一份，会员中心的家庭权益过期且含已下线的语音深伪）
+struct PremiumBenefit: Identifiable {
+    var id: String { icon + title }
+    let icon: String
+    let title: String
+    let subtitle: String
+}
+
+enum PremiumBenefitCatalog {
+    static func core(isEnglish en: Bool) -> [PremiumBenefit] {
+        [
+            PremiumBenefit(icon: "magnifyingglass", title: en ? "Unlimited AI checks" : "无限AI查询", subtitle: en ? "No usage caps" : "彻底解锁额度限制"),
+            PremiumBenefit(icon: "wand.and.stars", title: en ? "Advanced AI" : "高级AI模型", subtitle: en ? "High-performance engine" : "高性能推理引擎"),
+            PremiumBenefit(icon: "shield.exclamationmark", title: en ? "Live risk database" : "实时数据库", subtitle: en ? "Global risk data in real time" : "秒级同步全球风险"),
+            PremiumBenefit(icon: "bolt.fill", title: en ? "Priority analysis" : "优先分析速度", subtitle: en ? "Dedicated cloud processing" : "云端GPU专属通道"),
+            PremiumBenefit(icon: "clock.arrow.circlepath", title: en ? "Unlimited history" : "无限历史记录", subtitle: en ? "Saved in the cloud" : "云端保存永不丢失"),
+            PremiumBenefit(icon: "nosignature", title: en ? "No ads" : "清爽无广告", subtitle: en ? "Clean experience" : "极致纯净体验"),
+        ]
+    }
+
+    /// 与服务端一致：PAID_MAX_FAMILY_MEMBERS 10 / FREE_MAX_FAMILY_MEMBERS_IM 5、PAID_MAX_OWNED_GROUPS 3、BROADCAST_FREE_DAILY_LIMIT 1
+    static func family(isEnglish en: Bool) -> [PremiumBenefit] {
+        [
+            PremiumBenefit(icon: "person.3.fill", title: en ? "10 members/group" : "最多 10 人/家", subtitle: en ? "Free 5, Pro 10 — multi-gen" : "免费 5 人，多代家庭"),
+            PremiumBenefit(icon: "infinity", title: en ? "Shared AI checks" : "全家共享 AI", subtitle: en ? "Owner pays, all get Pro" : "owner 付费全家 Pro"),
+            PremiumBenefit(icon: "megaphone.fill", title: en ? "Unlimited broadcasts" : "官方提醒不限次", subtitle: en ? "Free 1/day, Pro unlimited" : "免费 1 条/天"),
+            PremiumBenefit(icon: "house.fill", title: en ? "Up to 3 groups" : "最多 3 个家庭", subtitle: en ? "Manage spouse / parents" : "管伴侣 / 父母家"),
+            PremiumBenefit(icon: "heart.text.square", title: en ? "SMS care escalation" : "关怀短信升级", subtitle: en ? "Reach silent elderly users" : "长辈 2 天没看 → 短信"),
+        ]
+    }
+}
+
 // MARK: - 主视图
 public struct PremiumSubscriptionView: View {
     @Environment(\.dismiss) private var dismiss
@@ -31,6 +63,7 @@ public struct PremiumSubscriptionView: View {
     @State private var loading = true
     @State private var loadError: String?
     @State private var shouldAutoCloseWhenActivated = false
+    @State private var didFinishSubscribed = false
     private let onSubscribed: (() -> Void)?
 
     public init(onSubscribed: (() -> Void)? = nil) {
@@ -74,20 +107,26 @@ public struct PremiumSubscriptionView: View {
         .onChange(of: subscriptionVM.purchaseState) { _, newValue in
             if newValue == .purchased {
                 AppStateViewModel.shared.showSuccess(languageCode == "en" ? "Subscribed successfully" : "开通成功")
-                onSubscribed?()
-                dismiss()
+                finishSubscribed()
                 subscriptionVM.resetPurchaseState()
             }
         }
         .onChange(of: appState.subscriptionActive) { _, active in
             guard active, shouldAutoCloseWhenActivated else { return }
-            onSubscribed?()
-            dismiss()
+            finishSubscribed()
         }
         .onAppear {
             // 仅在“进入时还不是会员”的场景，订阅激活后自动关闭当前页
             shouldAutoCloseWhenActivated = !appState.subscriptionActive
         }
+    }
+
+    /// 购买成功与会员状态变为激活会在同一刻各触发一次，原来 onSubscribed / dismiss 被调两次
+    private func finishSubscribed() {
+        guard !didFinishSubscribed else { return }
+        didFinishSubscribed = true
+        onSubscribed?()
+        dismiss()
     }
 
     private func loadPlans() async {
@@ -135,6 +174,18 @@ public struct PremiumSubscriptionView: View {
                     selectedPlanId = defaultId
                 }
             }
+            // 2026-10-15：原来从不预加载 StoreKit 商品 → 点「订阅」时才去苹果拉商品，付款框要等好几秒才弹；
+            // 价格也一直是服务端配置价而不是 App Store 本地价。进页就拉，拉到后换成本地价。
+            let missing = Set(list.map { $0.productId.trimmingCharacters(in: .whitespacesAndNewlines) })
+                .filter { !$0.isEmpty && IAPManager.shared.displayPrice(for: $0) == nil }
+            if !missing.isEmpty {
+                _ = await IAPManager.shared.fetchProducts(ids: missing)
+                let priceById = Dictionary(list.map { ($0.productId.trimmingCharacters(in: .whitespacesAndNewlines), formatPrice($0)) },
+                                           uniquingKeysWith: { a, _ in a })
+                await MainActor.run {
+                    for i in plans.indices { if let p = priceById[plans[i].id] { plans[i].price = p } }
+                }
+            }
         } catch {
             await MainActor.run {
                 loadError = (error as? APIError)?.userMessage ?? (languageCode == "en" ? "Failed to load plans" : "加载套餐失败")
@@ -145,7 +196,7 @@ public struct PremiumSubscriptionView: View {
     private func formatPrice(_ api: MembershipPlanResponse) -> String {
         // 2026-09-27 复核：优先显示 App Store 本地化价（各区实际扣款价，如日/港台分级价），
         // 服务端配置价（¥9.99/USD 2.99）仅在 StoreKit 产品未加载时兜底。
-        if let local = IAPManager.shared.displayPrice(for: api.productId) {
+        if let local = IAPManager.shared.displayPrice(for: api.productId.trimmingCharacters(in: .whitespacesAndNewlines)) {
             return local
         }
         if api.currency.uppercased() == "CNY" || api.currency == "¥" {
@@ -344,12 +395,9 @@ public struct PremiumSubscriptionView: View {
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                benefitCard(icon: "magnifyingglass", title: languageCode == "en" ? "Unlimited AI checks" : "无限AI查询", subtitle: languageCode == "en" ? "No usage caps" : "彻底解锁额度限制")
-                benefitCard(icon: "wand.and.stars", title: languageCode == "en" ? "Advanced AI" : "高级AI模型", subtitle: languageCode == "en" ? "High-performance engine" : "高性能推理引擎")
-                benefitCard(icon: "shield.exclamationmark", title: languageCode == "en" ? "Live risk database" : "实时数据库", subtitle: languageCode == "en" ? "Global risk data in real time" : "秒级同步全球风险")
-                benefitCard(icon: "bolt.fill", title: languageCode == "en" ? "Priority analysis" : "优先分析速度", subtitle: languageCode == "en" ? "Dedicated cloud processing" : "云端GPU专属通道")
-                benefitCard(icon: "clock.arrow.circlepath", title: languageCode == "en" ? "Unlimited history" : "无限历史记录", subtitle: languageCode == "en" ? "Saved in the cloud" : "云端保存永不丢失")
-                benefitCard(icon: "nosignature", title: languageCode == "en" ? "No ads" : "清爽无广告", subtitle: languageCode == "en" ? "Clean experience" : "极致纯净体验")
+                ForEach(PremiumBenefitCatalog.core(isEnglish: languageCode == "en")) { b in
+                    benefitCard(icon: b.icon, title: b.title, subtitle: b.subtitle)
+                }
             }
         }
         .padding(20)
@@ -420,32 +468,9 @@ public struct PremiumSubscriptionView: View {
 
             // F10：与"核心会员权益"对齐，改 2 列网格卡片
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 14) {
-                benefitCard(
-                    icon: "person.3.fill",
-                    title: languageCode == "en" ? "10 members/group" : "最多 10 人/家",
-                    // 与服务端 FREE_MAX_FAMILY_MEMBERS_IM（新版客户端免费 5 人）/ PAID_MAX_FAMILY_MEMBERS（10 人）一致
-                    subtitle: languageCode == "en" ? "Free 5, Pro 10 — multi-gen" : "免费 5 人，多代家庭"
-                )
-                benefitCard(
-                    icon: "infinity",
-                    title: languageCode == "en" ? "Shared AI checks" : "全家共享 AI",
-                    subtitle: languageCode == "en" ? "Owner pays, all get Pro" : "owner 付费全家 Pro"
-                )
-                benefitCard(
-                    icon: "megaphone.fill",
-                    title: languageCode == "en" ? "Unlimited broadcasts" : "官方提醒不限次",
-                    subtitle: languageCode == "en" ? "Free 1/day, Pro unlimited" : "免费 1 条/天"
-                )
-                benefitCard(
-                    icon: "house.fill",
-                    title: languageCode == "en" ? "Up to 3 groups" : "最多 3 个家庭",
-                    subtitle: languageCode == "en" ? "Manage spouse / parents" : "管伴侣 / 父母家"
-                )
-                benefitCard(
-                    icon: "heart.text.square",
-                    title: languageCode == "en" ? "SMS care escalation" : "关怀短信升级",
-                    subtitle: languageCode == "en" ? "Reach silent elderly users" : "长辈 2 天没看 → 短信"
-                )
+                ForEach(PremiumBenefitCatalog.family(isEnglish: languageCode == "en")) { b in
+                    benefitCard(icon: b.icon, title: b.title, subtitle: b.subtitle)
+                }
             }
         }
         .padding(20)
