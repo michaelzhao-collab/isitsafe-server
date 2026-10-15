@@ -41,6 +41,9 @@ public struct FamilyChatView: View {
     @State private var noMoreHistory = false
     /// 加载历史时列表从顶部增长，要抑制"新消息滚到底"的逻辑
     @State private var isPrependingHistory = false
+    /// 2026-10-15：进页只渲染最近 N 条（非 Lazy，首帧就能精确停在底部），「查看更早」先展开本地已有的
+    @State private var displayCount = FamilyChatView.pageSize
+    private static let pageSize = 40
 
     // 语音输入态
     @State private var voiceInputMode = false      // true=按住说话，false=文字
@@ -226,10 +229,12 @@ public struct FamilyChatView: View {
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 0) {
+                // 不用 LazyVStack：懒加载按估算行高排版，进页定位到底部不准，会先闪最早的消息再跳（2026-10-15 模拟器录屏）
+                let visible = visibleMessages
+                VStack(spacing: 0) {
                     loadEarlierRow
-                    ForEach(Array(messages.enumerated()), id: \.element.id) { idx, msg in
-                        let prev = idx > 0 ? messages[idx - 1] : nil
+                    ForEach(Array(visible.enumerated()), id: \.element.id) { idx, msg in
+                        let prev = idx > 0 ? visible[idx - 1] : nil
                         if shouldShowTime(msg, prev: prev) {
                             timePill(msg.createdAt)
                         }
@@ -242,6 +247,9 @@ public struct FamilyChatView: View {
                 }
                 .padding(.top, 8)
             }
+            // 2026-10-15：LazyVStack 进页先从顶部（最早的消息）排版，onAppear 再滚到底，
+            // 切到家庭 Tab 会先闪一下最早那几条再跳到最新。首帧就从底部开始。
+            .chatInitialBottomAnchor(alignShortContentToBottom: true)
             // 同时观察条数与末条 id：新消息 + 乐观→确认(id 变化)都触发滚动到底
             .onChange(of: messages.count) { _, _ in scrollToBottom(proxy) }
             .onChange(of: messages.last?.id) { _, _ in scrollToBottom(proxy) }
@@ -275,7 +283,18 @@ public struct FamilyChatView: View {
     /// 点一次向上取一页；服务端没有更多时置灰提示到底了。
     @ViewBuilder
     private var loadEarlierRow: some View {
-        if noMoreHistory {
+        if hiddenLocalCount > 0 {
+            Button(action: showMoreLocal) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.up.circle")
+                    Text(localized(zh: "查看更早的消息", en: "Load earlier messages"))
+                        .font(.system(size: elderScaled(13), weight: .medium))
+                }
+                .foregroundColor(AppTheme.primaryTint)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+            }
+        } else if noMoreHistory {
             if !messages.isEmpty {
                 Text(localized(zh: "没有更早的消息了", en: "No earlier messages"))
                     .font(.system(size: elderScaled(12)))
@@ -313,6 +332,17 @@ public struct FamilyChatView: View {
         return first.seq > 1
     }
 
+    private var visibleMessages: [ChatMessage] { Array(messages.suffix(displayCount)) }
+
+    /// 本地已有、但还没渲染出来的条数
+    private var hiddenLocalCount: Int { max(0, messages.count - displayCount) }
+
+    private func showMoreLocal() {
+        isPrependingHistory = true      // 展开更早的消息不能把用户拽回底部
+        displayCount += Self.pageSize
+        DispatchQueue.main.async { isPrependingHistory = false }
+    }
+
     private func loadEarlier() {
         guard !loadingHistory, let oldest = messages.first, oldest.seq > 0 else { return }
         loadingHistory = true
@@ -322,6 +352,7 @@ public struct FamilyChatView: View {
             await MainActor.run {
                 loadingHistory = false
                 if older.isEmpty { noMoreHistory = true }
+                displayCount += older.count     // 新拉到的更早消息要显示出来
                 // 稍后再解除抑制：等这一轮 SwiftUI 更新跑完
                 DispatchQueue.main.async { isPrependingHistory = false }
             }

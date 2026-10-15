@@ -57,7 +57,15 @@ public struct MainTabView: View {
         .onAppear {
             applyPendingTab(router.pendingTabIndex)
             inviteClipboard.checkIfNeeded()
+            #if DEBUG
+            DebugTabSwitch.install()
+            #endif
         }
+        #if DEBUG
+        .onReceive(NotificationCenter.default.publisher(for: DebugTabSwitch.notification)) { note in
+            if let idx = note.object as? Int { selectedTab = idx }
+        }
+        #endif
         // 2026-10-06 剪贴板延迟绑定：在 MainTabView 而非首页挂载，长辈模式（ElderHomeView）也能生效
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             inviteClipboard.checkIfNeeded()
@@ -189,3 +197,26 @@ public struct MainTabView: View {
         .buttonStyle(.plain)
     }
 }
+
+#if DEBUG
+/// 调试用：命令行切底导，便于录屏复现切页问题（仅 Debug 包）。
+/// `xcrun simctl spawn booted notifyutil -p com.starlens.debug.tab2`
+enum DebugTabSwitch {
+    static let notification = Notification.Name("DebugTabSwitch")
+    private static var installed = false
+
+    static func install() {
+        guard !installed else { return }
+        installed = true
+        let center = CFNotificationCenterGetDarwinNotifyCenter()
+        for idx in 0...3 {
+            CFNotificationCenterAddObserver(center, nil, { _, _, name, _, _ in
+                guard let raw = name?.rawValue as String?, let idx = Int(raw.suffix(1)) else { return }
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: DebugTabSwitch.notification, object: idx)
+                }
+            }, "com.starlens.debug.tab\(idx)" as CFString, nil, .deliverImmediately)
+        }
+    }
+}
+#endif

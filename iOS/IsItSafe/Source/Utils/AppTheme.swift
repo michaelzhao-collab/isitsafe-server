@@ -290,3 +290,23 @@ public extension View {
         self.shadow(color: AppTheme.cardShadow, radius: radius, x: 0, y: y)
     }
 }
+
+// MARK: - 聊天列表初始定位（2026-10-15）
+
+public extension View {
+    /// 聊天类列表进页首帧就停在最底部（最新一条），避免先显示最早的消息再跳。
+    /// - iOS 18：只设初始位置，不影响内容少时的排布
+    /// - iOS 17：`defaultScrollAnchor(.bottom)` 会让内容不满一屏时整体贴底；
+    ///   `alignShortContentToBottom` 为 false 时 iOS 17 不加（由调用方 onAppear 自行滚动）
+    /// 首页不用：空态引导比屏幕高时（长辈模式 / 大字号 / 小屏）会直接停在引导底部；首页是非 Lazy 列表，onAppear 定位已准确
+    @ViewBuilder
+    func chatInitialBottomAnchor(alignShortContentToBottom: Bool) -> some View {
+        if #available(iOS 18.0, *) {
+            self.defaultScrollAnchor(.bottom, for: .initialOffset)
+        } else if alignShortContentToBottom {
+            self.defaultScrollAnchor(.bottom)
+        } else {
+            self
+        }
+    }
+}
