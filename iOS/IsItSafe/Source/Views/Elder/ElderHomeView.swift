@@ -77,6 +77,8 @@ public struct ElderHomeView: View {
                 CameraCaptureView(
                     onImage: { img in
                         showCamera = false
+                        // 上一条还在分析会被拒绝发送：先放进待发图片，免得照片丢了
+                        if vm.isAnalyzing { vm.pendingImage = img }
                         vm.analyzeImage(img)
                     },
                     onCancel: { showCamera = false }
@@ -379,6 +381,7 @@ public struct ElderHomeView: View {
                         return
                     }
                     if let img = vm.pendingImage {
+                        vm.inputText = t   // 被拒发送时识别出的字留在输入框
                         vm.analyzeImageAndText(img, text: t)
                     } else {
                         vm.inputText = t

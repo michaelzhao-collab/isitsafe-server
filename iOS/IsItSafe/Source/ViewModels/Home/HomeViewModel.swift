@@ -99,6 +99,7 @@ public final class HomeViewModel: ObservableObject {
     public func analyze() {
         let content = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !content.isEmpty else { return }
+        guard !blockIfBusy() else { return }
         guard !checkQuotaExhausted() else { return }
         LocalDefaultQAStore.shared.markUserSentAnyContent()
         appendTurn(userText: content, userImage: nil)
@@ -111,18 +112,20 @@ public final class HomeViewModel: ObservableObject {
     }
 
     public func analyzeImage(_ image: UIImage) {
+        guard !blockIfBusy() else { return }
         guard !checkQuotaExhausted() else { pendingImage = nil; return }
         LocalDefaultQAStore.shared.markUserSentAnyContent()
         pendingImage = nil
-        appendTurn(userText: nil, userImage: image)
+        let turnId = appendTurn(userText: nil, userImage: image)
         Task {
             let ocrText = await ImageOCR.recognize(from: image)
             await MainActor.run {
+                // 2026-10-15：OCR 期间用户可能又发了一条 → 必须按本轮 id 回写，原来按「最后一轮」会串到后发的消息上
                 if ocrText.isEmpty {
-                    updateLastTurn(.analysis(RiskAnalysisViewData.imageContentNotRecognized))
+                    updateTurn(turnId, .analysis(RiskAnalysisViewData.imageContentNotRecognized))
                     return
                 }
-                runAnalysisForLastTurn(content: ocrText, isScreenshot: true)
+                runAnalysis(turnId: turnId, content: ocrText, isScreenshot: true)
             }
         }
     }
@@ -131,11 +134,12 @@ public final class HomeViewModel: ObservableObject {
     public func analyzeImageAndText(_ image: UIImage, text: String) {
         let userText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !userText.isEmpty else { analyzeImage(image); return }
+        guard !blockIfBusy() else { return }
         guard !checkQuotaExhausted() else { pendingImage = nil; inputText = ""; return }
         LocalDefaultQAStore.shared.markUserSentAnyContent()
         pendingImage = nil
         inputText = ""
-        appendTurn(userText: userText, userImage: image)
+        let turnId = appendTurn(userText: userText, userImage: image)
         Task {
             let ocrText = await ImageOCR.recognize(from: image)
             await MainActor.run {
@@ -147,20 +151,35 @@ public final class HomeViewModel: ObservableObject {
                         ? "[Screenshot text]\n\(ocrText)\n[User note]\n\(userText)"
                         : "【截图内容】\n\(ocrText)\n【用户补充】\n\(userText)"
                 }
-                runAnalysisForLastTurn(content: combined, isScreenshot: true)
+                runAnalysis(turnId: turnId, content: combined, isScreenshot: true)
             }
         }
     }
 
     public func analyzeScreenshot(ocrText: String) {
+        guard !blockIfBusy() else { return }
         guard !checkQuotaExhausted() else { return }
         LocalDefaultQAStore.shared.markUserSentAnyContent()
         appendTurn(userText: ocrText, userImage: nil)
         runAnalysisForLastTurn(content: ocrText, isScreenshot: true)
     }
 
-    private func appendTurn(userText: String?, userImage: UIImage?) {
-        turns.append(ChatTurn(userText: userText, userImage: userImage, status: .analyzing))
+    @discardableResult
+    private func appendTurn(userText: String?, userImage: UIImage?) -> UUID {
+        let turn = ChatTurn(userText: userText, userImage: userImage, status: .analyzing)
+        turns.append(turn)
+        return turn.id
+    }
+
+    /// 2026-10-15：还有一条在分析中就不再发新的（真机连发几条：后发的图片结果串到别的消息上、部分报网络中断）
+    public var isAnalyzing: Bool {
+        turns.contains { if case .analyzing = $0.status { return true } else { return false } }
+    }
+
+    private func blockIfBusy() -> Bool {
+        guard isAnalyzing else { return false }
+        appState.showError(L10n.tr(zh: "请等上一条分析完成再发送", en: "Please wait for the current analysis to finish"))
+        return true
     }
 
     /// 非会员时检查今日免费次数是否耗尽；耗尽则弹框并返回 true
@@ -226,8 +245,8 @@ public final class HomeViewModel: ObservableObject {
         return collected.isEmpty ? nil : collected
     }
 
-    private func updateLastTurn(_ result: ChatTurnResult) {
-        guard let idx = turns.indices.last else { return }
+    private func updateTurn(_ turnId: UUID, _ result: ChatTurnResult) {
+        guard let idx = turns.firstIndex(where: { $0.id == turnId }) else { return }
         let t = turns[idx]
         turns[idx] = ChatTurn(id: t.id, userText: t.userText, userImage: t.userImage, status: .done(result))
     }
@@ -235,18 +254,21 @@ public final class HomeViewModel: ObservableObject {
     /// 统一走服务端 AI 分析：所有内容（文本/链接/电话/公司）都请求 POST /api/ai/analyze，
     /// 由服务端分类、风险库、RAG、豆包后返回完整 summary/reasons/advice，避免只走 query 导致无原因建议、无豆包日志。
     private func runAnalysisForLastTurn(content: String, isScreenshot: Bool) {
-        let index = turns.count - 1
+        guard let last = turns.last else { return }
+        runAnalysis(turnId: last.id, content: content, isScreenshot: isScreenshot)
+    }
+
+    private func runAnalysis(turnId: UUID, content: String, isScreenshot: Bool) {
         // 2026-10-07：按 turn.id 回写，不按下标。用户在等待期间「新建对话」再发一条时，旧响应原来会覆盖新会话的同下标轮次、
         // 还把旧 conversationId 写回；现在找不到原 turn 就整体丢弃
-        guard index >= 0 else { return }
-        let turnId = turns[index].id
+        guard turns.contains(where: { $0.id == turnId }) else { return }
         let start = Date()
         Task {
             var imageUrl: String?
             let result: ChatTurnResult
             do {
                 if isScreenshot {
-                    let img = await MainActor.run { self.turns.indices.contains(index) ? self.turns[index].userImage : nil }
+                    let img = await MainActor.run { self.turns.first(where: { $0.id == turnId })?.userImage }
                     // 2026-10-14：原来原图直接编码上传（相册照片可达十几 MB），统一按像素上限缩放、后台线程编码
                     let prepared: Data? = await Task.detached(priority: .userInitiated) {
                         img.flatMap { ImageUploadPreparer.jpeg($0, quality: 0.8)?.data }

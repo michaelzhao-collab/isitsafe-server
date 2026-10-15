@@ -96,15 +96,16 @@ public struct AnalyzeInputBar: View {
                 textModeContent
             }
 
-            // 加号：打开拍照和相册
-            Button(action: onPlus) {
-                InputBarIcon(systemName: "plus", style: .gradient)
-            }
-            .buttonStyle(.plain)
-
-            // 发送按钮：仅当输入框已聚焦（键盘弹出）且有待发内容时显示
-            if isFocused, canSend {
+            // 2026-10-15：有待发内容（文字或图片）时加号换成发送，与家庭群一致。
+            // 原来发送键只在键盘弹出时出现，选完图片后键盘是收起的 → 只能看到加号、找不到发送
+            if canSend {
                 sendButton
+            } else {
+                // 加号：打开拍照和相册
+                Button(action: onPlus) {
+                    InputBarIcon(systemName: "plus", style: .gradient)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 12)
@@ -336,9 +337,8 @@ public struct AnalyzeInputBar: View {
             } else {
                 onSendWithImage(img)
             }
-            // 发送后立刻清空输入栏的待发图片与文字（避免 UI 残留）
-            onRemovePendingImage()
-            text = ""
+            // 待发图片与文字由 HomeViewModel 在真正发出后清空；上一条还在分析时会拒绝发送，
+            // 这里不能先清，否则用户的图和字就丢了（2026-10-15）
             return
         }
         onSubmit()

@@ -199,6 +199,9 @@ public struct HomeContainerView: View {
                     }
                 },
                 onSelectRecent: { img in
+                    // 2026-10-15：取原图要几秒，用户连点两次会回调两次；面板已关说明这是迟到的那次，
+                    // 原来会在图片发出后又把它塞回输入框（真机：发第二条文字时图片又出现了）
+                    guard showImagePicker else { return }
                     homeVm.pendingImage = img
                     showImagePicker = false
                 }
@@ -486,6 +489,7 @@ public struct HomeContainerView: View {
                                         // 有待发图片时走"图+文"路径，否则纯文本
                                         // 之前 bug：直接 analyze() 把图片丢了
                                         if let img = homeVm.pendingImage {
+                                            homeVm.inputText = t   // 上一条还在分析被拒时，识别出的字留在输入框
                                             homeVm.analyzeImageAndText(img, text: t)
                                         } else {
                                             homeVm.inputText = t
