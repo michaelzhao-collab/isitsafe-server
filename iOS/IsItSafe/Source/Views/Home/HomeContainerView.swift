@@ -416,6 +416,12 @@ public struct HomeContainerView: View {
                         }
                     }
                 }
+                // 2026-10-15：底导切页会销毁首页，切回来 ScrollView 从顶部（最早一条）开始；
+                // 对话还在 homeVm 里，进页直接定位到最新一条（不加动画，避免看到滚动过程）
+                .onAppear {
+                    guard let last = homeVm.turns.last else { return }
+                    DispatchQueue.main.async { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
                 .onChange(of: homeVm.scrollToTurnId) { _, newId in
                     guard let id = newId else { return }
                     withAnimation(.easeOut(duration: 0.25)) {
