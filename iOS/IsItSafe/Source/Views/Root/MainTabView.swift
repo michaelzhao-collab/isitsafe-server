@@ -176,7 +176,7 @@ public struct MainTabView: View {
                         Circle()
                             .fill(Color.red)
                             .frame(width: 8, height: 8)
-                            .offset(x: 8, y: -6)
+                            .offset(x: 1, y: 1)
                     }
                     // V5.1 家庭群未读角标（全部家庭之和）
                     if index == 2, familyChat.totalUnread > 0 {
@@ -185,7 +185,8 @@ public struct MainTabView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 4).padding(.vertical, 1)
                             .background(Capsule().fill(Color.red))
-                            .offset(x: 12, y: -8)
+                            // 2026-10-15：原 x:12 离图标太远（图标约 24pt 宽，框 32pt），压到图标右上角
+                            .offset(x: 5, y: -3)
                     }
                 }
                 Text(title)
