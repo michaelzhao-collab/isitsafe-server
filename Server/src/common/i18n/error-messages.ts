@@ -19,6 +19,8 @@ const PAIRS: Pair[] = [
   // —— 限流 ——
   { zh: '请求过于频繁，请稍后再试', en: 'Too many requests. Please try again later.' },
   { zh: 'AI 分析请求过于频繁，请稍后再试', en: 'Too many analysis requests. Please try again later.' },
+  // 2026-10-15：模型调用失败（超时 / 限流 / 断网），不再伪装成「无法确定风险」
+  { zh: 'AI 服务繁忙，请稍后重试', en: 'The AI service is busy. Please try again shortly.' },
   // 英文须保留 "daily"：iOS 按「今日 / daily」或 code 10006 识别为额度用完
   { zh: '今日免费次数已用完，开通会员可无限使用', en: 'Your free daily checks are used up. Subscribe for unlimited use.' },
   { zh: '该邮箱今日请求过多，请稍后再试', en: 'Too many requests for this email. Please try again later.' },

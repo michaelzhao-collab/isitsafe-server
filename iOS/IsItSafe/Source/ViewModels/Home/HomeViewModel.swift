@@ -232,7 +232,8 @@ public final class HomeViewModel: ObservableObject {
                     assistantText = nil
                 }
             }
-            let userText = t.userText ?? (t.userImage != nil || (t.imageUrl?.isEmpty == false) ? "（图片分析）" : nil)
+            let userText = t.userText ?? (t.userImage != nil || (t.imageUrl?.isEmpty == false)
+                ? L10n.tr(zh: "（图片分析）", en: "(Image analysis)") : nil)   // 2026-10-15：英文用户上下文里不再夹中文
             guard let u = userText, let a = assistantText else { continue }
             let uTrim = String(u.prefix(800))
             let aTrim = String(a.prefix(800))

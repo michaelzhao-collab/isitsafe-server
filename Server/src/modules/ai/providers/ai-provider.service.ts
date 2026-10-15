@@ -20,6 +20,29 @@ export interface AiCallResult {
   latencyMs: number;
 }
 
+/**
+ * 2026-10-15：面向用户的实时分析要在客户端超时（生产 75 秒）之前给出结果。
+ * 原来豆包 45 秒 + DeepSeek 备用 300 秒，主模型挂住时 App 先报「请求超时」，服务端还在等。
+ */
+export type AnalyzeCallOptions = {
+  /** 单次模型调用超时 */
+  timeoutMs?: number;
+  /** 主 + 备用合计预算 */
+  totalBudgetMs?: number;
+};
+
+/** 用户实时请求的默认时限：单次 25 秒（实测 p50 约 4.5 秒、最慢 5.8 秒），合计 55 秒 */
+export const INTERACTIVE_AI_CALL: AnalyzeCallOptions = { timeoutMs: 25_000, totalBudgetMs: 55_000 };
+
+/** 失败原因写进日志：超时 / HTTP 状态 / 服务商错误码，原来只有 message，看不出是限流还是断网 */
+export function describeAxiosError(e: any): string {
+  const status = e?.response?.status;
+  const code = e?.code;
+  const apiCode = e?.response?.data?.error?.code ?? e?.response?.data?.code;
+  const msg = e?.response?.data?.error?.message ?? e?.message ?? String(e);
+  return `code=${code ?? '-'} status=${status ?? '-'} apiCode=${apiCode ?? '-'} msg=${String(msg).slice(0, 200)}`;
+}
+
 @Injectable()
 export class AiProviderService {
   private readonly logger = new Logger(AiProviderService.name);
@@ -56,7 +79,7 @@ export class AiProviderService {
     return { apiKey: key, baseUrl };
   }
 
-  async analyzeWithDoubao(prompt: string, systemPrompt: string): Promise<AiCallResult> {
+  async analyzeWithDoubao(prompt: string, systemPrompt: string, timeoutMs?: number): Promise<AiCallResult> {
     const { apiKey, baseUrl } = await this.getDoubaoConfig();
     if (!apiKey) throw new Error('DOUBAO_API_KEY not configured');
     // 2026-10-06：默认切到 seed-2.1-lite（2.0 官方标「即将下线」；31 场景实测 lite 速度/判定与 2.0-pro 持平、更便宜）
@@ -91,7 +114,7 @@ export class AiProviderService {
     const start = Date.now();
     const res = await axios.post(requestUrl, body, {
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      timeout: DOUBAO_REQUEST_TIMEOUT_MS,
+      timeout: timeoutMs ?? DOUBAO_REQUEST_TIMEOUT_MS,
     });
     const latencyMs = Date.now() - start;
     if (AI_DEBUG_LOG) {
@@ -153,7 +176,7 @@ export class AiProviderService {
    * 默认模型 deepseek-chat（V3.x），可在 .env 中改为 deepseek-reasoner 走 R1 模式。
    * 由于 R1 模式延迟较高（10s+），用作"备用 + 主失败兜底"很合适。
    */
-  async analyzeWithDeepseek(prompt: string, systemPrompt: string): Promise<AiCallResult> {
+  async analyzeWithDeepseek(prompt: string, systemPrompt: string, timeoutMs?: number): Promise<AiCallResult> {
     const { apiKey, baseUrl } = await this.getDeepseekConfig();
     if (!apiKey) throw new Error('DEEPSEEK_API_KEY not configured');
     const model = this.config.get('DEEPSEEK_MODEL', 'deepseek-chat');
@@ -176,7 +199,7 @@ export class AiProviderService {
       },
       {
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        timeout: TIMEOUT_MS,
+        timeout: timeoutMs ?? TIMEOUT_MS,
       },
     );
     const latencyMs = Date.now() - start;
@@ -194,7 +217,7 @@ export class AiProviderService {
     };
   }
 
-  async analyzeWithOpenAI(prompt: string, systemPrompt: string): Promise<AiCallResult> {
+  async analyzeWithOpenAI(prompt: string, systemPrompt: string, timeoutMs?: number): Promise<AiCallResult> {
     const { apiKey, baseUrl } = await this.getOpenAIConfig();
     if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
     console.log('[OPENAI] 调用前 SYSTEM_PROMPT_FULL:\n' + systemPrompt);
@@ -212,7 +235,7 @@ export class AiProviderService {
       },
       {
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        timeout: 30000,
+        timeout: timeoutMs ?? 30000,
       },
     );
     const content = res.data?.choices?.[0]?.message?.content;
@@ -237,11 +260,12 @@ export class AiProviderService {
     provider: AiProviderName,
     prompt: string,
     systemPrompt: string,
+    timeoutMs?: number,
   ): Promise<AiCallResult> {
-    if (provider === 'deepseek') return this.analyzeWithDeepseek(prompt, systemPrompt);
-    if (provider === 'openai') return this.analyzeWithOpenAI(prompt, systemPrompt);
+    if (provider === 'deepseek') return this.analyzeWithDeepseek(prompt, systemPrompt, timeoutMs);
+    if (provider === 'openai') return this.analyzeWithOpenAI(prompt, systemPrompt, timeoutMs);
     if (provider === 'other') return this.analyzeWithOther(prompt, systemPrompt);
-    return this.analyzeWithDoubao(prompt, systemPrompt);
+    return this.analyzeWithDoubao(prompt, systemPrompt, timeoutMs);
   }
 
   /**
@@ -257,20 +281,30 @@ export class AiProviderService {
     prompt: string,
     systemPrompt: string,
     provider?: AiProviderName,
+    opts: AnalyzeCallOptions = {},
   ): Promise<AiCallResult> {
     const primary = provider ?? (await this.getDefaultProvider());
+    const started = Date.now();
     try {
-      return await this.callProvider(primary, prompt, systemPrompt);
+      return await this.callProvider(primary, prompt, systemPrompt, opts.timeoutMs);
     } catch (primaryErr: any) {
+      this.logger.warn(`[AI_CALL_FAILED] provider=${primary} ${describeAxiosError(primaryErr)}`);
       const fallback = await this.settings.getFallbackProvider();
       if (!fallback || fallback === primary) {
         throw primaryErr;
+      }
+      // 有总预算时，备用模型只能用剩下的时间；剩得太少就不再尝试（用户那头已经快超时了）
+      let fallbackTimeout = opts.timeoutMs;
+      if (opts.totalBudgetMs) {
+        const remaining = opts.totalBudgetMs - (Date.now() - started);
+        if (remaining < 5000) throw primaryErr;
+        fallbackTimeout = Math.min(fallbackTimeout ?? remaining, remaining);
       }
       this.logger.warn(
         `[AI_FAILOVER] primary=${primary} failed (${primaryErr?.message ?? primaryErr}); trying fallback=${fallback}`,
       );
       try {
-        const result = await this.callProvider(fallback, prompt, systemPrompt);
+        const result = await this.callProvider(fallback, prompt, systemPrompt, fallbackTimeout);
         this.logger.warn(`[AI_FAILOVER_OK] primary=${primary} → fallback=${fallback} succeeded`);
         return result;
       } catch (fallbackErr: any) {

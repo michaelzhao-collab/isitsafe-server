@@ -8,7 +8,7 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { AiProviderService } from '../providers/ai-provider.service';
+import { AiProviderService, INTERACTIVE_AI_CALL } from '../providers/ai-provider.service';
 import { AiOutputSchema } from '../ai.types';
 import { getPromptForIntent, Language } from './intent-prompts';
 import type { Intent } from './intent-classifier.service';
@@ -49,7 +49,7 @@ export class IntentResponseService {
 
     let parsed: IntentResponse;
     try {
-      const r = await this.aiProvider.analyze(userPrompt, prompt.system);
+      const r = await this.aiProvider.analyze(userPrompt, prompt.system, undefined, INTERACTIVE_AI_CALL);
       parsed = this.safeJsonParse((r?.raw ?? '').trim());
     } catch (err: any) {
       this.logger.warn(`[IntentResponse] ${intent} AI failed: ${err?.message ?? err}`);

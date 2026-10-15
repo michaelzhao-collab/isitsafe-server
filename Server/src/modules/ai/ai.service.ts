@@ -2,7 +2,7 @@
  * 核心 AI 引擎流程（严格按规范）：
  * Input Parser → Risk DB Check → RAG Keyword Search → AI Model → Risk Score → Cache & Log → Return JSON
  */
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
@@ -11,7 +11,7 @@ import { RiskService } from '../risk/risk.service';
 import { RiskScoreService } from './risk-engine/risk-score.service';
 import { RagKeywordService } from './rag/rag-keyword.service';
 import { AiPromptsService } from './prompts/ai-prompts.service';
-import { AiProviderService, AiCallResult } from './providers/ai-provider.service';
+import { AiProviderService, AiCallResult, INTERACTIVE_AI_CALL, describeAxiosError } from './providers/ai-provider.service';
 import {
   AiOutputSchema,
   isAiParseFallbackOutput,
@@ -351,14 +351,17 @@ export class AiService {
       let urlAiResult: AiCallResult | null = null;
       let urlParsedAi: AiOutputSchema;
       try {
-        urlAiResult = await this.provider.analyze(urlUserPrompt, urlSystemPrompt, provider);
+        urlAiResult = await this.provider.analyze(urlUserPrompt, urlSystemPrompt, provider, INTERACTIVE_AI_CALL);
         if (AI_DEBUG_LOG) console.log('[AI_FLOW] URL 豆包返回原始(未解析): ' + (urlAiResult?.raw ?? '(null)'));
         urlParsedAi = this.enforceCardForRisk(parseAndValidateAiOutput(urlAiResult.raw, language), hasContext, parsed.originalContent);
         if (AI_DEBUG_LOG) console.log('[AI_FLOW] URL 解析后的完整结果: ' + JSON.stringify(urlParsedAi));
       } catch (e) {
-        console.log('[AI_FLOW] URL_AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
-        urlParsedAi = parseAndValidateAiOutput('', language);
+        console.log('[AI_FLOW] URL_AI_CALL_ERROR ' + describeAxiosError(e));
         await this.logAiCall(provider, null, null, 0, null);
+        // 风险库命中时仍可给出库里的结论（下面替换为风险库文案）；否则如实报「服务繁忙」，
+        // 不再把调用失败伪装成「AI 返回格式异常 / 无法确定风险」写进历史和上下文（2026-10-15）
+        if (recordCount === 0) throw new ServiceUnavailableException('AI 服务繁忙，请稍后重试');
+        urlParsedAi = parseAndValidateAiOutput('', language);
       }
       if (recordCount > 0 && isAiParseFallbackOutput(urlParsedAi)) {
         urlParsedAi = this.urlRiskDbCopyWhenAiParseFailed(language, urlResult, recordCount);
@@ -448,14 +451,19 @@ export class AiService {
     let aiResult: AiCallResult | null = null;
     let parsedAi: AiOutputSchema;
     try {
-      aiResult = await this.provider.analyze(userPrompt, systemPrompt, provider);
+      aiResult = await this.provider.analyze(userPrompt, systemPrompt, provider, INTERACTIVE_AI_CALL);
       if (AI_DEBUG_LOG) console.log('[AI_FLOW] 豆包返回原始(未解析): ' + (aiResult?.raw ?? '(null)'));
       parsedAi = this.enforceCardForRisk(parseAndValidateAiOutput(aiResult.raw, language), hasContext, parsed.originalContent);
       if (AI_DEBUG_LOG) console.log('[AI_FLOW] 解析后的完整结果: ' + JSON.stringify(parsedAi));
     } catch (e) {
-      console.log('[AI_FLOW] 4.AI_CALL_ERROR ' + (e instanceof Error ? e.message : String(e)));
-      parsedAi = parseAndValidateAiOutput('', language);
+      console.log('[AI_FLOW] 4.AI_CALL_ERROR ' + describeAxiosError(e));
       await this.logAiCall(provider, null, null, 0, null);
+      // 2026-10-15：模型调用失败（超时 / 限流 / 断网）原来返回「AI 返回格式异常 / 无法确定风险」并写进历史，
+      // 用户以为是识别结果；现在报 503「服务繁忙」，上层 analyze() 会退回额度，客户端显示错误可重试。
+      // 风险库 / 内嵌号码命中时仍走兜底：评分引擎会按库里的等级给出高 / 中风险，比报错更有用
+      // 只有库里标了高 / 中风险才值得在 AI 缺席时给结论，且用风险库口径的文案，不再出现「AI 返回格式异常」
+      if (dbLevel !== 'high' && dbLevel !== 'medium') throw new ServiceUnavailableException('AI 服务繁忙，请稍后重试');
+      parsedAi = this.riskDbCopyWhenAiUnavailable(language, dbLevel);
     }
 
     if (aiResult) {
@@ -576,6 +584,29 @@ export class AiService {
   /**
    * URL 流程：风险库已命中但大模型输出未能解析为 JSON 时，用库内等级与首条记录字段生成展示文案（无需后台单独录入 summary）。
    */
+  /** 文本 / 截图路径：模型不可用但号码等命中风险库（高 / 中）时的结论文案（2026-10-15） */
+  private riskDbCopyWhenAiUnavailable(language: 'zh' | 'en', level: 'high' | 'medium'): AiOutputSchema {
+    const en = language === 'en';
+    return {
+      risk_level: level,
+      confidence: level === 'high' ? 85 : 65,
+      risk_type: [en ? 'Risk database match' : '风险库命中'],
+      summary: en
+        ? (level === 'high'
+          ? 'A number or link in this message matches our risk database. Treat it as high risk.'
+          : 'A number or link in this message matches our risk database. Stay cautious and verify.')
+        : (level === 'high'
+          ? '内容中的号码或链接命中风险数据库，请按高风险对待。'
+          : '内容中的号码或链接命中风险数据库，请保持警惕并进一步核实。'),
+      reasons: en
+        ? ['Matched a known risk record in our database.', 'Detailed AI analysis is temporarily unavailable; try again shortly for a full explanation.']
+        : ['命中风险库中的已知风险记录。', 'AI 详细分析暂时不可用，稍后重试可获得完整说明。'],
+      advice: en
+        ? ['Do not transfer money or share verification codes.', 'Verify through official channels.', 'Protect your personal information and funds.']
+        : ['不要转账，不要透露验证码。', '通过官方渠道核实。', '注意保护个人信息与资金安全。'],
+    };
+  }
+
   private urlRiskDbCopyWhenAiParseFailed(
     language: 'zh' | 'en',
     urlResult: { risk_level: string; records?: unknown[] },

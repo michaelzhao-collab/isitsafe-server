@@ -159,7 +159,9 @@ export class IntentClassifierService {
    * 这种场景应该走 scam_detection（预防性警告），而不是 help（事后补救）
    */
   private hasPlanningOrNegationMarker(content: string): boolean {
-    return /(还没|没转|没给|准备|打算|想要|想转|想给|即将|计划|要不要|该不该|要转|要给|要不|可不可以|能不能|可以转|该怎么办|怎么办呢)/i.test(content);
+    return /(还没|没转|没给|准备|打算|想要|想转|想给|即将|计划|要不要|该不该|要转|要给|要不|可不可以|能不能|可以转|该怎么办|怎么办呢)/i.test(content)
+      // 2026-10-15：英文的「还没发生 / 想核实」同样不算求助
+      || /\b(how (do|can|should) i verify|how to verify|should i|not yet|haven'?t (sent|paid|transferred)|about to|planning to|going to (send|pay|transfer))\b/i.test(content);
   }
 
   /** V2：上下文继承只允许停在「检测 / 求助」上。上一轮是闲聊或知识时新内容必须重新判断，
@@ -205,11 +207,28 @@ export class IntentClassifierService {
     for (const kw of IntentClassifierService.HELP_KEYWORDS_ZH) {
       if (content.includes(kw)) return true;
     }
+    // 2026-10-15：英文按整词匹配 —— 原来 includes 让 'urgent' 命中 "asks to borrow money urgently — how to verify?"，
+    // 预防性提问被当成事后求助，回了一段「立刻冻结银行卡」
     for (const kw of IntentClassifierService.HELP_KEYWORDS_EN) {
-      if (lower.includes(kw)) return true;
+      if (IntentClassifierService.wordRe(kw).test(lower)) return true;
     }
     return false;
   }
+
+  private static readonly wordReCache = new Map<string, RegExp>();
+  private static wordRe(kw: string): RegExp {
+    let re = IntentClassifierService.wordReCache.get(kw);
+    if (!re) {
+      re = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      IntentClassifierService.wordReCache.set(kw, re);
+    }
+    return re;
+  }
+
+  /** 「好的 / OK / 谢谢」这类回应不是新问题，不能继承上一轮的「求助」意图（真机：回一句 Ok 收到一整段应急指引）。
+   *  是 / 对 / 没有 / yes / no 不在此列：它们常是对 AI 追问（「已经转账了吗？」）的回答，仍需继承 */
+  private static readonly ACK_RE =
+    /^(ok|okay|k|kk|oh ok|ok thanks|ok thank you|thanks|thank you|thx|ty|got it|i see|sure|fine|cool|great|nice|alright|好|好的|好滴|好吧|嗯嗯|哦|哦哦|噢|收到|知道了|明白|明白了|了解|谢谢|谢了|多谢|感谢)[\s!！.。~～,，?？]*$/i;
 
   // ====================================================================
   // 第 3 层：scam_detection 关键词
@@ -537,7 +556,8 @@ export class IntentClassifierService {
     const user = `用户消息：「${content.slice(0, 500)}」\n类别：`;
     try {
       // F2: AiProviderService.analyze 返回 AiCallResult{raw,...}，不是 {content/text}
-      const r = await this.aiProvider.analyze(user, system);
+      // 分类只是前置一步，给短时限；失败按下面的兜底处理
+      const r = await this.aiProvider.analyze(user, system, undefined, { timeoutMs: 10_000, totalBudgetMs: 15_000 });
       const text = (r?.raw ?? '').toLowerCase().trim();
       if (text.includes('scam_detection')) return 'scam_detection';
       if (text.includes('help_request')) return 'help_request';
@@ -578,6 +598,11 @@ export class IntentClassifierService {
     }
 
     // 第 6 层（避免无意义短句跑完全部规则）
+    // 确认语（ok / 好的 / got it / 知道了…）放在短句判断之前：长一点的 "got it" 原来绕过短句分支，照样继承求助
+    if (IntentClassifierService.ACK_RE.test(content.trim())) {
+      return { intent: 'general_chat', via: 'rule_short' };
+    }
+
     if (this.isTooShortOrTrivial(content)) {
       // 但是上下文继承优先（V2：只继承检测/求助，见 canInherit）
       if (ctx.lastIntent && content.length < 20 && this.canInherit(ctx.lastIntent)) {
