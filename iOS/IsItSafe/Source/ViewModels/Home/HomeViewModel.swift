@@ -328,11 +328,8 @@ public final class HomeViewModel: ObservableObject {
                     // V5：出 AI 结果后申请推送权限（仅 notDetermined 时弹框，已授权/已拒绝不打扰）
                     PushService.shared.promptIfNeeded()
                     // 非会员：成功后记录次数（失败/网络错误不计）。
-                    // 与服务端 quotaCounts 口径一致：知识 / 求助 / 闲聊不计；高 / 中风险即使标了闲聊也计；unknown（无法确定）不计
-                    let isDetectionIntent = d.intent == nil || d.intent == "scam_detection"
-                    let isHighOrMedium = d.riskLevel == "high" || d.riskLevel == "medium"
-                    let counts = isDetectionIntent && (isHighOrMedium || (!d.isConversational && d.riskLevel != "unknown"))
-                    if !self.appState.subscriptionActive, counts {
+                    // 2026-10-20 与服务端 quotaCounts 口径一致：任何拿到回复的消息都算（闲聊 / 知识 / unknown 也算）
+                    if !self.appState.subscriptionActive {
                         AppSettingsStore.shared.incrementFreeQueryCount()
                     }
                     if let cid = d.conversationId, !cid.isEmpty { self.currentConversationId = cid }

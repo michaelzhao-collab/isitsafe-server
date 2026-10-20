@@ -738,13 +738,15 @@ export class AiService {
     return o;
   }
 
-  /** 该结果是否占用一次免费额度：检测结果（含高/中风险的追问回答）算；闲聊 / 知识 / 求助 / 失败 / 无法识别不算 */
+  /**
+   * 该结果是否占用一次免费额度。
+   * 2026-10-20 产品决定：任何拿到回复的消息都算（打招呼 / 闲聊 / 知识问答 / 低风险 / 无法确定一律扣），
+   * 只有模型调用失败（解析兜底输出，用户实际没拿到判断）不算；抛错与图片识别不出文字在各自路径退回。
+   * 原口径（闲聊 / 知识 / unknown 不算）让免费用户实际能聊远多于 7 条。
+   */
   private quotaCounts(result: AnalyzeResult): boolean {
-    if (result.intent && result.intent !== 'scam_detection') return false;
     if (isAiParseFallbackOutput(result)) return false;
-    if (result.risk_level === 'high' || result.risk_level === 'medium') return true; // 2026-10-07 复核 P1-A：标了闲聊也算
-    if (result.is_conversational) return false;
-    return result.risk_level !== 'unknown';
+    return true;
   }
 
   /** guard 进门已 +1；结果不该计数时退回 */
