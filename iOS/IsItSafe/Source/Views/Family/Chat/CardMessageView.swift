@@ -215,7 +215,11 @@ public struct CardMessageView: View {
     private var remindButton: some View {
         Button {
             // 定向提醒：发一条 @提醒 语义的普通消息（简化）
-            Task { await chat.send(groupId: groupId, type: .text, content: loc("提醒大家看看上面这条案例", "Please read the case above")) }
+            Task {
+                await chat.send(groupId: groupId, type: .text,
+                                content: loc("提醒大家看看上面这条案例", "Please read the case above"),
+                                payload: FamilyChatCoordinator.presetPayload("remind"))
+            }
         } label: {
             cardButtonLabel(icon: "bell.fill", text: loc("提醒 TA 看", "Remind"), filled: false, color: AppTheme.primary)
         }

@@ -392,18 +392,21 @@ public struct ElderHomeView: View {
                 watchdog.cancel()
                 await MainActor.run {
                     isRecordingVoice = false
-                    errorMessage = error.localizedDescription
+                    // 用户主动取消不是错误，不弹提示
+                    if !(error is CancellationError) { errorMessage = error.localizedDescription }
                 }
             }
         }
     }
 
     private func endVoiceRecording(cancelled: Bool) {
-        SpeechRecognitionService.shared.stopRecording()
         if cancelled {
+            SpeechRecognitionService.shared.cancelRecording()
             voiceTask?.cancel()
             voiceTask = nil
             isRecordingVoice = false
+        } else {
+            SpeechRecognitionService.shared.stopRecording()
         }
         // 非取消的话 startRecording 会自动 resume 并触发分析
     }

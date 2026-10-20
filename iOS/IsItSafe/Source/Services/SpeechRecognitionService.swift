@@ -76,6 +76,9 @@ public final class SpeechRecognitionService {
     private var continuation: CheckedContinuation<String, Error>?
     /// 累积 partial transcription，用于系统返 No speech detected 时兜底
     private var lastPartialText: String = ""
+    /// 2026-10-20 复核修复：每次 startRecording 递增；识别回调只认自己那一代，
+    /// 松手后 finalize 的 0.5–2s 内再按下时，旧回调不再停掉新 engine、也不会用旧文本 resume 新 continuation
+    private var session: Int = 0
 
     private init() {}
 
@@ -90,6 +93,10 @@ public final class SpeechRecognitionService {
     /// 按下时调用：开始录音，挂起直到放手后识别完成并返回文字
     public func startRecording() async throws -> String {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
+            // 上一段还没收尾（快速二次按下）：按取消处理旧的，避免 continuation 泄漏 / 回调串台
+            if continuation != nil { cancelRecording() }
+            session &+= 1
+            let mySession = session
             guard let recognizer = recognizer, recognizer.isAvailable else {
                 cont.resume(throwing: NSError(domain: "Speech", code: -1, userInfo: [NSLocalizedDescriptionKey: L10n.tr(zh: "语音识别不可用", en: "Speech recognition is unavailable")]))
                 return
@@ -148,7 +155,7 @@ public final class SpeechRecognitionService {
             }
 
             task = recognizer.recognitionTask(with: request) { [weak self] result, error in
-                guard let self = self else { return }
+                guard let self = self, self.session == mySession else { return }
                 // 收集 partial：用户说一半被系统 finalize 时也能拿到部分文本
                 if let result = result {
                     let text = result.bestTranscription.formattedString
@@ -191,6 +198,18 @@ public final class SpeechRecognitionService {
     /// 放手时调用：结束录音，startRecording 会在识别完成后返回
     public func stopRecording() {
         request?.endAudio()
+    }
+
+    /// 上滑取消 / 点 × 时调用：丢弃整段录音，startRecording 以 CancellationError 结束，不会再返回文本。
+    /// 2026-10-20 复核修复：原来取消只是 endAudio + Task.cancel()，但 Task.cancel 不会中断
+    /// withCheckedThrowingContinuation，识别器 finalize 后照样把文本送去分析并扣免费次数。
+    public func cancelRecording() {
+        session &+= 1          // 让在途回调作废
+        finishRecording()
+        let cont = continuation
+        continuation = nil
+        lastPartialText = ""
+        cont?.resume(throwing: CancellationError())
     }
 
     private func finishRecording() {

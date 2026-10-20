@@ -27,8 +27,9 @@ public struct KnowledgeItem: Codable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, title, category, content, tags, language, source
-        case createdAt = "created_at"
-        case updatedAt = "updated_at"
+        // 2026-10-20：NetworkManager 用 .convertFromSnakeCase，显式 snake key 永远匹配不上（同 QueryHistoryItem）
+        case createdAt
+        case updatedAt
         // Prisma 直接返回 camelCase 键名，与 Swift 属性名一致，无需 map
         case contentBlocks
         case coverImage

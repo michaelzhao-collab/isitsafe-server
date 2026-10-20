@@ -98,6 +98,10 @@ public final class FamilyChatCoordinator: ObservableObject {
         await store.resetStuckSending()   // 清扫上次被杀进程留下的"发送中"僵尸消息
         await refreshUnreadFromServer()
         await syncAllGroups()
+        // 2026-10-20 复核修复：冷启动时 WS 握手失败不会回调 onConnectedChange(false)（初值本来就是 false），
+        // appDidBecomeActive 到来时 started 多半还是 false 直接返回 → 整个前台会话既无 WS 也无轮询。
+        // 启动完成后若仍没连上，先起轮询兜底；WS 一旦连上 onConnectedChange(true) 会停掉它。
+        if !isRealtimeConnected { startPollingIfNeeded() }
     }
 
     /// 更新我所属的群列表（切换/加入/退出家庭后）
@@ -316,7 +320,8 @@ public final class FamilyChatCoordinator: ObservableObject {
     /// 2026-09-07 复核：原来是"先发文本再写状态"，处置请求失败时文本已经发出去了，
     /// 用户重试会在群里重复刷同一句预设话。改为处置成功才发文本。
     @discardableResult
-    public func handleEvent(eventId: String, groupId: String, action: String, presetText: String) async -> Bool {
+    /// 处置求助卡并发一条预设文本。`presetKey` 与 ChatMessage.presetText 的 key 对应（接收方按自己语言渲染）
+    public func handleEvent(eventId: String, groupId: String, action: String, presetText: String, presetKey: String? = nil) async -> Bool {
         struct Req: Encodable { let action: String }
         struct Resp: Decodable { let status: String }
         do {
@@ -326,10 +331,15 @@ public final class FamilyChatCoordinator: ObservableObject {
         } catch {
             return false   // 状态没写成，不发文本，让 UI 可以提示重试
         }
-        await engine.send(groupId: groupId, type: .text, content: presetText)
+        await engine.send(groupId: groupId, type: .text, content: presetText, payload: Self.presetPayload(presetKey ?? action))
         // 拉一次，卡片横幅状态随之更新
         await syncGroupPublic(groupId)
         return true
+    }
+
+    /// 预设回复 payload：{ kind: "preset", preset: key }
+    public static func presetPayload(_ key: String) -> [String: JSONValue] {
+        ["kind": .string("preset"), "preset": .string(key)]
     }
 
     /// 供 UI 触发的公开增量同步

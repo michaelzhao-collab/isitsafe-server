@@ -367,8 +367,19 @@ public actor ChatSyncEngine {
             return
         }
         syncing.insert(groupId)
-        defer { syncing.remove(groupId) }
+        await syncOnce(groupId)
+        // 2026-10-20 复核修复：原来用 defer 移除 syncing 再递归 syncGroup，递归进入时 syncing 仍含该群，
+        // 只会再记一笔 pendingResync 然后返回 —— 「同步中又来信号 → 补一轮」从未生效。
+        // 现在先释放 syncing，再按 pendingResync 循环补拉，直到没有新信号。
+        syncing.remove(groupId)
+        while pendingResync.remove(groupId) != nil {
+            syncing.insert(groupId)
+            await syncOnce(groupId)
+            syncing.remove(groupId)
+        }
+    }
 
+    private func syncOnce(_ groupId: String) async {
         do {
             var changed = false
             if await store.localLastSeq(groupId: groupId) == 0 {
@@ -394,11 +405,6 @@ public actor ChatSyncEngine {
             if changed { onGroupChanged?(groupId) }
         } catch {
             // 同步失败静默：下次信号/激活/轮询会再试（拉为主，不阻断）
-        }
-
-        // 同步期间又来了信号 → 补一轮
-        if pendingResync.remove(groupId) != nil {
-            await syncGroup(groupId)
         }
     }
 

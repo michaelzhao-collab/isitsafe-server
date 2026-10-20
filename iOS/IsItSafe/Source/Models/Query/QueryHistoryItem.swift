@@ -24,7 +24,9 @@ public struct QueryHistoryItem: Codable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id
-        case conversationId = "conversation_id"
+        // 2026-10-20 复核修复：NetworkManager 用 .convertFromSnakeCase，服务端返回 camelCase 的 conversationId，
+        // 原来写死 "conversation_id" 在两种情况下都匹配不上 → 恒 nil → 删除历史走错接口、刷新后复活
+        case conversationId
         case userId
         case content
         case createdAt

@@ -17,9 +17,8 @@ public struct ReportSubmitResponse: Codable {
     public let createdAt: String?
 
     enum CodingKeys: String, CodingKey {
+        // 2026-10-20：NetworkManager 用 .convertFromSnakeCase，显式 snake key 永远匹配不上
         case id, userId, type, content, status, createdAt
-        case relatedQueryId = "related_query_id"
-        case handledBy = "handled_by"
-        case handledAt = "handled_at"
+        case relatedQueryId, handledBy, handledAt
     }
 }

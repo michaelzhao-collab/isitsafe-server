@@ -12,13 +12,17 @@ public final class ResponseValidator {
         guard let http = response as? HTTPURLResponse else {
             throw APIError.unknown(L10n.tr(zh: "无效响应", en: "Invalid response"))
         }
-        // 强制打印非 2xx 的返回体，便于小白定位（不会依赖 DEBUG 开关）
+        // 非 2xx 返回体：Debug 打全文便于定位；Release 只打状态码（2026-10-20 复核：返回体可能带用户内容回显）
         if !(200...299).contains(http.statusCode) {
+            #if DEBUG
             if let data = data, let str = String(data: data, encoding: .utf8) {
                 print("NETWORK HTTP_ERROR:", "status=\(http.statusCode)", "body=", str)
             } else {
                 print("NETWORK HTTP_ERROR:", "status=\(http.statusCode)", "body=<empty or non-utf8>")
             }
+            #else
+            print("NETWORK HTTP_ERROR:", "status=\(http.statusCode)", "size=\(data?.count ?? 0)")
+            #endif
         }
         switch http.statusCode {
         case 200...299:

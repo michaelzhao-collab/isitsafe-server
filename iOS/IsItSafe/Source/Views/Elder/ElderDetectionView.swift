@@ -225,7 +225,11 @@ public struct ElderDetectionView: View {
             : "正在识别图片中的文字..."
         Task {
             let ocrText = await ImageOCR.recognize(from: image)
+            #if DEBUG
             print("[ElderDetection] OCR text length = \(ocrText.count): \(ocrText.prefix(80))")
+            #else
+            print("[ElderDetection] OCR text length = \(ocrText.count)")
+            #endif
             await MainActor.run {
                 if ocrText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     isProcessing = false
@@ -292,7 +296,11 @@ public struct ElderDetectionView: View {
                     processingMessage = languageCode == "en"
                         ? "AI is checking..."
                         : "AI 正在帮您判断..."
+                    #if DEBUG
                     print("[ElderDetection] voice text: \(trimmed)")
+                    #else
+                    print("[ElderDetection] voice text length = \(trimmed.count)")
+                    #endif
                     installWatchdog()
                     vm.inputText = trimmed
                     vm.analyze()
@@ -300,7 +308,7 @@ public struct ElderDetectionView: View {
             } catch {
                 await MainActor.run {
                     isRecordingVoice = false
-                    errorMessage = error.localizedDescription
+                    if !(error is CancellationError) { errorMessage = error.localizedDescription }
                 }
             }
         }
@@ -363,7 +371,8 @@ public struct ElderDetectionView: View {
     private func cancelAnything() {
         tts.stop()
         voiceTask?.cancel()
-        SpeechRecognitionService.shared.stopRecording()
+        // 2026-10-20：用 cancelRecording 丢弃整段录音（stopRecording 只是结束采样，识别结果仍会送去分析扣次数）
+        SpeechRecognitionService.shared.cancelRecording()
         isProcessing = false
         isRecordingVoice = false
     }

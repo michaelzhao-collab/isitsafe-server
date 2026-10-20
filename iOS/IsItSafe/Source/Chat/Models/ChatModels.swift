@@ -227,6 +227,32 @@ nonisolated public enum ChatSignal: Decodable {
     }
 }
 
+// MARK: - 快捷回复本地化（2026-10-20）
+
+nonisolated extension ChatMessage {
+    /// 求助卡 chips（别信 / 没事 / 我看看）与「提醒 TA 看」发出的文本消息：
+    /// payload 带 { kind: "preset", preset: <key> }，接收方按自己的 App 语言渲染；content 保留发送方语言的文本
+    /// 给老版本 / 推送预览兜底。原来直接落发送方语言，中文长辈会收到 "Don't trust it"。
+    public static func presetText(_ key: String, isEnglish en: Bool) -> String? {
+        switch key {
+        case "dismissed": return en ? "Don't trust it" : "别信❗"
+        case "confirmed_safe": return en ? "It's fine, don't worry" : "没事，放心"
+        case "checking": return en ? "Let me check" : "我看看"
+        case "remind": return en ? "Please read the case above" : "提醒大家看看上面这条案例"
+        default: return nil
+        }
+    }
+
+    /// 文本气泡显示用：预设回复按当前语言，其余原样
+    public func displayText(isEnglish en: Bool) -> String {
+        if payload?.string("kind") == "preset", let key = payload?.string("preset"),
+           let text = Self.presetText(key, isEnglish: en) {
+            return text
+        }
+        return content ?? ""
+    }
+}
+
 // MARK: - 系统消息本地化（2026-10-06）
 
 nonisolated extension ChatMessage {

@@ -392,7 +392,7 @@ public struct FamilyChatView: View {
     @ViewBuilder
     private func menuItems(for msg: ChatMessage) -> some View {
         // 复制（文本）
-        if msg.type == .text || msg.type == .bigEmoji, let text = msg.content, !text.isEmpty {
+        if msg.type == .text || msg.type == .bigEmoji, case let text = msg.displayText(isEnglish: languageIsEnglish), !text.isEmpty {
             Button {
                 UIPasteboard.general.string = text
             } label: { Label(localized(zh: "复制", en: "Copy"), systemImage: "doc.on.doc") }
@@ -499,7 +499,7 @@ public struct FamilyChatView: View {
 
     private func textBubble(_ msg: ChatMessage, mine: Bool) -> some View {
         let isBig = msg.type == .bigEmoji
-        return Text(msg.content ?? "")
+        return Text(msg.displayText(isEnglish: languageIsEnglish))
             .font(.system(size: isBig ? elderScaled(40) : elderScaled(16)))
             .foregroundColor(mine ? Color(hex: "1A1F2E") : AppTheme.textPrimary)
             .padding(.horizontal, isBig ? 4 : 13)

@@ -491,7 +491,7 @@ public struct HomeContainerView: View {
                                 let text = try? await SpeechRecognitionService.shared.startRecording()
                                 watchdog.cancel()
                                 await MainActor.run {
-                                    if let t = text, !t.isEmpty {
+                                    if let t = text, !t.isEmpty, !Task.isCancelled {
                                         // 有待发图片时走"图+文"路径，否则纯文本
                                         // 之前 bug：直接 analyze() 把图片丢了
                                         if let img = homeVm.pendingImage {
@@ -519,7 +519,7 @@ public struct HomeContainerView: View {
                         onVoiceCancel: {
                             // 上滑取消：不解析识别结果，直接放弃整段录音
                             voiceHintText = (languageCode == "en" ? "Hold to speak" : "按住说话")
-                            SpeechRecognitionService.shared.stopRecording()
+                            SpeechRecognitionService.shared.cancelRecording()
                             voiceRecordingTask?.cancel()
                             voiceRecordingTask = nil
                             // 同上：强制复位 overlay，避免 gesture 没 fire onEnded 时残留
