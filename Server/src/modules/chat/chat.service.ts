@@ -14,6 +14,14 @@ import { NotificationService } from '../notification/notification.service';
 import { SendMessageDto } from './dto/chat.dto';
 import { AppLang, normalizeLang } from '../../common/i18n/language.util';
 
+/** 求助卡 chips / 提醒 TA 看 的预设回复文案（与 iOS ChatMessage.presetText 一致），推送预览按接收人语言 */
+const PRESET_TEXT: Record<string, { zh: string; en: string }> = {
+  dismissed: { zh: '别信❗', en: "Don't trust it" },
+  confirmed_safe: { zh: '没事，放心', en: "It's fine, don't worry" },
+  checking: { zh: '我看看', en: 'Let me check' },
+  remind: { zh: '提醒大家看看上面这条案例', en: 'Please read the case above' },
+};
+
 /** 对外消息视图（BigInt → number，隐去内部字段） */
 export interface MessageView {
   id: string;
@@ -379,8 +387,15 @@ export class ChatService {
     const en = lang === 'en';
     switch (msg.type) {
       case 'text':
-      case 'bigEmoji':
+      case 'bigEmoji': {
+        // 2026-10-20：求助卡 chips / 提醒 TA 看 的预设回复按接收人语言渲染（iOS 端 payload {kind:'preset', preset}）
+        const p = msg.payload as Record<string, unknown> | null;
+        if (p && p.kind === 'preset' && typeof p.preset === 'string') {
+          const preset = PRESET_TEXT[p.preset];
+          if (preset) return en ? preset.en : preset.zh;
+        }
         return (msg.content || '').slice(0, 30) || (en ? '[Message]' : '[消息]');
+      }
       case 'voice':
         return en ? '[Voice]' : '[语音]';
       case 'image':
@@ -523,7 +538,7 @@ export class ChatService {
     if (mediaPayload) {
       // fire-and-forget：对象存储删除失败不能影响撤回结果
       void this.mediaCleanup
-        .deleteMessageMedia(mediaPayload)
+        .deleteMessageMedia(mediaPayload, msg.senderId)
         .catch((e) => this.logger.warn(`recall media cleanup failed: ${String(e)}`));
     }
     const memberIds = await this.memberUserIds(groupId);

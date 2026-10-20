@@ -10,6 +10,8 @@ import * as nodeJwt from 'jsonwebtoken';
 import { ChatRealtimeService, RealtimeSocket } from './chat-realtime.service';
 import { getJwtSecret } from '../../common/jwt-secret.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
+import { isIssuedBeforeRevocation, revokedBeforeKey } from '../../common/token-revocation.util';
 
 /**
  * V5.1 自建 IM WebSocket 网关（挂在同一 HTTP server 的 /chat 路径）。
@@ -52,7 +54,7 @@ export class ChatGateway
   private readonly logger = new Logger(ChatGateway.name);
   private readonly jwtSecret: string;
   /** socket → 绑定的 userId + 最近一次收到帧的时间戳 */
-  private readonly meta = new WeakMap<WsClient, { userId: string; lastSeen: number }>();
+  private readonly meta = new WeakMap<WsClient, { userId: string; lastSeen: number; iat?: number }>();
   private heartbeatTimer?: NodeJS.Timeout;
   private readonly liveSockets = new Set<WsClient>();
   /**
@@ -65,6 +67,7 @@ export class ChatGateway
   constructor(
     private realtime: ChatRealtimeService,
     private prisma: PrismaService,
+    private redis: RedisService,
   ) {
     this.jwtSecret = getJwtSecret();
   }
@@ -76,13 +79,14 @@ export class ChatGateway
 
   handleConnection(client: WsClient, request: IncomingMessage): void {
     const token = this.extractToken(request);
-    const userId = this.verify(token);
+    const verified = this.verify(token);
+    const userId = verified?.sub ?? null;
     if (!userId) {
       this.safeSend(client, JSON.stringify({ op: 'error', reason: 'unauthorized' }));
       client.close(4401, 'unauthorized');
       return;
     }
-    this.meta.set(client, { userId, lastSeen: Date.now() });
+    this.meta.set(client, { userId, lastSeen: Date.now(), iat: verified?.iat });
     this.liveSockets.add(client);
     this.realtime.add(userId, client);
 
@@ -103,19 +107,38 @@ export class ChatGateway
     // 2026-09-07 复核修复：原来只验 JWT 签名+过期，被禁用/已删除的账号
     // 凭 7 天有效的 token 仍能握手并持续接收群信号（实测已删除用户可拿到 ready）。
     // 先挂好事件回调再异步查库，避免这段窗口内漏掉 close 事件造成注册表泄漏。
-    void this.assertUserUsable(userId).then((ok) => {
-      if (ok) {
-        this.safeSend(client, JSON.stringify({ op: 'ready' }));
-        return;
-      }
-      this.safeSend(client, JSON.stringify({ op: 'error', reason: 'account_unavailable' }));
-      this.cleanup(client);
-      try {
-        client.close(4403, 'account_unavailable');
-      } catch {
-        /* noop */
-      }
-    });
+    // 2026-10-20 复核修复：REST 侧 JwtStrategy 会查登出吊销（token_revoked_before），这里原来不查，
+    // 登出后旧 token 7 天内仍能握手并持续收到所有群的新消息 / 已读 / 撤回信号。
+    const iat = verified?.iat;
+    void Promise.all([this.assertUserUsable(userId), this.isTokenRevoked(userId, iat)]).then(
+      ([ok, revoked]) => {
+        if (ok && !revoked) {
+          this.safeSend(client, JSON.stringify({ op: 'ready' }));
+          return;
+        }
+        this.safeSend(
+          client,
+          JSON.stringify({ op: 'error', reason: revoked ? 'unauthorized' : 'account_unavailable' }),
+        );
+        this.cleanup(client);
+        try {
+          client.close(revoked ? 4401 : 4403, revoked ? 'unauthorized' : 'account_unavailable');
+        } catch {
+          /* noop */
+        }
+      },
+    );
+  }
+
+  /** 该 token 是否已被登出 / 删号吊销。Redis 不可用时放行（与 REST 侧策略一致）。 */
+  private async isTokenRevoked(userId: string, iat: number | undefined): Promise<boolean> {
+    if (!iat) return false;
+    try {
+      const raw = await this.redis.get(revokedBeforeKey(userId));
+      return isIssuedBeforeRevocation(iat, raw);
+    } catch {
+      return false;
+    }
   }
 
   /** 账号存在且未被禁用（带 60s 缓存）。查库失败时放行，不因 DB 抖动踢掉全部连接。 */
@@ -177,17 +200,21 @@ export class ChatGateway
       }
       // 2026-09-07 复核修复：长连接期间账号被禁用/删号时主动断开，
       // 否则该连接在 token 有效期内（7 天）持续接收家庭群信号。
+      // 2026-10-20：复查时顺带查登出吊销，异地登出 / 换机后已连上的 socket 最多 5 分钟内断开
       if (recheckUsers) {
         const userId = m.userId;
-        void this.assertUserUsable(userId).then((ok) => {
-          if (ok) return;
-          this.cleanup(client);
-          try {
-            client.close(4403, 'account_unavailable');
-          } catch {
-            /* noop */
-          }
-        });
+        const iat = m.iat;
+        void Promise.all([this.assertUserUsable(userId), this.isTokenRevoked(userId, iat)]).then(
+          ([ok, revoked]) => {
+            if (ok && !revoked) return;
+            this.cleanup(client);
+            try {
+              client.close(revoked ? 4401 : 4403, revoked ? 'unauthorized' : 'account_unavailable');
+            } catch {
+              /* noop */
+            }
+          },
+        );
       }
       try {
         client.ping();
@@ -213,11 +240,12 @@ export class ChatGateway
     return null;
   }
 
-  private verify(token: string | null): string | null {
+  private verify(token: string | null): { sub: string; iat?: number } | null {
     if (!token) return null;
     try {
-      const payload = nodeJwt.verify(token, this.jwtSecret) as { sub?: string };
-      return payload?.sub ?? null;
+      const payload = nodeJwt.verify(token, this.jwtSecret) as { sub?: string; iat?: number };
+      if (!payload?.sub) return null;
+      return { sub: payload.sub, iat: typeof payload.iat === 'number' ? payload.iat : undefined };
     } catch {
       return null;
     }

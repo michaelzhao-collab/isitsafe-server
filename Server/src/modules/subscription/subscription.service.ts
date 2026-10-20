@@ -211,11 +211,15 @@ export class SubscriptionService {
   ): Promise<Subscription> {
     const now = new Date();
     const historyEntry = { at: now.toISOString(), ...input.historyEntry };
+    // 2026-10-20 复核修复：同一份 Apple 凭证投到另一个账号时，行会改归新账号，但旧账号的
+    // users.subscriptionExpire 仍是未来时间（AiRateLimitGuard 读的就是它）→ 两个账号共享一份付费。
+    // 这里记下被换走的原主人，事务提交后重算其会员状态。
+    let previousOwner: string | null = null;
 
     // 用事务 + SELECT FOR UPDATE 锁住目标行，串行化并发写入。
     // 优先按 transactionId 命中（已加唯一索引），其次按 originalTransactionId / latestTransactionId 匹配
     // 同一 Apple 订阅生命周期内的多笔续期；都没有则按 userId 取最新一条做更新。
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       let existing: Subscription | null = null;
       if (input.transactionId) {
         // 用 findFirst 而非 findUnique：DB 层已加 UNIQUE 索引保证唯一，
@@ -324,6 +328,7 @@ export class SubscriptionService {
         });
       }
 
+      if (target.userId !== userId) previousOwner = target.userId;
       return tx.subscription.update({
         where: { id: target.id },
         data: {
@@ -347,6 +352,67 @@ export class SubscriptionService {
         },
       });
     });
+    if (previousOwner) {
+      console.warn('[SUBSCRIPTION_OWNER_CHANGED]', {
+        from: previousOwner,
+        to: userId,
+        transactionId: input.transactionId,
+        source: input.historyEntry?.action,
+      });
+      try {
+        await this.recomputeUserSubscription(previousOwner);
+      } catch (err: any) {
+        // 行已换主，这里失败不能让当前用户 verify 变 500（重投时 target.userId 已是本人，原主人不会再被重算）
+        console.error('[SUBSCRIPTION_OWNER_RECOMPUTE_FAILED]', { from: previousOwner, message: err?.message });
+      }
+    }
+    return result;
+  }
+
+  /**
+   * 2026-10-20 复核修复：生产环境此前照单全收 Sandbox 凭证，TestFlight / 沙盒账号免费购买即可拿到正式会员。
+   * 但 App Review 审核员也是用 Sandbox 账号在正式包里购买，一刀切拒绝会导致审核被拒，所以做成策略：
+   *   SUBSCRIPTION_SANDBOX_POLICY = allow（默认，保持原行为，只打日志）
+   *                               | whitelist（仅 SUBSCRIPTION_SANDBOX_ALLOWED_USERS 里的 userId / phone / email 放行）
+   *                               | reject（一律拒绝）
+   * 上线后建议设为 whitelist，并把审核演示账号与自家测试账号放进名单。
+   */
+  private async assertSandboxAllowed(
+    userId: string,
+    environment: string | null,
+    transactionId: string | null,
+  ): Promise<void> {
+    if (!environment || environment.toLowerCase() !== 'sandbox') return;
+    const policy = String(this.config.get('SUBSCRIPTION_SANDBOX_POLICY') || 'allow')
+      .trim()
+      .toLowerCase();
+    if (policy !== 'whitelist' && policy !== 'reject') {
+      if (policy !== 'allow') console.warn('[SUBSCRIPTION_SANDBOX_POLICY_UNKNOWN]', { policy });
+      console.warn('[SUBSCRIPTION_SANDBOX_ACCEPTED]', { userId, transactionId, policy });
+      return;
+    }
+    if (policy === 'whitelist') {
+      const allowed = String(this.config.get('SUBSCRIPTION_SANDBOX_ALLOWED_USERS') || '')
+        .split(',')
+        .map((v) => v.trim().toLowerCase())
+        .filter(Boolean);
+      if (allowed.length) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, phone: true, email: true },
+        });
+        const idents = [user?.id, user?.phone, user?.email]
+          .filter((v): v is string => !!v)
+          .map((v) => v.toLowerCase());
+        if (idents.some((v) => allowed.includes(v))) {
+          console.warn('[SUBSCRIPTION_SANDBOX_ACCEPTED]', { userId, transactionId, policy });
+          return;
+        }
+      }
+    }
+    console.warn('[SUBSCRIPTION_SANDBOX_REJECTED]', { userId, transactionId, policy });
+    // 400 而非 401：iOS 对 401 会清会话
+    throw new BadRequestException('Sandbox receipts are not accepted in this environment');
   }
 
   private async getAppleJwks(): Promise<AppleJwk[]> {
@@ -567,6 +633,18 @@ export class SubscriptionService {
       return;
     }
 
+    // 沙盒策略同样作用于通知路径：allow 期间建立的沙盒行，切到 whitelist/reject 后不再被通知续期
+    try {
+      await this.assertSandboxAllowed(
+        existing.userId,
+        txn.environment || payload.data?.environment || existing.environment || null,
+        txId,
+      );
+    } catch {
+      console.log('[APPLE_NOTIFICATION] skip (sandbox policy)', { notificationType, txId, userId: existing.userId });
+      return;
+    }
+
     const expireTime = parseDate(txn.expiresDate) || existing.expireTime;
     const revokedAt = parseDate(txn.revocationDate);
 
@@ -683,6 +761,7 @@ export class SubscriptionService {
       expireTime = parseDate(txn.expiresDate);
       purchaseDate = parseDate(txn.purchaseDate);
       environment = txn.environment || null;
+      await this.assertSandboxAllowed(userId, environment, finalTransactionId);
       if (parseDate(txn.revocationDate)) {
         status = 'revoked';
       }

@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { MailService } from '../mail/mail.service';
+import { EntitlementService } from '../quota/entitlement.service';
 import { Cron } from '@nestjs/schedule';
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual, createCipheriv, createDecipheriv } from 'crypto';
 import axios from 'axios';
@@ -145,6 +146,7 @@ export class BreachService {
     private prisma: PrismaService,
     private redis: RedisService,
     private mail: MailService,
+    private entitlement: EntitlementService,
   ) {}
 
   // ====================================================================
@@ -182,10 +184,10 @@ export class BreachService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, subscriptionStatus: true, subscriptionExpire: true },
+      select: { email: true },
     });
-    const isPro = user?.subscriptionStatus === 'premium' &&
-      (!user.subscriptionExpire || user.subscriptionExpire > new Date());
+    // 2026-10-20 复核修复：与 /query、/ai 统一走 EntitlementService，家庭套餐成员同样享 5 个监控目标
+    const isPro = (await this.entitlement.getUserEntitlement(userId)).isUnlimited;
     const maxTargets = isPro ? 5 : 1;
     const count = await this.prisma.breachTarget.count({ where: { userId } });
     // 重新添加「旧数据（没加密、扫不了）」的同一个邮箱：只是补密文，不算新增名额

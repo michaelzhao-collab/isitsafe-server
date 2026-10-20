@@ -141,7 +141,7 @@ export class QueryService {
   }
 
   async queryUrl(url: string, userId?: string, imCapable = false) {
-    console.log('[QUERY_URL] 输入 content=' + JSON.stringify(url?.slice(0, 200)) + ' （本接口仅查风险库，不调用豆包）');
+    console.log('[QUERY_URL] 输入 len=' + (url?.length ?? 0) + ' （本接口仅查风险库，不调用豆包）');
     // 内部调用（ai.service 抽取 URL 失败）可能传空串，直接返回低风险，不查库不播报
     if (!isUsableQueryContent('url', url)) {
       console.log('[QUERY_URL] 输入无效，跳过风险库查询');

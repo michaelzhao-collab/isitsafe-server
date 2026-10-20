@@ -3,6 +3,9 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../../common/guards/admin-role.guard';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AI_V2, DEFAULT_DOUBAO_MODEL, PROMPT_VERSION } from '../../common/ai-flags';
+import { aiCallDiagnostics } from '../ai/providers/ai-provider.service';
+import { breachConfigStatus } from '../breach/breach.service';
 
 /**
  * Admin 诊断端点：用于上线后快速验证 Push / Apple webhook 是否打通。
@@ -114,6 +117,25 @@ export class AdminDiagnosticsController {
    *
    * 返回该用户 subscription 表的 historyLog 中 action='apple_notification' 的条目。
    */
+  /**
+   * AI / 泄露监控配置与最近一次模型调用诊断（原在匿名 /api/health，2026-10-20 挪到这里）。
+   *   curl https://api.starlensai.com/api/admin/diagnostics/ai -H "Authorization: Bearer <ADMIN_TOKEN>"
+   */
+  @Get('ai')
+  aiDiagnostics() {
+    return {
+      model: process.env.DOUBAO_MODEL || DEFAULT_DOUBAO_MODEL,
+      thinking: process.env.DOUBAO_THINKING || 'disabled',
+      promptVersion: PROMPT_VERSION,
+      v2: AI_V2,
+      providerEnv: process.env.AI_PROVIDER || null,
+      fallbackEnv: process.env.AI_FALLBACK_PROVIDER || null,
+      keys: { doubao: !!process.env.DOUBAO_API_KEY, deepseek: !!process.env.DEEPSEEK_API_KEY },
+      calls: aiCallDiagnostics,
+      breach: { ...breachConfigStatus(), mail: !!process.env.BREVO_API_KEY },
+    };
+  }
+
   @Get('apple-webhook-history')
   async appleWebhookHistory(@Body() _body: unknown) {
     // 取最近 20 个有 historyLog 的订阅（按 updatedAt desc）

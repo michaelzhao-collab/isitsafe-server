@@ -4,9 +4,10 @@ import { BreachService } from './breach.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { MailModule } from '../mail/mail.module';
 import { OverseaOnlyGuard } from '../../common/guards/oversea-only.guard';
+import { QuotaModule } from '../quota/quota.module';
 
 @Module({
-  imports: [PrismaModule, MailModule],
+  imports: [PrismaModule, MailModule, QuotaModule],
   controllers: [BreachController],
   providers: [BreachService, OverseaOnlyGuard],
   exports: [BreachService],

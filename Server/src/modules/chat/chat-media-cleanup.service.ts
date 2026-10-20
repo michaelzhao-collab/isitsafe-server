@@ -38,12 +38,18 @@ export class ChatMediaCleanupService {
    * 删除一条 voice/image 消息 payload 里引用的对象。
    * fire-and-forget 语义：内部吞掉所有异常，调用方无需 await 结果。
    */
-  async deleteMessageMedia(payload: unknown): Promise<void> {
+  async deleteMessageMedia(payload: unknown, senderId: string): Promise<void> {
     if (!this.client || !this.cdnDomain) return;
     const urls = this.collectUrls(payload);
     for (const url of urls) {
       const key = this.objectKeyFromCdnUrl(url);
       if (!key) continue;
+      // 2026-10-20 复核修复：只能删发送者自己上传的家庭群附件。
+      // 原来域名对上就删，payload.url 指向别人头像 / 知识库配图再撤回 = 删掉任意对象。
+      if (!this.isOwnedChatMediaKey(key, senderId)) {
+        this.logger.warn(`[ChatMedia] skip non-owned key=${key} sender=${senderId}`);
+        continue;
+      }
       try {
         await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
       } catch (err) {
@@ -59,6 +65,17 @@ export class ChatMediaCleanupService {
     return ['url', 'thumb']
       .map((k) => p[k])
       .filter((v): v is string => typeof v === 'string' && v.length > 0);
+  }
+
+  /**
+   * Key 必须是 upload.service 为家庭群附件生成的形态：
+   * `family/images/{userId}-{ts}-{rand}.{ext}` 或 `family/voice/...`，且 userId 等于发送者。
+   */
+  private isOwnedChatMediaKey(key: string, senderId: string): boolean {
+    if (!senderId) return false;
+    const m = /^family\/(images|voice)\/([^/]+)$/.exec(key);
+    if (!m) return false;
+    return m[2].startsWith(`${senderId}-`);
   }
 
   /** 仅接受本项目 CDN 域名下的 URL，避免把任意外链当成自家对象去删 */

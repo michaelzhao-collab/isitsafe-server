@@ -233,8 +233,12 @@ export class AiProviderService {
   async analyzeWithOpenAI(prompt: string, systemPrompt: string, timeoutMs?: number): Promise<AiCallResult> {
     const { apiKey, baseUrl } = await this.getOpenAIConfig();
     if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
-    console.log('[OPENAI] 调用前 SYSTEM_PROMPT_FULL:\n' + systemPrompt);
-    console.log('[OPENAI] 调用前 USER_PROMPT_FULL:\n' + prompt);
+    console.log('[OPENAI] REQUEST systemPromptLen=' + systemPrompt.length + ' userPromptLen=' + prompt.length);
+    if (AI_DEBUG_LOG) {
+      // 含用户原文（个人信息），默认不打；与豆包分支同一开关
+      console.log('[OPENAI] SYSTEM_PROMPT_FULL:\n' + systemPrompt);
+      console.log('[OPENAI] USER_PROMPT_FULL:\n' + prompt);
+    }
     const start = Date.now();
     const res = await axios.post(
       `${baseUrl}/chat/completions`,
@@ -253,7 +257,8 @@ export class AiProviderService {
     );
     const content = res.data?.choices?.[0]?.message?.content;
     const usage = res.data?.usage;
-    console.log('[OPENAI] 返回原始(未解析):\n' + (content ?? '(empty)'));
+    if (AI_DEBUG_LOG) console.log('[OPENAI] 返回原始(未解析):\n' + (content ?? '(empty)'));
+    else console.log('[OPENAI] RESPONSE len=' + (content?.length ?? 0));
     if (!content) throw new Error('Invalid OpenAI response');
     return {
       raw: content,
